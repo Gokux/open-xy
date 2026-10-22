@@ -8,7 +8,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 const browserRoot = resolve(root, 'builder');
 const renderers = ['display.mjs', 'segments.mjs', 'engine.mjs', 'processor.mjs'].map(name => resolve(root, 'sdk/browser', name));
 const browserFiles = ['index.html', 'entry.mjs', 'style.css', 'app.mjs', 'core.mjs', 'wizard.mjs', 'ferret.mjs', 'visuals.mjs', 'audition.mjs'];
-const kitKeys = new Set(['format','profile','profileSource','definitions','limits','startup','machines','objects','notices','stockCatalog','screenTemplate']);
+const kitKeys = new Set(['format','profile','profileSource','definitions','machines','objects','notices','stockCatalog','screenTemplate']);
 
 // Check both the supplied path and its physical destination, including a new
 // directory below an existing symlink/junction. Worktrees have a .git file.

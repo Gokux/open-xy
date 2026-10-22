@@ -37,11 +37,14 @@ REGISTRATION = dict(ENGINE_RECORDS='%#x' % ENGINE_RECORDS, ENGINE_LIMIT=str(ENGI
                     SCREEN_SLOTS='%#x' % SCREEN_SLOTS, PAGE_LIMIT=str(SCREEN_COUNT))
 
 
-def check_assignment(engine_id, page_id):
-    """IDs a relocated build may register: in range, never the stock sentinels."""
-    require(type(engine_id) is int and 0 < engine_id < ENGINE_COUNT and engine_id != ENGINE_SENTINEL and
-            type(page_id) is int and 0 < page_id < SCREEN_COUNT and page_id != PAGE_SENTINEL,
-            'Engine/page ID outside the relocated tables or equal to a stock sentinel')
+def check_profile(profile):
+    """The profile's table geometry, identity bounds and table edits agree with this independent audit."""
+    ids = profile['identities']
+    require(ids['engines'] == ENGINE_COUNT and ids['engine_none'] == ENGINE_SENTINEL and
+            ids['pages'] == SCREEN_COUNT and ids['page_none'] == PAGE_SENTINEL, 'Identity bounds differ from the tables')
+    end = profile['module_base'] + profile['reserved_bytes']
+    require(end == RESERVATION_END and end - profile['table_bytes'] == SCREEN_SLOTS, 'Table bytes differ from the tables')
+    check_edits([p for p in profile['patches'] if p['kind'] == 'table'])
 
 
 def decode(kind, raw):
@@ -61,10 +64,10 @@ def decode(kind, raw):
     return word & ~(0x7f << 3), value - 0x80 if value & 0x40 else value
 
 
-def check_edits(patches, base=7):
-    """The reviewed hook and heap edits first, then exactly the table edits."""
-    require(len(patches) == base + len(EDITS), 'Unexpected table edit count')
-    for patch, (site, kind, stock, relocated) in zip(patches[base:], EDITS):
+def check_edits(patches):
+    """Exactly the audited table edits, in order, each changing only its immediate."""
+    require(len(patches) == len(EDITS), 'Unexpected table edit count')
+    for patch, (site, kind, stock, relocated) in zip(patches, EDITS):
         require(int(patch['address'], 16) == site and patch['length'] == SIZES[kind], 'Unexpected table edit site')
         before, after = bytes.fromhex(patch['before']), bytes.fromhex(patch['after'])
         opcode, value = decode(kind, before)

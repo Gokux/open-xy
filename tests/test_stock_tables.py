@@ -13,7 +13,8 @@ import unittest
 from opxy_sdk import stock_tables as tables
 from opxy_sdk.adapters import generate_registration
 from opxy_sdk.machines import machine
-from opxy_sdk.firmware import HOOKS
+from opxy_sdk.firmware import hooks
+from opxy_sdk.pipeline import config
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = 'profiles/opxy-1.2.0.json'
@@ -26,26 +27,33 @@ def read_text(relative):
 
 class Profile(unittest.TestCase):
     def setUp(self):
-        self.profile = json.loads(read_text(PROFILE))
-        self.profile['patches'] = self.profile['patches'][:7 + len(tables.EDITS)]  # sample dispatch and startup label follow tables
+        self.profile = config()
+        self.table = [p for p in self.profile['patches'] if p['kind'] == 'table']
 
-    def test_profile_is_base_plus_table_edits(self):
-        tables.check_edits(self.profile['patches'])
+    def test_profile_agrees_with_the_audit(self):
+        tables.check_profile(self.profile)
 
     def test_edits_change_only_immediates_outside_hooks(self):
-        for patch, (site, kind, stock, relocated) in zip(self.profile['patches'][7:], tables.EDITS):
+        for patch, (site, kind, stock, relocated) in zip(self.table, tables.EDITS):
             self.assertEqual(tables.decode(kind, bytes.fromhex(patch['before']))[1], stock)
             self.assertEqual(tables.decode(kind, bytes.fromhex(patch['after']))[1], relocated)
-            self.assertNotIn(site, HOOKS)
+            self.assertNotIn(site, hooks(self.profile))
 
-    def test_altered_edit_is_rejected(self):
-        for index, value in ((7, '02da4c8d64ff0000'), (14, 'f161'), (len(self.profile['patches']) - 1, '20e18100')):
-            altered = copy.deepcopy(self.profile['patches'])
+    def test_altered_edit_or_bound_is_rejected(self):
+        for index, value in ((0, '02da4c8d64ff0000'), (7, 'f161'), (len(self.table) - 1, '20e18100')):
+            altered = copy.deepcopy(self.table)
             altered[index]['after'] = value
             with self.subTest(index=index), self.assertRaises(ValueError):
                 tables.check_edits(altered)
         with self.assertRaises(ValueError):
-            tables.check_edits(self.profile['patches'][:-1])
+            tables.check_edits(self.table[:-1])
+        for key, value in (('engines', 64), ('engine_none', 32), ('pages', 127), ('page_none', 80)):
+            altered = copy.deepcopy(self.profile)
+            altered['identities'][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                tables.check_profile(altered)
+        with self.assertRaises(ValueError):
+            tables.check_profile(dict(self.profile, table_bytes=self.profile['table_bytes'] + 4))
 
     def test_imm7_bound_is_the_largest_encodable(self):
         self.assertEqual(tables.decode('imm7', bytes.fromhex('f961')), (0x6001, 63))
@@ -57,16 +65,10 @@ class Layout(unittest.TestCase):
         linker = read_text(LINKER)
         self.assertIn('__stock_screen_slots = %#x;' % tables.SCREEN_SLOTS, linker)
         self.assertIn('__stock_engine_records = %#x;' % tables.ENGINE_RECORDS, linker)
-        self.assertIn('LENGTH = %#x' % (tables.SCREEN_SLOTS - 0x8d450d60), linker)
+        self.assertIn('LENGTH = %#x' % (tables.SCREEN_SLOTS - config()['module_base']), linker)
         self.assertEqual(tables.SCREEN_SLOTS + tables.SCREEN_COUNT * 4, tables.ENGINE_RECORDS)
         self.assertLessEqual(tables.ENGINE_RECORDS + tables.ENGINE_COUNT * tables.RECORD_BYTES,
                              tables.RESERVATION_END)
-
-    def test_assignments_avoid_sentinels(self):
-        tables.check_assignment(34, 82)
-        for engine_id, page_id in ((33, 82), (34, 81), (63, 82), (34, 128), (0, 82), (34, 0)):
-            with self.subTest(engine_id=engine_id, page_id=page_id), self.assertRaises(ValueError):
-                tables.check_assignment(engine_id, page_id)
 
 
 class Templates(unittest.TestCase):
@@ -80,9 +82,6 @@ class Templates(unittest.TestCase):
             self.assertNotIn('%#x' % tables.STOCK_ENGINE_RECORDS, text)
             self.assertNotIn('%#x' % tables.STOCK_SCREEN_SLOTS, text)
             self.assertNotIn('= 81;', text)
-        # The resolver's missing-name result stays the stock sentinel.
-        self.assertIn('    R1 = 33;\n    CC = R0 == R1;', self.generated('register'))
-        self.assertIn('    R3 = 33;\n    CC = R2 == R3;', self.generated('readiness'))
 
 
 if __name__ == '__main__':

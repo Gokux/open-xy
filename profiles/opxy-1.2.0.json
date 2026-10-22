@@ -14,390 +14,480 @@
   "heap_fill_bytes": 20971524,
   "stock_records": 999,
   "linker_sha256": "e5229303266e5ee37fc2490cbc45508508e0f0fb1058cd9b9c0901a4591b7b78",
+  "table_bytes": 4096,
+  "identities": {
+    "engines": 63,
+    "engine_none": 33,
+    "stock_engines": [
+      2,
+      3,
+      4,
+      6,
+      7,
+      18,
+      19,
+      20,
+      22,
+      29,
+      30,
+      31,
+      32
+    ],
+    "pages": 128,
+    "page_none": 81,
+    "sample_pages": [
+      2,
+      7
+    ],
+    "effects": [
+      1,
+      2,
+      3,
+      4,
+      6,
+      7,
+      8,
+      11
+    ],
+    "effect_page": 21
+  },
+  "stock_catalog_inserts": {
+    "fx_types": 1583,
+    "engine_types": 4435
+  },
+  "screen_template_sha256": "88ed06af444dd76773dd905204577f0f1eeca548a8cdd92dc760e6ae67147e4e",
   "patches": [
     {
+      "kind": "heap",
+      "name": "IN-MEMORY application heap 0x1400000 -> 0x1380000 (512 KiB module reservation)",
       "address": "0x8d4d0d9a",
-      "before": "01da400100000000",
-      "after": "01da380100000000",
-      "name": "IN-MEMORY application heap 0x1400000 -> 0x1380000 (512 KiB module reservation)",
       "file_offset": "0x108176",
-      "length": 8
-    },
-    {
-      "address": "0x8d4d0db4",
+      "length": 8,
       "before": "01da400100000000",
-      "after": "01da380100000000",
+      "after": "01da380100000000"
+    },
+    {
+      "kind": "heap",
       "name": "IN-MEMORY application heap 0x1400000 -> 0x1380000 (512 KiB module reservation)",
+      "address": "0x8d4d0db4",
       "file_offset": "0x108190",
-      "length": 8
+      "length": 8,
+      "before": "01da400100000000",
+      "after": "01da380100000000"
     },
     {
-      "name": "IN-MEMORY jump to extensions_synth_exit",
+      "kind": "hook",
       "address": "0x8d5063b2",
-      "before": "c66cbb05",
-      "after": "fde2ddd6",
       "file_offset": "0x13d78e",
-      "length": 4
+      "length": 4,
+      "before": "c66cbb05",
+      "symbol": "extensions_synth_exit",
+      "call": false
     },
     {
-      "name": "IN-MEMORY jump to extensions_screen_exit",
+      "kind": "hook",
       "address": "0x8d5231e4",
-      "before": "01e80000",
-      "after": "fce2ddef",
       "file_offset": "0x15a5c0",
-      "length": 4
-    },
-    {
-      "name": "IN-MEMORY jump to extensions_screen_exit",
-      "address": "0x8d523240",
+      "length": 4,
       "before": "01e80000",
-      "after": "fce2afef",
+      "symbol": "extensions_screen_exit",
+      "call": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d523240",
       "file_offset": "0x15a61c",
-      "length": 4
+      "length": 4,
+      "before": "01e80000",
+      "symbol": "extensions_screen_exit",
+      "call": false
     },
     {
-      "name": "IN-MEMORY call to extensions_catalog_checked",
+      "kind": "hook",
       "address": "0x8d4e09d6",
-      "before": "06e365d8",
-      "after": "ffe37904",
       "file_offset": "0x117db2",
-      "length": 4
+      "length": 4,
+      "before": "06e365d8",
+      "symbol": "extensions_catalog_checked",
+      "call": true
     },
     {
-      "name": "IN-MEMORY call to extensions_catalog_checked",
+      "kind": "hook",
       "address": "0x8d4e0b78",
-      "before": "06e394d7",
-      "after": "ffe3a803",
       "file_offset": "0x117f54",
-      "length": 4
+      "length": 4,
+      "before": "06e394d7",
+      "symbol": "extensions_catalog_checked",
+      "call": true
     },
     {
+      "kind": "table",
+      "name": "IN-MEMORY engine record base -> relocated table",
       "address": "0x8d504c42",
-      "before": "02da6e84e8a20000",
-      "after": "02da4c8d60ff0000",
-      "name": "IN-MEMORY engine record base -> relocated table",
       "file_offset": "0x13c01e",
-      "length": 8
+      "length": 8,
+      "before": "02da6e84e8a20000",
+      "after": "02da4c8d60ff0000"
     },
     {
+      "kind": "table",
+      "name": "IN-MEMORY engine record base -> relocated table",
       "address": "0x8d504cee",
-      "before": "02da6e84e8a20000",
-      "after": "02da4c8d60ff0000",
-      "name": "IN-MEMORY engine record base -> relocated table",
       "file_offset": "0x13c0ca",
-      "length": 8
-    },
-    {
-      "address": "0x8d504d16",
+      "length": 8,
       "before": "02da6e84e8a20000",
-      "after": "02da4c8d60ff0000",
+      "after": "02da4c8d60ff0000"
+    },
+    {
+      "kind": "table",
       "name": "IN-MEMORY engine record base -> relocated table",
+      "address": "0x8d504d16",
       "file_offset": "0x13c0f2",
-      "length": 8
+      "length": 8,
+      "before": "02da6e84e8a20000",
+      "after": "02da4c8d60ff0000"
     },
     {
+      "kind": "table",
+      "name": "IN-MEMORY engine record base -> relocated table",
       "address": "0x8d505eda",
-      "before": "08da6e84e8a20000",
-      "after": "08da4c8d60ff0000",
-      "name": "IN-MEMORY engine record base -> relocated table",
       "file_offset": "0x13d2b6",
-      "length": 8
-    },
-    {
-      "address": "0x8d506192",
-      "before": "00da6e84e8a20000",
-      "after": "00da4c8d60ff0000",
-      "name": "IN-MEMORY engine record base -> relocated table",
-      "file_offset": "0x13d56e",
-      "length": 8
-    },
-    {
-      "address": "0x8d506624",
-      "before": "01da6e84e8a20000",
-      "after": "01da4c8d60ff0000",
-      "name": "IN-MEMORY engine record base -> relocated table",
-      "file_offset": "0x13da00",
-      "length": 8
-    },
-    {
-      "address": "0x8d50684e",
+      "length": 8,
       "before": "08da6e84e8a20000",
-      "after": "08da4c8d60ff0000",
+      "after": "08da4c8d60ff0000"
+    },
+    {
+      "kind": "table",
       "name": "IN-MEMORY engine record base -> relocated table",
+      "address": "0x8d506192",
+      "file_offset": "0x13d56e",
+      "length": 8,
+      "before": "00da6e84e8a20000",
+      "after": "00da4c8d60ff0000"
+    },
+    {
+      "kind": "table",
+      "name": "IN-MEMORY engine record base -> relocated table",
+      "address": "0x8d506624",
+      "file_offset": "0x13da00",
+      "length": 8,
+      "before": "01da6e84e8a20000",
+      "after": "01da4c8d60ff0000"
+    },
+    {
+      "kind": "table",
+      "name": "IN-MEMORY engine record base -> relocated table",
+      "address": "0x8d50684e",
       "file_offset": "0x13dc2a",
-      "length": 8
+      "length": 8,
+      "before": "08da6e84e8a20000",
+      "after": "08da4c8d60ff0000"
     },
     {
-      "address": "0x8d504d06",
-      "before": "0961",
-      "after": "f961",
+      "kind": "table",
       "name": "IN-MEMORY engine record validity bound -> relocated table",
+      "address": "0x8d504d06",
       "file_offset": "0x13c0e2",
-      "length": 2
+      "length": 2,
+      "before": "0961",
+      "after": "f961"
     },
     {
-      "address": "0x8d50618c",
-      "before": "22e13006",
-      "after": "22e1d00b",
+      "kind": "table",
       "name": "IN-MEMORY engine record count -> relocated table",
+      "address": "0x8d50618c",
       "file_offset": "0x13d568",
-      "length": 4
+      "length": 4,
+      "before": "22e13006",
+      "after": "22e1d00b"
     },
     {
+      "kind": "table",
+      "name": "IN-MEMORY screen slot base -> relocated table",
       "address": "0x8d51fbca",
-      "before": "00daeb84c0bf0000",
-      "after": "00da4c8d60fd0000",
-      "name": "IN-MEMORY screen slot base -> relocated table",
       "file_offset": "0x156fa6",
-      "length": 8
-    },
-    {
-      "address": "0x8d51fc00",
+      "length": 8,
       "before": "00daeb84c0bf0000",
-      "after": "00da4c8d60fd0000",
+      "after": "00da4c8d60fd0000"
+    },
+    {
+      "kind": "table",
       "name": "IN-MEMORY screen slot base -> relocated table",
+      "address": "0x8d51fc00",
       "file_offset": "0x156fdc",
-      "length": 8
+      "length": 8,
+      "before": "00daeb84c0bf0000",
+      "after": "00da4c8d60fd0000"
     },
     {
+      "kind": "table",
+      "name": "IN-MEMORY screen slot count -> relocated table",
       "address": "0x8d51fcf6",
-      "before": "27e15100",
-      "after": "27e18000",
-      "name": "IN-MEMORY screen slot count -> relocated table",
       "file_offset": "0x1570d2",
-      "length": 4
-    },
-    {
-      "address": "0x8d520176",
+      "length": 4,
       "before": "27e15100",
-      "after": "27e18000",
+      "after": "27e18000"
+    },
+    {
+      "kind": "table",
       "name": "IN-MEMORY screen slot count -> relocated table",
+      "address": "0x8d520176",
       "file_offset": "0x157552",
-      "length": 4
+      "length": 4,
+      "before": "27e15100",
+      "after": "27e18000"
     },
     {
-      "address": "0x8d5208fc",
-      "before": "20e15100",
-      "after": "20e18000",
+      "kind": "table",
       "name": "IN-MEMORY screen slot count -> relocated table",
+      "address": "0x8d5208fc",
       "file_offset": "0x157cd8",
-      "length": 4
+      "length": 4,
+      "before": "20e15100",
+      "after": "20e18000"
     },
     {
-      "name": "IN-MEMORY shared sample dispatch -> extensions_sample_classify",
+      "kind": "hook",
       "address": "0x8d5b5b38",
-      "before": "980d00e80000",
-      "after": "f4e214d90000",
       "file_offset": "0x1ecf10",
-      "length": 6
+      "length": 6,
+      "before": "980d00e80000",
+      "symbol": "extensions_sample_classify",
+      "call": false
     },
     {
-      "name": "IN-MEMORY shared sample dispatch -> extensions_sample_note_region",
+      "kind": "hook",
       "address": "0x8d5ab9a0",
-      "before": "f5602f08",
-      "after": "f5e3e029",
       "file_offset": "0x1e2d78",
-      "length": 4
+      "length": 4,
+      "before": "f5602f08",
+      "symbol": "extensions_sample_note_region",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_cache_destroy",
+      "kind": "hook",
       "address": "0x8d50b5d8",
-      "before": "ffe304e3",
-      "after": "fae3c42b",
       "file_offset": "0x1429b4",
-      "length": 4
+      "length": 4,
+      "before": "ffe304e3",
+      "symbol": "sdk_sample_cache_destroy",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_progress_frame",
+      "kind": "hook",
       "address": "0x8d51de40",
-      "before": "00e3f614",
-      "after": "f9e39097",
       "file_offset": "0x15521c",
-      "length": 4
+      "length": 4,
+      "before": "00e3f614",
+      "symbol": "sdk_sample_progress_frame",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_cache_snapshot",
+      "kind": "hook",
       "address": "0x8d4dad2e",
-      "before": "00d80384fc640000",
-      "after": "fbe319b000000000",
       "file_offset": "0x11210a",
-      "length": 8
+      "length": 8,
+      "before": "00d80384fc640000",
+      "symbol": "sdk_sample_cache_snapshot",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_cache_ipc_priority",
+      "kind": "hook",
       "address": "0x8d4d957e",
-      "before": "a8e46400",
-      "after": "fbe3f1bb",
       "file_offset": "0x11095a",
-      "length": 4
+      "length": 4,
+      "before": "a8e46400",
+      "symbol": "sdk_sample_cache_ipc_priority",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_cache_gui_add",
+      "kind": "hook",
       "address": "0x8d4d9e26",
-      "before": "01e3bf89",
-      "after": "fbe39db7",
       "file_offset": "0x111202",
-      "length": 4
+      "length": 4,
+      "before": "01e3bf89",
+      "symbol": "sdk_sample_cache_gui_add",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_cache_audio_add",
+      "kind": "hook",
       "address": "0x8d4d8ede",
-      "before": "01e36391",
-      "after": "fbe341bf",
       "file_offset": "0x1102ba",
-      "length": 4
+      "length": 4,
+      "before": "01e36391",
+      "symbol": "sdk_sample_cache_audio_add",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_cache_reset",
+      "kind": "hook",
       "address": "0x8d4d9dde",
-      "before": "01e38f7c",
-      "after": "fbe3c1b7",
       "file_offset": "0x1111ba",
-      "length": 4
+      "length": 4,
+      "before": "01e38f7c",
+      "symbol": "sdk_sample_cache_reset",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_cache_reset",
+      "kind": "hook",
       "address": "0x8d4d8e88",
-      "before": "01e33a84",
-      "after": "fbe36cbf",
       "file_offset": "0x110264",
-      "length": 4
+      "length": 4,
+      "before": "01e33a84",
+      "symbol": "sdk_sample_cache_reset",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_cache_worker",
+      "kind": "hook",
       "address": "0x8d50bf1c",
-      "before": "ffe382fb",
-      "after": "fae32227",
       "file_offset": "0x1432f8",
-      "length": 4
+      "length": 4,
+      "before": "ffe382fb",
+      "symbol": "sdk_sample_cache_worker",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample service -> sdk_sample_cache_send",
+      "kind": "hook",
       "address": "0x8d4d9dd2",
-      "before": "ffe389ff",
-      "after": "fbe3c7b7",
       "file_offset": "0x1111ae",
-      "length": 4
+      "length": 4,
+      "before": "ffe389ff",
+      "symbol": "sdk_sample_cache_send",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_ui_engine",
+      "kind": "hook",
       "address": "0x8c0b1e76",
-      "before": "00de588db45e0000",
-      "after": "00de458d600d0000",
       "file_offset": "0xe9236",
-      "length": 8
-    },
-    {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_region_control",
-      "address": "0x8c0b21c6",
-      "before": "00de4d8db8ca0000",
-      "after": "00de458d600d0000",
-      "file_offset": "0xe9586",
-      "length": 8
-    },
-    {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_press_engine",
-      "address": "0x8c0b3290",
+      "length": 8,
       "before": "00de588db45e0000",
-      "after": "00de458d600d0000",
+      "symbol": "sdk_sample_ui_engine",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0b21c6",
+      "file_offset": "0xe9586",
+      "length": 8,
+      "before": "00de4d8db8ca0000",
+      "symbol": "sdk_sample_region_control",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0b3290",
       "file_offset": "0xea650",
-      "length": 8
+      "length": 8,
+      "before": "00de588db45e0000",
+      "symbol": "sdk_sample_press_engine",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_assignment_frames",
+      "kind": "hook",
       "address": "0x8c0a2cee",
-      "before": "00de4f8d46d10000",
-      "after": "00de458d600d0000",
       "file_offset": "0xda0ae",
-      "length": 8
+      "length": 8,
+      "before": "00de4f8d46d10000",
+      "symbol": "sdk_sample_assignment_frames",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_assign_region",
+      "kind": "hook",
       "address": "0x8c0a2de4",
-      "before": "00de588d24820000",
-      "after": "00de458d600d0000",
       "file_offset": "0xda1a4",
-      "length": 8
+      "length": 8,
+      "before": "00de588d24820000",
+      "symbol": "sdk_sample_assign_region",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_assign_fade",
+      "kind": "hook",
       "address": "0x8d5882d8",
-      "before": "00de0204d80f0000",
-      "after": "00de458d600d0000",
       "file_offset": "0x1bf6b4",
-      "length": 8
+      "length": 8,
+      "before": "00de0204d80f0000",
+      "symbol": "sdk_sample_assign_fade",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> extensions_sample_key",
+      "kind": "hook",
       "address": "0x8d5878a8",
-      "before": "00e80000",
-      "after": "f6e25c4a",
       "file_offset": "0x1bec84",
-      "length": 4
+      "length": 4,
+      "before": "00e80000",
+      "symbol": "extensions_sample_key",
+      "call": false
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_drum_display",
+      "kind": "hook",
       "address": "0x8d5347de",
-      "before": "ffe32df6",
-      "after": "f8e3c1e2",
       "file_offset": "0x16bbba",
-      "length": 4
+      "length": 4,
+      "before": "ffe32df6",
+      "symbol": "sdk_sample_drum_display",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_drum_range",
+      "kind": "hook",
       "address": "0x8d53465a",
-      "before": "fde34919",
-      "after": "f8e383e3",
       "file_offset": "0x16ba36",
-      "length": 4
+      "length": 4,
+      "before": "fde34919",
+      "symbol": "sdk_sample_drum_range",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_drum_fade",
+      "kind": "hook",
       "address": "0x8d5349e4",
-      "before": "48a1404d",
-      "after": "f8e3bee1",
       "file_offset": "0x16bdc0",
-      "length": 4
+      "length": 4,
+      "before": "48a1404d",
+      "symbol": "sdk_sample_drum_fade",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_pending_retry",
+      "kind": "hook",
       "address": "0x8c0a21c0",
-      "before": "05da0108c0f70000",
-      "after": "00de458d600d0000",
       "file_offset": "0xd9580",
-      "length": 8
+      "length": 8,
+      "before": "05da0108c0f70000",
+      "symbol": "sdk_sample_pending_retry",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_active_retry",
+      "kind": "hook",
       "address": "0x8c0a219c",
-      "before": "0cda0108dcf70000",
-      "after": "00de458d600d0000",
       "file_offset": "0xd955c",
-      "length": 8
+      "length": 8,
+      "before": "0cda0108dcf70000",
+      "symbol": "sdk_sample_active_retry",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_live_pitch_kind",
+      "kind": "hook",
       "address": "0x8d5ab6da",
-      "before": "00e34752",
-      "after": "f5e3432b",
       "file_offset": "0x1e2ab2",
-      "length": 4
+      "length": 4,
+      "before": "00e34752",
+      "symbol": "sdk_sample_live_pitch_kind",
+      "call": true
     },
     {
-      "name": "IN-MEMORY shared sample controls -> sdk_sample_octave_store",
+      "kind": "hook",
       "address": "0x8d58d9ca",
-      "before": "ffe37db1",
-      "after": "f6e3cb19",
       "file_offset": "0x1c4da6",
-      "length": 4
+      "length": 4,
+      "before": "ffe37db1",
+      "symbol": "sdk_sample_octave_store",
+      "call": true
     },
     {
+      "kind": "startup",
+      "name": "Boot-screen version label",
       "address": "0x8c0b9114",
-      "before": "32e414000207ffe347f5",
-      "after": "00dc458d600d00000000",
-      "name": "IN-MEMORY startup version text call -> Open-XY label",
       "file_offset": "0xf04d4",
-      "length": 10
+      "length": 10,
+      "before": "32e414000207ffe347f5",
+      "symbol": "kit_startup_label"
     }
   ],
   "compiler": "bfin-elf-gcc 8.0.0 (deanm1278/blackfin-plus-gnu e4408a1) + toolchain/gcc patches"

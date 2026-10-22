@@ -385,15 +385,3 @@ def catalog_entry(m):
     return (',\n        {\n            "type": ' + json.dumps(m.native_name) +
             ',\n            "default_params": ' + json.dumps(catalog_defaults(m.definition)) + '\n        }\n')
 
-
-def add_effects(catalog, effects):
-    """Insert fx_types entries after the last stock effect; the rest is unchanged."""
-    if not effects:
-        return catalog
-    start = catalog.index(b'"fx_types"')
-    end = catalog.index(b'\n    ]', start)
-    result = catalog[:end] + ''.join(catalog_entry(m) for m in effects).encode('utf-8') + catalog[end:]
-    base, parsed = json.loads(catalog), json.loads(result)
-    require(parsed == dict(base, fx_types=base['fx_types'] + [json.loads(catalog_entry(m)[1:]) for m in effects]),
-            'Unexpected FX catalog modification')
-    return result

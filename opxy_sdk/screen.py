@@ -2,7 +2,8 @@
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from .formats import require
+from .formats import require, sha
+from .pipeline import config
 
 TEMPLATE = Path(__file__).resolve().parents[1] / 'sdk/platform/opxy-1.2.0/screen.svg'
 NS = '{http://www.w3.org/2000/svg}'
@@ -29,7 +30,9 @@ def validate_template(data):
 
 
 def template():
-    return validate_template(TEMPLATE.read_bytes())
+    data = TEMPLATE.read_bytes()
+    require(sha(data) == config()['screen_template_sha256'], 'Platform screen template differs from the profile')
+    return validate_template(data)
 
 
 def compose(fragment):

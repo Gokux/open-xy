@@ -3,28 +3,11 @@ import struct
 from .formats import header, ldr, mapped_offset, require, sha
 from .pipeline import check_patch_boundaries
 from . import startup_label
-from . import sample_hooks
 
-HOOKS = {
-    0x8d5063b2: ('extensions_synth_exit', False),
-    0x8d5231e4: ('extensions_screen_exit', False),
-    0x8d523240: ('extensions_screen_exit', False),
-    0x8d4e09d6: ('extensions_catalog_checked', True),
-    0x8d4e0b78: ('extensions_catalog_checked', True),
-    0x8d5b5b38: ('extensions_sample_classify', False),
-    0x8d5ab9a0: ('extensions_sample_note_region', True),
-    0x8d50b5d8: ('sdk_sample_cache_destroy', True),
-    0x8d51de40: ('sdk_sample_progress_frame', True),
-    0x8d4dad2e: ('sdk_sample_cache_snapshot', True),
-    0x8d4d957e: ('sdk_sample_cache_ipc_priority', True),
-    0x8d4d9e26: ('sdk_sample_cache_gui_add', True),
-    0x8d4d8ede: ('sdk_sample_cache_audio_add', True),
-    0x8d4d9dde: ('sdk_sample_cache_reset', True),
-    0x8d4d8e88: ('sdk_sample_cache_reset', True),
-    0x8d50bf1c: ('sdk_sample_cache_worker', True),
-    0x8d4d9dd2: ('sdk_sample_cache_send', True),
-}
-HOOKS.update({site: (item[0], site != 0x8d5878a8) for site, item in sample_hooks.EDITS.items()})
+
+def hooks(profile):
+    """Hook site -> (module symbol, call) for every redirect the profile reviews."""
+    return {int(p['address'], 16): (p['symbol'], p['call']) for p in profile['patches'] if p['kind'] == 'hook'}
 
 
 def branch_instruction(site, destination, call):
@@ -44,30 +27,54 @@ def decode_branch(site, instruction):
     return site + offset * 2, bool(first & 0x100)
 
 
-def assemble(stock, module, profile, original_profile, edits=7):
+def absolute_call(target):
+    require(0 <= target <= 0xffffffff and target % 2 == 0, 'Invalid absolute call target')
+    return struct.pack('<4H', 0xde00, target >> 16, target & 65535, 0)
+
+
+def absolute_target(data):
+    require(len(data) == 8, 'Absolute call must occupy eight bytes')
+    opcode, high, low, zero = struct.unpack('<4H', data)
+    require(opcode == 0xde00 and zero == 0 and low % 2 == 0, 'Invalid absolute call encoding')
+    return high << 16 | low
+
+
+def hook_instruction(patch, target):
+    """Replacement bytes of a hook: an absolute call over eight bytes, else a relative branch plus padding."""
+    site, length, call = int(patch['address'], 16), patch['length'], patch['call']
+    if length == 8:
+        require(call, 'Eight-byte hook must be an absolute call')
+        return absolute_call(target)
+    require(length in (4, 6), 'Unsupported relative-hook footprint')
+    return branch_instruction(site, target, call) + bytes(length - 4)
+
+
+def hook_target(patch, instruction):
+    """(destination, call) of hook bytes produced by hook_instruction."""
+    if patch['length'] == 8:
+        return absolute_target(instruction), True
+    require(instruction[4:] == bytes(patch['length'] - 4), 'Changed hook padding')
+    return decode_branch(int(patch['address'], 16), instruction[:4])
+
+
+def assemble(stock, module, profile, original_profile, edits):
     require(sha(stock) == original_profile['stock_sha256'] and len(stock) == original_profile['stock_bytes'],
             'Expected exact decrypted stock OP-XY 1.2.0')
     require(len(module) > 0 and len(module) <= original_profile['reserved_bytes'], 'Invalid module size')
     require(len(profile['patches']) == len(original_profile['patches']) == edits, f'Expected {edits} edit intervals')
+    low = original_profile['module_base']
     for patch, original in zip(profile['patches'], original_profile['patches']):
-        require(all(patch[k] == original[k] for k in ('address', 'before', 'file_offset', 'length')),
+        require(all(patch[k] == original[k] for k in ('kind', 'address', 'before', 'file_offset', 'length')),
                 'Changed patch boundary')
-        site = int(patch['address'], 16)
-        if startup_label.allowed(original_profile, original):
-            target = startup_label.destination(bytes.fromhex(patch['after']))
-            require(original_profile['module_base'] <= target < original_profile['module_base'] + len(module),
-                    'Startup hook does not target module')
-        elif site not in HOOKS:
-            require(patch['after'] == original['after'], 'Changed heap reservation')
+        after = bytes.fromhex(patch['after'])
+        if original['kind'] == 'startup':
+            target = startup_label.destination(after)
+            require(low <= target < low + len(module), 'Startup hook does not target module')
+        elif original['kind'] == 'hook':
+            target, call = hook_target(original, after)
+            require(call == original['call'] and low <= target < low + len(module), 'Hook does not target module')
         else:
-            instruction = bytes.fromhex(patch['after'])
-            if original['length'] == 8:
-                target, call = sample_hooks.absolute_target(instruction), True
-            else:
-                require(instruction[4:] == b'\0' * (original['length'] - 4), 'Changed hook padding')
-                target, call = decode_branch(site, instruction[:4])
-            require(call == HOOKS[site][1] and original_profile['module_base'] <= target < original_profile['module_base'] + len(module),
-                    'Hook does not target module')
+            require(patch['after'] == original['after'], 'Changed heap reservation or table edit')
     check_patch_boundaries(profile, edits)
     blocks = ldr(stock)
     require(len(blocks) == original_profile['stock_records'], 'Unexpected stock records')

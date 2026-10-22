@@ -17,26 +17,23 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
-from . import screen, startup_label, stock_tables, sample_hooks
-from .adapters import (add_effects, catalog_entry, generate_display, generate_fx_object, generate_fx_registration,
+from . import screen, startup_label, stock_tables
+from .adapters import (catalog_entry, generate_display, generate_fx_object, generate_fx_registration,
                        generate_registration, generate_sample_registration, generate_sample_voice, generate_sample_routes, generate_sample_callbacks, generate_screen,
                        generate_segment_binding, generate_voice, screen_bytes)
 from .contributors import validate_source_boundary
-from .firmware import HOOKS, assemble, branch_instruction, decode_branch
+from .firmware import assemble, hook_instruction, hook_target
 from .formats import elf32, elf_sections, require, sha
 from .machines import by_kind, collection
-from .pipeline import (ROOT, check_patch_boundaries, child, document, execute, fresh_output, host_pins, host_platform,
+from .pipeline import (PROFILE, ROOT, check_patch_boundaries, child, config, document, execute, fresh_output, host_pins, host_platform,
                        read, require_release_host, save_json, tool_paths)
 from .startup import generate as generate_startup
 
-PROFILE = 'profiles/opxy-1.2.0.json'
-PROFILE_SHA = '4c5f3727c8560612bc48b8358d1a6d34626be98dfb3272a3ecc7264adf3d4dbe'
 LINKER = 'linker/opxy-1.2.0.ld'
 TARGET = 'opxy-1.2.0'
 DEFINITIONS = dict(stock_catalog_insert=0x8d5bbaa0, stock_sample_classify_tail=0x8d5b5b3e,
                    stock_sample_key_tail=0x8d5878ac, stock_sample_engine_getter=0x8d585eb4,
                    stock_drum_key=0x8d5b6800, stock_sample_octave=0x8d58da64)
-CATALOG_INSERT = 4435  # Byte offset of the end of engine_types in the authenticated stock catalog.
 TEMPLATES = 'sdk/platform/opxy-1.2.0/'
 RUNTIME_ASM, RUNTIME_CXX = 'sdk/platform/blackfin/divide.s', 'sdk/platform/blackfin/memory.cpp'
 ALLOWED_SECTIONS = {'.text', '.rodata', '.data', '.bss'}
@@ -57,14 +54,9 @@ SVG_INHERITED = {'fill', 'stroke', 'stroke-width', 'font-family', 'font-size', '
 
 
 def configuration():
-    require(sha(read(ROOT / PROFILE)) == PROFILE_SHA, 'Curated memory/compiler profile changed')
-    profile = document(ROOT / PROFILE)
-    service_hooks = [site for site, (name, _call) in HOOKS.items()
-                     if name.startswith(('sdk_sample', 'extensions_sample')) and site not in sample_hooks.EDITS]
-    # Base hooks, relocated tables, sample service hooks, sample-page GUI edits, then the startup label.
-    check_patch_boundaries(profile, 7 + len(stock_tables.EDITS) + len(service_hooks) + len(sample_hooks.EDITS) + 1)
-    stock_tables.check_edits(profile['patches'][:7 + len(stock_tables.EDITS)])
-    require(startup_label.allowed(profile, profile['patches'][-1]), 'The last edit must be the startup label')
+    profile = config()
+    stock_tables.check_profile(profile)
+    require([p['kind'] for p in profile['patches']].count('startup') == 1, 'Expected one startup label edit')
     machines = collection()
     definitions = dict(DEFINITIONS)
     for m in machines:
@@ -170,7 +162,7 @@ def plan(machines):
 
 def module_bytes(profile):
     """Memory every selected machine and the SDK share: the reservation below the relocated stock tables."""
-    return stock_tables.SCREEN_SLOTS - profile['module_base']
+    return profile['reserved_bytes'] - profile['table_bytes']
 
 
 def object_memory(data):
@@ -466,24 +458,17 @@ def check_module(directory, tools, profile, machines):
     hooks = {}
     text = allocated['.text']
     for patch in patch_profile['patches']:
-        site = int(patch['address'], 16)
-        if startup_label.allowed(profile, patch):
-            patch['after'] = startup_label.jump(symbols[startup_label.SYMBOL]['value']).hex()
-            continue
-        if site not in HOOKS:
-            continue  # Heap-size and table edits stay as profiled.
-        name, call = HOOKS[site]
-        symbol = symbols[name]
-        require(symbol['type'] == 2 and symbol['size'] > 0 and text['address'] <= symbol['value'] and
-                symbol['value'] + symbol['size'] <= text['address'] + text['size'],
-                'Hook must resolve to a bounded module function')
-        patch['after'] = (sample_hooks.absolute_call(symbol['value']) if patch['length'] == 8 else
-                          branch_instruction(site, symbol['value'], call) + b'\0' * (patch['length'] - 4)).hex()
-        patch['name'] = ('call ' if call else 'jump ') + name
-        decoded = ((sample_hooks.absolute_target(bytes.fromhex(patch['after'])), True) if patch['length'] == 8 else
-                   decode_branch(site, bytes.fromhex(patch['after'])[:4]))
-        require(decoded == (symbol['value'], call), 'Branch encoding mismatch')
-        hooks[name] = symbol['value']
+        if patch['kind'] == 'startup':
+            patch['after'] = startup_label.jump(symbols[patch['symbol']]['value']).hex()
+        elif patch['kind'] == 'hook':
+            symbol = symbols[patch['symbol']]
+            require(symbol['type'] == 2 and symbol['size'] > 0 and text['address'] <= symbol['value'] and
+                    symbol['value'] + symbol['size'] <= text['address'] + text['size'],
+                    'Hook must resolve to a bounded module function')
+            patch['after'] = hook_instruction(patch, symbol['value']).hex()
+            require(hook_target(patch, bytes.fromhex(patch['after'])) == (symbol['value'], patch['call']),
+                    'Branch encoding mismatch')
+            hooks[patch['symbol']] = symbol['value']
     check_patch_boundaries(patch_profile, len(profile['patches']))
     return module, sizes, patch_profile, hooks, stack, usage
 
@@ -536,7 +521,7 @@ def validate_panel(m, fragment=None):
         for name in bound[:display['paths']]:
             node = by_id.get(name)
             commands = re.findall(r'[A-Za-z]', node.get('d', '')) if node is not None else []
-            coordinates = re.findall(r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)', node.get('d', '')) if node is not None else []
+            coordinates = re.findall(NUMBER, node.get('d', '')) if node is not None else []
             require(node is not None and node.tag == 'path' and commands == ['M'] + ['L'] * (points - 1) + ['Z'] and
                     len(coordinates) == 2 * points and node.get('fill') == 'none',
                     'Mutable outline must contain exactly M, %d L and Z, with no fill: %s' % (points - 1, name))
@@ -581,19 +566,25 @@ def validate_panel(m, fragment=None):
     return fragment
 
 
+def extend_catalog(catalog, profile, machines):
+    """Append each machine's entry to its stock list; nothing else changes.
+
+    The insertion offsets are bound to the exact authenticated stock catalog.
+    """
+    groups = dict(engine_types=by_kind(machines, 'synth', 'sample'), fx_types=by_kind(machines, 'effect'))
+    result, base = catalog, json.loads(catalog)
+    for key, at in sorted(profile['stock_catalog_inserts'].items(), key=lambda item: -item[1]):
+        result = result[:at] + ''.join(catalog_entry(m) for m in groups[key]).encode('utf-8') + result[at:]
+    added = {key: [json.loads(catalog_entry(m).strip().lstrip(',')) for m in group] for key, group in groups.items()}
+    require(all(len(entry['default_params']) == 8 for group in added.values() for entry in group), 'Invalid catalog entry')
+    require(json.loads(result) == dict(base, **{key: base[key] + added[key] for key in groups}),
+            'Unexpected catalog modification')
+    return result
+
+
 def prepare_assets(catalog, profile, machines):
     require(sha(catalog) == profile['stock_catalog_sha256'], 'Stock catalog hash mismatch')
-    instruments = by_kind(machines, 'synth', 'sample')
-    entries = [catalog_entry(m).encode('utf-8') for m in instruments]
-    # The insertion point is bound to the exact authenticated stock catalog.
-    combined = catalog[:CATALOG_INSERT] + b''.join(entries) + catalog[CATALOG_INSERT:]
-    base = json.loads(catalog)
-    added = [json.loads(b'[' + entry.lstrip().lstrip(b',') + b']')[0] for entry in entries]
-    require([entry['type'] for entry in added] == [m.native_name for m in instruments] and
-            all(len(entry['default_params']) == 8 for entry in added), 'Invalid catalog entry')
-    require(json.loads(combined) == dict(base, engine_types=base['engine_types'] + added),
-            'Unexpected catalog modification')
-    outputs = {'content/op1_factory.json': add_effects(combined, by_kind(machines, 'effect'))}
+    outputs = {'content/op1_factory.json': extend_catalog(catalog, profile, machines)}
     for m in machines:
         if m.display != 'stock':
             outputs[f'content/display/{m.native_name}.svg'] = screen.compose(validate_panel(m))

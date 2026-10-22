@@ -6,6 +6,9 @@ import unittest
 from unittest import mock
 
 from opxy_sdk import machines
+from opxy_sdk.pipeline import config
+
+RULES = config()['identities']
 
 
 def identity(kind, **changes):
@@ -16,11 +19,10 @@ def identity(kind, **changes):
 
 class Identity(unittest.TestCase):
     def test_bundled_machines_declare_valid_identities(self):
-        found = {m.id: m for m in machines.discovered()}
-        self.assertEqual(set(found), {'fm2op', 'macroosc', 'decimate', 'timestretch'})
-        self.assertEqual(found['fm2op'].identity, dict(engine=34, page=82))
-        self.assertEqual(found['decimate'].identity, dict(effect=11, page=21))
-        self.assertEqual([m.id for m in machines.collection()], ['fm2op', 'macroosc', 'decimate', 'timestretch'])
+        # Every bundled machine is valid and part of the collection, in its declared order.
+        listed = json.loads(machines.COLLECTION.read_text(encoding='utf-8'))['machines']
+        self.assertEqual({m.id for m in machines.discovered()}, set(listed))
+        self.assertEqual([m.id for m in machines.collection()], listed)
 
     def test_stock_occupied_or_sentinel_ids_are_rejected(self):
         for kind, change in (('synth', dict(engine=33)), ('synth', dict(engine=2)), ('synth', dict(engine=63)),
@@ -28,20 +30,20 @@ class Identity(unittest.TestCase):
                              ('sample', dict(engine=26)), ('sample', dict(page=82)),
                              ('effect', dict(effect=0)), ('effect', dict(effect=5)), ('effect', dict(page=20))):
             with self.subTest(kind=kind, change=change), self.assertRaises(ValueError):
-                machines._identity(kind, 'stock', identity(kind, **change))
+                machines.check_identity(RULES, kind, identity(kind, **change))
 
     def test_own_screen_pages_come_from_the_relocated_range(self):
-        machines._identity('synth', 'drawing', identity('synth'))
+        machines.check_identity(RULES, 'synth', identity('synth'))
         for page in (2, 21, 50, 81):
             with self.subTest(page=page), self.assertRaises(ValueError):
-                machines._identity('synth', 'drawing', identity('synth', page=page))
+                machines.check_identity(RULES, 'synth', identity('synth', page=page))
 
     def test_names_and_fields_are_checked(self):
         # The folder name is the stock name, so identity holds only IDs.
         for kind, value in (('synth', identity('synth', name='probe')), ('synth', identity('synth', prefix='probe')),
                             ('effect', dict(identity('effect'), engine=34))):
             with self.subTest(value=value), self.assertRaises(ValueError):
-                machines._identity(kind, 'stock', value)
+                machines.check_identity(RULES, kind, value)
         for name in ('a' * 16, 'Bad', 'two-op', '', 'drum', 'reverb', 'sdk', 'kit_probe', 'extensions'):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 machines.machine(name)

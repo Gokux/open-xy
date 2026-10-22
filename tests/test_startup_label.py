@@ -7,20 +7,21 @@ from opxy_sdk.pipeline import ROOT, check_patch_boundaries
 
 
 class StartupLabelTests(unittest.TestCase):
-    def test_label_is_the_profile_s_only_protected_range_edit(self):
+    def test_label_edit_is_exactly_the_reviewed_one(self):
         profile = json.loads((ROOT / f'profiles/{label.PROFILE}.json').read_text())
-        check_patch_boundaries(profile, 48)
+        count = len(profile['patches'])
+        check_patch_boundaries(profile, count)
         edit = profile['patches'][-1]
         self.assertTrue(label.allowed(profile, edit))
         for key, value in [('address', hex(label.SITE + 2)), ('before', '00' * 10),
-                           ('length', 8), ('file_offset', '0xf04d6')]:
+                           ('length', 8), ('file_offset', '0xf04d6'), ('symbol', 'other')]:
             changed = copy.deepcopy(profile)
             changed['patches'][-1][key] = value
             with self.assertRaises(ValueError):
-                check_patch_boundaries(changed, 48)
+                check_patch_boundaries(changed, count)
         profile['id'] = 'another-profile'
         with self.assertRaises(ValueError):
-            check_patch_boundaries(profile, 48)
+            check_patch_boundaries(profile, count)
 
     def test_absolute_hook_rejects_wrong_opcodes_padding_and_width(self):
         for address in (0x8d450d60, 0x8d4cfd5e):

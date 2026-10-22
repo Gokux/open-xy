@@ -6,6 +6,7 @@ import unittest
 
 from opxy_sdk import adapters
 from opxy_sdk.machines import machine
+from opxy_sdk.native import extend_catalog
 from opxy_sdk.startup import render
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,11 +40,12 @@ class Generation(unittest.TestCase):
 
     def test_catalog_entry_is_appended_to_fx_types_only(self):
         catalog = stock_like_catalog()
-        result = adapters.add_effects(catalog, [machine('decimate')])
-        parsed = json.loads(result)
-        self.assertEqual(parsed['fx_types'][-1], dict(type='decimate', id=11, default_params=[8192, 32767, 0, 0, 0, 0, 0, 0]))
+        ends = [catalog.index(b'\n    ]', catalog.index(key)) for key in (b'"engine_types"', b'"fx_types"')]
+        profile = dict(stock_catalog_inserts=dict(zip(('engine_types', 'fx_types'), ends)))
+        parsed = json.loads(extend_catalog(catalog, profile, [machine('decimate')]))
+        self.assertEqual(parsed['fx_types'][-1], json.loads(adapters.catalog_entry(machine('decimate'))[1:]))
         self.assertEqual(parsed['engine_types'], json.loads(catalog)['engine_types'])
-        self.assertEqual(adapters.add_effects(catalog, []), catalog)
+        self.assertEqual(extend_catalog(catalog, profile, []), catalog)
 
     def test_effects_register_before_the_role_check(self):
         text = render(['fm2op', 'macroosc'], ['decimate'])
