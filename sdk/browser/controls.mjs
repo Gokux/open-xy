@@ -9,6 +9,7 @@ function freeze(value) {
 
 export function physicalValue(mapping, value) {
   if (mapping.kind === 'enum') return Math.floor((Math.round(value * 0x7fffffff) >>> 16) * mapping.labels.length / 32768);
+  if (mapping.kind === 'linear') return mapping.minimum + (mapping.maximum - mapping.minimum) * value;
   if (mapping.kind === 'anchors') {
     const position = value * (mapping.values.length - 1);
     const i = Math.min(mapping.values.length - 2, Math.floor(position));
@@ -42,6 +43,7 @@ export function createControls(input) {
     const v = physicalValue(parameter.mapping, value[id]);
     if (parameter.display === 'enum') return parameter.mapping.labels[v];
     if (parameter.display === 'ratio') return `${v.toFixed(3)}:1`;
+    if (parameter.display === 'semitones') return `${v > 0 ? '+' : ''}${v.toFixed(1)} st`;
     if (parameter.display === 'duration') return v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toFixed(2)} s`;
     return `${Math.round(value[id] * 100)}%`;
   }

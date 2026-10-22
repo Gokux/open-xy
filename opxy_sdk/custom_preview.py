@@ -138,10 +138,9 @@ def authenticate(manifest, artifacts):
 
 def scaffold(out, identity, name):
     custom_identity(identity); label(name)
-    namespace = identity
     out = fresh_output(out)
     for template in (ROOT / 'sdk/templates/machine').glob('*.in'):
-        text = template.read_text(encoding='utf-8').replace('@ID@', identity).replace('@NAME@', name).replace('@NAMESPACE@', namespace)
+        text = template.read_text(encoding='utf-8').replace('@ID@', identity).replace('@NAME@', name)
         (out / template.name.removesuffix('.in')).write_text(text, encoding='utf-8')
     from .native import drawing_ids
     display = json.loads((out / 'definition.json').read_text(encoding='utf-8'))['resources']['display']

@@ -2,31 +2,26 @@
   "schema": 1,
   "id": "timestretch",
   "name": "Timestretch",
-  "cppNamespace": "timestretch",
   "parameters": [
     {
       "id": "pitch",
       "label": "pitch",
       "default": 0.5,
       "mapping": {
-        "kind": "anchors",
-        "values": [
-          -12,
-          12
-        ]
+        "kind": "linear",
+        "minimum": -12,
+        "maximum": 12
       },
-      "display": "ratio"
+      "display": "semitones"
     },
     {
       "id": "start",
       "label": "start",
       "default": 0.5,
       "mapping": {
-        "kind": "anchors",
-        "values": [
-          -1,
-          1
-        ]
+        "kind": "linear",
+        "minimum": -1,
+        "maximum": 1
       },
       "display": "percent"
     },
@@ -35,11 +30,9 @@
       "label": "end",
       "default": 0.5,
       "mapping": {
-        "kind": "anchors",
-        "values": [
-          -1,
-          1
-        ]
+        "kind": "linear",
+        "minimum": -1,
+        "maximum": 1
       },
       "display": "percent"
     },
@@ -75,11 +68,9 @@
       "label": "tempo",
       "default": 0.5,
       "mapping": {
-        "kind": "anchors",
-        "values": [
-          -140,
-          140
-        ]
+        "kind": "linear",
+        "minimum": -140,
+        "maximum": 140
       },
       "display": "ratio"
     },
@@ -102,11 +93,9 @@
       "label": "volume",
       "default": 1,
       "mapping": {
-        "kind": "anchors",
-        "values": [
-          0,
-          1
-        ]
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
       },
       "display": "percent"
     }

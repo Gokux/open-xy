@@ -47,6 +47,17 @@ class Definitions(unittest.TestCase):
         invalid = copy.deepcopy(self.engine)
         invalid['presets']['Glass']['unknown'] = 0.5
         with self.assertRaises(ValueError): validate_definition(invalid, 'synth')
+        # Each linear control has one spelling.
+        for mapping in (dict(kind='anchors', values=[0, 1]), dict(kind='power', maximum=1, exponent=1),
+                        dict(kind='linear', minimum=1, maximum=1)):
+            invalid = copy.deepcopy(self.engine)
+            invalid['parameters'][0]['mapping'] = mapping
+            with self.subTest(mapping=mapping), self.assertRaises(ValueError):
+                validate_definition(invalid, 'synth')
+        valid = copy.deepcopy(self.engine)
+        valid['parameters'][0]['mapping'] = dict(kind='linear', minimum=-12, maximum=12)
+        valid['parameters'][0]['display'] = 'semitones'
+        validate_definition(valid, 'synth')
 
     def test_catalog_uses_q15_with_positive_half_rounding(self):
         changed = copy.deepcopy(self.engine)
@@ -56,15 +67,24 @@ class Definitions(unittest.TestCase):
     def test_resource_declarations_reject_unknown_layouts_and_rates(self):
         for key, value in (('voiceBytes', 0), ('voiceBytes', 41),
                            ('voiceAlignment', 3), ('voiceAlignment', 16),
-                           ('blockFrames', 128), ('sampleRate', 48000),
                            ('outputPeakQ31', 0), ('voiceBytes', True)):
             changed = copy.deepcopy(self.engine)
             changed['resources'][key] = value
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 validate_definition(changed, 'synth')
+        for key in ('blockFrames', 'sampleRate'):
+            changed = copy.deepcopy(self.engine)
+            changed['resources'][key] = 64
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'resources'):
+                validate_definition(changed, 'synth')
         changed = copy.deepcopy(self.engine)
-        changed['cppNamespace'] = 'bad;code'
-        with self.assertRaises(ValueError): validate_definition(changed, 'synth')
+        changed['cppNamespace'] = 'fm2op'
+        with self.assertRaisesRegex(ValueError, 'definition'): validate_definition(changed, 'synth')
+        for name in ('delete', 'opxy'):
+            changed = copy.deepcopy(self.engine)
+            changed['id'] = name
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'keyword'):
+                validate_definition(changed, 'synth')
 
     def test_displays_declare_their_shape_within_limits(self):
         for key, value in (('stateBytes', 61), ('stateBytes', 0),

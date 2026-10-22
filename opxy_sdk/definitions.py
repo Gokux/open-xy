@@ -27,6 +27,13 @@ STOCK_TYPES = frozenset({'sampler', 'drum', 'drumline', 'organ', 'epiano', 'pris
                          'delay', 'reverb', 'chorus', 'phaser', 'dist', 'lofi'})
 # Symbol namespaces the SDK and firmware glue use; a machine's name prefixes its symbols.
 RESERVED_PREFIXES = ('extensions', 'sdk', 'kit', 'stock', 'local')
+# A machine's name is also its C++ namespace.
+CXX_KEYWORDS = frozenset('''alignas alignof and and_eq asm auto bitand bitor bool break case catch char char16_t
+    char32_t class compl const constexpr const_cast continue decltype default delete do double dynamic_cast else
+    enum explicit export extern false float for friend goto if inline int long mutable namespace new noexcept not
+    not_eq nullptr operator or or_eq private protected public register reinterpret_cast return short signed sizeof
+    static static_assert static_cast struct switch template this thread_local throw true try typedef typeid
+    typename union unsigned using virtual void volatile wchar_t while xor xor_eq opxy std'''.split())
 
 
 def stock_name(value):
@@ -34,6 +41,7 @@ def stock_name(value):
     require(isinstance(value, str) and re.fullmatch(r'[a-z][a-z0-9_]{0,14}', value),
             'Machine names are a lowercase letter, then letters, digits or _, at most 15 characters')
     require(value not in STOCK_TYPES, 'Machine name is a stock engine or effect type: ' + value)
+    require(value not in CXX_KEYWORDS, 'Machine name is a C++ keyword or SDK namespace: ' + value)
     require(not any(value == p or value.startswith(p + '_') for p in RESERVED_PREFIXES),
             'Machine name uses a reserved symbol prefix: ' + value)
 
@@ -51,8 +59,7 @@ def control_label(value):
 
 # Resources each kind declares; the SDK owns everything else about its storage.
 RESOURCES = {
-    'synth': ('voiceBytes', 'voiceAlignment', 'voiceCapacity', 'sharedBytes', 'blockFrames', 'sampleRate',
-              'outputPeakQ31', 'display'),
+    'synth': ('voiceBytes', 'voiceAlignment', 'voiceCapacity', 'sharedBytes', 'outputPeakQ31', 'display'),
     'sample': ('voiceCapacity',),
     'effect': (),
 }
@@ -68,17 +75,16 @@ SEGMENT_DIALS = (0, 4)
 # Analysis storage is allocated from the stock heap at runtime, which also holds
 # stock samples; the SDK lets one machine take at most this much of it.
 ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
+DISPLAY_FORMATS = ('ratio', 'percent', 'duration', 'semitones', 'enum')
 # Synths fill the four-control page; sample engines and effects use up to the
 # stock eight-word parameter vector.
 CONTROLS = {'synth': (4, 4), 'sample': (1, 8), 'effect': (1, 8)}
 
 
 def validate_definition(value, kind):
-    keys(value, ('schema', 'id', 'name', 'parameters', 'presets', 'cppNamespace', 'resources'), 'definition')
+    keys(value, ('schema', 'id', 'name', 'parameters', 'presets', 'resources'), 'definition')
     require(type(value['schema']) is int and value['schema'] == 1, 'Unknown definition schema')
     stock_name(value['id']); label(value['name'])
-    require(isinstance(value['cppNamespace'], str) and
-            re.fullmatch(r'[a-z][a-z0-9_]{0,31}', value['cppNamespace']), 'Invalid C++ namespace')
     resources = value['resources']
     optional = tuple(k for k in ('sampleAnalysis', 'chokeSameKey', 'drumControls', 'stereoOutput') if kind == 'sample' and isinstance(resources, dict) and k in resources)
     keys(resources, (*RESOURCES[kind], *optional), 'resources')
@@ -119,8 +125,6 @@ def validate_synth_resources(resources):
             resources['voiceBytes'] % resources['voiceAlignment'] == 0, 'Unsupported voice alignment')
     require(0 <= resources['sharedBytes'] and resources['sharedBytes'] % 4 == 0,
             'Shared state must occupy whole words')
-    require(resources['blockFrames'] == 64 and resources['sampleRate'] == 44100,
-            'Unsupported stock audio contract')
     require(0 < resources['outputPeakQ31'] <= 0x7fffffff, 'Invalid oscillator output headroom')
     validate_display(resources['display'])
 
@@ -154,7 +158,7 @@ def validate_parameter(parameter):
     keys(parameter, ('id', 'label', 'default', 'mapping', 'display'), 'parameter')
     identifier(parameter['id']); control_label(parameter['label'])
     number(parameter['default'], 0, 1, 'normalized default')
-    require(parameter['display'] in ('ratio', 'percent', 'duration', 'enum'), 'Unsupported display format')
+    require(parameter['display'] in DISPLAY_FORMATS, 'Unsupported display format')
     mapping = parameter['mapping']
     require(isinstance(mapping, dict), 'Invalid mapping')
     kind = mapping.get('kind')
@@ -165,16 +169,23 @@ def validate_parameter(parameter):
         require(isinstance(labels, list) and 2 <= len(labels) <= 256 and
                 all(isinstance(s, str) and re.fullmatch(r'[A-Za-z0-9 *+_-]{1,15}', s) for s in labels) and
                 len(set(labels)) == len(labels) and parameter['display'] == 'enum', 'Invalid enum labels')
+    elif kind == 'linear':
+        keys(mapping, ('kind', 'minimum', 'maximum'), 'linear mapping')
+        number(mapping['minimum'], -1e9, 1e9, 'mapping minimum')
+        number(mapping['maximum'], -1e9, 1e9, 'mapping maximum')
+        require(mapping['minimum'] < mapping['maximum'], 'Linear mapping must increase')
     elif kind == 'anchors':
+        # Two anchors are a linear mapping; declare those as linear.
         keys(mapping, ('kind', 'values'), 'anchor mapping')
         anchors = mapping['values']
-        require(isinstance(anchors, list) and 2 <= len(anchors) <= 256, 'Invalid anchor count')
+        require(isinstance(anchors, list) and 3 <= len(anchors) <= 256, 'Anchors need 3..256 values; use linear for two')
         for anchor in anchors: number(anchor, -1e9, 1e9, 'anchor')
         require(all(a < b for a, b in zip(anchors, anchors[1:])), 'Anchors must increase')
     elif kind == 'power':
         keys(mapping, ('kind', 'maximum', 'exponent'), 'power mapping')
         number(mapping['maximum'], 0, 1e9, 'mapping maximum')
         number(mapping['exponent'], 0.01, 32, 'mapping exponent')
+        require(mapping['exponent'] != 1, 'A power mapping with exponent 1 is linear')
     elif kind == 'exponential':
         keys(mapping, ('kind', 'minimum', 'maximum'), 'exponential mapping')
         number(mapping['minimum'], 1e-9, 1e9, 'mapping minimum')

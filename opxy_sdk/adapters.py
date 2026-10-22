@@ -37,7 +37,7 @@ def stock_identity(m):
 
 def voice_values(definition):
     resources = definition['resources']
-    return dict(NAMESPACE=definition['cppNamespace'], VOICE_BYTES=resources['voiceBytes'],
+    return dict(NAMESPACE=definition['id'], VOICE_BYTES=resources['voiceBytes'],
                 VOICE_ALIGNMENT=resources['voiceAlignment'], SHARED_BYTES=resources['sharedBytes'],
                 PEAK=resources['outputPeakQ31'])
 
@@ -113,7 +113,7 @@ static_assert(sizeof(opxy::segments::Input) == 16 && sizeof(opxy::binding::Segme
               __builtin_offsetof(opxy::binding::SegmentFrame, dials) == {layout['DIALS_AT']},
               "Segment frame layout differs from the declared display");
 extern "C" unsigned {prefix}_display_render(const opxy::segments::Input* input, opxy::binding::SegmentFrame* frame) {{
-    {definition['cppNamespace']}::display(*input, *frame);
+    {definition['id']}::display(*input, *frame);
     return opxy::segments::valid(*frame);
 }}
 namespace opxy {{ namespace binding {{
@@ -135,7 +135,7 @@ def generate_display(directory, native=False, *, machine=None, definition=None):
         require(not native, 'Local machine definitions cannot generate native bindings')
         validate_definition(definition, 'synth')
         assignment = {'symbol_prefix': 'local_preview'}
-    namespace, prefix = definition['cppNamespace'], assignment['symbol_prefix']
+    namespace, prefix = definition['id'], assignment['symbol_prefix']
     display = definition['resources']['display']
     require(display['kind'] == 'drawing', 'Not a drawing display')
     layout = drawing_layout(display)
@@ -319,7 +319,7 @@ def generate_segments(directory, m):
 
 
 def generate_sample_voice(directory, m):
-    values = dict(PREFIX=m.prefix, NAMESPACE=m.definition['cppNamespace'], NAME=m.native_name,
+    values = dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'], NAME=m.native_name,
                   LABELS=stock_labels(m), CAPACITY=m.definition['resources']['voiceCapacity'],
                   ANALYSIS=m.definition['resources'].get('sampleAnalysis', 0),
                   STEREO=m.definition['resources'].get('stereoOutput', 0),
@@ -396,7 +396,7 @@ def generate_sample_registration(directory, m, leaf):
 
 
 def generate_fx_object(directory, m):
-    return expand('fx_object.cpp.in', dict(PREFIX=m.prefix, NAMESPACE=m.definition['cppNamespace'],
+    return expand('fx_object.cpp.in', dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'],
                                            NAME=m.native_name, LABELS=stock_labels(m)),
                   Path(directory) / f'fx_object_{m.prefix}.cpp')
 
