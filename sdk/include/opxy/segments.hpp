@@ -7,7 +7,7 @@ namespace opxy { namespace segments {
 // frame here, e.g.
 //   using Frame = opxy::segments::Frame<4>;
 // The SDK owns node bindings, text setters and repainting.
-struct Input { i32 parameters[4]; };
+struct Input { i32 parameters[page_controls]; };
 // A dial's rotation from its authored pose, clockwise on screen, as a Q10 unit
 // vector. {0, 0} is the authored pose.
 struct Dial { i32 cos, sin; };
@@ -16,7 +16,7 @@ struct Frame {
     static const u32 character_count = Characters;
     u32 masks[Characters];  // 14-segment glyphs, segments abcdefghjklmnp in bits 15..2
     char label[16];
-    char values[4][8];      // Shown in place of a declared text control's value
+    char values[page_controls][8];  // Shown in place of a declared text control's value
     u32 key;                // Nonzero; masks and label repaint only when it changes
     Dial dials[4];          // Applied every frame to the declared dials
 };
@@ -60,15 +60,15 @@ inline Dial sweep(i32 value, i32 half) {
 template <class F>
 inline bool valid(const F& frame) {
     if (!frame.key || frame.label[15]) return false;
-    for (unsigned i = 0; i < 4; ++i) if (frame.values[i][7]) return false;
+    for (unsigned i = 0; i < page_controls; ++i) if (frame.values[i][7]) return false;
     for (unsigned i = 0; i < F::character_count; ++i) if (frame.masks[i] & ~0xfffcu) return false;
     // A rotation, never a scale or skew: a unit vector within Q10 rounding.
     for (unsigned i = 0; i < 4; ++i) {
         const Dial& d = frame.dials[i];
         if (!d.cos && !d.sin) continue;
-        if (d.cos < -1024 || d.cos > 1024 || d.sin < -1024 || d.sin > 1024) return false;
+        if (d.cos < -q10_unit || d.cos > q10_unit || d.sin < -q10_unit || d.sin > q10_unit) return false;
         const i32 length = d.cos * d.cos + d.sin * d.sin;
-        if (length < 1024 * 1024 / 16 * 15 || length > 1024 * 1024 / 16 * 17) return false;
+        if (length < q10_unit * q10_unit / 16 * 15 || length > q10_unit * q10_unit / 16 * 17) return false;
     }
     return true;
 }
