@@ -1,6 +1,6 @@
 // Freestanding <cstring>: memset/memcpy are defined in sdk/platform/blackfin/memory.cpp.
-#ifndef MACRO_OSC_SHIM_CSTRING_
-#define MACRO_OSC_SHIM_CSTRING_
+#ifndef OPXY_FREESTANDING_CSTRING_
+#define OPXY_FREESTANDING_CSTRING_
 
 #include <stddef.h>
 
@@ -14,4 +14,4 @@ using ::memcpy;
 using ::memset;
 }
 
-#endif  // MACRO_OSC_SHIM_CSTRING_
+#endif  // OPXY_FREESTANDING_CSTRING_

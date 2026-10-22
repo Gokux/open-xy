@@ -13,11 +13,6 @@ import sys
 PRIVATE_DIRS = {'local', 'stock', 'extracted', 'dumps', 'toolchain', 'build', 'dist'}
 PRIVATE_SUFFIXES = {'.ldr', '.tfw', '.zfw', '.bin', '.elf', '.o', '.map', '.zip',
                     '.exe', '.dll', '.dmp', '.dump', '.7z', '.rar', '.gz', '.xz'}
-VENDOR_INPUTS = {'machines/macroosc/vendor/braids/data/map.bin',
-                 'machines/macroosc/vendor/braids/data/waves.bin'}
-# The same Braids data under its earlier folder name; Git history keeps it.
-HISTORY_VENDOR_INPUTS = {'machines/macro-osc/vendor/braids/data/map.bin',
-                         'machines/macro-osc/vendor/braids/data/waves.bin'}
 
 
 def git(*args):
@@ -28,7 +23,7 @@ def path_problem(name):
     path = PurePosixPath(name.lower())
     if PRIVATE_DIRS.intersection(path.parts[:-1]):
         return 'private input/output directory'
-    if path.suffix in PRIVATE_SUFFIXES and name not in VENDOR_INPUTS | HISTORY_VENDOR_INPUTS:
+    if path.suffix in PRIVATE_SUFFIXES:
         return 'private firmware/build artifact extension'
     if path.name == '.env' or path.name.startswith('.env.'):
         return 'local environment file'

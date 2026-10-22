@@ -64,5 +64,5 @@ int main() {
     active = false;
     sdk_sample_progress_update(4, 0, 3);
     require(publications == done + 1);
-    std::puts("Timestretch progress policy: lifecycle/ownership/format checks passed");
+    std::puts("Sample progress policy: lifecycle/ownership/format checks passed");
 }

@@ -13,10 +13,11 @@ spec.loader.exec_module(guard)
 
 
 class PrivateFilesTests(unittest.TestCase):
-    def test_private_paths_include_case_variants_and_preserve_vendor_exceptions(self):
-        for name in ('image.LDR', 'image.tfw', 'local/report.json', 'dist/kit.json', '.env.local', 'copy.zip'):
+    def test_private_paths_include_case_variants(self):
+        for name in ('image.LDR', 'image.tfw', 'local/report.json', 'dist/kit.json', '.env.local', 'copy.zip',
+                     'machines/probe/vendor/data/table.bin'):
             self.assertIsNotNone(guard.path_problem(name), name)
-        for name in ('builder/core.mjs', 'docs/build.md', *guard.VENDOR_INPUTS):
+        for name in ('builder/core.mjs', 'docs/build.md', 'machines/macroosc/vendor/braids/resources.cc'):
             self.assertIsNone(guard.path_problem(name), name)
 
     def test_renamed_firmware_and_archives_are_detected(self):
