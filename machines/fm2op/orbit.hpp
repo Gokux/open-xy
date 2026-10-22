@@ -1,6 +1,6 @@
 // Orbit animation tables in Q10. Display only; never read by audio.
 #pragma once
-#include "opxy/types.hpp"
+#include <opxy/types.hpp>
 namespace fm2op {
 const opxy::i32 orbit_sine[64] = {
     0, 100, 200, 297, 392, 483, 569, 650,

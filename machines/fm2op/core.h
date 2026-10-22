@@ -1,5 +1,5 @@
 #pragma once
-#include "opxy/audio.hpp"
+#include <opxy/audio.hpp>
 
 namespace fm2op {
 using opxy::i32;
