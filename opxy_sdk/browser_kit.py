@@ -37,6 +37,8 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
                      identity=m.identity, controls=[p['label'] for p in m.definition['parameters']])
         entry['catalog'] = catalog_entry(m)
         entry['presetDefaults'] = m.preset_defaults
+        if m.icon:
+            entry['icon'] = m.icon
         if m.kind == 'effect':
             entry['absent'] = {m.prefix + '_fx_register_checked': 'kit_absent'}
         else:
