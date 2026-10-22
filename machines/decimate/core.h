@@ -1,18 +1,15 @@
 #pragma once
-#include <opxy/types.hpp>
+#include <opxy/effect.hpp>
 
-// Decimate: a sample-and-hold rate reducer used as the first send-effect probe.
-// It never rescales samples, so it behaves the same whatever the stock buffer
-// scale turns out to be.
+// Decimate: a sample-and-hold rate reducer. It holds and crossfades samples
+// without rescaling them, so its output keeps the send buffer's own scale.
 namespace decimate {
 struct State {
     opxy::i32 held_left;
     opxy::i32 held_right;
     opxy::u32 phase;
-    opxy::u32 slot;
 };
-// Parameters are the stock eight-word vector; negative values clamp to zero.
-// 0: rate (hold length 1..32 samples), 1: mix (dry..wet).
-void init(State&, opxy::u32 slot);
-void process(State&, opxy::i32* left, opxy::i32* right, const opxy::i32* parameters);
+// Controls: 0 rate (hold length 1..32 samples), 1 mix (dry..wet).
+void initialize(State&);
+void process(State&, opxy::Channel left, opxy::Channel right, opxy::Parameters parameters);
 }

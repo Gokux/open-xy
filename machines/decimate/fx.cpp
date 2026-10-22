@@ -2,7 +2,6 @@
 
 namespace decimate {
 namespace {
-constexpr int kBlock = 64;
 constexpr opxy::u32 kMaxHold = 32;
 
 opxy::u32 nonnegative(opxy::i32 value) { return value < 0 ? 0u : static_cast<opxy::u32>(value); }
@@ -20,16 +19,15 @@ opxy::i32 blend(opxy::i32 dry, opxy::i32 wet, opxy::u32 weight) {
 }
 }
 
-void init(State& state, opxy::u32 slot) {
+void initialize(State& state) {
     state = State();
-    state.slot = slot;
 }
 
 // Bounded: one pass over the 64-sample block, no calls, no allocation.
-void process(State& state, opxy::i32* left, opxy::i32* right, const opxy::i32* parameters) {
+void process(State& state, opxy::Channel left, opxy::Channel right, opxy::Parameters parameters) {
     const opxy::u32 hold = 1 + (((nonnegative(parameters[0]) >> 16) * (kMaxHold - 1) + 16384) >> 15);
     const opxy::u32 mix = nonnegative(parameters[1]) >> 16;
-    for (int i = 0; i < kBlock; ++i) {
+    for (unsigned i = 0; i < opxy::block_frames; ++i) {
         if (state.phase == 0) {
             state.held_left = left[i];
             state.held_right = right[i];
