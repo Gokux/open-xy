@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "id": "macroosc",
+  "name": "Macro Osc",
+  "cppNamespace": "macroosc",
+  "parameters": [
+    {
+      "id": "model",
+      "label": "Model",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "CSAW",
+          "MRPH",
+          "SWSQ",
+          "FOLD",
+          "BUZZ",
+          "SQSB",
+          "SWSB",
+          "SQSY",
+          "SWSY",
+          "SAW3",
+          "SQR3",
+          "TRI3",
+          "SIN3",
+          "RING",
+          "SWRM",
+          "COMB",
+          "TOY*",
+          "ZLPF",
+          "ZPKF",
+          "ZBPF",
+          "ZHPF",
+          "VOSM",
+          "VOWL",
+          "VFOF",
+          "HARM",
+          "FM",
+          "FBFM",
+          "WTFM",
+          "PLUK",
+          "BOWD",
+          "BLOW",
+          "FLUT",
+          "BELL",
+          "DRUM",
+          "KICK",
+          "CYMB",
+          "SNAR",
+          "WTBL",
+          "WMAP",
+          "WLIN",
+          "WTX4",
+          "NOIS",
+          "TWNQ",
+          "CLKN",
+          "CLOU",
+          "PRTC",
+          "QPSK"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "timbre",
+      "label": "Timbre",
+      "default": 0.5,
+      "mapping": {
+        "kind": "power",
+        "maximum": 1,
+        "exponent": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "color",
+      "label": "Color",
+      "default": 0.5,
+      "mapping": {
+        "kind": "power",
+        "maximum": 1,
+        "exponent": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "finetune",
+      "label": "Finetune",
+      "default": 0.5,
+      "mapping": {
+        "kind": "anchors",
+        "values": [
+          -1,
+          1
+        ]
+      },
+      "display": "percent"
+    }
+  ],
+  "presets": {
+    "Classic": {
+      "model": 0,
+      "timbre": 0.5,
+      "color": 0.5,
+      "finetune": 0.5
+    },
+    "Pluck": {
+      "model": 0.6063829787234043,
+      "timbre": 0.5,
+      "color": 0.5,
+      "finetune": 0.5
+    }
+  },
+  "resources": {
+    "voiceBytes": 628,
+    "voiceAlignment": 4,
+    "voiceCapacity": 128,
+    "sharedBytes": 131332,
+    "blockFrames": 64,
+    "sampleRate": 44100,
+    "outputPeakQ31": 1073741824,
+    "display": {
+      "kind": "segments",
+      "characters": 4,
+      "glow": 3,
+      "dials": 4,
+      "textControls": [
+        0
+      ]
+    }
+  }
+}

@@ -1,0 +1,209 @@
+/* Stock sample dispatch for every registered SDK sample engine. The actual
+ * track/voice identity never changes. Only the stock helper's local argument
+ * borrows the multisampler payload layout. No engine implementation here. */
+.section .text
+.align 2
+.extern stock_sample_classify_tail
+
+/* R0=engine -> declared stock page (2 or 7), or zero when not owned.
+ * A matching number is insufficient: check the current registration/name. */
+.global extensions_sample_kind
+.type extensions_sample_kind, STT_FUNC
+extensions_sample_kind:
+    LINK 12;
+@DISPATCH@
+    R0 = 0;
+.Lkind_return:
+    UNLINK;
+    RTS;
+.size extensions_sample_kind, .-extensions_sample_kind
+
+.global extensions_sample_controls_kind
+.type extensions_sample_controls_kind, STT_FUNC
+extensions_sample_controls_kind:
+    LINK 12;
+@CONTROLS_DISPATCH@
+    R0 = 0;
+.Lcontrols_return:
+    UNLINK;
+    RTS;
+.size extensions_sample_controls_kind, .-extensions_sample_controls_kind
+
+/* Same ownership check, restricted to machines requesting waveform analysis. */
+.global extensions_sample_analysis_kind
+.type extensions_sample_analysis_kind, STT_FUNC
+extensions_sample_analysis_kind:
+    LINK 12;
+@ANALYSIS_DISPATCH@
+    R0 = 0;
+.Lanalysis_return:
+    UNLINK;
+    RTS;
+.size extensions_sample_analysis_kind, .-extensions_sample_analysis_kind
+
+.global extensions_sample_analysis_ready
+.type extensions_sample_analysis_ready, STT_FUNC
+extensions_sample_analysis_ready:
+    LINK 12;
+@ANALYSIS_READY@
+    R0 = 0;
+.Lanalysis_ready_return:
+    UNLINK;
+    RTS;
+.size extensions_sample_analysis_ready, .-extensions_sample_analysis_ready
+
+/* Preserve the helper's live arguments and caller-saved registers. */
+.global extensions_sample_alias
+.type extensions_sample_alias, STT_FUNC
+extensions_sample_alias:
+    LINK 40;
+    [SP + 12] = R1;
+    [SP + 16] = R2;
+    [SP + 20] = R3;
+    [SP + 24] = P0;
+    [SP + 28] = P1;
+    [SP + 32] = P2;
+    [SP + 36] = R0;
+    CALL extensions_sample_kind;
+    CC = R0 == 0;
+    R0 = [SP + 36];
+    IF CC JUMP .Lalias_return;
+    R0 = 30;
+.Lalias_return:
+    R1 = [SP + 12];
+    R2 = [SP + 16];
+    R3 = [SP + 20];
+    P0 = [SP + 24];
+    P1 = [SP + 28];
+    P2 = [SP + 32];
+    UNLINK;
+    RTS;
+.size extensions_sample_alias, .-extensions_sample_alias
+
+/* Replay both displaced instructions before the original first branch. */
+.global extensions_sample_classify
+.type extensions_sample_classify, STT_FUNC
+extensions_sample_classify:
+    LINK 12;
+    CALL extensions_sample_alias;
+    UNLINK;
+    CC = R0 < 3 (IU);
+    LINK 0;
+    JUMP.L stock_sample_classify_tail;
+.size extensions_sample_classify, .-extensions_sample_classify
+
+/* Stock's frame restores R7 on return. Keep the original engine in the
+ * track and factory, but select the stock multisampler audio-region payload. */
+.global extensions_sample_note_region
+.type extensions_sample_note_region, STT_FUNC
+extensions_sample_note_region:
+    LINK 40;
+    [SP + 12] = R0;
+    [SP + 16] = R1;
+    [SP + 20] = R2;
+    [SP + 24] = R3;
+    [SP + 28] = P0;
+    [SP + 32] = P1;
+    [SP + 36] = P2;
+    R0 = R7;
+    CALL extensions_sample_kind;
+    CC = R0 == 0;
+    IF CC JUMP .Lnote_nearest;
+    R7 = 30;
+    R1 = 7;
+    CC = R0 == R1;
+    IF !CC JUMP .Lnote_nearest;
+    R0 = [SP + 12];
+    R1 = [SP + 16];
+    R2 = [SP + 20];
+    R3 = [SP + 24];
+    P0 = [SP + 28];
+    P1 = [SP + 32];
+    P2 = [SP + 36];
+    UNLINK;
+    R5 = 30;
+    CC = R5 == 0;
+    RTS;
+.Lnote_nearest:
+    R0 = [SP + 12];
+    R1 = [SP + 16];
+    R2 = [SP + 20];
+    R3 = [SP + 24];
+    P0 = [SP + 28];
+    P1 = [SP + 32];
+    P2 = [SP + 36];
+    UNLINK;
+    R5 = 30;
+    CC = R7 == R5;
+    RTS;
+.size extensions_sample_note_region, .-extensions_sample_note_region
+.extern stock_sample_engine_getter
+.extern stock_sample_key_tail
+.extern stock_drum_key
+.extern stock_sample_octave
+.global extensions_sample_key
+.type extensions_sample_key, STT_FUNC
+extensions_sample_key:
+    LINK 44;
+    [SP + 12] = R0;
+    [SP + 16] = R1;
+    [SP + 20] = R2;
+    [SP + 24] = R3;
+    [SP + 28] = P0;
+    [SP + 32] = P1;
+    [SP + 36] = P2;
+    CALL stock_sample_engine_getter;
+    CALL extensions_sample_kind;
+    R1 = 7;
+    CC = R0 == R1;
+    IF !CC JUMP .Lkey_stock;
+    R0 = [SP + 12];
+    CALL stock_sample_octave;
+    /* GUI-side lookup already has a valid project/pattern context. Publish
+     * only its octave value; audio must never call those project getters. */
+    R1 = [SP + 12];
+    R2 = 8;
+    CC = R1 < R2 (IU);
+    IF !CC JUMP .Lkey_map;
+    R1 <<= 2;
+    P0.H = sdk_sample_drum_octaves;
+    P0.L = sdk_sample_drum_octaves;
+    P1 = R1;
+    P0 = P0 + P1;
+    [P0] = R0;
+    SSYNC;
+.Lkey_map:
+    R1 = R0;
+    R0 = [SP + 16];
+    CALL stock_drum_key;
+    R0 += 53;
+    [SP + 40] = R0;
+    R1 = [SP + 16];
+    R2 = [SP + 20];
+    R3 = [SP + 24];
+    P0 = [SP + 28];
+    P1 = [SP + 32];
+    P2 = [SP + 36];
+    R0 = [SP + 40];
+    UNLINK;
+    RTS;
+.Lkey_stock:
+    R0 = [SP + 12];
+    R1 = [SP + 16];
+    R2 = [SP + 20];
+    R3 = [SP + 24];
+    P0 = [SP + 28];
+    P1 = [SP + 32];
+    P2 = [SP + 36];
+    UNLINK;
+    LINK 0;
+    JUMP.L stock_sample_key_tail;
+.size extensions_sample_key, .-extensions_sample_key
+
+.section .bss
+.align 4
+.global sdk_sample_drum_octaves
+.type sdk_sample_drum_octaves, STT_OBJECT
+sdk_sample_drum_octaves:
+    .space 32
+.size sdk_sample_drum_octaves, .-sdk_sample_drum_octaves

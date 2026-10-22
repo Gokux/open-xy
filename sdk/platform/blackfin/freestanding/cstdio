@@ -1,0 +1,4 @@
+// Freestanding <cstdio>: the vendored DSP includes it but performs no I/O.
+#ifndef MACRO_OSC_SHIM_CSTDIO_
+#define MACRO_OSC_SHIM_CSTDIO_
+#endif  // MACRO_OSC_SHIM_CSTDIO_

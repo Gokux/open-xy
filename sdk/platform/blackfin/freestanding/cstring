@@ -1,0 +1,17 @@
+// Freestanding <cstring>: memset/memcpy are defined in sdk/platform/blackfin/memory.cpp.
+#ifndef MACRO_OSC_SHIM_CSTRING_
+#define MACRO_OSC_SHIM_CSTRING_
+
+#include <stddef.h>
+
+extern "C" {
+void* memset(void* destination, int value, size_t size);
+void* memcpy(void* destination, const void* source, size_t size);
+}
+
+namespace std {
+using ::memcpy;
+using ::memset;
+}
+
+#endif  // MACRO_OSC_SHIM_CSTRING_

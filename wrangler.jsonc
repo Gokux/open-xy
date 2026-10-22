@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "open-xy",
+  "compatibility_date": "2026-10-21",
+  "workers_dev": true,
+  "routes": [{"pattern": "open-xy.com", "custom_domain": true}],
+  "assets": {
+    "not_found_handling": "none"
+  }
+}

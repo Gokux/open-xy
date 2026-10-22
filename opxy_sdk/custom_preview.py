@@ -1,0 +1,173 @@
+"""Browser-only local machines with a drawing display. No native identity or firmware build."""
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import sys
+import xml.etree.ElementTree as ET
+
+from .contributors import validate_source_boundary
+from .definitions import ROOT, label, stock_name, validate_definition
+from .formats import require, sha
+from .pipeline import fresh_output
+
+KIND = 'cpp-browser-custom-preview'
+REQUIRED = {'definition.json', 'core.h', 'engine.cpp', 'display.h', 'display.cpp', 'panel.svg.fragment'}
+PREFIX = 'local'  # Artwork IDs follow the drawing convention: local_node_N and local_palette_N.
+SUFFIXES = {'.json', '.cpp', '.h', '.hpp', '.inc', '.fragment'}
+
+
+def source_files(directory):
+    directory = Path(os.path.abspath(directory))
+    require(directory.resolve() == directory and directory.is_dir(), 'Missing or redirected machine directory')
+    files = {}
+    for path in directory.rglob('*'):
+        require(path.resolve() == path, 'Redirected machine source: ' + str(path))
+        if path.is_file() and path.suffix in SUFFIXES:
+            require(path.stat().st_size <= 1024 * 1024 and len(files) < 128, 'Machine source limit exceeded')
+            files[path.relative_to(directory).as_posix()] = path.read_bytes()
+    require(REQUIRED <= files.keys() and sum(map(len, files.values())) <= 8 * 1024 * 1024,
+            'Machine needs definition.json, core.h, engine.cpp, display.h, display.cpp and panel.svg.fragment')
+    for name, data in files.items():
+        if Path(name).suffix not in {'.cpp', '.h', '.hpp', '.inc'}:
+            continue
+        text = data.decode('utf-8')
+        validate_source_boundary(text, name)
+        code = re.sub(r'/\*.*?\*/|//[^\n]*', '', text, flags=re.S)
+        for directive in re.findall(r'^\s*#\s*(include[^\n]*)', code, re.M):
+            match = re.fullmatch(r'include\s*[<"]([a-zA-Z0-9_./-]+)[>"]\s*', directive)
+            require(match is not None, 'Use literal, local includes in ' + name)
+            include = match[1]
+            require('..' not in include.split('/') and not include.startswith('/'), 'Include escapes machine: ' + include)
+            local = (Path(name).parent / include).as_posix()
+            sdk = re.fullmatch(r'opxy/[a-z0-9_]+\.hpp', include) and (ROOT / 'sdk/include' / include).is_file()
+            require(local in files or include in files or sdk, 'Include is not a machine or SDK header: ' + include)
+    return files
+
+
+def custom_identity(identity):
+    stock_name(identity)
+    require(not (ROOT / 'machines' / identity).exists(), 'Choose a distinct local machine ID')
+
+
+def metadata(files):
+    from .native import drawing_ids
+    from .preview import drawing_bindings
+    definition = validate_definition(json.loads(files['definition.json']), 'synth')
+    display = definition['resources']['display']
+    require(display['kind'] == 'drawing', 'Local machines use the drawing display')
+    custom_identity(definition['id'])
+    graphics = drawing_bindings(drawing_ids(PREFIX, display), display)
+    artwork = files['panel.svg.fragment']
+    require(len(artwork) <= 65536 and not re.search(br'<!DOCTYPE|<!ENTITY', artwork, re.I), 'Invalid drawing asset')
+    root = ET.fromstring(b'<svg>' + artwork + b'</svg>')
+    elements = {}
+    allowed = {'id', 'd', 'cx', 'cy', 'r', 'transform', 'fill', 'stroke', 'stroke-width', 'stroke-linejoin'}
+    for node in root.iter():
+        if node is root:
+            continue
+        require(node.tag in {'g', 'path', 'circle'} and set(node.attrib) <= allowed, 'Unsupported drawing element or attribute')
+        for key in ('fill', 'stroke'):
+            require(key not in node.attrib or re.fullmatch(r'none|#[0-9a-fA-F]{6}', node.attrib[key]),
+                    'Drawing colors must be none or six-digit hex colors')
+        identity = node.get('id')
+        if identity:
+            require(identity not in elements, 'Duplicate drawing asset ID')
+            elements[identity] = node
+    for i, identity in enumerate(graphics['nodes']):
+        require(identity in elements and elements[identity].tag in ({'path'} if i in graphics['paths'] else {'path', 'circle'}),
+                'Missing retained drawing node: ' + identity)
+    for identity in graphics['palette']:
+        node = elements.get(identity)
+        require(node is not None and node.tag in {'path', 'circle'} and
+                all(re.fullmatch(r'#[0-9a-fA-F]{6}', node.get(key, '')) for key in ('fill', 'stroke')) and
+                0 < float(node.get('stroke-width', '0')) <= 8, 'Invalid drawing palette: ' + identity)
+    return definition, dict(graphics, asset_sha256=sha(artwork))
+
+
+def source_hashes(files):
+    from .preview import SDK_FOLDERS, SDK_SOURCES
+    paths = set(SDK_SOURCES) | {'opxy_sdk/custom_preview.py', 'opxy_sdk/native.py'}
+    for folder in SDK_FOLDERS:
+        paths |= {p.relative_to(ROOT).as_posix() for p in (ROOT / folder).rglob('*')
+                  if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.md'}
+    return {'machine': {name: sha(data) for name, data in sorted(files.items())},
+            'sdk': {name: sha((ROOT / name).read_bytes()) for name in sorted(paths)}}
+
+
+def build(compiler, source, out):
+    from .preview import compile_preview, preview_bundle
+    source = Path(os.path.abspath(source))
+    require(not Path(out).resolve().is_relative_to(source.resolve()), 'Keep preview output outside the machine source directory')
+    files = source_files(source)
+    definition, graphics = metadata(files)
+    before = source_hashes(files)
+    compiler = shutil.which(str(compiler))
+    require(compiler, 'Clang++ with wasm32/wasm-ld required; run python sdk.py doctor --preview')
+    compiler = Path(compiler).resolve()
+    out = fresh_output(out)
+    compile_preview(compiler, definition, 'drawing', out, source)
+    require(source_hashes(source_files(source)) == before, 'Sources changed during preview build')
+    (out / 'panel.svg').write_bytes(files['panel.svg.fragment'])
+    manifest = dict(schema=1, kind=KIND, engine=definition['id'], sample_rate=44100, definition=definition,
+                    source_root=str(source), sources=before, graphics=graphics,
+                    wasm_sha256=sha((out / 'engine.wasm').read_bytes()), compiler={'sha256': sha(compiler.read_bytes())})
+    (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+    preview_bundle(out)
+    print('Local custom-machine preview: ' + str(out))
+    print('Run: python tools/serve_harness.py --preview "' + str(out) + '"')
+
+
+def authenticate(manifest, artifacts):
+    require(set(manifest) == {'schema', 'kind', 'engine', 'sample_rate', 'definition', 'source_root',
+                              'sources', 'graphics', 'wasm_sha256', 'compiler'} and
+            type(manifest['schema']) is int and manifest['schema'] == 1 and manifest['kind'] == KIND and
+            type(manifest['sample_rate']) is int and manifest['sample_rate'] == 44100, 'Invalid custom preview manifest')
+    require(isinstance(manifest['source_root'], str) and Path(manifest['source_root']).is_absolute(), 'Invalid machine source path')
+    files = source_files(Path(manifest['source_root']))
+    definition, graphics = metadata(files)
+    require(manifest['sources'] == source_hashes(files), 'Preview is stale; rebuild from current source')
+    require(manifest['definition'] == definition and manifest['engine'] == definition['id'] and
+            manifest['graphics'] == graphics, 'Custom preview metadata differs from source')
+    require(artifacts['panel.svg'] == files['panel.svg.fragment'] and
+            artifacts['engine.wasm'][:8] == b'\0asm\x01\0\0\0' and
+            sha(artifacts['engine.wasm']) == manifest['wasm_sha256'], 'Custom preview artifact identity mismatch')
+
+
+def scaffold(out, identity, name):
+    custom_identity(identity); label(name)
+    namespace = identity
+    out = fresh_output(out)
+    for template in (ROOT / 'sdk/templates/machine').glob('*.in'):
+        text = template.read_text(encoding='utf-8').replace('@ID@', identity).replace('@NAME@', name).replace('@NAMESPACE@', namespace)
+        (out / template.name.removesuffix('.in')).write_text(text, encoding='utf-8')
+    from .native import drawing_ids
+    display = json.loads((out / 'definition.json').read_text(encoding='utf-8'))['resources']['display']
+    ids = drawing_ids(PREFIX, display)
+    nodes, palette = ids[:display['nodes']], ids[display['nodes']:]
+    artwork = [f'<path id="{identity}" d="M-32 -32 L32 -32 L32 32 L-32 32 Z" fill="none" stroke="#ffffff" stroke-width="1"/>'
+               for identity in nodes[:display['paths']]]
+    artwork += [f'<circle id="{identity}" cx="0" cy="0" r="2" fill="#ffffff"/>' for identity in nodes[display['paths']:]]
+    for i, identity in enumerate(palette):
+        color = '#' + f'{i * 17:02x}' * 3
+        artwork.append(f'<circle id="{identity}" cx="640" cy="0" r="1" fill="{color}" stroke="{color}" stroke-width="1"/>')
+    (out / 'panel.svg.fragment').write_text('\n'.join(artwork) + '\n', encoding='utf-8')
+    metadata(source_files(out))
+    print('Created local machine: ' + str(out))
+    print('No native identity was allocated. Preview with: python sdk.py preview --source "' + str(out) + '" --out local/my-preview-001')
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='Create a browser-only machine with portable C++ sound and display callbacks')
+    parser.add_argument('--id', required=True)
+    parser.add_argument('--name', required=True)
+    parser.add_argument('--out', required=True, type=Path)
+    args = parser.parse_args(argv)
+    try:
+        scaffold(args.out, args.id, args.name)
+        return 0
+    except (ValueError, OSError, ET.ParseError) as error:
+        print('FAIL: ' + str(error), file=sys.stderr)
+        return 1

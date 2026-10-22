@@ -1,0 +1,28 @@
+#include "core.h"
+#include "opxy/q31.hpp"
+
+namespace @NAMESPACE@ {
+// Callbacks run serially per voice; owner is a stable nonzero voice ID.
+inline void initialize(Voice& voice, Shared&, opxy::u32) { voice.phase = 0; }
+inline void start(Voice& voice, Shared&, opxy::u32) { voice.phase = 0; }
+inline void destroy(Voice&, Shared&, opxy::u32) {}
+
+// Learning oscillator: triangle/pulse blend. Add band-limiting and sound tests
+// before treating a modified oscillator as a production instrument.
+inline void render(Voice& state, Shared&, opxy::u32, opxy::Output output,
+                   opxy::Parameters parameters, opxy::Pitch pitch) {
+    Voice* voice = &state;
+    const opxy::i32 blend = parameters[0];
+    const opxy::u32 width = 0x40000000u + static_cast<opxy::u32>(parameters[1]);
+    for (unsigned i = 0; i < opxy::block_frames; ++i) {
+        opxy::u32 folded = voice->phase & 0x7fffffffu;
+        if (voice->phase & 0x80000000u) folded = 0x7fffffffu - folded;
+        const opxy::i32 triangle = static_cast<opxy::i32>(folded) - 1073741824;
+        const opxy::i32 pulse = voice->phase < width ? 1073741824 : -1073741824;
+        const opxy::i32 mixed = opxy::q31::multiply(triangle, 0x7fffffff - blend)
+                             + opxy::q31::multiply(pulse, blend);
+        output[i] = opxy::q31::multiply(mixed, parameters[2]);
+        voice->phase += pitch[i];
+    }
+}
+}

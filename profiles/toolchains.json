@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "release": "windows-x86_64",
+  "hosts": {
+    "windows-x86_64": {
+      "executable_suffix": ".exe",
+      "tools": {
+        "as": "a8f3985d00c18df25c8ea77b12d006ab5bddca6dfcc603e0e43af05543ba7239",
+        "ld": "7390edfe342e1418f782c29cc7511a963de5c0496e7fe1f2ceae0d7fd377127d",
+        "objcopy": "dd5d9b193662469530df99ea11cf17a6714c0d5a0cf927d0b9eef9668986b5f6",
+        "objdump": "505f0bd72fa89c567d45bbf1679dabc4b8c2ae028057630772857d4363d79773"
+      },
+      "compiler": {
+        "bin/bfin-elf-g++.exe": "26dd01cac9ea234375e0d6a407d95ffcaa6aa483df632e312e17def70582525c",
+        "libexec/gcc/bfin-elf/8.0.0/cc1plus.exe": "fe04817253b4f2ae664f3861190173b42bc9bab826c70952e30711bdd357fa6a",
+        "libexec/gcc/bfin-elf/8.0.0/libgcc_s_seh-1.dll": "f9b64f3fc26fd1e8899503e84a62567cbe5cefc2bd3ef0fee5501386b2302cd5",
+        "libexec/gcc/bfin-elf/8.0.0/libgmp-10.dll": "37248cda33845e7c5c35a574e57da762dd0a8268f0270d179f30a33746809681",
+        "libexec/gcc/bfin-elf/8.0.0/libiconv-2.dll": "ff31fa811f9c07cc7fdaa68c9e8bca3a7b4fdf6e0a079a58175ea58ba139c7ae",
+        "libexec/gcc/bfin-elf/8.0.0/libmpc-3.dll": "6aa6d281fbfd53e2681992de774abbb7d7fde0a2fa653621e100abec06bce778",
+        "libexec/gcc/bfin-elf/8.0.0/libmpfr-6.dll": "240a2529b47db24a7a3050d2823d66d275d3c81c833aedd7432ec9d538f19945",
+        "libexec/gcc/bfin-elf/8.0.0/libwinpthread-1.dll": "199474f4885374778124211409eb94f55c012a57718316f86efd54f4cfbd8f20",
+        "libexec/gcc/bfin-elf/8.0.0/zlib1.dll": "cb7ab3788d10940df874acd97b1821bbb5ee4a91f3eec11982bb5bf7a3c96443",
+        "lib/gcc/bfin-elf/8.0.0/include/stddef.h": "0a9383c07ce0349294733e03872ee1213e3a42668d3d2ba5d3946c823f1041e1",
+        "lib/gcc/bfin-elf/8.0.0/include/stdint.h": "301099c873d5152e5abcba8755dcf21a5d3bbb33909acae114f1b7ecc30d37c8",
+        "lib/gcc/bfin-elf/8.0.0/include/stdint-gcc.h": "c3ca7ccddc3783cabb2c73dfdc35934c24fac19b70508e33949b59b7b4d5ee59",
+        "lib/gcc/bfin-elf/8.0.0/libgcc.a": "e1cfd0b472d51feea70123c999473c28d41dd03a0f54359dea8a742e3fbe2a2b"
+      }
+    },
+    "darwin-arm64": {
+      "executable_suffix": "",
+      "tools": {
+        "as": "9e378d8f79526be6885cacf4710c74ef334675dca285a41d0b1e360d0138fb8c",
+        "ld": "effdecf1b178b242a96a2f0a37aa26ff91e8dacd4b6e1824db6d7290684f4df6",
+        "objcopy": "3714545fcd979a7ebbb29678913cf859b05abae6d41facfd5e607f5044dc2c11",
+        "objdump": "364af28fc1c766e589caa45539bd7bfec61309514ee8695d49ec8cfbfbeafeec"
+      },
+      "compiler": {
+        "bin/bfin-elf-g++": "c007581bca81e010957a5afe465e0a651747de038e7e5c511b2ec2314bf3fd02",
+        "libexec/gcc/bfin-elf/8.0.0/cc1plus": "3ec377baab54b880111b78be2da4e3ff7d4397eb5f1f54b1a3bedae1043f43c0",
+        "lib/gcc/bfin-elf/8.0.0/include/stddef.h": "1ec68deac2c5c0f846949de67d8266c02964132fa216165ea2ec4e70c8fcb930",
+        "lib/gcc/bfin-elf/8.0.0/include/stdint.h": "86a7914ab7d6a18465a6fb9a7b54f945cad604fdbf3ca0d10e4e0254e0037911",
+        "lib/gcc/bfin-elf/8.0.0/include/stdint-gcc.h": "9f91de7f8568e02ddcf7b2eefca31ec0d5dda9f1842570d7500b8314fe19625c"
+      }
+    }
+  }
+}

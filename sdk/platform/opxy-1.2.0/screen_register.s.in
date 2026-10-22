@@ -1,0 +1,94 @@
+/* Constructs or confirms a machine's screen in its page slot.
+ * R0 = page ID; returns R0 = 1 when the slot holds this machine's screen with a
+ * non-null loader (artwork may still fail to load later), otherwise 0. The
+ * engine record is registered separately; readiness keeps the engine out of the
+ * catalog while its page identity is absent. Links with this machine's
+ * screen.s, whose private symbols it uses.
+ */
+.section .text
+.align 2
+.global @PREFIX@_screen_register_checked
+.type @PREFIX@_screen_register_checked, STT_FUNC
+@PREFIX@_screen_register_checked:
+    R1 = 1;
+    CC = R0 < R1 (IU);
+    IF CC JUMP .Linvalid_screen_id;
+    R1 = @PAGE_LIMIT@;
+    CC = R0 < R1 (IU);
+    IF !CC JUMP .Linvalid_screen_id;
+    LINK 0;
+    [--SP] = (R7:4, P5:3);
+    SP += -12;
+    R7 = R0;
+    P5.H = @PREFIX@_screen_state;
+    P5.L = @PREFIX@_screen_state;
+    P0 = 0x8d51fbb4;
+    CALL (P0);
+    /* Proven registry base + 4*ID; the checked ID stays inside the slot table. */
+    R1 = R0;
+    R0 = R7;
+    R0 <<= 2;
+    R0 = R0 + R1 (NS);
+    P4 = R0;
+    R0 = [P4];
+    R1 = P5;
+    CC = R0 == R1;
+    IF CC JUMP .Lverify_own_identity;
+    CC = R0 == 0;
+    IF !CC JUMP .Lregistration_failed;
+
+    /* An empty target slot does not authorize reusing a live object. Require
+     * the complete own @SCREEN_BYTES@-byte BSS object to be unused, not just its ID word.
+     * A prior construction/destruction, another ID or partial state fails.
+     */
+    P0 = P5;
+    R2 = @SCREEN_WORDS@;
+.Lrequire_zero_state:
+    R0 = [P0++];
+    CC = R0 == 0;
+    IF !CC JUMP .Lregistration_failed;
+    R2 += -1;
+    CC = R2 == 0;
+    IF !CC JUMP .Lrequire_zero_state;
+
+    R0 = P5;
+    R1 = R7;
+    P0.H = @PREFIX@_screen_ctor;
+    P0.L = @PREFIX@_screen_ctor;
+    CALL (P0);
+    R1 = P5;
+    CC = R0 == R1;
+    IF !CC JUMP .Lregistration_failed;
+    R0 = [P4];
+    CC = R0 == R1;
+    IF !CC JUMP .Lregistration_failed;
+.Lverify_own_identity:
+    R0 = [P5];
+    R1.H = @PREFIX@_screen_vtable;
+    R1.L = @PREFIX@_screen_vtable;
+    CC = R0 == R1;
+    IF !CC JUMP .Lregistration_failed;
+    R0 = [P5 + 4];
+    R1.H = @PREFIX@_screen_asset;
+    R1.L = @PREFIX@_screen_asset;
+    CC = R0 == R1;
+    IF !CC JUMP .Lregistration_failed;
+    R0 = [P5 + 12];
+    CC = R0 == R7;
+    IF !CC JUMP .Lregistration_failed;
+    R0 = [P5 + 16];
+    CC = R0 == 0;
+    IF CC JUMP .Lregistration_failed;
+    R0 = 1;
+    JUMP .Lregistration_return;
+.Lregistration_failed:
+    R0 = 0;
+.Lregistration_return:
+    SP += 12;
+    (R7:4, P5:3) = [SP++];
+    UNLINK;
+    RTS;
+.Linvalid_screen_id:
+    R0 = 0;
+    RTS;
+.size @PREFIX@_screen_register_checked, .-@PREFIX@_screen_register_checked

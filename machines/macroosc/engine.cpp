@@ -1,0 +1,114 @@
+// Authored Macro Osc sound. Firmware ABI, storage, pitch addresses and host
+// transport are supplied by the SDK. Vendored DSP stays independently pinned.
+#include "core.h"
+#include "pitch.h"
+#include "stmlib/utils/random.h"
+
+namespace stmlib {
+uint32_t Random::rng_state_;
+}
+namespace macroosc {
+using braids::MacroOscillator;
+using braids::MacroOscillatorShape;
+const unsigned kNumShapes = 47, kBlockSize = 64, kMaxChunk = 24;
+const uint8_t kNoSync[kMaxChunk] = {};
+inline bool UsesDelayLines(MacroOscillatorShape shape) {
+  return shape == braids::MACRO_OSC_SHAPE_SAW_COMB ||
+         (shape >= braids::MACRO_OSC_SHAPE_PLUCKED && shape <= braids::MACRO_OSC_SHAPE_FLUTED);
+}
+
+inline uint32_t Unipolar15(int32_t q31) {
+  return q31 < 0 ? 0 : static_cast<uint32_t>(q31) >> 16;  // 0..32767
+}
+
+inline MacroOscillatorShape ShapeFromParameter(int32_t q31) {
+  return static_cast<MacroOscillatorShape>((Unipolar15(q31) * kNumShapes) >> 15);  // 0..46
+}
+
+// Inverse of the stock increment: Braids pitch in 1/128 semitone, MIDI 0 = 0.
+int32_t PitchFromIncrement(uint32_t increment) {
+  if (increment == 0) {
+    return 0;
+  }
+  uint32_t exponent = 31;
+  while (!(increment & 0x80000000UL)) {
+    increment <<= 1;
+    --exponent;
+  }
+  uint32_t index = (increment >> 23) & 0xff;
+  uint32_t fraction = (increment >> 15) & 0xff;
+  uint32_t a = braids::kOpxyLog2Q16[index];
+  uint32_t b = braids::kOpxyLog2Q16[index + 1];
+  uint32_t log2 = (exponent << 16) + a + (((b - a) * fraction) >> 8);
+  return static_cast<int32_t>((log2 * 3) >> 7) + braids::kOpxyPitchOffset;
+}
+
+void destroy(Voice& voice, Shared& state, opxy::u32 owner) {
+  state.delays.release(owner, voice.delay_slot);
+  voice.delay_slot = 0;
+  voice.osc.set_delay_lines(nullptr);
+  voice.strike_pending = 0;
+}
+void initialize(Voice& voice, Shared& state, opxy::u32 owner) {
+  destroy(voice, state, owner);
+  std::memset(static_cast<void*>(&voice), 0, sizeof(voice));
+  voice.rng_state = 0x21u + (owner - 1) * 0x9e3779b9u;
+  voice.osc.Init();
+  voice.strike_pending = 1;
+}
+void start(Voice& voice, Shared&, opxy::u32) {
+  voice.strike_pending = 1;
+}
+void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
+            opxy::Parameters parameters, opxy::Pitch pitch_increments) {
+  Voice* voice = &value;
+  MacroOscillator* osc = &voice->osc;
+  MacroOscillatorShape shape = ShapeFromParameter(parameters[0]);
+  int32_t fine = (static_cast<int32_t>(Unipolar15(parameters[3])) - 16384) >> 7;
+  osc->set_parameters(Unipolar15(parameters[1]), Unipolar15(parameters[2]));
+
+  bool changed = shape != osc->shape();
+  osc->set_shape(shape);  // Strikes on change, as on the module.
+  if (UsesDelayLines(shape)) {
+    if (changed || voice->strike_pending) {
+      voice->delay_slot = state.delays.acquire(owner, voice->delay_slot);
+    }
+  } else if (voice->delay_slot != 0) {
+    state.delays.release(owner, voice->delay_slot);
+    voice->delay_slot = 0;
+    osc->set_delay_lines(nullptr);
+  }
+  if (voice->strike_pending) {
+    osc->Strike();
+    voice->strike_pending = 0;
+  }
+
+  if (UsesDelayLines(shape) && !state.delays.get(owner, voice->delay_slot)) {
+    // Storage was reassigned to a newer note; stay silent until restruck.
+    for (size_t i = 0; i < kBlockSize; ++i) {
+      out[i] = 0;
+    }
+    return;
+  }
+
+  osc->set_delay_lines(state.delays.get(owner, voice->delay_slot));
+  stmlib::Random::Seed(voice->rng_state);
+  int16_t block[kMaxChunk];
+  for (size_t offset = 0; offset < kBlockSize; offset += kMaxChunk) {
+    size_t size = kBlockSize - offset < kMaxChunk ? kBlockSize - offset : kMaxChunk;
+    int32_t pitch = PitchFromIncrement(pitch_increments[offset]) + fine;
+    if (pitch < 0) {
+      pitch = 0;
+    } else if (pitch > 16383) {
+      pitch = 16383;
+    }
+    osc->set_pitch(pitch);
+    osc->Render(kNoSync, block, size);
+    for (size_t i = 0; i < size; ++i) {
+      out[offset + i] = static_cast<int32_t>(block[i]) * 32768;  // Half-scale Q31.
+    }
+  }
+  voice->rng_state = stmlib::Random::state();
+  return;
+}
+}  // namespace macroosc

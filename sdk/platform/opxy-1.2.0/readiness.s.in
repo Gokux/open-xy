@@ -1,0 +1,164 @@
+/* Readiness of a synth with its own screen page, and its catalog adapter.
+ * Read-only: checks the current engine record, name and page identity each
+ * time rather than a stored flag. Assumes valid stock strings. Runs on the
+ * menu/startup path, which stock calls sequentially; it is not safe for
+ * concurrent callers.
+ */
+.section .text
+.align 2
+.extern @PREFIX@_engine_id
+.extern @PREFIX@_page_id
+.extern @PREFIX@_record_owned_draft
+.extern stock_catalog_insert
+
+/* R0=valid stock string object, R0=1 only for the generated engine name.
+ * Honors both inline and allocated storage without reading trailing padding.
+ */
+.global @PREFIX@_name_matches
+.type @PREFIX@_name_matches, STT_FUNC
+@PREFIX@_name_matches:
+    P0 = R0;
+    R0 = [P0 + 20];
+    R1 = @NAME_LENGTH@;
+    CC = R0 == R1;
+    IF !CC JUMP .Lname_no;
+    R0 = [P0 + 24];
+    CC = R0 < R1 (IU);
+    IF CC JUMP .Lname_no;
+    R1 = 16;
+    CC = R0 < R1 (IU);
+    IF !CC JUMP .Lname_heap;
+    P0 += 4;
+    JUMP .Lname_compare;
+.Lname_heap:
+    R0 = [P0 + 4];
+    CC = R0 == 0;
+    IF CC JUMP .Lname_no;
+    P0 = R0;
+.Lname_compare:
+@STRING_NAME_MATCHES@
+    R0 = 1;
+    RTS;
+.Lname_no:
+    R0 = 0;
+    RTS;
+.size @PREFIX@_name_matches, .-@PREFIX@_name_matches
+
+/* No arguments, R0=1 only for the current own record and loaded-page identity.
+ * Writes only its stack. No stock getter (which can initialize), allocator,
+ * registrar, resolver or SVG loader is called.
+ */
+.global @PREFIX@_ready
+.type @PREFIX@_ready, STT_FUNC
+@PREFIX@_ready:
+    LINK 0;
+    [--SP] = (R7:4, P5:3);
+    SP += -12;
+    R0.H = @PREFIX@_engine_id;
+    R0.L = @PREFIX@_engine_id;
+    R6.H = @PREFIX@_page_id;
+    R6.L = @PREFIX@_page_id;
+    R1 = @ENGINE_LIMIT@;
+    CC = R0 < R1 (IU);
+    IF !CC JUMP .Lnot_ready;
+    CC = R6 < 1;
+    IF CC JUMP .Lnot_ready;
+    R1 = @PAGE_LIMIT@;
+    CC = R6 < R1 (IU);
+    IF !CC JUMP .Lnot_ready;
+    R1 = 48;
+    R0 *= R1;
+    R1 = @ENGINE_RECORDS@;
+    R0 = R0 + R1 (NS);
+    P4 = R0;
+    CALL @PREFIX@_record_owned_draft;
+    CC = R0 == 1;
+    IF !CC JUMP .Lnot_ready;
+    /* Initialized byte and registry address are bound to stock getter bytes. */
+    P0 = 0x84ebbf84;
+    R0 = B[P0] (Z);
+    CC = R0 == 0;
+    IF CC JUMP .Lnot_ready;
+    R0 = R6;
+    R0 <<= 2;
+    R1 = @SCREEN_SLOTS@;
+    R0 = R0 + R1 (NS);
+    P0 = R0;
+    R0 = [P0];
+    R1.H = @PREFIX@_screen_state;
+    R1.L = @PREFIX@_screen_state;
+    CC = R0 == R1;
+    IF !CC JUMP .Lnot_ready;
+    P5 = R1;
+    R0 = [P5];
+    R1.H = @PREFIX@_screen_vtable;
+    R1.L = @PREFIX@_screen_vtable;
+    CC = R0 == R1;
+    IF !CC JUMP .Lnot_ready;
+    R0 = [P5 + 4];
+    R1.H = @PREFIX@_screen_asset;
+    R1.L = @PREFIX@_screen_asset;
+    CC = R0 == R1;
+    IF !CC JUMP .Lnot_ready;
+    R0 = [P5 + 12];
+    CC = R0 == R6;
+    IF !CC JUMP .Lnot_ready;
+    R0 = [P5 + 16];
+    CC = R0 == 0;
+    IF CC JUMP .Lnot_ready;
+    R0 = [P5 + 8];
+    CC = R0 == 0;
+    IF CC JUMP .Lnot_ready;
+    R0 = 1;
+    JUMP .Lready_return;
+.Lnot_ready:
+    R0 = 0;
+.Lready_return:
+    SP += 12;
+    (R7:4, P5:3) = [SP++];
+    UNLINK;
+    RTS;
+.size @PREFIX@_ready, .-@PREFIX@_ready
+
+/* Exact catalog insertion ABI: R0=vector,R1=stock string,R2=resolved ID.
+ * Other names delegate unchanged, even if their ID equals our candidate.
+ * Own name requires expected resolved ID and current readiness.
+ */
+.global @PREFIX@_catalog_checked
+.type @PREFIX@_catalog_checked, STT_FUNC
+@PREFIX@_catalog_checked:
+    LINK 0;
+    [--SP] = (R7:4, P5:3);
+    SP += -12;
+    R4 = R0;
+    R5 = R1;
+    R7 = R2;
+    R3 = 33;
+    CC = R2 == R3;
+    IF CC JUMP .Lcatalog_skip;
+    R0 = R1;
+    CALL @PREFIX@_name_matches;
+    CC = R0 == 0;
+    IF CC JUMP .Lcatalog_delegate;
+    R0.H = @PREFIX@_engine_id;
+    R0.L = @PREFIX@_engine_id;
+    CC = R0 == R7;
+    IF !CC JUMP .Lcatalog_skip;
+    CALL @PREFIX@_ready;
+    CC = R0 == 1;
+    IF !CC JUMP .Lcatalog_skip;
+.Lcatalog_delegate:
+    R0 = R4;
+    R1 = R5;
+    R2 = R7;
+    SP += 12;
+    (R7:4, P5:3) = [SP++];
+    UNLINK;
+    JUMP.L stock_catalog_insert;
+.Lcatalog_skip:
+    R0 = 0;
+    SP += 12;
+    (R7:4, P5:3) = [SP++];
+    UNLINK;
+    RTS;
+.size @PREFIX@_catalog_checked, .-@PREFIX@_catalog_checked

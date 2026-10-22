@@ -1,0 +1,191 @@
+// SDK native ABI for a sample-playback engine (stock record flag 1).
+// The stock voice allocator acquires the track's cached sample, publishes it at
+// 0x8404fb1c and then calls the engine factory; the allocation record holds the
+// reference. The engine sees only a validated read-only SampleView.
+#include "sample.cpp"
+#include "sample_region.hpp"
+#include "sample_cache.hpp"
+#include <opxy/audio_tempo.hpp>
+#include <opxy/transport.hpp>
+extern "C" {
+void* @PREFIX@_factory(opxy::u32, opxy::u32) __asm__("@PREFIX@_factory");
+const char* @PREFIX@_parameter_name(opxy::u32) __asm__("@PREFIX@_parameter_name");
+extern const char @PREFIX@_name[] __asm__("@PREFIX@_name");
+extern volatile opxy::i32 sdk_sample_drum_octaves[8] __asm__("sdk_sample_drum_octaves");
+}
+using Voice = @NAMESPACE@::Voice;
+struct Slot {
+    const void* const* vtable;
+    Voice voice;
+    opxy::u32 frames;
+    const void* sample_object;
+    const opxy::SampleAnalysis* analysis;
+    unsigned char track, key, retry;
+    opxy::u32 root_factor;
+    opxy::i32 root_cents;
+    opxy::i32 key_transpose;
+    bool started;
+};
+static Slot voices[@CAPACITY@];
+static Slot* active[@CHOKE@ ? 8 : 1][@CHOKE@ ? 128 : 1];
+static void clear_owner(Slot* slot) {
+    if (@CHOKE@ && slot->started && slot->track < 8 && slot->key < 128 &&
+        active[slot->track][slot->key] == slot) active[slot->track][slot->key] = nullptr;
+}
+static_assert(__builtin_offsetof(Slot, voice) == 4, "Native header offset mismatch");
+static const opxy::u32* const increments = reinterpret_cast<const opxy::u32*>(0x11904b00);
+
+// Audio clock tempo, decoded without floating-point work on the callback.
+static opxy::Transport transport() {
+    opxy::Transport now{0, 0, false};
+    now.bpm_x10 = opxy::audio_bpm_x10(*reinterpret_cast<const volatile opxy::u32*>(0x84c710d4));
+    const volatile unsigned char* playing = reinterpret_cast<const volatile unsigned char*>(0x860d37f5);
+    now.playing = playing[0] || playing[1];
+    now.ticks96 = *reinterpret_cast<const volatile opxy::u32*>(0x86bd9d3c);
+    return now;
+}
+static opxy::i32 track_transpose(opxy::u32 track) {
+    if (track >= 8) return 0;
+    // Audio track parameters, same base/stride returned by stock 8d5181a4.
+    const volatile opxy::i32* value = reinterpret_cast<const volatile opxy::i32*>(
+        0x84eb3bc8u + track * 0xe8u + 0xd0u);
+    return opxy::platform::sample_track_transpose(*value);
+}
+
+// Sample object fields read by stock render: +0 and +0x30 must be nonzero,
+// +8 signed 16-bit PCM, +0x30 frames (< 2^20), +0x38 rate, byte +0x3c layout.
+static opxy::SampleView current_sample() {
+    const unsigned char* object = *reinterpret_cast<const unsigned char* const volatile*>(0x8404fb1c);
+    opxy::SampleView view{nullptr, 0, 0, 1};
+    if (!object) return view;
+    const opxy::u32 head = *reinterpret_cast<const opxy::u32*>(object);
+    const opxy::i16* data = *reinterpret_cast<const opxy::i16* const*>(object + 8);
+    const opxy::u32 frames = *reinterpret_cast<const opxy::u32*>(object + 0x30);
+    const opxy::u32 rate = *reinterpret_cast<const opxy::u32*>(object + 0x38);
+    if (!head || !data || frames == 0 || frames >= (1u << 20) || rate < 8000 || rate > 192000) return view;
+    view.data = data;
+    view.frames = frames;
+    view.rate = rate;
+    view.channels = object[0x3c] ? 2 : 1;
+    return view;
+}
+
+extern "C" {
+extern const void* const @PREFIX@_vtable[];
+#if @CONTROLS@
+opxy::u32 @PREFIX@_sample_assign(const opxy::SampleAssignment* input) __asm__("@PREFIX@_sample_assign");
+opxy::u32 @PREFIX@_sample_migrate(const opxy::SampleRegion* input) __asm__("@PREFIX@_sample_migrate");
+void @PREFIX@_sample_control(opxy::u32*, const opxy::SampleControl*) __asm__("@PREFIX@_sample_control");
+void @PREFIX@_sample_panel(opxy::u32, const opxy::i32*, opxy::SamplePanel*) __asm__("@PREFIX@_sample_panel");
+opxy::u32 @PREFIX@_sample_assign(const opxy::SampleAssignment* input) { return @NAMESPACE@::sample_assign(*input); }
+opxy::u32 @PREFIX@_sample_migrate(const opxy::SampleRegion* input) { return @NAMESPACE@::sample_migrate(*input); }
+void @PREFIX@_sample_control(opxy::u32* value, const opxy::SampleControl* event) { @NAMESPACE@::sample_control(*value, *event); }
+void @PREFIX@_sample_panel(opxy::u32 value, const opxy::i32* parameters, opxy::SamplePanel* panel) { @NAMESPACE@::sample_panel(value, parameters, *panel); }
+#endif
+#if @ANALYSIS@
+// One preparation at a time, on the stock file worker (sample_cache.cpp).
+opxy::u32 @PREFIX@_sample_prepare_begin(const opxy::SampleView*, opxy::u32*, opxy::u32) __asm__("@PREFIX@_sample_prepare_begin");
+opxy::u32 @PREFIX@_sample_prepare_step(opxy::u32, opxy::u32*) __asm__("@PREFIX@_sample_prepare_step");
+opxy::u32 @PREFIX@_sample_prepare_words() __asm__("@PREFIX@_sample_prepare_words");
+opxy::u32 @PREFIX@_sample_prepare_result(opxy::SampleAnalysis*) __asm__("@PREFIX@_sample_prepare_result");
+static @NAMESPACE@::Preparation preparation;
+opxy::u32 @PREFIX@_sample_prepare_begin(const opxy::SampleView* sample, opxy::u32* storage, opxy::u32 words) {
+    preparation = @NAMESPACE@::Preparation();
+    return @NAMESPACE@::prepare_begin(preparation, *sample, storage, words);
+}
+opxy::u32 @PREFIX@_sample_prepare_step(opxy::u32 frames, opxy::u32* cursor) {
+    return @NAMESPACE@::prepare_step(preparation, frames, *cursor);
+}
+opxy::u32 @PREFIX@_sample_prepare_words() { return @NAMESPACE@::prepare_words(preparation); }
+opxy::u32 @PREFIX@_sample_prepare_result(opxy::SampleAnalysis* out) { return @NAMESPACE@::prepared(preparation, *out); }
+#endif
+// Stock +16 note-start receives the parent note in R1. Preparing a factory
+// never chokes a playing voice; only an actual start takes ownership.
+static int start(void* self, opxy::u32 key) {
+    Slot* slot = static_cast<Slot*>(self);
+    clear_owner(slot);
+    // Choke ownership needs a track and key; without choke every note plays.
+    const bool keyed = slot->track < 8 && key < 128;
+    slot->started = keyed || !@CHOKE@;
+    // The GUI's sample lookup publishes the track octave. Calling its project
+    // getters here can assert on the audio role's unavailable pattern state.
+    slot->key = keyed ? (@DRUM_KEYS@ ? opxy::platform::sample_drum_key(
+        key, sdk_sample_drum_octaves[slot->track]) : key) : 128;
+    slot->key_transpose = keyed && @DRUM_KEYS@ ? opxy::i32(key) - opxy::i32(slot->key) : 0;
+    if (slot->started) {
+        if (@CHOKE@ && keyed) active[slot->track][slot->key] = slot;
+        @NAMESPACE@::start(slot->voice);
+    }
+    return 0;
+}
+static int destroy(void* self) {
+    Slot* slot = static_cast<Slot*>(self);
+    clear_owner(slot);
+    slot->started = false;
+    slot->analysis = nullptr;
+    return 0;
+}
+void* @PREFIX@_factory(opxy::u32 index, opxy::u32 track) {
+    if (index >= @CAPACITY@) return nullptr;
+    Slot* slot = &voices[index];
+    clear_owner(slot);
+    slot->track = track < 8 ? static_cast<unsigned char>(track) : 255;
+    slot->root_factor = 0;
+    slot->root_cents = 6000;
+    slot->key_transpose = 0;
+    slot->key = 128;
+    slot->started = false;
+    slot->retry = 0;
+    const opxy::SampleView sample = current_sample();
+    slot->frames = sample.frames;
+    slot->sample_object = *reinterpret_cast<const void* const volatile*>(0x8404fb1c);
+    slot->analysis = @ANALYSIS@ ? sdk_sample_cache_find(slot->sample_object) : nullptr;
+    @NAMESPACE@::initialize(slot->voice, sample);
+    slot->vtable = @PREFIX@_vtable;
+    return slot;
+}
+static int render(void* self, opxy::i32* output, const opxy::i32* parameters) {
+    Slot* slot = static_cast<Slot*>(self);
+    if (!slot->started || (@CHOKE@ && active[slot->track][slot->key] != slot)) {
+        for (unsigned i = 0; i < (@STEREO@ ? 128u : 64u); ++i) output[i] = 0;
+        return 0;
+    }
+    if (@ANALYSIS@ && !slot->analysis) {
+        if (slot->retry) --slot->retry;
+        else {
+            // Every 8 blocks while pending; every 256 once preparation has failed.
+            slot->analysis = sdk_sample_cache_find(slot->sample_object);
+            slot->retry = !slot->analysis && sdk_sample_cache_failed(slot->sample_object) ? 255 : 7;
+        }
+    }
+    const opxy::i32* region = *reinterpret_cast<const opxy::i32* const volatile*>(0x84ebba70);
+    const opxy::u32 factor = region ? static_cast<opxy::u32>(region[5]) : 0;
+    if (factor != slot->root_factor) {
+        slot->root_factor = factor;
+        slot->root_cents = opxy::platform::sample_root_cents(factor);
+    }
+    const opxy::SampleBlock block{output, parameters, increments, transport(),
+        opxy::platform::sample_region(region, slot->frames, slot->root_cents, @CONTROLS@ != 0), slot->analysis,
+        opxy::platform::sample_settings(region ? static_cast<opxy::u32>(region[6]) : 0), @STEREO@ ? 2u : 1u,
+        track_transpose(slot->track), slot->key_transpose};
+    @NAMESPACE@::render_sample(slot->voice, block);
+    return 0;
+}
+static int zero() { return 0; }
+// Stock sampler +32 selects the interleaved stereo mix path.
+static int stereo() { return @STEREO@; }
+static void noop() {}
+const char @PREFIX@_name[] = "@NAME@";
+const char* @PREFIX@_parameter_name(opxy::u32 index) {
+    static const char* const labels[] = {@LABELS@};
+    return index < sizeof(labels) / sizeof(labels[0]) ? labels[index] : "";
+}
+const void* const @PREFIX@_vtable[11] = {
+    reinterpret_cast<const void*>(&destroy), reinterpret_cast<const void*>(&destroy),
+    reinterpret_cast<const void*>(&render), reinterpret_cast<const void*>(&noop),
+    reinterpret_cast<const void*>(&start), reinterpret_cast<const void*>(&noop),
+    reinterpret_cast<const void*>(&zero), reinterpret_cast<const void*>(&noop),
+    reinterpret_cast<const void*>(&stereo), reinterpret_cast<const void*>(&zero),
+    reinterpret_cast<const void*>(0x8d504b74)
+};
+}

@@ -1,0 +1,15 @@
+diff --git a/gcc/gcc/config.host b/gcc/gcc/config.host
+index 48120ae1c..326826ff4 100644
+--- a/gcc/gcc/config.host
++++ b/gcc/gcc/config.host
+@@ -267,6 +267,10 @@ case ${host} in
+     out_host_hook_obj="${out_host_hook_obj} host-ppc64-darwin.o"
+     host_xmake_file="${host_xmake_file} rs6000/x-darwin64"
+     ;;
++  arm*-*-darwin* | aarch64-*-darwin*)
++    # GCC 8 predates Apple silicon hosts; no PCH address hooks are needed.
++    out_host_hook_obj="${out_host_hook_obj} host-default.o"
++    ;;
+   rs6000-ibm-aix* | powerpc-ibm-aix*)
+     host_xmake_file="${host_xmake_file} rs6000/x-aix"
+     ;;

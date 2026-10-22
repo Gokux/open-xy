@@ -1,0 +1,158 @@
+/* Checked effect registration: register.s.in against the FX record table, FX
+ * name map, FX resolver (miss = 19) and FX registrar, which takes no flag
+ * argument. Called only from startup, never from audio.
+ * R0=supplied FX ID, R1=supplied screen ID. No IDs assigned here.
+ * Result: 1 added/repopulated, 2 already owned; negative values reject:
+ * -1 invalid IDs, -2 occupied record, -3 map not initialized,
+ * -4 conflicting name map, -5 inconsistent state/postcondition failure.
+ * Preserves R4..R7, P3..P5, FP/SP/RETS. May clobber other registers/status.
+ * Assumes the stock registry and name map are initialized and used by one
+ * thread. Stock calls may allocate, log or fail without rolling back.
+ */
+.section .text
+.align 2
+.global @PREFIX@_fx_register_checked
+.type @PREFIX@_fx_register_checked, STT_FUNC
+@PREFIX@_fx_register_checked:
+    LINK 0;
+    [--SP] = (R7:4, P5:3);
+    SP += -24;
+    R7 = R0;
+    R6 = R1;
+    R2 = 19;
+    CC = R0 < R2 (IU);
+    IF !CC JUMP .Linvalid;
+    CC = R1 < 1;
+    IF CC JUMP .Linvalid;
+    R2 = @PAGE_LIMIT@;
+    CC = R1 < R2 (IU);
+    IF !CC JUMP .Linvalid;
+
+    R1 = 48;
+    R0 *= R1;
+    R1 = 0x846e9f58;
+    R0 = R0 + R1 (NS);
+    P4 = R0;
+    P0 = P4;
+    P1 = 12;
+    R5 = 0;
+.Lempty_scan:
+    R0 = [P0++];
+    CC = R0 == 0;
+    IF !CC JUMP .Lcheck_occupied;
+    P1 += -1;
+    CC = P1 == 0;
+    IF !CC JUMP .Lempty_scan;
+    JUMP .Llookup;
+.Lcheck_occupied:
+    CALL @PREFIX@_fx_record_owned;
+    CC = R0 == 0;
+    IF CC JUMP .Loccupied;
+    R5 = 1;
+.Llookup:
+    P0 = 0x846e9f34;
+    P0 = [P0 + 4];
+    CC = P0 == 0;
+    IF CC JUMP .Lmap_unready;
+    R0.H = @PREFIX@_fx_lookup_key;
+    R0.L = @PREFIX@_fx_lookup_key;
+    P1 = 0x8d506764;
+    CALL (P1);
+    CC = R0 == R7;
+    IF CC JUMP .Lsame_mapping;
+    R1 = 19;
+    CC = R0 == R1;
+    IF !CC JUMP .Lname_conflict;
+    CC = R5 == 0;
+    IF !CC JUMP .Linconsistent;
+    JUMP .Lregister;
+.Lsame_mapping:
+    CC = R5 == 0;
+    IF !CC JUMP .Lalready;
+.Lregister:
+    R0.H = @PREFIX@_fx_parameter_name;
+    R0.L = @PREFIX@_fx_parameter_name;
+    [SP + 12] = R0;
+    [SP + 16] = R6;
+    R0 = R7;
+    R1.H = @PREFIX@_fx_name;
+    R1.L = @PREFIX@_fx_name;
+    R2.H = @PREFIX@_fx_factory;
+    R2.L = @PREFIX@_fx_factory;
+    P1 = 0x8d506054;
+    CALL (P1);
+    /* Stock return is always zero, not a success result. */
+    CALL @PREFIX@_fx_record_owned;
+    CC = R0 == 0;
+    IF CC JUMP .Linconsistent;
+    R0.H = @PREFIX@_fx_lookup_key;
+    R0.L = @PREFIX@_fx_lookup_key;
+    P1 = 0x8d506764;
+    CALL (P1);
+    CC = R0 == R7;
+    IF !CC JUMP .Linconsistent;
+    R0 = 1;
+    JUMP .Lreturn;
+.Lalready:
+    R0 = 2;
+    JUMP .Lreturn;
+.Linvalid:
+    R0 = -1;
+    JUMP .Lreturn;
+.Loccupied:
+    R0 = -2;
+    JUMP .Lreturn;
+.Lmap_unready:
+    R0 = -3;
+    JUMP .Lreturn;
+.Lname_conflict:
+    R0 = -4;
+    JUMP .Lreturn;
+.Linconsistent:
+    R0 = -5;
+.Lreturn:
+    SP += 24;
+    (R7:4, P5:3) = [SP++];
+    UNLINK;
+    RTS;
+.size @PREFIX@_fx_register_checked, .-@PREFIX@_fx_register_checked
+
+/* Internal leaf: exact full-record match, uses P4=record,R6=screen.
+ * Does not dereference factory/callback pointers or touch name-map state.
+ */
+.global @PREFIX@_fx_record_owned
+.type @PREFIX@_fx_record_owned, STT_FUNC
+@PREFIX@_fx_record_owned:
+    R0 = [P4];
+    R1.H = @PREFIX@_fx_factory;
+    R1.L = @PREFIX@_fx_factory;
+    CC = R0 == R1;
+    IF !CC JUMP .Lnot_owned;
+    R0 = [P4 + 4];
+    R1.H = @PREFIX@_fx_parameter_name;
+    R1.L = @PREFIX@_fx_parameter_name;
+    CC = R0 == R1;
+    IF !CC JUMP .Lnot_owned;
+    R0 = [P4 + 8];
+    CC = R0 == 0;
+    IF !CC JUMP .Lnot_owned;
+    R0 = [P4 + 12];
+    CC = R0 == R6;
+    IF !CC JUMP .Lnot_owned;
+@RECORD_NAME_MATCHES@
+    R0 = 1;
+    RTS;
+.Lnot_owned:
+    R0 = 0;
+    RTS;
+.size @PREFIX@_fx_record_owned, .-@PREFIX@_fx_record_owned
+
+.section .rodata
+.align 4
+.type @PREFIX@_fx_lookup_key, STT_OBJECT
+@PREFIX@_fx_lookup_key:
+    .long 0
+    .asciz "@NATIVE_NAME@"
+    .space @INLINE_PADDING@
+    .long @NAME_LENGTH@, 15
+.size @PREFIX@_fx_lookup_key, .-@PREFIX@_fx_lookup_key

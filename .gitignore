@@ -1,0 +1,41 @@
+# Private inputs, qualified host tools and generated artifacts
+local/
+build/
+dist/
+node_modules/
+.wrangler/
+stock/
+toolchain/
+extracted/
+dumps/
+*.tfw
+*.zfw
+*.ldr
+*.bin
+*.elf
+*.o
+*.map
+*.zip
+*.exe
+*.dll
+*.dmp
+*.dump
+# Python and editor state
+__pycache__/
+*.py[cod]
+.venv/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+# Credentials and local environment
+.env
+.env.*
+*.key
+*.pem
+
+# Defense in depth; private firmware belongs outside all checkouts.
+private/
+*.[lL][dD][rR]
+*.[tT][fF][wW]
+*.[zZ][fF][wW]

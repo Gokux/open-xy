@@ -1,0 +1,443 @@
+"""SDK adapters for every machine kind: generated bindings, registration and catalog entries.
+
+Machine code implements plain C++ callbacks. These adapters supply the stock
+object layouts, method tables, storage, registration and menu entries:
+
+- synth: initialize/start/destroy/render over Voice and Shared state, with a
+  drawing or segment display;
+- sample: flag-1 synth registration that receives the track's sample;
+- effect: send-FX registry object with in-place stereo processing.
+"""
+import json
+import math
+from pathlib import Path
+import struct
+
+from .definitions import ROOT, validate_definition
+from .formats import require
+from .stock_tables import REGISTRATION as RELOCATED
+
+TEMPLATES = ROOT / 'sdk/platform/opxy-1.2.0'
+
+
+def expand(template, values, destination, root=TEMPLATES):
+    source = (root / template).read_text(encoding='utf-8')
+    for key, value in values.items():
+        source = source.replace('@' + key + '@', str(value))
+    require('@' not in source, 'Unexpanded template ' + template)
+    destination = Path(destination)
+    destination.write_text(source, encoding='utf-8', newline='\n')
+    return destination
+
+
+def stock_identity(m):
+    """A machine's stock identity in the shape the templates expand."""
+    return dict(native_name=m.native_name, symbol_prefix=m.prefix)
+
+
+def voice_values(definition):
+    resources = definition['resources']
+    return dict(NAMESPACE=definition['cppNamespace'], VOICE_BYTES=resources['voiceBytes'],
+                VOICE_ALIGNMENT=resources['voiceAlignment'], SHARED_BYTES=resources['sharedBytes'],
+                PEAK=resources['outputPeakQ31'])
+
+
+def generate_voice(directory, m):
+    """The native machine object, method table and voice pool for a synth."""
+    values = dict(voice_values(m.definition), PREFIX=m.prefix, NAME=m.native_name, LABELS=stock_labels(m),
+                  CAPACITY=m.definition['resources']['voiceCapacity'])
+    values.pop('PEAK')
+    return expand('voice.cpp.in', values, Path(directory) / 'voice.cpp')
+
+
+def generate_voice_preview(directory, definition):
+    """Browser preview voices for a synth definition (curated or local)."""
+    return expand('voice_preview.cpp.in', voice_values(validate_definition(definition, 'synth')),
+                  Path(directory) / 'voice_preview.cpp', ROOT / 'sdk/host')
+
+
+def drawing_layout(display):
+    """Byte layout shared by the C++ frame, the native renderer object and the browser."""
+    paths, points, nodes, palette = (display[k] for k in ('paths', 'points', 'nodes', 'palette'))
+    path_bytes = 4 + 8 * points
+    layout = dict(PATHS=paths, POINTS=points, NODES=nodes, PALETTE=palette, PATH_BYTES=path_bytes,
+                  COMMAND_BYTES=32 * (points + 1), FRAME_NODES_AT=paths * path_bytes,
+                  FRAME_BYTES=paths * path_bytes + 20 * nodes)
+    # Renderer object: stock helper 0..75, node and palette caches, frame delta,
+    # validated geometry and applied keys per path.
+    layout.update(NODES_AT=76, PALETTE_AT=76 + 4 * nodes)
+    layout.update(DELTA_AT=layout['PALETTE_AT'] + 4 * palette)
+    layout.update(GEOMETRY_AT=layout['DELTA_AT'] + 4)
+    layout.update(KEYS_AT=layout['GEOMETRY_AT'] + 4 * paths)
+    layout.update(OBJECT_BYTES=layout['KEYS_AT'] + 4 * paths)
+    layout.update(ZERO_WORDS=(layout['OBJECT_BYTES'] - 76) // 4)
+    return layout
+
+
+def segment_layout(display):
+    characters, glow, dials = display['characters'], display['glow'], display['dials']
+    layout = dict(CHARACTERS=characters, LABEL_TEXT_AT=4 * characters, VALUES_AT=4 * characters + 16,
+                  KEY_AT=4 * characters + 48, DIALS_AT=4 * characters + 52, FRAME_BYTES=4 * characters + 84)
+    # Renderer object: stock helper 0..75; segment nodes, then each glow layer's,
+    # then dial nodes; label node; lit/unlit styles, then each glow layer's; last
+    # painted key and one reserved word.
+    layout.update(BOUND_NODES=14 * characters * (1 + glow) + dials, DIAL_NODES_AT=76 + 56 * characters * (1 + glow))
+    layout.update(LABEL_AT=76 + 4 * layout['BOUND_NODES'])
+    layout.update(LIT_AT=layout['LABEL_AT'] + 4, UNLIT_AT=layout['LABEL_AT'] + 8)
+    layout.update(GLOW_AT=layout['LABEL_AT'] + 12, LAST_AT=layout['LABEL_AT'] + 12 + 8 * glow)
+    layout.update(OBJECT_BYTES=layout['LAST_AT'] + 8)
+    layout.update(ZERO_WORDS=(layout['OBJECT_BYTES'] - 76) // 4)
+    return layout
+
+
+def screen_bytes(m):
+    display = m.definition['resources']['display']
+    return (drawing_layout if display['kind'] == 'drawing' else segment_layout)(display)['OBJECT_BYTES']
+
+
+def generate_segment_binding(directory, definition, prefix='local_preview'):
+    """The machine's segment callback behind a C entry point, with the frame layout pinned."""
+    validate_definition(definition, 'synth')
+    display = definition['resources']['display']
+    require(display['kind'] == 'segments', 'Not a segment display')
+    layout = segment_layout(display)
+    source = f'''// Generated by the SDK; no renderer addresses in author code.
+#include "display.cpp"
+namespace opxy {{ namespace binding {{
+typedef opxy::segments::Frame<{layout['CHARACTERS']}> SegmentFrame;
+}}}}
+static_assert(sizeof(opxy::segments::Input) == 16 && sizeof(opxy::binding::SegmentFrame) == {layout['FRAME_BYTES']} &&
+              __builtin_offsetof(opxy::binding::SegmentFrame, label) == {layout['LABEL_TEXT_AT']} &&
+              __builtin_offsetof(opxy::binding::SegmentFrame, values) == {layout['VALUES_AT']} &&
+              __builtin_offsetof(opxy::binding::SegmentFrame, key) == {layout['KEY_AT']} &&
+              __builtin_offsetof(opxy::binding::SegmentFrame, dials) == {layout['DIALS_AT']},
+              "Segment frame layout differs from the declared display");
+extern "C" unsigned {prefix}_display_render(const opxy::segments::Input* input, opxy::binding::SegmentFrame* frame) {{
+    {definition['cppNamespace']}::display(*input, *frame);
+    return opxy::segments::valid(*frame);
+}}
+namespace opxy {{ namespace binding {{
+inline unsigned segment_render(const segments::Input* input, SegmentFrame* frame) {{
+    return {prefix}_display_render(input, frame);
+}}
+}}}}
+'''
+    destination = Path(directory) / 'segment_binding.cpp'
+    destination.write_text(source, encoding='utf-8', newline='\n')
+    return destination
+
+
+def generate_display(directory, native=False, *, machine=None, definition=None):
+    """Same authored display callback for host, WebAssembly and native wrappers."""
+    if definition is None:
+        definition, assignment = machine.definition, stock_identity(machine)
+    else:
+        require(not native, 'Local machine definitions cannot generate native bindings')
+        validate_definition(definition, 'synth')
+        assignment = {'symbol_prefix': 'local_preview'}
+    namespace, prefix = definition['cppNamespace'], assignment['symbol_prefix']
+    display = definition['resources']['display']
+    require(display['kind'] == 'drawing', 'Not a drawing display')
+    layout = drawing_layout(display)
+    frame = 'opxy::draw::Frame<{PATHS}, {POINTS}, {NODES}, {PALETTE}>'.format(**layout)
+    header = f'''// Generated by the SDK; no renderer addresses in author code.
+#pragma once
+#include "display.h"
+namespace opxy {{ namespace binding {{
+using DisplayState = {namespace}::DisplayState;
+typedef {frame} Frame;
+const unsigned display_bytes = {display['stateBytes']};
+const unsigned display_alignment = {display['stateAlignment']};
+}}}}
+extern "C" {{
+void {prefix}_display_reset(opxy::binding::DisplayState*, opxy::binding::Frame*);
+void {prefix}_display_render(opxy::binding::DisplayState*, const opxy::draw::Input*, opxy::binding::Frame*);
+unsigned {prefix}_display_validate(const opxy::binding::Frame*);
+}}
+namespace opxy {{ namespace binding {{
+inline void display_reset(DisplayState* state, Frame* frame) {{ {prefix}_display_reset(state, frame); }}
+inline void display_render(DisplayState* state, const draw::Input* input, Frame* frame) {{
+    {prefix}_display_render(state, input, frame);
+}}
+inline bool display_valid(const Frame* frame) {{ return {prefix}_display_validate(frame) != 0; }}
+}}}}
+'''
+    storage = ''
+    if native:
+        storage = f'''// One typed GUI state and frame; never accessed by audio callbacks.
+extern "C" {{
+opxy::binding::DisplayState {prefix}_display_state __asm__("{prefix}_display_state") = {{}};
+opxy::draw::Input {prefix}_display_input __asm__("{prefix}_display_input") = {{}};
+opxy::binding::Frame {prefix}_display_frame __asm__("{prefix}_display_frame") = {{}};
+}}
+'''
+    source = f'''// Generated translation unit. One display implementation, bounded SDK frame.
+#include "display_binding.hpp"
+#include "display.cpp"
+using opxy::binding::Frame;
+static_assert(sizeof(opxy::binding::DisplayState) == opxy::binding::display_bytes,
+              "Declared display size differs from C++ type");
+static_assert(alignof(opxy::binding::DisplayState) == opxy::binding::display_alignment,
+              "Declared display alignment differs from C++ type");
+static_assert(__is_trivial(opxy::binding::DisplayState) && __is_standard_layout(opxy::binding::DisplayState),
+              "Display state must be trivial standard-layout data");
+static_assert(sizeof(opxy::draw::Input) == 32 && sizeof(Frame) == {layout['FRAME_BYTES']} &&
+              sizeof(Frame::path_type) == {layout['PATH_BYTES']} && sizeof(opxy::draw::Node) == 20 &&
+              __builtin_offsetof(Frame::path_type, points) == 4 &&
+              __builtin_offsetof(Frame, nodes) == {layout['FRAME_NODES_AT']} &&
+              __builtin_offsetof(opxy::draw::Node, scale) == 8 &&
+              __builtin_offsetof(opxy::draw::Node, shade) == 12 &&
+              __builtin_offsetof(opxy::draw::Node, paint) == 16 &&
+              __builtin_offsetof(opxy::draw::Input, elapsed) == 16 &&
+              __builtin_offsetof(opxy::draw::Input, track) == 20 &&
+              __builtin_offsetof(opxy::draw::Input, note_serial) == 24 &&
+              __builtin_offsetof(opxy::draw::Input, reduced_motion) == 28,
+              "Drawing frame layout differs from the declared display");
+{storage}
+extern "C" void {prefix}_display_reset(opxy::binding::DisplayState* state, Frame* frame) {{
+    {namespace}::display_reset(*state);
+    for (opxy::u32 i = 0; i < Frame::path_count; ++i) frame->paths[i].key = 0;
+}}
+extern "C" void {prefix}_display_render(opxy::binding::DisplayState* state,
+                                       const opxy::draw::Input* input, Frame* frame) {{
+    {namespace}::display(*state, *input, *frame);
+}}
+extern "C" unsigned {prefix}_display_validate(const Frame* frame) {{
+    return opxy::draw::valid(*frame);
+}}
+'''
+    directory = Path(directory)
+    (directory / 'display_binding.hpp').write_text(header, encoding='utf-8', newline='\n')
+    (directory / 'display_binding.cpp').write_text(source, encoding='utf-8', newline='\n')
+
+
+def name_checks(native_name):
+    name = native_name.encode('ascii')
+    require(1 <= len(name) <= 15 and b'\0' not in name, 'Unsupported inline engine name')
+    record = []
+    for i, word in enumerate(struct.unpack('<8I', name.ljust(32, b'\0'))):
+        record += [f'    R0 = [P4 + {16 + 4 * i}];', f'    R1 = 0x{word:08x};',
+                   '    CC = R0 == R1;', '    IF !CC JUMP .Lnot_owned;']
+    string = []
+    whole = len(name) // 4 * 4
+    for at in range(0, whole, 4):
+        word = int.from_bytes(name[at:at + 4], 'little')
+        string += [f'    R0 = [P0 + {at}];', f'    R1 = 0x{word:08x};',
+                   '    CC = R0 == R1;', '    IF !CC JUMP .Lname_no;']
+    for at in range(whole, len(name)):
+        string += [f'    R0 = B[P0 + {at}] (Z);', f'    R1 = {name[at]};',
+                   '    CC = R0 == R1;', '    IF !CC JUMP .Lname_no;']
+    return '\n'.join(record), '\n'.join(string)
+
+
+def generate_registration(directory, leaf, machine=None, screen_bytes=None, assignment=None, flag=0,
+                          filename=None):
+    """Expand a registration template; `assignment` overrides the synth identity (sample engines).
+
+    flag is the stock record flag byte: 0 for synthesis, 1 for engines that receive samples.
+    """
+    require(leaf in ('register', 'readiness', 'screen_register', 'readiness_stock_page'), 'Unknown registration template')
+    require(flag in (0, 1), 'Unsupported engine flag')
+    if assignment is None:
+        assignment = stock_identity(machine)
+    name = assignment['native_name']
+    record, string = name_checks(name)
+    # Only screen registration needs the renderer object size; other templates leave it unexpanded.
+    screen = {}
+    if screen_bytes is not None:
+        require(76 <= screen_bytes <= 4096 and screen_bytes % 4 == 0, 'Invalid renderer object size')
+        screen = dict(SCREEN_BYTES=str(screen_bytes), SCREEN_WORDS=str(screen_bytes // 4))
+    values = dict(PREFIX=assignment['symbol_prefix'], NATIVE_NAME=name, NAME_LENGTH=str(len(name)),
+                  INLINE_PADDING=str(15 - len(name)), RECORD_NAME_MATCHES=record, STRING_NAME_MATCHES=string,
+                  **screen, **RELOCATED,
+                  FLAG_LOAD='    R0 = %d;' % flag,
+                  FLAG_CHECK='    CC = R0 == 0;' if flag == 0 else '    R1 = %d;\n    CC = R0 == R1;' % flag)
+    return expand(leaf + '.s.in', values, Path(directory) / (filename or leaf + '.generated.s'))
+
+
+def generate_screen(directory, m):
+    from .native import drawing_ids
+    display = m.definition['resources']['display']
+    ids = drawing_ids(m.prefix, display)
+    table = '\n'.join(f'    .long .Ldraw_id_{i}' for i in range(len(ids)))
+    strings = '\n'.join(f'.Ldraw_id_{i}: .asciz "{name}"' for i, name in enumerate(ids))
+    layout = drawing_layout(display)
+    geometry = '\n'.join(f'    R0 = [P5 + {layout["NODES_AT"] + 4 * i}];\n    CALL {m.prefix}_draw_geometry;\n'
+                         f'    [P5 + {layout["GEOMETRY_AT"] + 4 * i}] = R0;' for i in range(layout['PATHS']))
+    return expand('screen.s.in', dict(layout, PREFIX=m.prefix, NATIVE_NAME=m.native_name,
+                                      PAGE_LIMIT=RELOCATED['PAGE_LIMIT'], DRAW_IDS=table + '\n' + strings,
+                                      GEOMETRY_INIT=geometry),
+                  Path(directory) / 'screen.generated.s')
+
+
+def generate_segments(directory, m):
+    from .native import segment_ids
+    display = m.definition['resources']['display']
+    layout = segment_layout(display)
+    names = segment_ids(m.prefix, display)
+    # Bound nodes in renderer order: segments, each glow layer, dials.
+    ids = names['segments'] + [name for layer in names['glow'] for name in layer] + names['dials']
+    table = '\n'.join(f'    .long .Lseg_id_{i}' for i in range(len(ids)))
+    strings = '\n'.join(f'.Lseg_id_{i}: .asciz "{name}"' for i, name in enumerate(ids))
+    donors, paints, donor_ids = [], [], []
+    for layer, pair in enumerate(names['glow_palette']):
+        for offset, name in zip((0, 4), pair):
+            label = f'{m.prefix}_glow_donor_{layer}_{offset // 4}'
+            donors += ['    R0 = P5;', f'    R1.H = {label};', f'    R1.L = {label};', '    R2 = 1;',
+                       '    P0 = 0x8d51f740;', '    CALL (P0);', '    R1 = [P5 + 8];',
+                       f'    CALL {m.prefix}_palette_ids;', f'    [P5 + {layout["GLOW_AT"] + 8 * layer + offset}] = R0;']
+            donor_ids.append(f'{label}:\n    .asciz "{name}"')
+        paints += [f'    R6 = {layout["GLOW_AT"] + 8 * layer};', f'    CALL {m.prefix}_paint_layer;']
+    dials = []
+    for i in range(display['dials']):
+        dials += [f'    R0 = [P5 + {layout["DIAL_NODES_AT"] + 4 * i}];',
+                  f'    P0.H = {m.prefix}_display_frame;', f'    P0.L = {m.prefix}_display_frame;',
+                  f'    R1 = [P0 + {layout["DIALS_AT"] + 8 * i}];', f'    R2 = [P0 + {layout["DIALS_AT"] + 8 * i + 4}];',
+                  f'    CALL {m.prefix}_dial;']
+    # Stock helper 0x8d520b3c binds child i of the template's `values` group to
+    # slot 24 + 4i (and `titles` to 40 + 4i). Each text control's value node shows
+    # the frame's text at 3/4 size, 15 px left of the template's value position.
+    layouts, updates, matrices = [], [], []
+    for i in display['textControls']:
+        layouts += [f'    R0 = [P5 + {24 + 4 * i}];', f'    CALL {m.prefix}_text_node;', '    CC = R0 == 0;',
+                    f'    IF CC JUMP .Ltext_layout_{i};', f'    R1.H = {m.prefix}_value_matrix_{i};',
+                    f'    R1.L = {m.prefix}_value_matrix_{i};', '    P0 = 0x8d5ee7de;', '    CALL (P0);',
+                    f'.Ltext_layout_{i}:']
+        updates += [f'    R0 = [P5 + {24 + 4 * i}];', f'    CALL {m.prefix}_text_node;', '    CC = R0 == 0;',
+                    f'    IF CC JUMP .Ltext_update_{i};',
+                    f'    R1.H = {m.prefix}_display_frame;', f'    R1.L = {m.prefix}_display_frame;',
+                    f'    R2 = {layout["VALUES_AT"] + 8 * i};', '    R1 = R1 + R2;',
+                    '    P0 = 0x8d5ff080;', '    CALL (P0);', f'.Ltext_update_{i}:']
+        matrices += [f'{m.prefix}_value_matrix_{i}:',
+                     f'    .long 768, 0, 0, 0, 768, 0, {(50 + 120 * i) * 1024}, 18432, 1024']
+    values = dict(layout, PREFIX=m.prefix, NATIVE_NAME=m.native_name, PAGE_LIMIT=RELOCATED['PAGE_LIMIT'],
+                  SEGMENT_IDS=table + '\n' + strings, TEXT_LAYOUT='\n'.join(layouts),
+                  TEXT_UPDATE='\n'.join(updates), TEXT_MATRICES='\n'.join(matrices),
+                  GLOW_DONORS='\n'.join(donors), GLOW_PAINT='\n'.join(paints), GLOW_IDS='\n'.join(donor_ids),
+                  DIAL_UPDATE='\n'.join(dials))
+    return expand('segments.s.in', values, Path(directory) / 'segments.s')
+
+
+def generate_sample_voice(directory, m):
+    values = dict(PREFIX=m.prefix, NAMESPACE=m.definition['cppNamespace'], NAME=m.native_name,
+                  LABELS=stock_labels(m), CAPACITY=m.definition['resources']['voiceCapacity'],
+                  ANALYSIS=m.definition['resources'].get('sampleAnalysis', 0),
+                  STEREO=m.definition['resources'].get('stereoOutput', 0),
+                  CHOKE=m.definition['resources'].get('chokeSameKey', 0), DRUM_KEYS=int(m.identity['page'] == 7))
+    values['CONTROLS'] = m.definition['resources'].get('drumControls', 0)
+    return expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
+
+
+def generate_sample_routes(directory, machines):
+    """One stock sample dispatch boundary for the collection, not per-machine patches."""
+    dispatch, analysis, ready, controls = [], [], [], []
+    for m in machines:
+        if m.kind != 'sample':
+            continue
+        block = [f'    R1 = {m.identity["engine"]};', '    CC = R0 == R1;',
+                     f'    IF !CC JUMP .Lkind_next_{m.prefix};', f'    CALL {m.prefix}_ready;',
+                     '    CC = R0 == 1;', '    IF !CC JUMP .Lkind_return;',
+                     f'    R0 = {m.identity["page"]};', '    JUMP .Lkind_return;',
+                     f'.Lkind_next_{m.prefix}:']
+        dispatch += block
+        if m.definition['resources'].get('drumControls', 0):
+            controls += [line.replace('.Lkind_', '.Lcontrols_') for line in block]
+        if m.definition['resources'].get('sampleAnalysis', 0):
+            analysis += [line.replace('.Lkind_', '.Lanalysis_') for line in block]
+            ready += [f'    CALL {m.prefix}_ready;', '    CC = R0 == 1;',
+                      '    IF CC JUMP .Lanalysis_ready_return;']
+    return expand('sample_routes.s.in', dict(DISPATCH='\n'.join(dispatch),
+                  ANALYSIS_DISPATCH='\n'.join(analysis), ANALYSIS_READY='\n'.join(ready), CONTROLS_DISPATCH='\n'.join(controls)),
+                  Path(directory) / 'sample_routes.s')
+
+
+def generate_sample_callbacks(directory, machines):
+    declarations, branches = [], {name: [] for name in ('ASSIGN', 'MIGRATE', 'CONTROL', 'PANEL')}
+    types = dict(ASSIGN=('opxy::u32', 'const opxy::SampleAssignment* input', 'input'),
+                 MIGRATE=('opxy::u32', 'const opxy::SampleRegion* input', 'input'),
+                 CONTROL=('void', 'opxy::u32* value, const opxy::SampleControl* event', 'value, event'),
+                 PANEL=('void', 'opxy::u32 value, const opxy::i32* parameters, opxy::SamplePanel* panel', 'value, parameters, panel'))
+    prepare = {name: [] for name in ('PREPARE_BEGIN', 'PREPARE_STEP', 'PREPARE_WORDS', 'PREPARE_RESULT',
+                                     'PREPARE_BUDGET')}
+    analysis = [m for m in machines if m.kind == 'sample' and m.definition['resources'].get('sampleAnalysis', 0)]
+    # The cache keeps one preparation in flight and does not know a sample's engine.
+    require(len(analysis) <= 1, 'At most one sample-analysis machine per collection')
+    for m in machines:
+        if m in analysis or (m.kind == 'sample' and m.definition['resources'].get('drumControls', 0)):
+            declarations.append(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");')
+        if m in analysis:
+            budget = m.definition['resources']['sampleAnalysis']
+            prepare['PREPARE_BUDGET'].append(f'    if ({m.prefix}_ready()) return {budget}u;')
+            for name, (arguments, call) in dict(
+                    PREPARE_BEGIN=('const opxy::SampleView*, opxy::u32*, opxy::u32', 'sample, storage, words'),
+                    PREPARE_STEP=('opxy::u32, opxy::u32*', 'frames, cursor'), PREPARE_WORDS=('', ''),
+                    PREPARE_RESULT=('opxy::SampleAnalysis*', 'out')).items():
+                symbol = m.prefix + '_sample_' + name.lower()
+                declarations.append(f'opxy::u32 {symbol}({arguments}) __asm__("{symbol}");')
+                prepare[name].append(f'    if ({m.prefix}_ready()) return {symbol}({call});')
+        if m.kind != 'sample' or not m.definition['resources'].get('drumControls', 0):
+            continue
+        for name, (result, arguments, call) in types.items():
+            symbol = m.prefix + '_sample_' + name.lower()
+            declarations.append(f'{result} {symbol}({arguments}) __asm__("{symbol}");')
+            branches[name] += [f'    if (engine == {m.identity["engine"]} && {m.prefix}_ready()) '
+                               + '{ ' + ('' if result == 'void' else 'return ') + f'{symbol}({call});'
+                               + (' return;' if result == 'void' else '') + ' }']
+    return expand('sample_callbacks.cpp.in', dict(CALLBACK_DECLS='\n'.join(declarations),
+                  **{name: '\n'.join(lines) for name, lines in branches.items()},
+                  **{name: '\n'.join(lines) for name, lines in prepare.items()}),
+                  Path(directory) / 'sample_callbacks.cpp')
+
+
+def generate_sample_registration(directory, m, leaf):
+    """register.s.in with flag 1, or the stock-page readiness, written per engine."""
+    require(leaf in ('register', 'readiness_stock_page'), 'Unsupported sample-engine leaf')
+    return generate_registration(directory, leaf, assignment=stock_identity(m), flag=1, filename=f'{leaf}_{m.prefix}.s')
+
+
+def generate_fx_object(directory, m):
+    return expand('fx_object.cpp.in', dict(PREFIX=m.prefix, NAMESPACE=m.definition['cppNamespace'],
+                                           NAME=m.native_name, LABELS=stock_labels(m)),
+                  Path(directory) / f'fx_object_{m.prefix}.cpp')
+
+
+def generate_fx_registration(directory, m):
+    record, _string = name_checks(m.native_name)
+    values = dict(PREFIX=m.prefix, NATIVE_NAME=m.native_name, NAME_LENGTH=len(m.native_name),
+                  INLINE_PADDING=15 - len(m.native_name), RECORD_NAME_MATCHES=record,
+                  PAGE_LIMIT=RELOCATED['PAGE_LIMIT'])
+    return expand('fx_register.s.in', values, Path(directory) / f'fx_register_{m.prefix}.s')
+
+
+def stock_labels(m):
+    """Control names as the stock parameter page shows them."""
+    return ', '.join(json.dumps(p['label'].lower()) for p in m.definition['parameters'])
+
+
+def catalog_defaults(definition):
+    """Eight Q15 stock parameter defaults from normalized definition defaults."""
+    defaults = [math.floor(p['default'] * 32767 + 0.5) for p in definition['parameters']]
+    return defaults + [0] * (8 - len(defaults))
+
+
+def catalog_entry(m):
+    """The stock catalog text inserted for a machine, in the reviewed byte layout."""
+    if m.kind == 'effect':
+        return (',\n        {\n            "type": ' + json.dumps(m.native_name) +
+                ',\n            "id": ' + str(m.identity['effect']) +
+                ',\n            "default_params": ' + json.dumps(catalog_defaults(m.definition)) + '\n        }')
+    return (',\n        {\n            "type": ' + json.dumps(m.native_name) +
+            ',\n            "default_params": ' + json.dumps(catalog_defaults(m.definition)) + '\n        }\n')
+
+
+def add_effects(catalog, effects):
+    """Insert fx_types entries after the last stock effect; the rest is unchanged."""
+    if not effects:
+        return catalog
+    start = catalog.index(b'"fx_types"')
+    end = catalog.index(b'\n    ]', start)
+    result = catalog[:end] + ''.join(catalog_entry(m) for m in effects).encode('utf-8') + catalog[end:]
+    base, parsed = json.loads(catalog), json.loads(result)
+    require(parsed == dict(base, fx_types=base['fx_types'] + [json.loads(catalog_entry(m)[1:]) for m in effects]),
+            'Unexpected FX catalog modification')
+    return result

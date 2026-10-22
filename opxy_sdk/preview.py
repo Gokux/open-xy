@@ -1,0 +1,171 @@
+"""Build a curated synth's browser audition module and authenticate served artifacts."""
+import argparse
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+from xml.etree.ElementTree import ParseError
+
+from .formats import require, sha
+from .definitions import ROOT
+from .machines import machine
+from .pipeline import fresh_output
+
+
+VOICE_EXPORTS = ('opxy_preview_abi', 'opxy_state_bytes', 'opxy_state_alignment', 'opxy_parameter_count',
+                 'opxy_block_frames', 'opxy_sample_rate', 'opxy_output_peak_q31', 'opxy_voice_capacity',
+                 'opxy_voice_state', 'opxy_initialize', 'opxy_start', 'opxy_destroy', 'opxy_render', '__heap_base')
+DISPLAY_EXPORTS = dict(
+    drawing=tuple('opxy_display_' + name for name in ('abi', 'state_bytes', 'input_bytes', 'frame_bytes', 'state',
+                                                      'input', 'frame', 'reset', 'render', 'valid')),
+    segments=tuple('opxy_segment_' + name for name in ('input_bytes', 'frame_bytes', 'characters', 'input', 'frame',
+                                                       'render')))
+MANIFEST_LIMIT = 65536
+# Shared inputs of every curated preview; the machine's own folder is added per build.
+SDK_SOURCES = ('opxy_sdk/preview.py', 'opxy_sdk/machines.py', 'opxy_sdk/adapters.py', 'opxy_sdk/definitions.py',
+               'opxy_sdk/contributors.py', 'tools/check_preview_contract.mjs', 'sdk/host/voice_preview.cpp.in',
+               'sdk/host/segment_preview.cpp', 'sdk/host/display_preview.cpp', 'sdk/platform/blackfin/memory.cpp')
+SDK_FOLDERS = ('sdk/include', 'sdk/browser', 'sdk/platform/blackfin/freestanding')
+FLAGS = ['--target=wasm32', '-std=c++11', '-O2', '-ffreestanding', '-fno-exceptions', '-fno-rtti',
+         '-fno-threadsafe-statics', '-fno-use-cxa-atexit', '-fno-c++-static-destructors', '-nostdlib',
+         '-Wall', '-Werror', '-Wno-unused']
+MEMORY = 524288
+
+
+def compile_preview(compiler, definition, display, out, root, sources=(), includes=()):
+    """One WebAssembly module: the SDK voice preview, the machine's sources and its display transport."""
+    from .adapters import generate_display, generate_segment_binding, generate_voice_preview
+    units = [generate_voice_preview(out, definition), *(root / s for s in sources),
+             ROOT / 'sdk/platform/blackfin/memory.cpp']
+    if display == 'drawing':
+        generate_display(out, definition=definition)
+        units += [out / 'display_binding.cpp', ROOT / 'sdk/host/display_preview.cpp']
+    else:
+        generate_segment_binding(out, definition)
+        units.append(ROOT / 'sdk/host/segment_preview.cpp')
+    paths = [ROOT, ROOT / 'sdk/include', ROOT / 'sdk/platform/blackfin/freestanding', root,
+             *(root / extra for extra in includes), out]
+    command = [compiler, *FLAGS, *('-I' + str(path) for path in paths), *units, '-o', out / 'engine.wasm',
+               '-Wl,--no-entry', '-Wl,-z,stack-size=16384', f'-Wl,--initial-memory={MEMORY}',
+               f'-Wl,--max-memory={MEMORY}', *('-Wl,--export=' + name for name in VOICE_EXPORTS + DISPLAY_EXPORTS[display])]
+    result = subprocess.run([str(x) for x in command], capture_output=True, text=True, timeout=120,
+                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    require(result.returncode == 0, 'Preview compilation failed:\n' + result.stderr)
+    check_runtime(out / 'engine.wasm', display)
+
+
+def check_runtime(module, graphics):
+    """Smoke-test host contracts without requiring a particular sound."""
+    result = subprocess.run(['node', str(ROOT / 'tools/check_preview_contract.mjs'), str(module), graphics],
+                            capture_output=True, text=True, timeout=120,
+                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    require(result.returncode == 0, 'Preview contract check failed:\n' + result.stdout + result.stderr)
+    print(result.stdout.strip())
+
+
+def source_hashes(m):
+    paths = set(SDK_SOURCES)
+    for folder in (*SDK_FOLDERS, 'machines/' + m.id):
+        paths |= {p.relative_to(ROOT).as_posix() for p in (ROOT / folder).rglob('*')
+                  if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.md'}
+    return {name: sha((ROOT / name).read_bytes()) for name in sorted(paths)}
+
+
+def graphics_metadata(m):
+    from .native import drawing_ids, segment_ids
+    asset = sha((m.root / 'panel.svg.fragment').read_bytes())
+    display = m.definition['resources']['display']
+    if m.display == 'segments':
+        ids = segment_ids(m.prefix, display)
+        return dict(kind='segments', nodes=ids['segments'], glow=ids['glow'], dials=ids['dials'],
+                    palette=ids['palette'], glowPalette=ids['glow_palette'], label=ids['label'], asset_sha256=asset)
+    return dict(drawing_bindings(drawing_ids(m.prefix, display), display), asset_sha256=asset)
+
+
+def drawing_bindings(ids, display):
+    """Browser renderer bindings: node and palette IDs, which nodes are paths, and their point count."""
+    return dict(nodes=ids[:display['nodes']], palette=ids[display['nodes']:], paths=list(range(display['paths'])),
+                points=display['points'])
+
+
+def build(compiler, identity, out):
+    from .native import check_sources, validate_panel
+    m = machine(identity)
+    require(m.kind == 'synth', 'Browser previews audition synths')
+    executable = shutil.which(str(compiler))
+    require(executable is not None, 'Clang++ with wasm32/wasm-ld is required; run python sdk.py doctor --preview')
+    compiler = Path(executable).resolve()
+    check_sources([m])
+    validate_panel(m)
+    before = source_hashes(m)
+    out = fresh_output(out)
+    compile_preview(compiler, m.definition, m.display, out, m.root, m.sources, m.includes)
+    (out / 'panel.svg').write_bytes((m.root / 'panel.svg.fragment').read_bytes())
+    require(source_hashes(m) == before, 'Source changed during preview build')
+    version = subprocess.check_output([str(compiler), '--version'], text=True, timeout=30).splitlines()[0]
+    manifest = dict(schema=1, kind='cpp-browser-preview', engine=m.id, definition=m.definition, sample_rate=44100,
+                    wasm_sha256=sha((out / 'engine.wasm').read_bytes()), sources=before,
+                    graphics=graphics_metadata(m), compiler=dict(version=version, sha256=sha(compiler.read_bytes())))
+    (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8', newline='\n')
+    preview_bundle(out)
+    print(m.name + ' preview built: ' + str(out))
+    print('Run: python tools/serve_harness.py --preview "' + str(out) + '"')
+
+
+def preview_bundle(directory, *, require_reference=False):
+    """Authenticate exactly three artifacts; return an immutable serving snapshot."""
+    directory = Path(directory).absolute()
+    require(directory.resolve() == directory, 'Redirected preview directory')
+    files = {}
+    for name, limit in [('manifest.json', MANIFEST_LIMIT), ('engine.wasm', 1048576), ('panel.svg', 65536)]:
+        path = directory / name
+        require(path.resolve() == path and path.is_file() and 0 < path.stat().st_size <= limit,
+                'Missing, oversized or redirected preview artifact')
+        files[name] = path.read_bytes()
+    manifest = json.loads(files['manifest.json'])
+    require(isinstance(manifest, dict), 'Invalid preview manifest')
+    if manifest.get('kind') == 'cpp-browser-custom-preview':
+        require(not require_reference, 'Custom previews are local auditions, not qualified collection inputs')
+        from .custom_preview import authenticate
+        authenticate(manifest, files)
+        return artifact_bundle(files)
+    require(set(manifest) == {'schema', 'kind', 'engine', 'definition', 'sample_rate', 'wasm_sha256', 'sources',
+                              'compiler', 'graphics'}, 'Unexpected preview manifest fields')
+    require(type(manifest['schema']) is int and manifest['schema'] == 1 and
+            manifest['kind'] == 'cpp-browser-preview' and type(manifest['sample_rate']) is int and
+            manifest['sample_rate'] == 44100, 'Unsupported preview contract')
+    m = machine(manifest['engine'])
+    require(m.kind == 'synth', 'Browser previews audition synths')
+    require(manifest['sources'] == source_hashes(m), 'Preview is stale; rebuild from current source')
+    require(manifest['definition'] == m.definition, 'Preview controls differ from definition.json')
+    require(manifest['graphics'] == graphics_metadata(m), 'Preview graphics identity mismatch')
+    require(sha(files['panel.svg']) == manifest['graphics']['asset_sha256'], 'Preview artwork identity mismatch')
+    require(files['engine.wasm'][:8] == b'\0asm\x01\0\0\0' and
+            sha(files['engine.wasm']) == manifest['wasm_sha256'], 'Preview module identity mismatch')
+    return artifact_bundle(files)
+
+
+def artifact_bundle(files):
+    return {'/preview/' + name: (mime, files[name]) for name, mime in (
+        ('manifest.json', 'application/json'), ('engine.wasm', 'application/wasm'), ('panel.svg', 'image/svg+xml'))}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--cxx', default='clang++')
+    parser.add_argument('--out', required=True, type=Path)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument('--engine', help='Curated synth in machines/')
+    source.add_argument('--source', type=Path, help='Local custom-machine directory')
+    args = parser.parse_args(argv)
+    try:
+        if args.source:
+            from .custom_preview import build as build_custom
+            build_custom(args.cxx, args.source, args.out)
+        else:
+            build(args.cxx, args.engine, args.out)
+        return 0
+    except (ValueError, OSError, ParseError, subprocess.SubprocessError) as error:
+        print('FAIL: ' + str(error), file=sys.stderr)
+        return 1

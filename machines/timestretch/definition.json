@@ -1,0 +1,122 @@
+{
+  "schema": 1,
+  "id": "timestretch",
+  "name": "Timestretch",
+  "cppNamespace": "timestretch",
+  "parameters": [
+    {
+      "id": "pitch",
+      "label": "pitch",
+      "default": 0.5,
+      "mapping": {
+        "kind": "anchors",
+        "values": [
+          -12,
+          12
+        ]
+      },
+      "display": "ratio"
+    },
+    {
+      "id": "start",
+      "label": "start",
+      "default": 0.5,
+      "mapping": {
+        "kind": "anchors",
+        "values": [
+          -1,
+          1
+        ]
+      },
+      "display": "percent"
+    },
+    {
+      "id": "end",
+      "label": "end",
+      "default": 0.5,
+      "mapping": {
+        "kind": "anchors",
+        "values": [
+          -1,
+          1
+        ]
+      },
+      "display": "percent"
+    },
+    {
+      "id": "play",
+      "label": "play",
+      "default": 0.5,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "loop",
+          "pad",
+          "play"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "reverse",
+      "label": "reverse",
+      "default": 0,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "off",
+          "on"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "tempo",
+      "label": "tempo",
+      "default": 0.5,
+      "mapping": {
+        "kind": "anchors",
+        "values": [
+          -140,
+          140
+        ]
+      },
+      "display": "ratio"
+    },
+    {
+      "id": "mode",
+      "label": "mode",
+      "default": 0.5,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "repitch",
+          "pad",
+          "timestretch"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "volume",
+      "label": "volume",
+      "default": 1,
+      "mapping": {
+        "kind": "anchors",
+        "values": [
+          0,
+          1
+        ]
+      },
+      "display": "percent"
+    }
+  ],
+  "presets": {},
+  "resources": {
+    "voiceCapacity": 256,
+    "sampleAnalysis": 2097152,
+    "chokeSameKey": 1,
+    "drumControls": 1,
+    "stereoOutput": 1
+  }
+}

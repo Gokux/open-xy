@@ -1,0 +1,34 @@
+--- a/gcc/gcc/config/bfin/bfin.md
++++ b/gcc/gcc/config/bfin/bfin.md
+@@ -1938,7 +1938,10 @@
+ 		   (plus:SI (match_dup 0)
+ 			    (const_int -1)))
+ 	      (unspec [(const_int 0)] UNSPEC_LSETUP_END)
+-	      (clobber (match_dup 2))])] ; match_scratch
++	      (clobber (match_dup 2)) ; match_scratch
++	      ;; Falling back to a decrement-and-branch (hwloop_fail and the
++	      ;; split below) sets CC, so CC must not be live across the insn.
++	      (clobber (reg:BI REG_CC))])]
+   ""
+ {
+   /* The loop optimizer doesn't check the predicates... */
+@@ -1958,7 +1961,8 @@
+ 	(plus (match_dup 2)
+ 	      (const_int -1)))
+    (unspec [(const_int 0)] UNSPEC_LSETUP_END)
+-   (clobber (match_scratch:SI 3 "=X,&r,&r"))]
++   (clobber (match_scratch:SI 3 "=X,&r,&r"))
++   (clobber (reg:BI REG_CC))]
+   ""
+   "@
+    /* loop end %0 %l1 */
+@@ -1976,7 +1980,8 @@
+ 	(plus (match_dup 0)
+ 	      (const_int -1)))
+    (unspec [(const_int 0)] UNSPEC_LSETUP_END)
+-   (clobber (match_scratch:SI 2))]
++   (clobber (match_scratch:SI 2))
++   (clobber (reg:BI REG_CC))]
+   "memory_operand (operands[0], SImode) || splitting_loops"
+   [(set (match_dup 2) (match_dup 0))
+    (set (match_dup 2) (plus:SI (match_dup 2) (const_int -1)))

@@ -1,0 +1,51 @@
+// SDK native ABI for a send effect. Only the SDK knows the stock FX object
+// layout and method offsets; the effect provides State, init and process.
+// Stock constructs effects in place inside a 480-byte slot on the audio thread
+// and never runs a destructor, so State must hold no resources.
+// fx.cpp includes its own core.h, resolved next to it rather than on the
+// shared include path where another machine's core.h may come first.
+#include "fx.cpp"
+extern "C" {
+void* @PREFIX@_fx_factory(void*) __asm__("@PREFIX@_fx_factory");
+const char* @PREFIX@_fx_parameter_name(opxy::u32) __asm__("@PREFIX@_fx_parameter_name");
+extern const char @PREFIX@_fx_name[] __asm__("@PREFIX@_fx_name");
+}
+using State = @NAMESPACE@::State;
+struct Object { const void* const* vtable; State state; };
+static_assert(sizeof(Object) <= 480, "Stock FX slots hold 480 bytes");
+static_assert(__builtin_offsetof(Object, state) == 4, "FX object header mismatch");
+extern "C" {
+extern const void* const @PREFIX@_fx_vtable[];
+static void* destroy(void* self) { return self; }
+static int zero() { return 0; }
+static void noop() {}
+// +0x14: called once after construction with the stock slot index.
+static void init(void* self, opxy::u32 slot) {
+    @NAMESPACE@::init(static_cast<Object*>(self)->state, slot);
+}
+// +0x10: one 64-sample block, left and right processed in place.
+static void process(void* self, opxy::i32* left, opxy::i32* right, const opxy::i32* parameters) {
+    @NAMESPACE@::process(static_cast<Object*>(self)->state, left, right, parameters);
+}
+void* @PREFIX@_fx_factory(void* storage) {
+    if (!storage) return nullptr;
+    Object* object = static_cast<Object*>(storage);
+    object->state = State();
+    object->vtable = @PREFIX@_fx_vtable;
+    return object;
+}
+const char @PREFIX@_fx_name[] = "@NAME@";
+const char* @PREFIX@_fx_parameter_name(opxy::u32 index) {
+    static const char* const labels[] = {@LABELS@};
+    return index < sizeof(labels) / sizeof(labels[0]) ? labels[index] : "";
+}
+// +0x00/+0x04 destructors, +0x08 unused, +0x0c insert process (unused by
+// send effects), +0x10 send process, +0x14 init, +0x18 insert-active query,
+// +0x1c parameter update (parameters also reach process directly).
+const void* const @PREFIX@_fx_vtable[8] = {
+    reinterpret_cast<const void*>(&destroy), reinterpret_cast<const void*>(&destroy),
+    reinterpret_cast<const void*>(&noop), reinterpret_cast<const void*>(&zero),
+    reinterpret_cast<const void*>(&process), reinterpret_cast<const void*>(&init),
+    reinterpret_cast<const void*>(&zero), reinterpret_cast<const void*>(&noop)
+};
+}

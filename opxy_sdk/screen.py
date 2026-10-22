@@ -1,0 +1,40 @@
+"""SDK-owned OP-XY 1.2.0 screen shell; no stock artwork input."""
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+from .formats import require
+
+TEMPLATE = Path(__file__).resolve().parents[1] / 'sdk/platform/opxy-1.2.0/screen.svg'
+NS = '{http://www.w3.org/2000/svg}'
+
+
+def validate_template(data):
+    root = ET.fromstring(data)
+    require(root.tag == NS + 'svg' and root.get('viewBox') == '0 0 480 220', 'Invalid platform screen dimensions')
+    require(root.get('width') == '480' and root.get('height') == '220', 'Invalid platform screen size')
+    require(len(root) == 3 and root[0].tag == NS + 'rect', 'Unexpected platform screen content')
+    # Stock helper 0x8d520b3c looks up these groups, indexes four children,
+    # then resolves the text leaf in each child with 0x8d51f660.
+    for name in ('titles', 'values'):
+        groups = [n for n in root if n.get('id') == name]
+        require(len(groups) == 1 and groups[0].tag == NS + 'g' and len(groups[0]) == 4,
+                'Screen requires four ' + name)
+        for child in groups[0]:
+            require(child.tag == NS + 'g' and len(child) == 1 and child[0].tag == NS + 'text',
+                    'Screen control must contain one text leaf')
+            require(child[0].get('fill') and child[0].get('font-size') and child[0].text,
+                    'Screen control requires explicit paint and text')
+    require(data.count(b'</svg>') == 1, 'Unexpected screen root boundary')
+    return data
+
+
+def template():
+    return validate_template(TEMPLATE.read_bytes())
+
+
+def compose(fragment):
+    data = template().replace(b'</svg>', fragment + b'</svg>')
+    root = ET.fromstring(data)
+    ids = [n.attrib['id'] for n in root.iter() if 'id' in n.attrib]
+    require(len(ids) == len(set(ids)), 'Duplicate SVG binding IDs')
+    return data

@@ -1,0 +1,29 @@
+// SDK preview voices and storage for any synth. Never linked into firmware.
+#include "core.h"
+#include "engine.cpp"
+using Voice = @NAMESPACE@::Voice;
+using Shared = @NAMESPACE@::Shared;
+static_assert(sizeof(Voice) == @VOICE_BYTES@, "Declared voice size differs from the compiled type");
+static_assert(alignof(Voice) == @VOICE_ALIGNMENT@, "Declared voice alignment differs from the compiled type");
+static_assert(@SHARED_BYTES@ == 0 ? __is_empty(Shared) : sizeof(Shared) == @SHARED_BYTES@,
+              "Declared shared size differs from the compiled type");
+static Voice voices[8];
+static Shared shared;
+static opxy::u32 owner(Voice* voice) { return static_cast<opxy::u32>(voice - voices) + 1; }
+extern "C" {
+opxy::u32 opxy_preview_abi() { return 1; }
+opxy::u32 opxy_state_bytes() { return sizeof(Voice); }
+opxy::u32 opxy_state_alignment() { return alignof(Voice); }
+opxy::u32 opxy_parameter_count() { return 4; }
+opxy::u32 opxy_block_frames() { return 64; }
+opxy::u32 opxy_sample_rate() { return 44100; }
+opxy::u32 opxy_output_peak_q31() { return @PEAK@; }
+opxy::u32 opxy_voice_capacity() { return 8; }
+Voice* opxy_voice_state(opxy::u32 index) { return index < 8 ? &voices[index] : nullptr; }
+void opxy_initialize(Voice* voice) { @NAMESPACE@::initialize(*voice, shared, owner(voice)); }
+void opxy_start(Voice* voice) { @NAMESPACE@::start(*voice, shared, owner(voice)); }
+void opxy_destroy(Voice* voice) { @NAMESPACE@::destroy(*voice, shared, owner(voice)); }
+void opxy_render(Voice* voice, opxy::i32* output, const opxy::i32* parameters, const opxy::u32* pitch) {
+    @NAMESPACE@::render(*voice, shared, owner(voice), output, parameters, pitch);
+}
+}

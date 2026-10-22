@@ -1,0 +1,20 @@
+{
+  "name": "open-xy",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --config vite.config.mjs",
+    "build": "vite build --config vite.config.mjs",
+    "build:release": "vite build --config vite.config.mjs --mode release",
+    "preview": "vite preview --config vite.config.mjs",
+    "test:web": "node --test tests/web/builder.test.mjs",
+    "deploy:cloudflare": "node tools/deploy_cloudflare.mjs"
+  },
+  "devDependencies": {
+    "vite": "8.3.5",
+    "wrangler": "4.151.3"
+  }
+}

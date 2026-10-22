@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>2op FM · Machine workbench</title><link rel="stylesheet" href="/harness/style.css"></head>
+<body>
+<header><a class="wordmark" href="/">OP–XY <span>WORKBENCH</span></a><span class="badge">BROWSER PROTOTYPE · 001</span></header>
+<main>
+  <section class="intro"><div><p class="eyebrow">MACHINE STUDIES / TWO OPERATORS</p><h1>A little modulation.<br>A lot of character.</h1></div><p class="lede">Shape a sound, play it, refine the screen.<br>Four controls. One repeatable starting point.</p></section>
+  <div class="workspace">
+    <section class="instrument" aria-label="2op FM instrument">
+      <div class="instrument-top"><h2>2op FM <span>/ 01</span></h2><button id="audio" class="primary">Enable audio</button></div>
+      <div class="screen-toolbar"><div class="segmented" aria-label="Screen view"><button id="routing" aria-pressed="true">Routing</button><button id="waveform" aria-pressed="false">Waveform</button></div><label class="zoom-label">Preview <select id="zoom"><option value="fit">Fit</option><option value="native">1× pixels</option></select></label></div>
+      <div class="screen-frame" id="frame"><div id="screen"></div></div>
+      <div id="controls" class="controls"></div>
+      <div class="playbar"><div class="octave"><button id="octave-down" aria-label="Octave down">−</button><span id="octave-label">C3–C4</span><button id="octave-up" aria-label="Octave up">+</button></div><div><button id="phrase">Play phrase</button><button id="panic">Stop all</button></div></div>
+      <div id="keyboard" class="keyboard" aria-label="Playable keyboard"></div>
+      <div class="instrument-bottom"><span>PLAY WITH <kbd>A W S E D F T G Y H U J K</kbd></span><label>Monitor <input id="monitor" type="range" min="0" max="1" value="0.65" step="0.01" aria-label="Monitor volume"></label></div>
+    </section>
+    <aside>
+      <section class="side-section"><p class="eyebrow">START SOMEWHERE</p><h3>Four characters</h3><div id="presets" class="presets"></div><p class="hint">Decay fades the FM brightness. The note’s amplitude has its own simple gate.</p></section>
+      <section class="side-section"><p class="eyebrow">KEEP AN ITERATION</p><h3>Your patch, portable.</h3><button id="export" class="wide">Export patch <span>↗</span></button><button id="import" class="wide">Import patch <span>↙</span></button><input id="file" type="file" accept=".json,application/json" hidden><button id="svg" class="wide">Export screen SVG <span>↗</span></button><button id="reset" class="text-button">Reset controls</button></section>
+      <section class="side-section notes"><p class="eyebrow">MODEL BOUNDARY</p><p id="preview-mode">Shared C++ sound and display. Device fonts, filters, envelopes and CPU timing still need hardware qualification.</p><p>Patch exports preserve all four controls. Rebuild the preview after changing the engine or animation.</p></section>
+    </aside>
+  </div>
+  <footer><span id="status" role="status" aria-live="polite">Audio off · enable to play</span><span>480 × 224 SCREEN STUDY / LOCAL ONLY</span></footer>
+</main><script type="module" src="/harness/app.mjs"></script>
+</body></html>

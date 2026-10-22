@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "machines": [
+    "fm2op",
+    "macroosc",
+    "decimate",
+    "timestretch"
+  ]
+}

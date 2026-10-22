@@ -1,0 +1,13 @@
+diff --git a/binutils-gdb/opcodes/bfin-dis.c b/binutils-gdb/opcodes/bfin-dis.c
+index e6274cf47..6a338b357 100644
+--- a/binutils-gdb/opcodes/bfin-dis.c
++++ b/binutils-gdb/opcodes/bfin-dis.c
+@@ -35,7 +35,7 @@ typedef long TIword;
+ 
+ #define HOST_LONG_WORD_SIZE (sizeof (long) * 8)
+ #define XFIELD(w,p,s)       (((w) & ((1 << (s)) - 1) << (p)) >> (p))
+-#define SIGNEXTEND(v, n)    ((v << (HOST_LONG_WORD_SIZE - (n))) >> (HOST_LONG_WORD_SIZE - (n)))
++#define SIGNEXTEND(v, n)    ((v << (sizeof (v) * 8 - (n))) >> (sizeof (v) * 8 - (n)))
+ #define MASKBITS(val, bits) (val & ((1 << bits) - 1))
+ 
+ #include "disassemble.h"

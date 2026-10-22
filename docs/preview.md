@@ -1,0 +1,83 @@
+# Local preview and patch protocol
+
+For a new instrument, follow [Your first machine](first-machine.md). Check the
+preview toolchain with `python sdk.py doctor --preview`; custom schema-1 sources
+build with `python sdk.py preview --source /path/to/machine --out local/custom-001`.
+Custom sources always use local authoring checks and cannot qualify a collection.
+
+Build a selected example, then serve its authenticated snapshot:
+
+```sh
+python sdk.py preview --engine fm2op --out local/preview-001
+python tools/serve_harness.py --preview local/preview-001
+```
+
+Use `--cxx /path/to/clang++` if Clang is not on PATH, or `--port 8937` if the
+server port is occupied. Open http://127.0.0.1:8917/, enable audio, then play
+`A W S E D F T G Y H U J K` or the on-screen keyboard. Escape/Stop all and loss
+of window focus release notes. Monitor gain is separate from engine parameters.
+
+To change sound or display, edit the C++, rebuild into a fresh directory,
+restart the server and reload. Edit `definition.json` for controls, then
+rebuild.
+The server rejects stale sources at startup; an already running server keeps
+its selected snapshot. It serves a file allowlist, never the repository root.
+
+Every preview build runs shared ABI, fixed-memory, input-ownership,
+declared-peak, voice-lifecycle and drawing smoke checks. They do not prove
+callback correctness or timing; sound correctness is the machine maintainer's
+responsibility.
+
+## Host behavior
+
+The AudioWorklet runs compiled C++ at 44.1 kHz in 64-sample blocks, with eight
+preallocated voices, a 5 ms attack and 120 ms release audition gate. Controls
+apply at the next kernel block; retrigger discards pending samples immediately.
+The preview does not emulate stock envelopes, filters, LFOs or effects, and
+cannot measure Blackfin CPU use. No firmware or device connection is required.
+
+## Patch format
+
+[controls.mjs](../sdk/browser/controls.mjs) implements validation.
+A browser patch contains:
+
+| Field | Value |
+| --- | --- |
+| `kind` | `opxy-machine-preview` |
+| `machine` | Engine ID |
+| `parameters` | Exactly the four named normalized controls, finite and in [0, 1] |
+| `view` | One of the engine's declared preview views |
+| `parametersQ31` | Eight words: ordered rounded Q31 controls followed by four zeros |
+
+Import validates the Q31 array against the normalized values. Invalid input leaves the current patch unchanged. The UI
+limits patch files to 16 KiB. Exported JSON is a browser patch, not an OP-XY
+project; exported SVG is a single frame, not executable display code.
+
+## Local automation
+
+After enabling audio through the UI, `window.machineLab` provides:
+
+| Method | Input/result |
+| --- | --- |
+| `getPatch()` / `loadPatch(patch)` | Export/import the same validated format |
+| `setParameters(values)` | Complete map of normalized controls |
+| `noteOn(midi, velocity = 0.8)` / `noteOff(midi)` | MIDI note 0..127; velocity (0, 1] |
+| `panic()` | Stop all voices |
+| `getStatus()` | Audio state, backend identity, note counts and output RMS |
+
+The SDK-owned AudioWorklet transport accepts `{type: 'parameters', value}`
+(Q31 array), `{type: 'on', note, velocity}`, `{type: 'off', note}` and
+`{type: 'panic'}`. It reports readiness/layout or an error. Contributors use the
+C++ callbacks; they do not implement this transport themselves.
+
+Preview modules expose ABI version 1, compiled state/buffer sizes, static voice
+addresses and lifecycle/render exports. The runner rejects imports, invalid
+layout and a sample-rate mismatch. The manifest binds the WASM, artwork and
+source hashes. These are host interfaces, not a device upload protocol.
+
+## Checks
+
+Run `python sdk.py check`. For a real-browser check, start a dedicated Chrome with a local debugging port and run
+`node tools/check_harness_browser.mjs`. `OPXY_CHROME_PORT` and
+`OPXY_PREVIEW_PORT` select its endpoints. It exercises audio, controls, patch
+round trips and layout; screenshots remain in ignored `local/`.
