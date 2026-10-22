@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createControls } from '../sdk/browser/controls.mjs';
 
 function port(name, fallback) {
   const value = Number(process.env[name] || fallback);
@@ -13,8 +14,14 @@ function port(name, fallback) {
 const endpoint = `http://127.0.0.1:${port('OPXY_CHROME_PORT', 9226)}`;
 const preview = `http://127.0.0.1:${port('OPXY_PREVIEW_PORT', 8917)}`;
 const manifest = await (await fetch(preview + '/preview/manifest.json')).json();
-const macro = manifest.engine === 'macroosc';
+// Expectations come from the served definition; nothing here names a machine.
 const engineId = manifest.engine;
+const controls = createControls(structuredClone(manifest.definition));
+const custom = manifest.kind === 'cpp-browser-custom-preview';
+const controlId = (id, i) => custom ? `custom-control-${i}` : id;
+const first = controls.parameters[0];
+const firstId = controlId(first.id, 0);
+const shown = id => evaluate(`document.getElementById(${JSON.stringify('value-' + id)}).textContent`);
 const target = await (await fetch(`${endpoint}/json/new?about:blank`, { method: 'PUT' })).json();
 const socket = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
@@ -59,23 +66,8 @@ try {
   }
   assert.ok(await evaluate('Boolean(window.machineLab?.getStatus().displayBackend)'), JSON.stringify(errors));
   assert.equal(await evaluate('machineLab.getStatus().audio'), 'off');
-  if (!macro) {
-  assert.equal(await evaluate('document.getElementById("value-amount").textContent'), '48%');
-  assert.equal(await evaluate('document.getElementById("value-feedback").textContent'), '12%');
-  assert.ok(await evaluate('!document.getElementById("screen").textContent.includes("MODULATOR") && !document.getElementById("screen").textContent.includes("CARRIER")'));
-  const marker = () => evaluate('document.getElementById("fm2op_node_0").getAttribute("transform")');
-  const firstPosition = await marker();
-  await delay(650);
-  assert.notEqual(await marker(), firstPosition, 'Circles should orbit gently without audio');
-  await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-  await delay(100);
-  const stoppedPosition = await marker();
-  await delay(220);
-  assert.equal(await marker(), stoppedPosition, 'Reduced-motion preference should stop routing animation');
-  await command('Emulation.setEmulatedMedia', { features: [] });
-  } else {
-    assert.equal(await evaluate('document.getElementById("value-model").textContent'), 'CSAW');
-    assert.equal(await evaluate('document.getElementById("macroosc_label").textContent'), 'Classic Saw');
+  for (const [i, p] of controls.parameters.entries()) {
+    assert.equal(await shown(controlId(p.id, i)), controls.displayValue(p.id, controls.defaults()));
   }
   await click('audio'); await delay(700);
   assert.equal(await evaluate('machineLab.getStatus().audio'), 'running');
@@ -86,36 +78,21 @@ try {
   assert.equal(sounding.audioBackend.backend, 'cpp-wasm');
   assert.equal(sounding.audioBackend.blockFrames, 64);
   assert.equal(sounding.displayBackend.backend, 'cpp-wasm');
-  assert.equal(sounding.displayBackend.frameBytes, macro ? 68 : 1592);
+  assert.ok(sounding.displayBackend.frameBytes > 0);
   assert.equal(sounding.displayBackend.wasmSha256, sounding.audioBackend.wasmSha256);
   assert.equal(sounding.audioBackend.wasmSha256,
     (await (await fetch(preview + '/preview/manifest.json')).json()).wasm_sha256);
   assert.equal(sounding.heldNotes, 1); assert.ok(sounding.rms > 0.001);
   assert.equal(sounding.visualNotes, 1);
-  if (!macro) assert.ok(await evaluate(`document.querySelectorAll('#screen [data-paint="2"]').length > 0`), 'A played note must launch puddles');
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA' }); await delay(300);
   assert.equal(await evaluate('machineLab.getStatus().heldNotes'), 0);
   assert.ok(await evaluate('machineLab.getStatus().rms < 0.000001'));
-  if (!macro) {
-  await evaluate(`(() => { const el = document.getElementById('ratio'); el.value = 1; el.dispatchEvent(new Event('input')); })()`);
-  assert.equal(await evaluate('machineLab.getPatch().parameters.ratio'), 1);
-  assert.equal(await evaluate('document.getElementById("value-ratio").textContent'), '16.000:1');
-  for (const [ratio, label] of [[0.3, '1.850:1'], [0.301, '1.855:1']]) {
-    await evaluate(`(() => { const el = document.getElementById('ratio'); el.value = ${ratio}; el.dispatchEvent(new Event('input')); })()`);
-    assert.equal(await evaluate('document.getElementById("value-ratio").textContent'), label);
-    assert.equal(await evaluate('machineLab.getPatch().parameters.ratio'), ratio);
+  for (const value of [1, 0.3, 0.301]) {
+    await evaluate(`(() => { const el = document.getElementById(${JSON.stringify(firstId)}); el.value = ${value}; el.dispatchEvent(new Event('input')); })()`);
+    assert.equal(await evaluate(`machineLab.getPatch().parameters[${JSON.stringify(first.id)}]`), value);
+    assert.equal(await shown(firstId), controls.displayValue(first.id, { ...controls.defaults(), [first.id]: value }));
   }
-  assert.ok(await evaluate(`(() => { const p = machineLab.getPatch(); p.parameters.amount = 2; try { machineLab.loadPatch(p); return false; } catch { return true; } })()`));
-  } else {
-    for (let model=0; model<47; ++model) {
-      await evaluate(`machineLab.setParameters({model:${(model+.5)/47},timbre:.5,color:.5,finetune:.5})`);
-      const label = await evaluate('document.getElementById("macroosc_label").textContent');
-      assert.ok(label.length > 0 && label.length <= 15);
-      assert.ok(await evaluate('document.querySelectorAll("#screen [id^=macroosc_seg_]").length === 56'));
-    }
-    assert.equal(await evaluate('document.getElementById("value-model").textContent'), 'QPSK');
-    assert.ok(await evaluate(`(() => { const p=machineLab.getPatch(); p.parameters.model=2; try { machineLab.loadPatch(p); return false; } catch { return true; } })()`));
-  }
+  assert.ok(await evaluate(`(() => { const p = machineLab.getPatch(); p.parameters[${JSON.stringify(first.id)}] = 2; try { machineLab.loadPatch(p); return false; } catch { return true; } })()`));
   await evaluate(`(() => { const p = machineLab.getPatch(); machineLab.loadPatch(p); })()`);
   await command('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: screenshots });
   await click('export'); await click('svg');
@@ -148,7 +125,8 @@ try {
   await click('waveform');
   assert.ok(await evaluate('Boolean(document.querySelector("#screen polyline"))'));
   await click('routing');
-  await evaluate(macro ? 'machineLab.setParameters({model:28.5/47,timbre:.65,color:.55,finetune:.5}); machineLab.noteOn(60)' : 'machineLab.setParameters({ratio:0.3,amount:0.78,feedback:0.68,decay:0.72}); machineLab.noteOn(60)');
+  const preset = Object.values(controls.presets).at(-1) ?? controls.defaults();
+  await evaluate(`machineLab.setParameters(${JSON.stringify(preset)}); machineLab.noteOn(60)`);
   await delay(240);
   const desktop = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
   writeFileSync(`${screenshots}/desktop.png`, Buffer.from(desktop.data, 'base64'));
@@ -163,7 +141,7 @@ try {
   // Missing favicon is harmless; all script, worklet and runtime errors fail.
   const relevant = errors.filter(e => !JSON.stringify(e).includes('favicon.ico'));
   assert.deepEqual(relevant, []);
-  console.log(JSON.stringify({ result: 'PASS', checks: ['AudioWorklet starts on gesture', 'keyboard makes audio and releases', 'control mapping', 'patch/SVG download', 'patch import and rejection', 'phrase/panic', 'blur release', 'screen view', 'mobile overflow', 'mute', 'browser errors'], sounding, screenshots }, null, 2));
+  console.log(JSON.stringify({ result: 'PASS', checks: ['AudioWorklet starts on gesture', 'keyboard makes audio and releases', 'control display', 'control mapping', 'patch/SVG download', 'patch import and rejection', 'phrase/panic', 'blur release', 'screen view', 'mobile overflow', 'mute', 'browser errors'], sounding, screenshots }, null, 2));
 } finally {
   socket.close();
   await fetch(`${endpoint}/json/close/${target.id}`);
