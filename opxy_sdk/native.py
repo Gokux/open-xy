@@ -23,7 +23,7 @@ from .adapters import (add_effects, catalog_entry, generate_display, generate_fx
                        generate_segment_binding, generate_voice, screen_bytes)
 from .contributors import validate_source_boundary
 from .firmware import HOOKS, assemble, branch_instruction, decode_branch
-from .formats import elf32, require, sha
+from .formats import elf32, elf_sections, require, sha
 from .machines import by_kind, collection
 from .pipeline import (ROOT, check_patch_boundaries, child, document, execute, fresh_output, host_pins, host_platform,
                        read, require_release_host, save_json, tool_paths)
@@ -175,13 +175,8 @@ def module_bytes(profile):
 
 def object_memory(data):
     """(initialized, zero-initialized) bytes a relocatable ELF32 object places in memory."""
-    require(len(data) >= 52 and data[:6] == b'\x7fELF\x01\x01', 'Invalid ELF object')
-    start = struct.unpack_from('<I', data, 32)[0]
-    stride, count = struct.unpack_from('<HH', data, 46)
-    require(stride == 40 and 0 < count < 4096 and start + count * stride <= len(data), 'Bad section table')
     initialized = state = 0
-    for i in range(count):
-        _name, kind, flags, _address, _offset, size = struct.unpack_from('<6I', data, start + i * stride)
+    for _at, (_name, kind, flags, _address, _offset, size, *_rest) in elf_sections(data):
         if flags & 2:  # SHF_ALLOC
             if kind == 8:  # SHT_NOBITS
                 state += size
@@ -316,17 +311,12 @@ def normalize_object(data):
 
     Both linkers receive these exact bytes. No instructions or relocations change.
     """
-    require(len(data) >= 52 and data[:6] == b'\x7fELF\x01\x01', 'Invalid ELF object')
-    require(struct.unpack_from('<HH', data, 16) == (1, 106), 'Expected Blackfin ET_REL')
+    sections = elf_sections(data)
+    require(struct.unpack_from('<H', data, 16)[0] == 1, 'Expected Blackfin ET_REL')
     out = bytearray(data)
-    start = struct.unpack_from('<I', data, 32)[0]
-    stride, count = struct.unpack_from('<HH', data, 46)
-    require(stride == 40 and 0 < count < 4096 and start + count * stride <= len(data), 'Bad section table')
-    for i in range(count):
-        at = start + i * stride + 8
-        flags = struct.unpack_from('<I', data, at)[0]
+    for at, (_name, _kind, flags, *_rest) in sections:
         if flags & 2:
-            struct.pack_into('<I', out, at, flags & ~0x30)
+            struct.pack_into('<I', out, at + 8, flags & ~0x30)
     return bytes(out)
 
 

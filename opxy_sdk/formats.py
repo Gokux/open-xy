@@ -52,14 +52,20 @@ def mapped_offset(blocks, address, size):
     return block['offset'] + 16 + address - block['target']
 
 
-def elf32(data):
+def elf_sections(data):
+    """(file offset, ten header fields) of each section of a little-endian Blackfin ELF32 file."""
     require(len(data) >= 52 and data[:6] == b'\x7fELF\x01\x01', "Expected little-endian ELF32")
     require(struct.unpack_from('<H', data, 18)[0] == 106, "Expected Blackfin ELF")
     table = struct.unpack_from('<I', data, 32)[0]
     stride, count, names_index = struct.unpack_from('<HHH', data, 46)
     require(stride == 40 and 0 < count < 4096 and names_index < count and
             table + count * stride <= len(data), "Invalid ELF section table")
-    headers = [struct.unpack_from('<10I', data, table + i * stride) for i in range(count)]
+    return [(table + i * stride, struct.unpack_from('<10I', data, table + i * stride)) for i in range(count)]
+
+
+def elf32(data):
+    headers = [h for _at, h in elf_sections(data)]
+    count, names_index = len(headers), struct.unpack_from('<H', data, 50)[0]
 
     def contents(h):
         if h[1] == 8:
