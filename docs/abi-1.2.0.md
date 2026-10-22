@@ -50,6 +50,14 @@ Registration is checked: the record must be empty or already ours, and the
 name map must not point elsewhere. The stock initializer clears and refills the
 records on every run, so registration is re-checked each time rather than cached.
 
+The startup and catalog glue is C++ generated per collection
+([`startup.cpp.in`](../sdk/platform/opxy-1.2.0/startup.cpp.in)); the checks are
+[`registration.cpp`](../sdk/platform/opxy-1.2.0/registration.cpp), bound to the
+stock tables in `registration_stock.cpp.in`. The two initializer hooks jump
+into the middle of stock functions, so
+[`startup_exit.s`](../sdk/platform/opxy-1.2.0/startup_exit.s) calls the C++
+and then completes the stock epilogue it replaced.
+
 ## Identities
 
 | Table | Size | Never use | Notes |
