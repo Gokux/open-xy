@@ -1,14 +1,36 @@
 import copy
+import os
+from pathlib import Path
 import re
+import subprocess
 from types import SimpleNamespace
 import tempfile
 import json
 import unittest
 
-from opxy_sdk.adapters import catalog_defaults, catalog_entry, generate_screen, generate_segments, screen_bytes
+from opxy_sdk.adapters import (catalog_defaults, catalog_entry, generate_display, generate_screen,
+                               generate_segment_binding, screen_bytes)
 from opxy_sdk.definitions import ROOT, validate_definition
 from opxy_sdk.machines import machine
 from opxy_sdk.native import drawing_ids, segment_ids
+
+
+def layout_compiler():
+    """A host C++ compiler that type-checks 32-bit layouts (renderer static_asserts), or None."""
+    compiler = os.environ.get('OPXY_TEST_HOST_CXX', 'g++')
+    with tempfile.TemporaryDirectory(prefix='layout-cxx-') as folder:
+        probe = Path(folder) / 'probe.cpp'
+        probe.write_text('static_assert(sizeof(void*) == 4, "32-bit");\n')
+        hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
+        try:
+            result = subprocess.run([compiler, '-m32', '-fsyntax-only', str(probe)], capture_output=True, timeout=60,
+                                    **hidden)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return compiler if result.returncode == 0 else None
+
+
+LAYOUT_CXX = layout_compiler()
 
 
 class Definitions(unittest.TestCase):
@@ -120,8 +142,10 @@ class Definitions(unittest.TestCase):
 
 
     def test_renderers_generate_for_every_declared_shape(self):
-        shapes = [dict(kind='drawing', stateBytes=4, stateAlignment=4, paths=1, points=2, nodes=64, palette=1),
-                  dict(kind='drawing', stateBytes=8, stateAlignment=8, paths=4, points=64, nodes=4, palette=16),
+        """Each shape's renderer is data for the SDK renderer: artwork IDs in binding order, and an
+        object whose C++ size equals the registered size (checked by the generated static_assert)."""
+        shapes = [dict(kind='drawing', stateBytes=60, stateAlignment=4, paths=1, points=2, nodes=64, palette=1),
+                  dict(kind='drawing', stateBytes=60, stateAlignment=4, paths=4, points=64, nodes=4, palette=16),
                   dict(kind='segments', characters=1, glow=0, dials=0, textControls=[]),
                   dict(kind='segments', characters=8, glow=3, dials=4, textControls=[0, 1, 2, 3])]
         for display in shapes:
@@ -130,16 +154,27 @@ class Definitions(unittest.TestCase):
             validate_definition(definition, 'synth')
             m = SimpleNamespace(prefix='shape', native_name='shape', definition=definition)
             with self.subTest(display=display), tempfile.TemporaryDirectory() as directory:
-                generate = generate_screen if display['kind'] == 'drawing' else generate_segments
-                source = generate(directory, m).read_text(encoding='utf-8')
-                self.assertNotIn('@', source)
-                self.assertIn('.space %d' % screen_bytes(m), source)
                 if display['kind'] == 'drawing':
+                    generate_display(directory, machine=SimpleNamespace(definition=definition, native_name='shape',
+                                                                        prefix='shape'))
                     ids = drawing_ids('shape', display)
                 else:
+                    generate_segment_binding(directory, definition, 'shape')
                     names = segment_ids('shape', display)
-                    ids = sum(names['glow_palette'], []) + names['segments'] + sum(names['glow'], []) + names['dials']
-                self.assertEqual(re.findall(r'\.asciz "(shape_(?:node|palette|seg|glow|dial)_[0-9a-z_]+)"', source), ids)
+                    ids = (names['segments'] + sum(names['glow'], []) + names['dials'] + [names['label']] +
+                           names['palette'] + sum(names['glow_palette'], []))
+                source = generate_screen(directory, m)
+                text = source.read_text(encoding='utf-8')
+                self.assertEqual(re.findall(r'"(shape_[0-9a-z_]+)"', text), ids)
+                self.assertIn(', %d)' % screen_bytes(m), text)
+                if LAYOUT_CXX:
+                    hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
+                    result = subprocess.run(
+                        [LAYOUT_CXX, '-m32', '-std=gnu++11', '-fsyntax-only', '-Wall', '-Werror', '-ffreestanding',
+                         *('-I' + str(ROOT / path) for path in ('sdk/include', 'sdk/platform/opxy-1.2.0',
+                                                               'machines/fm2op')), source.name],
+                        cwd=directory, capture_output=True, text=True, timeout=120, **hidden)
+                    self.assertEqual(result.returncode, 0, result.stderr)
 
 if __name__ == '__main__':
     unittest.main()

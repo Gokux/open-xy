@@ -20,7 +20,7 @@ import xml.etree.ElementTree as ET
 from . import screen, startup_label, stock_tables, sample_hooks
 from .adapters import (add_effects, catalog_entry, generate_display, generate_fx_object, generate_fx_registration,
                        generate_registration, generate_sample_registration, generate_sample_voice, generate_sample_routes, generate_sample_callbacks, generate_screen,
-                       generate_segment_binding, generate_segments, generate_voice, screen_bytes)
+                       generate_segment_binding, generate_voice, screen_bytes)
 from .contributors import validate_source_boundary
 from .firmware import HOOKS, assemble, branch_instruction, decode_branch
 from .formats import elf32, require, sha
@@ -39,7 +39,6 @@ DEFINITIONS = dict(stock_catalog_insert=0x8d5bbaa0, stock_sample_classify_tail=0
 CATALOG_INSERT = 4435  # Byte offset of the end of engine_types in the authenticated stock catalog.
 TEMPLATES = 'sdk/platform/opxy-1.2.0/'
 RUNTIME_ASM, RUNTIME_CXX = 'sdk/platform/blackfin/divide.s', 'sdk/platform/blackfin/memory.cpp'
-# Renderer object size of each display kind's screen adapter.
 ALLOWED_SECTIONS = {'.text', '.rodata', '.data', '.bss'}
 MAX_COMPILER_FILE = 64 << 20
 ANALYSIS = ['analysis/compile-report.json']
@@ -237,7 +236,7 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
 
     def display_unit(folder, m):
         if m.display == 'drawing':
-            generate_display(folder, native=True, machine=m)
+            generate_display(folder, machine=m)
             return folder / 'display_binding.cpp'
         return generate_segment_binding(folder, m.definition, m.prefix)
 
@@ -269,13 +268,10 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
                                                        screen_bytes=screen_bytes(m)), obj)
         if step.startswith('source:'):
             return cxx('machines/' + m.id + '/' + step.removeprefix('source:'), obj, m)
-        if step == 'screen':
-            screen = generate_screen(folder, m) if m.display == 'drawing' else generate_segments(folder, m)
-            return assemble_unit(screen, obj)
         if step == 'fx_register':
             return assemble_unit(generate_fx_registration(folder, m), obj)
         source = {'voice': lambda: generate_voice(folder, m), 'display': lambda: display_unit(folder, m),
-                  'fx_object': lambda: generate_fx_object(folder, m),
+                  'screen': lambda: generate_screen(folder, m), 'fx_object': lambda: generate_fx_object(folder, m),
                   'sample_voice': lambda: generate_sample_voice(folder, m)}[step]
         return cxx(str(source()), obj, m)
 

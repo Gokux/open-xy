@@ -7,7 +7,6 @@ import tempfile
 import unittest
 
 from opxy_sdk import custom_preview as custom
-from opxy_sdk.adapters import generate_display
 from opxy_sdk.formats import sha
 from opxy_sdk.preview import preview_bundle
 
@@ -65,10 +64,8 @@ class CustomPreviewTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Drawing colors'):
             custom.metadata(files)
 
-    def test_custom_definition_cannot_create_native_adapters_or_reuse_curated_identity(self):
+    def test_custom_definition_cannot_reuse_curated_identity(self):
         definition, _ = custom.metadata(custom.source_files(self.source))
-        with self.assertRaisesRegex(ValueError, 'cannot generate native'):
-            generate_display(self.root, native=True, definition=definition)
         definition['id'] = 'fm2op'
         (self.source / 'definition.json').write_text(json.dumps(definition))
         with self.assertRaisesRegex(ValueError, 'distinct local machine ID'):
