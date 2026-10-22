@@ -18,9 +18,9 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 from . import screen, startup_label, stock_tables
-from .adapters import (catalog_entry, generate_display, generate_fx_object, generate_fx_registration,
-                       generate_registration, generate_sample_registration, generate_sample_voice, generate_sample_routes, generate_sample_callbacks, generate_screen,
-                       generate_segment_binding, generate_voice, screen_bytes)
+from .adapters import (catalog_entry, generate_display, generate_fx_object, generate_registration,
+                       generate_registration_stock, generate_sample_voice, generate_sample_routes,
+                       generate_sample_callbacks, generate_screen, generate_segment_binding, generate_voice)
 from .contributors import validate_source_boundary
 from .firmware import assemble, hook_instruction, hook_target
 from .formats import elf32, elf_sections, require, sha
@@ -31,7 +31,7 @@ from .startup import generate as generate_startup
 
 LINKER = 'linker/opxy-1.2.0.ld'
 TARGET = 'opxy-1.2.0'
-DEFINITIONS = dict(stock_catalog_insert=0x8d5bbaa0, stock_sample_classify_tail=0x8d5b5b3e,
+DEFINITIONS = dict(stock_catalog_insert=0x8d5bbaa0, stock_gui_role=0x8d5c200c, stock_sample_classify_tail=0x8d5b5b3e,
                    stock_sample_key_tail=0x8d5878ac, stock_sample_engine_getter=0x8d585eb4,
                    stock_drum_key=0x8d5b6800, stock_sample_octave=0x8d58da64)
 TEMPLATES = 'sdk/platform/opxy-1.2.0/'
@@ -144,15 +144,14 @@ def plan(machines):
     units = []
     for m in machines:
         if m.kind == 'synth':
-            steps = ('voice', *('source:' + s for s in m.sources), 'display', 'screen', 'register', 'screen_register',
-                     'readiness')
+            steps = ('voice', *('source:' + s for s in m.sources), 'display', 'screen', 'registration')
         elif m.kind == 'effect':
-            steps = ('fx_register', 'fx_object')
+            steps = ('registration', 'fx_object')
         else:
-            steps = ('register', 'readiness_stock_page', 'sample_voice')
+            steps = ('registration', 'sample_voice')
         units += [(f'{m.id}/{Path(step.removeprefix("source:")).stem}.o', m, step) for step in steps]
-    units += [(f'sdk/{step}.o', None, step) for step in ('divide', 'memory', 'startup', 'startup_label', 'fallback',
-              'sample_routes', 'sample_cache', 'sample_cache_stock', 'sample_cache_worker', 'sample_progress', 'sample_progress_stock',
+    units += [(f'sdk/{step}.o', None, step) for step in ('divide', 'memory', 'registration', 'registration_stock',
+              'startup', 'startup_exit', 'startup_label', 'sample_routes', 'sample_cache', 'sample_cache_stock', 'sample_cache_worker', 'sample_progress', 'sample_progress_stock',
               'sample_callbacks', 'sample_controls', 'sample_controls_stock', 'sample_assignment',
               'sample_assignment_stock', 'sample_drum', 'sample_drum_stock')]
     names = [name for name, _m, _step in units]
@@ -233,6 +232,10 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         if m is None:
             if step == 'sample_callbacks':
                 return cxx(str(generate_sample_callbacks(folder, machines)), obj)
+            if step == 'registration_stock':
+                return cxx(str(generate_registration_stock(folder)), obj)
+            if step == 'registration':
+                return cxx(TEMPLATES + step + '.cpp', obj)
             if step in ('sample_cache', 'sample_progress') or step.endswith('_stock'):
                 return cxx(TEMPLATES + step + '.cpp', obj)
             if step == 'sample_cache_worker':
@@ -245,20 +248,14 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
                 return cxx(RUNTIME_CXX, obj)
             if step == 'startup':
                 prefixes = [x.prefix for x in by_kind(machines, 'synth', 'sample')]
-                return assemble_unit(generate_startup(folder, prefixes, [x.prefix for x in effects],
-                                                      [x.prefix for x in sample_engines]), obj)
+                return cxx(str(generate_startup(folder, prefixes, [x.prefix for x in effects],
+                                                [x.prefix for x in sample_engines])), obj)
             return assemble_unit(ROOT / TEMPLATES / (step + '.s'), obj)
-        if step in ('register', 'screen_register', 'readiness', 'readiness_stock_page'):
-            if m.kind == 'sample':
-                return assemble_unit(generate_sample_registration(folder, m, step), obj)
-            return assemble_unit(generate_registration(folder, step, machine=m,
-                                                       screen_bytes=screen_bytes(m)), obj)
         if step.startswith('source:'):
             return cxx('machines/' + m.id + '/' + step.removeprefix('source:'), obj, m)
-        if step == 'fx_register':
-            return assemble_unit(generate_fx_registration(folder, m), obj)
         source = {'voice': lambda: generate_voice(folder, m), 'display': lambda: display_unit(folder, m),
                   'screen': lambda: generate_screen(folder, m), 'fx_object': lambda: generate_fx_object(folder, m),
+                  'registration': lambda: generate_registration(folder, m),
                   'sample_voice': lambda: generate_sample_voice(folder, m)}[step]
         return cxx(str(source()), obj, m)
 

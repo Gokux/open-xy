@@ -1,7 +1,6 @@
-"""Sample-playback engines: flag-1 registration, stock-page readiness and startup."""
+"""Sample-playback engines: flag-1 registration, stock-page readiness and dispatch."""
 import json
 import copy
-from pathlib import Path
 import tempfile
 import unittest
 from dataclasses import replace
@@ -10,9 +9,6 @@ from opxy_sdk import adapters
 from opxy_sdk.machines import machine
 from opxy_sdk.definitions import validate_definition
 from opxy_sdk import firmware
-from opxy_sdk.startup import render
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 class Generation(unittest.TestCase):
@@ -63,17 +59,18 @@ class Generation(unittest.TestCase):
     def test_engine_units_expand_every_placeholder(self):
         m = replace(machine('timestretch'), identity=dict(engine=46, page=2))
         with tempfile.TemporaryDirectory() as directory:
-            for leaf in ('register', 'readiness_stock_page'):
-                text = adapters.generate_sample_registration(directory, m, leaf).read_text(encoding='utf-8')
-                self.assertNotIn('@', text, leaf)
             self.assertNotIn('@', adapters.generate_sample_voice(directory, m).read_text(encoding='utf-8'))
+
+    def test_registration_uses_flag_one_and_the_stock_page(self):
+        with tempfile.TemporaryDirectory() as directory:
+            text = adapters.generate_registration(directory, machine('timestretch')).read_text(encoding='utf-8')
+        self.assertIn('timestretch_engine_id, timestretch_page_id, 1};', text)
+        self.assertIn('int timestretch_ready() { return sdk_engine_ready(&record, nullptr); }', text)
+        self.assertNotIn('screen', text)
 
     def test_catalog_entry_and_stock_page_startup(self):
         entry = json.loads(adapters.catalog_entry(machine('timestretch')).strip().lstrip(','))
         self.assertEqual(entry['type'], 'timestretch')
-        screen = render(['fm2op', 'macroosc', 'timestretch'], (), ['timestretch']).split('extensions_screen_exit:')[1]
-        self.assertNotIn('timestretch_screen_register_checked', screen)
-        self.assertIn('.Lscreen_timestretch:\n    R0.H = timestretch_engine_id;', screen)
 
 
 if __name__ == '__main__':

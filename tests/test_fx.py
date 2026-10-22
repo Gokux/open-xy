@@ -1,15 +1,11 @@
-"""Send effects: generated adapters, catalog entries and startup calls."""
+"""Send effects: generated adapters and catalog entries."""
 import json
-from pathlib import Path
 import tempfile
 import unittest
 
 from opxy_sdk import adapters
 from opxy_sdk.machines import machine
 from opxy_sdk.native import extend_catalog
-from opxy_sdk.startup import render
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def stock_like_catalog():
@@ -19,15 +15,13 @@ def stock_like_catalog():
 
 
 class Generation(unittest.TestCase):
-    def test_registration_names_only_fx_tables_and_routines(self):
+    def test_registration_describes_the_effect_record(self):
         with tempfile.TemporaryDirectory() as directory:
-            text = adapters.generate_fx_registration(directory, machine('decimate')).read_text(encoding='utf-8')
-        self.assertIn('    R1 = 0x846e9f58;', text)       # FX records
-        self.assertIn('    P0 = 0x846e9f34;', text)       # FX name map
-        self.assertIn('    P1 = 0x8d506054;', text)       # FX registrar
-        self.assertEqual(text.count('    P1 = 0x8d506764;'), 2)  # FX resolver
-        self.assertIn('    R1 = 19;\n    CC = R0 == R1;', text)
-        for engine_only in ('0x846ea2e8', '0x846e9f4c', '0x8d505ecc', '0x8d506688', '[SP + 20]'):
+            text = adapters.generate_registration(directory, machine('decimate')).read_text(encoding='utf-8')
+        self.assertIn('Record record = {decimate_fx_factory, decimate_fx_parameter_name, decimate_fx_name, '
+                      'decimate_fx_id, decimate_fx_page_id, 0};', text)
+        self.assertIn('int decimate_fx_register() { return sdk_register_effect(&record); }', text)
+        for engine_only in ('sdk_register_engine', 'sdk_engine_ready', 'screen'):
             self.assertNotIn(engine_only, text)
 
     def test_object_adapter_fits_the_stock_slot(self):
@@ -46,14 +40,6 @@ class Generation(unittest.TestCase):
         self.assertEqual(parsed['fx_types'][-1], json.loads(adapters.catalog_entry(machine('decimate'))[1:]))
         self.assertEqual(parsed['engine_types'], json.loads(catalog)['engine_types'])
         self.assertEqual(extend_catalog(catalog, profile, []), catalog)
-
-    def test_effects_register_before_the_role_check(self):
-        text = render(['fm2op', 'macroosc'], ['decimate'])
-        synth = text.split('extensions_synth_exit:')[1]
-        self.assertLess(synth.index('CALL decimate_fx_register_checked;'), synth.index('P0 = 0x8d5c200c;'))
-        self.assertIn('decimate_fx_page_id', synth)
-        with self.assertRaises(ValueError):
-            render(['fm2op'], ['fm2op'])
 
 
 if __name__ == '__main__':

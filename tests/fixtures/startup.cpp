@@ -1,0 +1,65 @@
+// Host contract checks for generated startup glue: two own-page synths
+// (first, second), one stock-page sample engine (sampled) and one effect.
+#include <startup.cpp>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+
+#define require(value) do { if (!(value)) { std::fprintf(stderr, "line %d\n", __LINE__); std::abort(); } } while (0)
+
+static std::string calls;
+static bool gui, ready_state = true, screens = true;
+static const char* named;
+static u32 inserted;
+
+#define ENGINE(prefix)                                                                        \
+    const char prefix##_engine_id[1] = {};                                                    \
+    int prefix##_register() { calls += #prefix " "; return 1; }                               \
+    int prefix##_name_matches(const void* name) { return named && std::string(named) == #prefix; } \
+    int prefix##_ready() { calls += #prefix "? "; return ready_state; }
+ENGINE(first)
+ENGINE(second)
+ENGINE(sampled)
+int first_screen_register() { calls += "first-page "; return screens; }
+int second_screen_register() { calls += "second-page "; return 1; }
+int effect_fx_register() { calls += "effect "; return 1; }
+u32 stock_gui_role() { calls += "role "; return gui; }
+u32 stock_catalog_insert(void*, const void*, u32 id) { inserted = id; return 7; }
+
+static u32 catalog(const char* name, u32 id) {
+    named = name; inserted = 0; calls.clear();
+    return extensions_catalog_checked(nullptr, name, id);
+}
+
+int main() {
+    // Effects register on both roles, before the role check; engines in ledger order on audio.
+    sdk_startup_synth();
+    require(calls == "effect role first second sampled ");
+    calls.clear(); gui = true;
+    sdk_startup_synth();
+    require(calls == "effect role ");
+    // GUI role: each own page guards only its own engine; stock pages need none.
+    calls.clear();
+    sdk_startup_screen();
+    require(calls == "first-page first second-page second sampled ");
+    calls.clear(); screens = false;
+    sdk_startup_screen();
+    require(calls == "first-page second-page second sampled ");
+
+    const u32 first = value(first_engine_id), second = value(second_engine_id);
+    // Own names need their expected ID and current readiness.
+    require(catalog("second", second) == 7 && inserted == second && calls == "second? ");
+    require(catalog("second", first) == 0 && inserted == 0 && calls.empty());
+    ready_state = false;
+    require(catalog("first", first) == 0 && inserted == 0);
+    ready_state = true;
+    require(catalog("first", first) == 7 && inserted == first);
+    // Every other name reaches stock unchanged, even with an own ID; the
+    // missing-engine ID 33 never does.
+    require(catalog("stock", second) == 7 && inserted == second && calls.empty());
+    require(catalog("stock", 33) == 0 && inserted == 0);
+    require(catalog("first", 33) == 0 && inserted == 0);
+    require(kit_absent() == 0);
+    std::puts("startup ok");
+    return 0;
+}
