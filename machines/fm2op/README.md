@@ -21,7 +21,7 @@ python tools/serve_harness.py --preview local/fm2op-preview-001
 python sdk.py check
 ```
 
-`definition.json` owns controls and defaults, `tables.h` and `orbit.hpp` hold lookup
-data, and `machine.json` declares the kind and display. Shared adapters and host runners live in the SDK.
+`definition.json` owns controls, defaults and the display shape, `tables.h` and
+`orbit.hpp` hold lookup data, and `machine.json` declares the kind and identity. Shared adapters and host runners live in the SDK.
 
 See [native builds](../../docs/build.md) to put it on the device.

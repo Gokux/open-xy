@@ -1,5 +1,9 @@
 # Local preview and patch protocol
 
+Browser previews audition synths: their four controls, sound and own screen.
+Sample engines and effects use stock pages and stock sample or send processing,
+so they have no browser preview; they are checked by the native build.
+
 For a new instrument, follow [Your first machine](first-machine.md). Check the
 preview toolchain with `python sdk.py doctor --preview`; custom schema-1 sources
 build with `python sdk.py preview --source /path/to/machine --out local/custom-001`.
@@ -45,9 +49,9 @@ A browser patch contains:
 | --- | --- |
 | `kind` | `opxy-machine-preview` |
 | `machine` | Engine ID |
-| `parameters` | Exactly the four named normalized controls, finite and in [0, 1] |
-| `view` | One of the engine's declared preview views |
-| `parametersQ31` | Eight words: ordered rounded Q31 controls followed by four zeros |
+| `parameters` | Exactly the declared normalized controls, finite and in [0, 1] |
+| `view` | `routing` (the machine's screen) or `waveform` (an audio scope) |
+| `parametersQ31` | Eight words: ordered rounded Q31 controls followed by zeros |
 
 Import validates the Q31 array against the normalized values. Invalid input leaves the current patch unchanged. The UI
 limits patch files to 16 KiB. Exported JSON is a browser patch, not an OP-XY
@@ -73,11 +77,13 @@ C++ callbacks; they do not implement this transport themselves.
 Preview modules expose ABI version 1, compiled state/buffer sizes, static voice
 addresses and lifecycle/render exports. The runner rejects imports, invalid
 layout and a sample-rate mismatch. The manifest binds the WASM, artwork and
-source hashes. These are host interfaces, not a device upload protocol.
+source hashes and carries the definition and `machine.json` description that
+the workbench page shows. These are host interfaces, not a device upload protocol.
 
 ## Checks
 
 Run `python sdk.py check`. For a real-browser check, start a dedicated Chrome with a local debugging port and run
 `node tools/check_harness_browser.mjs`. `OPXY_CHROME_PORT` and
 `OPXY_PREVIEW_PORT` select its endpoints. It exercises audio, controls, patch
-round trips and layout; screenshots remain in ignored `local/`.
+round trips and layout. Its expectations come from the served definition, so it
+runs against any preview; screenshots remain in ignored `local/`.

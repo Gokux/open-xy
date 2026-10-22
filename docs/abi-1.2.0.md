@@ -143,12 +143,11 @@ Other parameters retain their original editing paths and engine identity.
 Saved pad pitch uses the same ten-cent step, stored in stock root/fine fields
 and published through the existing region handler. Machine settings do not
 store pitch; the display adds saved region tuning to the panel's live offset.
-The sample adapter reads track transpose from the audio parameter table
-(`0x84eb3bc8`, stride `0xe8`, offset `0xd0`) using stock note-start's
-73-position mapping to -36..36 semitones. It supplies this separately from
+The sample adapter reads track transpose from the stock per-track audio
+parameter table using stock note-start's 73-position mapping to -36..36
+semitones. It supplies this separately from
 pitch increments, which also include absolute note pitch and modulation.
-Drum-key routing passes stock's track octave (`0x8d58da64`) to its key mapper
-(`0x8d5b6800`) and publishes the octave in an aligned per-track word. Audio
+Drum-key routing passes stock's track octave to its key mapper and publishes the octave in an aligned per-track word. Audio
 uses that snapshot with the same integer mapping, without calling GUI
 project/pattern getters. The stock octave setter also publishes each change
 immediately; playback can reuse a sample without another GUI lookup.
@@ -163,16 +162,5 @@ Effects live in a separate 19-entry registry. Stock constructs an effect in
 place inside the FX slot's **480-byte** storage on the audio thread, calls
 `init`, then `process(left, right, parameters)` once per 64-sample block on
 in-place stereo buffers. **No destructor ever runs**, so an effect may hold no
-resources. The send-buffer sample scale has not been established.
-
-## Device status
-
-| Build | Status |
-| --- | --- |
-| 2op FM + Macro Osc, relocated tables (2op at engine 34) | Ran on a device with the earlier object layout; the current layout needs a retest |
-| Decimate (FX 11) | Not yet tried on a device |
-| Timestretch (engine 35, drum page) | Earlier implementations ran on a device; the current shared-service implementation needs device qualification |
-| Startup label, bundled presets | Not yet observed on a device |
-
-Host checks establish byte-exact reconstruction and bounded static properties.
-They do not establish timing, audio behaviour or recovery.
+resources. The first slot word is the object's method table, which leaves 476
+bytes of effect state.

@@ -23,7 +23,6 @@ OS 1.2.0 with a curated collection of machines; arbitrary engine installation
 and dynamic loading are not implemented. Native code is not sandboxed, and build
 checks cannot guarantee recovery from a faulty image. Browser previews work on
 any OS; native firmware builds currently need Windows ([toolchains](docs/toolchain.md)).
-[Device status](docs/abi-1.2.0.md#device-status) lists what has run on hardware.
 
 ## Try an example
 
@@ -46,12 +45,13 @@ patches and automation.
 Start with [Your first machine](docs/first-machine.md): check the prerequisites,
 create a custom C++ machine, play it in the browser and make an audible edit.
 
-A machine is a folder of source: controls (`definition.json`), sound (`engine.cpp`
-and state headers), display (`display.cpp` and artwork) and `machine.json`,
-which declares its kind and stock identity. The SDK supplies adapters, storage,
+A machine is a folder of source: `machine.json`, which declares its kind and
+stock identity, controls in `definition.json`, and C++ for its kind: a synth's
+sound (`engine.cpp`) and display (`display.cpp` and artwork), a sample engine's
+`sample.cpp` or an effect's `fx.cpp`. The SDK supplies adapters, storage,
 previews, firmware builds and packaging.
 
-- [Engine API](docs/api.md): platform rules, control schema, callbacks, buffers and ownership.
+- [Engine API](docs/api.md): platform rules, schemas, callbacks for each kind, buffers and ownership.
 - [Display API](docs/display.md): retained drawing frames and asset constraints.
 - [Contributing](CONTRIBUTING.md): code ownership and checks.
 - [Native builds](docs/build.md): toolchains, integration and package validation.

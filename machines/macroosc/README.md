@@ -18,11 +18,11 @@ python sdk.py check
 
 | File | Owns |
 | --- | --- |
-| [definition.json](definition.json) | Controls and resource declarations |
+| [definition.json](definition.json) | Controls, resource declarations and the segment display shape |
 | [core.h](core.h), [engine.cpp](engine.cpp) | Voice/shared state, lifecycle and sound |
 | [display.cpp](display.cpp), [models.hpp](models.hpp) | Model-to-segment frame and model table |
 | [pitch.h](pitch.h), [vendor/braids/resources.cc](vendor/braids/resources.cc) | 44.1 kHz pitch and Braids tables |
-| [machine.json](machine.json) | Kind, display and the vendored translation units |
+| [machine.json](machine.json) | Kind, identity, builder glyph and the vendored translation units |
 
 The SDK supplies storage, callbacks and rendering backends. Callbacks and the
 vendor RNG swap require serialized access. See [engine API](../../docs/api.md).
