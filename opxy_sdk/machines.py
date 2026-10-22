@@ -2,8 +2,8 @@
 
 A machine's folder name is its stock name: the engine type the device lists,
 its catalog and preset entries, its screen file and its symbol prefix.
-machine.json declares only the engine/FX and page IDs. Saved presets and Open-XY layouts refer to
-both, so they never change once published; the SDK checks them against the
+machine.json declares the kind, stock IDs and build inputs. Saved presets and Open-XY layouts refer to
+the name and IDs, so they never change once published; the SDK checks them against the
 stock tables and the collection.
 """
 from dataclasses import dataclass
@@ -15,6 +15,9 @@ from .formats import require
 from .stock_tables import ENGINE_COUNT, ENGINE_SENTINEL, PAGE_SENTINEL, check_assignment
 
 KINDS = ('synth', 'sample', 'effect')
+FIELDS = {'schema', 'kind', 'description', 'identity', 'sources', 'includes', 'icon', 'presetDefaults'}
+# Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
+ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
 COLLECTION = ROOT / 'profiles/collection.json'
 # Stock 1.2.0 registrations (docs/abi-1.2.0.md).
 STOCK_ENGINE_IDS = frozenset({2, 3, 4, 6, 7, 18, 19, 20, 22, 29, 30, 31, 32})
@@ -35,6 +38,7 @@ class Machine:
     definition: dict
     identity: dict
     preset_defaults: dict
+    icon: str = ''
 
     # The stock name and the symbol prefix are the machine's name.
     @property
@@ -85,7 +89,7 @@ def machine(identity):
     require(path.is_file() and path.resolve() == path.absolute(), 'Unknown or redirected machine: ' + identity)
     value = json.loads(path.read_text(encoding='utf-8'))
     require(isinstance(value, dict) and value.get('schema') == 1 and
-            set(value) <= {'schema', 'kind', 'description', 'identity', 'sources', 'includes', 'presetDefaults'},
+            set(value) <= FIELDS,
             'Unexpected machine.json fields: ' + identity)
     kind = value.get('kind')
     require(kind in KINDS, 'Unknown machine kind: ' + str(kind))
@@ -94,10 +98,13 @@ def machine(identity):
     sources = tuple(_relative(root, s) for s in value.get('sources', ()))
     includes = tuple(_relative(root, s) for s in value.get('includes', ()))
     require(all(s.endswith(('.cc', '.cpp')) for s in sources), 'Extra sources must be C++ translation units')
+    icon = value.get('icon', '')
+    require(icon == '' or isinstance(icon, str) and ICON.fullmatch(icon), 'icon is SVG path data')
     definition = validate_definition(json.loads((root / 'definition.json').read_text(encoding='utf-8')), kind)
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
     # A synth draws its own screen; sample engines and effects use a stock page.
     display = definition['resources']['display']['kind'] if kind == 'synth' else 'stock'
+    # The native plan compiles extra translation units only into synths.
     if kind != 'synth':
         require(not sources and not includes, 'Sample engines and effects compile one fx.cpp or sample.cpp')
     if kind == 'sample' and definition['resources'].get('drumControls', 0):
@@ -110,7 +117,8 @@ def machine(identity):
     return Machine(id=identity, kind=kind, name=definition['name'], description=value['description'],
                    display=display, sources=sources, includes=includes,
                    definition=definition,
-                   identity=_identity(kind, display, value['identity']), preset_defaults=defaults)
+                   identity=_identity(kind, display, value['identity']), preset_defaults=defaults,
+                   icon=icon)
 
 
 def discovered():

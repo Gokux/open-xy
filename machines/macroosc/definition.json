@@ -2,7 +2,6 @@
   "schema": 1,
   "id": "macroosc",
   "name": "Macro Osc",
-  "cppNamespace": "macroosc",
   "parameters": [
     {
       "id": "model",
@@ -67,9 +66,9 @@
       "label": "Timbre",
       "default": 0.5,
       "mapping": {
-        "kind": "power",
-        "maximum": 1,
-        "exponent": 1
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
       },
       "display": "percent"
     },
@@ -78,9 +77,9 @@
       "label": "Color",
       "default": 0.5,
       "mapping": {
-        "kind": "power",
-        "maximum": 1,
-        "exponent": 1
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
       },
       "display": "percent"
     },
@@ -89,11 +88,9 @@
       "label": "Finetune",
       "default": 0.5,
       "mapping": {
-        "kind": "anchors",
-        "values": [
-          -1,
-          1
-        ]
+        "kind": "linear",
+        "minimum": -1,
+        "maximum": 1
       },
       "display": "percent"
     }
@@ -117,8 +114,6 @@
     "voiceAlignment": 4,
     "voiceCapacity": 128,
     "sharedBytes": 131332,
-    "blockFrames": 64,
-    "sampleRate": 44100,
     "outputPeakQ31": 1073741824,
     "display": {
       "kind": "segments",

@@ -1,7 +1,7 @@
 # Repository instructions
 
 Read README.md and CONTRIBUTING.md. For native changes also read
-[the firmware ABI](docs/abi-1.2.0.md) and the selected engine's integration recipe.
+[the firmware ABI](docs/abi-1.2.0.md) and [native builds](docs/build.md).
 
 - Engine-specific source, metadata, generators and sound tests belong under that
   engine. Keep `opxy_sdk/` and root `tests/` focused on shared contracts.
@@ -22,8 +22,6 @@ Read README.md and CONTRIBUTING.md. For native changes also read
 - Keep public docs about current interfaces and behavior. Remove obsolete text
   instead of adding another status page or repeating caveats across every guide.
 
-The synth examples are 2op FM and Macro Osc; Decimate and Timestretch demonstrate
-the experimental FX and sample interfaces. Do not restore retired Four Wave.
 User instructions take precedence over this file.
 
 ## Private firmware storage

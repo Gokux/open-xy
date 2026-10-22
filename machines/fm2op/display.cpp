@@ -1,5 +1,5 @@
 #include "display.h"
-#include "opxy/q31.hpp"
+#include <opxy/q31.hpp>
 #include "orbit.hpp"
 
 namespace fm2op {

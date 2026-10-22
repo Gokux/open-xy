@@ -1,6 +1,6 @@
 // Sound lookup tables: ratio anchors (Q5.26), interpolated sine and per-sample decay.
 #pragma once
-#include "opxy/types.hpp"
+#include <opxy/types.hpp>
 static const opxy::i32 FM2_RATE_BASIS = 44100;
 static const opxy::i32 FM2_SMOOTH = 6078353;
 static const opxy::i32 FM2_AMOUNT_SCALE = 683565276;

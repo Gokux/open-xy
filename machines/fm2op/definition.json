@@ -84,14 +84,11 @@
       "decay": 0.9
     }
   },
-  "cppNamespace": "fm2op",
   "resources": {
     "voiceBytes": 40,
     "voiceAlignment": 4,
     "voiceCapacity": 256,
     "sharedBytes": 0,
-    "blockFrames": 64,
-    "sampleRate": 44100,
     "outputPeakQ31": 1073741824,
     "display": {
       "kind": "drawing",

@@ -32,6 +32,7 @@ class Generation(unittest.TestCase):
     def test_object_adapter_fits_the_stock_slot(self):
         with tempfile.TemporaryDirectory() as directory:
             text = adapters.generate_fx_object(directory, machine('decimate')).read_text(encoding='utf-8')
+        self.assertIn('static_assert(sizeof(State) <= opxy::effect_state_bytes', text)
         self.assertIn('static_assert(sizeof(Object) <= 480', text)
         self.assertIn('const void* const decimate_fx_vtable[8]', text)
         self.assertIn('{"rate", "mix"}', text)

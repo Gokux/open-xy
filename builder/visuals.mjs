@@ -7,7 +7,6 @@ const paths = {
   machines: 'M5 7h12v12H5z M26 7h12v12H26z M5 28h12v12H5z M26 28h12v12H26z',
   install: 'M22 3v26 M13 20l9 9 9-9 M6 33v10h32V33',
   synth: 'M2 24c8-27 13 27 21 0s13 27 21 0',
-  macro: 'M5 35V12l11 23 11-23 11 23V12',
   effect: 'M3 34h10V24h10V14h10v20h10',
   sample: 'M35 14a16 16 0 1 0 0 20 M35 4v11H24',
 };
@@ -41,8 +40,9 @@ function svg(markup, viewBox, label) {
   el.innerHTML = markup; // Only authored drawing constants enter this helper.
   return el;
 }
-export function icon(kind) {
-  return svg(`<path d="${paths[kind] || paths.firmware}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`, '0 0 46 48');
+// A machine may supply its own glyph path; otherwise its kind's glyph is used.
+export function icon(kind, path = '') {
+  return svg(`<path d="${path || paths[kind] || paths.firmware}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`, '0 0 46 48');
 }
 // Restart only the presentation; navigation and focus never wait on animation.
 export function reveal(container) {

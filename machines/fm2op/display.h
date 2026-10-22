@@ -1,5 +1,5 @@
 #pragma once
-#include "opxy/draw.hpp"
+#include <opxy/draw.hpp>
 
 namespace fm2op {
 // Two outlines, 24 pulse rings and two outline shadows; 16 palette entries.

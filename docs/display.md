@@ -44,13 +44,14 @@ Backends cache the keys they applied.
 
 | Field | Bounds |
 | --- | --- |
-| Path coordinates | -64 to 64 pixels, Q10 |
-| Node x / y | -64..640 / -64..320 pixels, Q10 |
+| Path coordinates | ±`path_extent` (64) pixels, Q10 |
+| Node x / y | `node_left`..`node_right` / `node_top`..`node_bottom` (-64..640 / -64..320) pixels, Q10 |
 | Uniform scale | Positive, at most 2, Q10 |
 | Palette selector | Below `palette` |
 | Paint | Keep, stroke, or fill-and-stroke |
 
-`hide` moves a node outside the display while keeping a positive unit scale.
+`hide` moves a node to (`hidden_x`, `hidden_y`), outside the display, while
+keeping a positive unit scale.
 `valid` checks the complete frame before painting.
 
 Artwork IDs follow the machine's symbol prefix: nodes `<prefix>_node_0` to

@@ -1,5 +1,5 @@
 #include "core.h"
-#include "opxy/q31.hpp"
+#include <opxy/q31.hpp>
 #include "tables.h"
 
 namespace fm2op {

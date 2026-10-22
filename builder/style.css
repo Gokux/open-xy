@@ -3,7 +3,7 @@
   --paper:#111; --panel:#191919; --ink:#eee; --muted:#aaa; --line:#494949;
   --accent:#eee; --accent-ink:#111; --accent-hover:#fff; --soft:#292929;
   --warning:#ccc; --error:#fff; --code:#ccc; --state:#aaa; --shared:#777;
-  --tables:#999; --fm:#dedede; --macro:#b5b5b5; --fx:#8f8f8f; --sample:#c8c8c8;
+  --tables:#999; --machine-1:#dedede; --machine-2:#b5b5b5; --machine-3:#8f8f8f; --machine-4:#c8c8c8;
   font:15px/1.55 Arial,Helvetica,sans-serif; color:var(--ink); background:var(--paper);
 }
 * { box-sizing:border-box; }

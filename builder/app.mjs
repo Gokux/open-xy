@@ -27,7 +27,7 @@ await new Promise(resolve => {
     resolve();
   };
 });
-const colors = ['var(--fm)', 'var(--macro)', 'var(--fx)', 'var(--sample)'];
+const colors = ['var(--machine-1)', 'var(--machine-2)', 'var(--machine-3)', 'var(--machine-4)'];
 const kib = n => (n / 1024).toFixed(1) + ' KiB';
 let kit, stock, catalog, selected = [], inspected, linked, downloadUrl, layout, revision = 0;
 let stopPreview = () => {}, previewRevision = 0;
@@ -200,7 +200,7 @@ function renderMachines(filter = 'all') {
       row.classList.toggle('selected', input.checked); invalidate(); recalculate();
     };
     const glyph = node('span', undefined, 'machine-icon');
-    glyph.append(Visuals.icon(m.id === 'macroosc' ? 'macro' : m.kind));
+    glyph.append(Visuals.icon(m.kind, m.icon));
     row.append(label, glyph, button); $('machines').append(row);
   });
 }

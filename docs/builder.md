@@ -52,9 +52,9 @@ selected machine shares for code, data and state, and 4 KiB for relocated stock
 tables. The memory meter shows each machine's share; see
 [memory and limits](api.md#memory-and-limits). CPU headroom is not measured.
 
-Each machine has a fixed engine and page ID across the whole collection, so a
-project never changes instruments when the selection changes: 2op 34/82,
-Macro Osc 26/83, Timestretch 35/7, Decimate effect 11/page 21. Adding a machine to
+Each machine has a fixed engine (or FX) and page ID, declared in its
+`machine.json` ([identity](api.md#identity)), so a project never changes
+instruments when the selection changes. Adding a machine to
 the collection means adding it to the native build; the builder is not a
 plugin loader and does not raise the voice limit.
 

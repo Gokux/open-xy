@@ -2,18 +2,15 @@
   "schema": 1,
   "id": "decimate",
   "name": "Decimate",
-  "cppNamespace": "decimate",
   "parameters": [
     {
       "id": "rate",
       "label": "Rate",
       "default": 0.25,
       "mapping": {
-        "kind": "anchors",
-        "values": [
-          1,
-          32
-        ]
+        "kind": "linear",
+        "minimum": 1,
+        "maximum": 32
       },
       "display": "percent"
     },
@@ -22,9 +19,9 @@
       "label": "Mix",
       "default": 1.0,
       "mapping": {
-        "kind": "power",
-        "maximum": 1,
-        "exponent": 1
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
       },
       "display": "percent"
     }

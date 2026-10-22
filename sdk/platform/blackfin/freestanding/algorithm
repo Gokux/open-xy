@@ -1,7 +1,7 @@
-// Freestanding subset of <algorithm> used by the vendored Braids DSP.
+// Freestanding subset of <algorithm> for vendored machine code.
 // The OP-XY module links no C++ standard library.
-#ifndef MACRO_OSC_SHIM_ALGORITHM_
-#define MACRO_OSC_SHIM_ALGORITHM_
+#ifndef OPXY_FREESTANDING_ALGORITHM_
+#define OPXY_FREESTANDING_ALGORITHM_
 
 namespace std {
 
@@ -18,4 +18,4 @@ inline void fill(Iterator first, Iterator last, const T& value) {
 
 }  // namespace std
 
-#endif  // MACRO_OSC_SHIM_ALGORITHM_
+#endif  // OPXY_FREESTANDING_ALGORITHM_

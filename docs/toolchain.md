@@ -50,10 +50,8 @@ on any other host.
 
 Every tool file is hash-checked before it runs. Source and install paths are
 compiled into the tools, so a rebuild matches its pins only at the same paths.
-The `darwin-arm64` pins are `build-macos.sh` from
-`/Users/ericgao/opxy-toolchain/fork-clean` into
-`/Users/ericgao/opxy-toolchain/blackfin`, with Xcode 27.1 (Apple clang 21.0.0)
-and Homebrew gmp 6.3.0, mpfr 4.2.2, libmpc 1.3.1 and bison 3.8.2; the script
+A host's `build` record in `profiles/toolchains.json` names the script, source
+and output paths and host tools its pins were built with; `build-macos.sh`
 refuses other Homebrew versions. A rebuilt tool gets a new reviewed entry and
 a new `TOOLCHAINS_SHA256`; never relax a hash to admit it.
 

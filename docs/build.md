@@ -26,9 +26,9 @@ python sdk.py check --native-package "$private/builds/collection-001" --toolchai
 ```
 
 The collection is the ordered machine list in `profiles/collection.json`; each
-machine's `machine.json` declares its kind, display and any extra C++ sources.
-The build uses the 512 KiB reservation with
-[relocated engine and screen tables](abi-1.2.0.md#relocated-tables).
+machine's `machine.json` declares its kind, identity and any extra C++ sources,
+and `definition.json` its controls, resources and display. The build uses the
+512 KiB reservation with [relocated engine and screen tables](abi-1.2.0.md#identities).
 `sdk.py compile` builds the module alone and needs no stock firmware;
 `sdk.py verify --package` rebuilds and compares an existing package.
 
@@ -49,9 +49,7 @@ The native sample-service fixtures require a host C++11 compiler (`--host-cxx`,
 default `g++`) on PATH, including its runtime DLLs when applicable.
 
 Host checks do not model device scheduling, interrupts, caches, stock graphics
-or recovery. For a device trial, record exact image/asset hashes and observed audio,
-controls, stock processing, save/reload and timing. The current C++ integrations
-still need those device measurements; there is no zero-brick-risk guarantee.
+or recovery, and do not guarantee a recoverable device.
 
 ## Package files
 
@@ -59,10 +57,9 @@ still need those device measurements; there is no zero-brick-risk guarantee.
 | --- | --- |
 | `os.ldr` | `/os.ldr` |
 | `content/op1_factory.json` | `/content/op1_factory.json` |
-| `content/display/fm2op.svg` | `/content/display/fm2op.svg` |
-| `content/display/macroosc.svg` (combined target) | `/content/display/macroosc.svg` |
+| `content/display/<machine>.svg`, one per synth | `/content/display/<machine>.svg` |
 
-The dev-menu writer's observed input is `/os.ldr`, not the upgrade directory.
+The dev-menu firmware writer reads `/os.ldr`, not the upgrade directory.
 `module.elf` and `module.bin` are development artifacts, not installable images.
 Installing a candidate is a separate device action; these commands only build
 and verify local files.

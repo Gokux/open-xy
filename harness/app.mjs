@@ -25,14 +25,16 @@ import { SegmentDisplay, SegmentSvg } from '../sdk/browser/segments.mjs';
 const renderScreen = (...args) => renderBase(...args, controls, previewManifest.graphics?.kind === 'segments');
 const $ = id => document.getElementById(id);
 const controlId = id => customPreview ? `custom-control-${parameters.findIndex(p => p.id === id)}` : id;
+// Page copy comes from the machine: its definition and machine.json description.
 document.querySelector('.instrument-top h2').firstChild.textContent = definition.name + ' ';
 document.title = definition.name + ' · Machine workbench';
 document.querySelector('.instrument').setAttribute('aria-label', definition.name + ' instrument');
+document.querySelector('.intro h1').textContent = definition.name;
+if (previewManifest.description) document.querySelector('.intro .lede').textContent = previewManifest.description;
+if (!Object.keys(presets).length) document.querySelector('#presets').closest('.side-section').hidden = true;
 if (customPreview) {
   document.querySelector('.intro .eyebrow').textContent = 'LOCAL MACHINE / AUTHORING';
-  document.querySelector('.intro h1').textContent = definition.name;
-  document.querySelector('.side-section h3').textContent = 'Your starting points';
-  document.querySelector('.side-section .hint').textContent = 'Edit your C++ sound and display, then rebuild to hear and see the change.';
+  document.querySelector('.intro .lede').textContent = 'Edit your C++ sound and display, then rebuild to hear and see the change.';
 }
 let values = defaults(), view = VIEWS[0], octave = 3;
 let visualNotes = 0, display = null, scene = null, displayBackend = null;

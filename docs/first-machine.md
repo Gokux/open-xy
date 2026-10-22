@@ -39,8 +39,9 @@ python tools/serve_harness.py --preview local/my-preview-001
 ```
 
 Add the same `--cxx` option from the doctor to the `preview` command if needed.
-The starter ID uses up to 24 lowercase letters, digits, underscores or hyphens,
-starting with a letter; choose an ID distinct from the bundled machines.
+The ID follows the [machine name rule](api.md#registration-boundary): a
+lowercase letter, then up to 14 lowercase letters, digits or underscores. It
+must differ from the bundled machines.
 
 Open http://127.0.0.1:8917/. You should see **My Machine**, **Local authoring**,
 four controls and the **Triangle** and **Pulse** presets. Click **Enable audio**,
@@ -125,7 +126,8 @@ directory, and use the SDK server rather than serving the checkout root.
 
 Local authoring permits different sounds and drawings while running the shared
 callback checks described in the [preview guide](preview.md). It does not
-allocate a native engine ID or produce an installable machine. Taking an engine
-to hardware requires a reviewed identity, integration recipe and the full
-[native build verification](build.md). Keep the browser iteration loop working
-before taking on that separate integration task.
+allocate a native engine ID or produce an installable machine. To build it for
+the device, move the folder to `machines/<id>/`, rename its artwork IDs from
+`local_` to `<id>_`, add a [`machine.json`](api.md#registration-boundary) with a
+free [identity](api.md#identity), add it to `profiles/collection.json` and run
+the full [native build verification](build.md).

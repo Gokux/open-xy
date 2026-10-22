@@ -1,10 +1,17 @@
 # Engine API
 
-A synth supplies `definition.json`, `engine.cpp`, state headers and a display.
-The [first-machine walkthrough](first-machine.md) creates a standalone source
-directory and previews it without native integration.
-Use [2op FM](../machines/fm2op/engine.cpp) for a small oscillator or
-[Macro Osc](../machines/macroosc/engine.cpp) for state shared between voices. SDK adapters own allocation, C linkage and stock registration.
+A machine is a folder under `machines/` named after the machine. Every kind has
+`machine.json` and `definition.json`; the C++ it supplies depends on its kind:
+
+| Kind | C++ the machine supplies | Example |
+| --- | --- | --- |
+| `synth` | `engine.cpp` with `Voice`/`Shared` state, `display.cpp` and `panel.svg.fragment` | [2op FM](../machines/fm2op/engine.cpp), [Macro Osc](../machines/macroosc/engine.cpp) |
+| `sample` | `sample.cpp` with `Voice` state; the stock sample page is its screen | [Timestretch](../machines/timestretch/sample.cpp) |
+| `effect` | `fx.cpp` with `State`; the stock FX page is its screen | [Decimate](../machines/decimate/fx.cpp) |
+
+The [first-machine walkthrough](first-machine.md) creates a standalone synth
+and previews it without native integration. SDK adapters own allocation,
+C linkage and stock registration.
 
 ## Platform rules
 
@@ -18,9 +25,9 @@ fails the build or, for the artwork rule, halts the device's SVG parser.
 | Callbacks | Bounded work per 64-sample block; no blocking, logging, file access or graphics from audio callbacks |
 | Synth controls | Exactly four controls; values arrive as Q31 and the stock menu stores Q15 defaults |
 | Audio | 64 frames at 44.1 kHz, Q31 output at half-scale peak; mono by default, optional stereo for sample engines |
-| Identity | Stock name ≤ 15 characters; engine IDs come from the free table entries and own screen pages from 82–127; they never change once published. Engine 33 and page 81 are reserved |
-| Sample engines | Engine ID 34–62, stock sample page 2 or 7; the sample is read-only and borrowed for the voice's lifetime |
-| Effects | State fits in 476 bytes, holds no resources (no destructor ever runs) and uses a free FX ID on page 21 |
+| Identity | Name and IDs follow the [identity rules](#identity); they never change once published |
+| Sample engines | The sample is read-only and borrowed for the voice's lifetime |
+| Effects | State fits in 476 bytes and holds no resources (no destructor ever runs) |
 | Artwork | At most four decimal places and no exponent notation in any number; explicit paint on every leaf; no `style`, events or external references |
 
 The [firmware contract](abi-1.2.0.md) explains where each rule comes from.
@@ -39,11 +46,10 @@ figures. State usually dominates, since a synth's voice pool is
 | --- | --- | --- |
 | Module memory | 508 KiB for the whole collection | Firmware heap reservation minus the relocated tables |
 | Voices | 1..256 per machine | Stock voice indices |
-| Effect state | 476 bytes | Size of the stock effect object |
+| Effect state | 476 bytes | The 480-byte stock FX slot minus its object header |
 | Synth controls | Exactly 4 | The stock four-knob page |
 | Sample and effect controls | 1..8 | The stock eight-word parameter vector |
 | Control labels | 8 characters | The stock parameter page |
-| Engine IDs, screen pages | 34–62, 82–127 | Free entries of the relocated stock tables |
 | Drawing shape | ≤ 4 paths of ≤ 64 points, ≤ 64 nodes, ≤ 16 palette entries | Fixed-size renderer object and frame |
 | Segment display | 1..8 characters, 0..3 glow layers, 0..4 dials | Immediate offsets in the native renderer |
 
@@ -61,15 +67,18 @@ Every machine kind keeps its controls in `definition.json` (for example
 | Field | Contract |
 | --- | --- |
 | `schema` | 1 |
-| `id`, `name`, `cppNamespace` | Machine identity, display name and C++ namespace |
+| `id` | The machine's name, equal to its folder name; also its C++ namespace |
+| `name` | Display name |
 | `parameters` | Ordered controls, each with `id`, `label`, `default`, `mapping`, `display`: four for a synth, one to eight for a sample engine or effect. Labels are at most eight letters, digits or spaces |
 | `presets` | Named maps containing exactly the declared controls; may be empty |
 | `resources` | What the kind declares about its storage (below) |
 
-Controls are finite numbers in [0, 1]. Mappings support increasing `anchors`,
-`power` (`maximum * value^exponent`), `exponential` (`minimum *
-(maximum/minimum)^value`) and `enum`. Display formats are `ratio`, `percent`,
-`duration` and `enum`. Enum quantization matches the native Q31-to-Q15 path.
+Controls are finite numbers in [0, 1]. Mappings support `linear`
+(`minimum + (maximum - minimum) * value`), three or more increasing `anchors`
+interpolated evenly, `power` (`maximum * value^exponent`, exponent other than 1),
+`exponential` (`minimum * (maximum/minimum)^value`) and `enum`. Display formats
+are `ratio`, `percent`, `duration`, `semitones` and `enum`. Mappings describe
+the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
 Parameter order and mapping changes affect saved sounds. The stock parameter
 page shows labels in lower case.
 
@@ -84,7 +93,6 @@ A synth declares:
 | `voiceBytes`, `voiceAlignment` | `Voice` size (whole words) and alignment, checked against the compiled type |
 | `voiceCapacity` | Voices the firmware may create, 1..256 |
 | `sharedBytes` | `Shared` size, or 0 when `Shared` is empty |
-| `blockFrames`, `sampleRate` | 64 frames, 44100 Hz |
 | `outputPeakQ31` | Positive declared oscillator peak; the preview uses it for audition gain |
 | `display` | The screen's kind and shape; see the [display API](display.md) |
 
@@ -229,23 +237,67 @@ display; the machine applies the same values to playback. Play-mode and
 custom Shift defaults are machine policy. `definition.json` supplies names
 and preset defaults; the callbacks combine them with the pad's settings.
 
+## Effects
+
+[effect.hpp](../sdk/include/opxy/effect.hpp) defines the effect interface. An
+effect supplies `fx.cpp`, which includes its `core.h`, with these callbacks in
+its namespace:
+
+```cpp
+struct State { ... };
+void initialize(State& state);
+void process(State& state, opxy::Channel left, opxy::Channel right,
+             opxy::Parameters parameters);
+```
+
+Stock constructs an effect in place in its send slot on the audio thread and
+calls `initialize` once; storage starts zeroed. `process` runs once per
+64-frame block on the stereo send buffers and replaces them in place: `left`
+and `right` are distinct 64-word Q31 buffers. `parameters` holds the stock
+eight-word vector of normalized Q31 words; the first are the one to eight
+declared controls. The sample scale of the send buffers has not been
+established, so an effect should not depend on absolute level.
+
+`State` is at most `opxy::effect_state_bytes` (476) with alignment at most 4.
+No destructor ever runs, so it holds no resources. The generated adapter
+checks both limits at compile time. Effects use the stock FX page and have no
+browser preview.
+
 ## Registration boundary
 
 A machine's folder name is its stock name: the engine type the device lists,
-its catalog and preset entries, its screen file and its symbol prefix. It is a
-lowercase letter followed by letters, digits or `_`, at most 15 characters, and
-may not be a stock engine or effect type or start with a reserved prefix
-(`extensions`, `sdk`, `kit`, `stock`, `local`). `machine.json` declares only the
-engine (or FX) and page IDs. Names and IDs are part of saved presets, so they
-never change once published. The SDK rejects IDs that stock registers, the stock sentinels and
-conflicts within the collection. Generated adapters check record/name ownership
-and screen readiness before catalog admission; the packager authenticates
-firmware and constrains writes. See [native builds](build.md).
+its catalog and preset entries, its screen file, its symbol prefix and its C++
+namespace. It is a lowercase letter followed by letters, digits or `_`, at most
+15 characters. It may not be a stock engine or effect type, a C++ keyword,
+`opxy` or `std`, or start with a reserved prefix (`extensions`, `sdk`, `kit`,
+`stock`, `local`).
 
-Optional `presetDefaults: {"amp": {...}}` in `machine.json` overrides generated
-factory preset envelope values. Allowed keys are `attack`, `decay`, `release`
-and `sustain`, each an integer from 0 to 32767. It does not rewrite existing
-projects or presets. Generated instrument presets use polyphonic voice mode.
+`machine.json` declares how the SDK builds the machine:
+
+| Field | Contract |
+| --- | --- |
+| `schema` | 1 |
+| `kind` | `synth`, `sample` or `effect` |
+| `description` | Plain text of at most 160 characters, shown by the builder and preview |
+| `identity` | `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |
+| `sources`, `includes` | Optional extra translation units and include folders inside the machine folder; synths only, since the native plan compiles one source for the other kinds |
+| `icon` | Optional builder glyph: SVG path data in a 46 × 48 box, drawn as a stroke. The kind's glyph is used otherwise |
+| `presetDefaults` | Optional `{"amp": {...}}` overriding generated factory preset envelope values: `attack`, `decay`, `release` and `sustain`, each 0..32767. It does not rewrite existing projects or presets |
+
+### Identity
+
+| Kind | ID | Page |
+| --- | --- | --- |
+| `synth` | 1..62, except the stock sentinel 33 and the IDs stock registers (2–4, 6, 7, 18–20, 22, 29–32) | Its own screen: 82..127 |
+| `sample` | 34..62 | Stock sample page 2 or 7; `drumControls` requires 7 |
+| `effect` | A free stock FX ID: 1–4, 6–8 or 11 | Stock FX page 21 |
+
+IDs above 32 and pages above 81 exist only in the relocated stock tables.
+Names and IDs are part of saved presets and projects, so they never change once
+published. The SDK also rejects conflicts within the collection. Generated
+adapters check record/name ownership and screen readiness before catalog
+admission; the packager authenticates firmware and constrains writes. See
+[native builds](build.md). Generated instrument presets use polyphonic voice mode.
 
 Arbitrary external-engine loading is not implemented: a machine reaches the
 firmware by joining the collection in `profiles/collection.json`.
