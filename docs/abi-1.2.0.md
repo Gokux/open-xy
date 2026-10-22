@@ -72,8 +72,9 @@ velocity, envelope, filter and mixing run afterwards.
 ## Screens
 
 A synth's page is a stock screen object: 76 stock bytes, plus adapter state,
-plus an SVG asset named after the machine. The SDK screen shell supplies the
-four control titles and values that stock fills in. The machine's artwork
+plus an SVG asset named after the machine. The SDK screen shell
+([`screen.hpp`](../sdk/platform/opxy-1.2.0/screen.hpp)) supplies the four
+control titles and values that stock fills in. The machine's artwork
 supplies the rest. Two display contracts exist, each sized by the machine's
 declaration (see the [display API](display.md)):
 
