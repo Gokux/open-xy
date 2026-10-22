@@ -12,7 +12,7 @@ from .formats import elf32, header, ldr, mapped_offset, require, sha
 ROOT = Path(__file__).resolve().parents[1]
 MAX_FILE = 16 * 1024 * 1024
 TOOLCHAINS = 'profiles/toolchains.json'
-TOOLCHAINS_SHA256 = '5537acab8fc8d78413c14a5b9669329d14f9bb95dde3cb032f01f3d510915c3a'
+TOOLCHAINS_SHA256 = '570f5e9826a78b83de33b55303985c5e53377f45b735be54749321202dc9ccd5'
 # Additional exclusions, not a complete map of critical code. The exact source,
 # module and whole-output pins remain the stronger reference boundary.
 PROTECTED = (
