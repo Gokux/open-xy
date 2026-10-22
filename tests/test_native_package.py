@@ -18,12 +18,12 @@ from opxy_sdk.formats import elf32, sha
 from opxy_sdk.pipeline import document, read, save_json
 
 
-@unittest.skipUnless(os.environ.get('OPXY_TEST_FM_PACKAGE') and os.environ.get('OPXY_TEST_STOCK_OS') and
+@unittest.skipUnless(os.environ.get('OPXY_TEST_NATIVE_PACKAGE') and os.environ.get('OPXY_TEST_STOCK_OS') and
                      os.environ.get('OPXY_TEST_STOCK_CONTENT'), 'Private package and stock inputs not supplied')
 class PackageVerification(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.package = Path(os.environ['OPXY_TEST_FM_PACKAGE']).resolve()
+        cls.package = Path(os.environ['OPXY_TEST_NATIVE_PACKAGE']).resolve()
         cls.stock = read(Path(os.environ['OPXY_TEST_STOCK_OS']))
         cls.catalog = read(Path(os.environ['OPXY_TEST_STOCK_CONTENT']) / 'op1_factory.json')
         cls.module = read(cls.package / 'analysis/module.bin')
