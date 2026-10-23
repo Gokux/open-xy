@@ -26,6 +26,9 @@ stock drum page (page 7): each pad has its own sample and settings.
   mode. A BPM in the new file name updates the source BPM; otherwise the
   previous BPM or length stays. An empty pad starts with loop, repitch, zero
   pitch and the suggested length; a pad without saved settings plays one bar.
+- **Recording.** A recording made with the stock recorder is assigned to the
+  selected pad like a file, keeping a replaced pad's settings. Its source BPM
+  is the project tempo at assignment, rounded to a whole BPM.
 - **Trim.** Playback follows the outer start/end markers, which new
   assignments set to the whole sample; the sampler's hidden loop markers do
   not apply.

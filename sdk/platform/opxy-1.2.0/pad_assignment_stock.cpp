@@ -1,8 +1,8 @@
 // Stock OS 1.2.0 side of sample assignment for owned pads: the header worker's
-// frame-count hook, the region initializer hook and the retry decision. Stock
-// calls the two hooks with the ordinary C ABI (each replaces a CALL to the
-// function it forwards to); the retry stubs and the owned initializer call are
-// in pad_assignment.s.
+// frame-count hook, the region initializer hooks of file loads and completed
+// recordings, and the retry decision. Stock calls the three hooks with the
+// ordinary C ABI (each replaces a CALL to the function it forwards to); the
+// retry stubs and the owned initializer call are in pad_assignment.s.
 #include "sample_machines.hpp"
 #include "stock_sample.hpp"
 #include "stock.hpp"
@@ -11,13 +11,15 @@
 extern "C" {
 // The hooked stock key lookup: canonical pad for an owned drum page, else stock's.
 opxy::u32 extensions_sample_key(opxy::u32, opxy::u32) __asm__("extensions_sample_key");
-opxy::u32 sdk_sample_assignment(opxy::u32, opxy::u32, opxy::u32, const opxy::u32*, opxy::u32)
+opxy::u32 sdk_sample_assignment(opxy::u32, opxy::u32, opxy::u32, const opxy::u32*, opxy::u32, bool)
     __asm__("sdk_sample_assignment");
 opxy::u32 sdk_sample_assign_owned(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32)
     __asm__("sdk_sample_assign_owned");
 opxy::u32 sdk_sample_assignment_frames(opxy::u32) __asm__("sdk_sample_assignment_frames");
 opxy::u32 sdk_sample_assign_region(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32)
     __asm__("sdk_sample_assign_region");
+opxy::u32 sdk_sample_record_region(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32)
+    __asm__("sdk_sample_record_region");
 opxy::u32 sdk_sample_retry(opxy::u32, opxy::u32) __asm__("sdk_sample_retry");
 }
 
@@ -30,6 +32,7 @@ const u32 kPendingGeneration = 0x0801f6a0;
 const u32 kActivePath = 0x0801f7dc;         // the worker's own path, never the browser's pending choice
 const u32 kWorkerBusy = 0x0801f7bc;         // byte
 const u32 kInitializeRegion = 0x8d588224;   // (track, key, ...) initializes a new pad region
+const u32 kStockRate = 44100;   // the recorder's rate; assumed without verified header metadata
 bool owned(u32 track) { return track < kTracks && pad_settings(track_engine(track)); }
 
 // The header worker's metadata for the job it just read, consumed once by the
@@ -37,6 +40,25 @@ bool owned(u32 track) { return track < kTracks && pad_settings(track_engine(trac
 // are read at commit time so edits made during loading are not lost.
 struct Hint { u32 valid, rate, track, key, generation, frames; };
 volatile Hint hint;
+
+u32 initialize_stock(u32 track, u32 key, u32 third, u32 fourth, u32 fifth, u32 frames, u32 last) {
+    return stock<u32(u32, u32, u32, u32, u32, u32, u32)>(kInitializeRegion)(track, key, third, fourth, fifth, frames, last);
+}
+
+// Initializes an owned pad's region with the settings the machine chooses.
+u32 assign_owned(u32 track, u32 key, u32 frames, u32 last, u32 rate, const u32* path, bool recorded) {
+    void* raw = pad_region(track, key);
+    const SampleReplacement previous = sample_replacement(raw);
+    const u32 settings = sdk_sample_assignment(track, frames, rate, path, previous.settings, recorded);
+    // Stock normalizes its lookup key but stores the input key. Keep the raw
+    // note for lookup; the owned fade hook supplies the canonical stored key.
+    // Passing the canonical key into stock would apply the octave twice.
+    const u32 result = sdk_sample_assign_owned(track, key, settings, frames, last, extensions_sample_key(track, key));
+    // No publisher runs inside the stock initializer. Restore saved controls
+    // before returning to the stock caller and subsequent GUI publication.
+    sample_restore_replacement(raw, previous);
+    return result;
+}
 }
 
 // 8c0a2cee: the header worker holds this reader until its completion is
@@ -57,15 +79,12 @@ u32 sdk_sample_assignment_frames(u32 reader) {
     return frames;
 }
 
-// 8c0a2de4: stock initializes a new region. For an owned pad, let the machine
-// combine saved settings with metadata from this exact job. Stock has replaced
-// the path but not yet reset pad metadata.
+// 8c0a2de4: stock initializes a new region for a loaded file. For an owned
+// pad, let the machine combine saved settings with metadata from this exact
+// job. Stock has replaced the path but not yet reset pad metadata.
 u32 sdk_sample_assign_region(u32 track, u32 key, u32 third, u32 fourth, u32 fifth, u32 frames, u32 last) {
-    if (!owned(track))
-        return stock<u32(u32, u32, u32, u32, u32, u32, u32)>(kInitializeRegion)(track, key, third, fourth, fifth, frames, last);
-    void* raw = pad_region(track, key);
-    const SampleReplacement previous = sample_replacement(raw);
-    u32 rate = 44100;
+    if (!owned(track)) return initialize_stock(track, key, third, fourth, fifth, frames, last);
+    u32 rate = kStockRate;
     const u32* path = nullptr;
     if (hint.valid == 1) {
         barrier();
@@ -76,15 +95,15 @@ u32 sdk_sample_assign_region(u32 track, u32 key, u32 third, u32 fourth, u32 fift
             path = reinterpret_cast<const u32*>(kActivePath);
         }
     }
-    const u32 settings = sdk_sample_assignment(track, frames, rate, path, previous.settings);
-    // Stock normalizes its lookup key but stores the input key. Keep the raw
-    // note for lookup; the owned fade hook supplies the canonical stored key.
-    // Passing the canonical key into stock would apply the octave twice.
-    const u32 result = sdk_sample_assign_owned(track, key, settings, frames, last, extensions_sample_key(track, key));
-    // No publisher runs inside the stock initializer. Restore saved controls
-    // before returning to its caller's sort and subsequent GUI publication.
-    sample_restore_replacement(raw, previous);
-    return result;
+    return assign_owned(track, key, frames, last, rate, path, false);
+}
+
+// 8c0a4fa8: the recorder initializes the region of its completed file at the
+// raw target key. It records at 44.1 kHz and has no header job, so the
+// worker's hint is neither used nor consumed, even if key and frames match.
+u32 sdk_sample_record_region(u32 track, u32 key, u32 third, u32 fourth, u32 fifth, u32 frames, u32 last) {
+    if (!owned(track)) return initialize_stock(track, key, third, fourth, fifth, frames, last);
+    return assign_owned(track, key, frames, last, kStockRate, nullptr, true);
 }
 
 // Retry stubs: stock's path-equality result, cleared when an owned pad on the

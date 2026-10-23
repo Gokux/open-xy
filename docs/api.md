@@ -206,12 +206,13 @@ opxy::PadSettings sample_assign(const opxy::SampleAssignment&);
 ```
 
 `sample_defaults` returns the settings of a pad that has none. `sample_assign`
-runs when a file is assigned to a pad and returns the pad's new settings. It
-receives the file path (`filename_bytes` long, not NUL-terminated, possibly
-null), the loaded frame count and rate, the project tempo, and in `previous`
-the settings of the pad's replaced sample (`replacing`) or the defaults. The
-new sample's trim spans its whole length; a replaced pad keeps its pitch,
-reverse and volume. Settings survive project save exactly.
+runs when a file or a completed stock recording (`recorded`) is assigned to a
+pad and returns the pad's new settings. It receives the file path
+(`filename_bytes` long, not NUL-terminated, possibly null; null for a
+recording), the loaded frame count and rate, the project tempo, and in
+`previous` the settings of the pad's replaced sample (`replacing`) or the
+defaults. The new sample's trim spans its whole length; a replaced pad keeps
+its pitch, reverse and volume. Settings survive project save exactly.
 
 ### Drum page
 

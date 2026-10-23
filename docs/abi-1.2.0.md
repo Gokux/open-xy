@@ -28,7 +28,9 @@ version is rejected. The output differs from stock in exactly these places:
 | Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock multisampler audio payload |
 | Sample analysis | 10 | Schedules bounded background work, snapshots committed assignments, releases cached analysis and reports progress |
 | Drum-page services | 14 | Routes controls, octave publication, assignment and waveform projection for machines declaring pad settings or drum controls |
-| Relocated tables | 14 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
+| Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
+| Relocated tables | 13 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
+| Screen order | 1 | Paints a selected owned synth page before stock overlays |
 | Startup label | 1 | Shows `OPEN 0.0.1-1.2.0` at boot through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
@@ -95,6 +97,12 @@ declaration (see the [display API](display.md)):
 - **Segments:** 14-segment characters, a lit/unlit palette, one label and text
   in place of chosen control values.
 
+Stock paints the screen slots in ascending page order each frame, so page
+numbers are layers. The compositor's loop advance is hooked: when the selected
+page is an owned synth's, it is painted right after slot 0, beneath stock
+overlays such as the octave indicator. Every other slot keeps its order and
+page IDs are unchanged.
+
 The stock SVG parser **asserts (halts) on a number with five or more decimal
 places**, and parses exponents on a separate, unverified path. Every authored
 asset is limited to at most four decimal places and no exponents.
@@ -139,7 +147,7 @@ function are tiny assembly stubs: they save everything compiled C++ may
 clobber through one routine pair ([`hook.s`](../sdk/platform/opxy-1.2.0/hook.s):
 R0-R3, P0-P2, ASTAT, the I/M/B/L registers, both hardware loops and both
 accumulators), call C++, and replay or deliver what stock expects. Stubs remain
-only where the contract is not C: an argument in R5, outputs in R5/R7/CC, a
+only where the contract is not C: an argument in R5, outputs in R5/R7/P4/CC, a
 return-address marker, the caller's frame, and replayed instructions.
 Stock addresses used by more than one unit are in
 [`stock.hpp`](../sdk/platform/opxy-1.2.0/stock.hpp); every sample record
@@ -168,7 +176,10 @@ registrations delegate to stock.
 The assignment bridge validates worker generation, track, key and frame count
 before supplying file metadata to `sample_assign`, then initializes the owned
 region over the full loaded sample and restores the replaced pad's pitch,
-reverse and volume before stock publishes it. The stock loader's 882,000
+reverse and volume before stock publishes it. A completed recording takes the
+same path when the recorder initializes its region, with `recorded` set, the
+recorder's frame count and 44.1 kHz rate, and no file metadata; it never
+consumes the file worker's pending metadata. The stock loader's 882,000
 decoded-frame cap still applies. Assignment looks up the raw note once and
 stores the canonical key through the owned initializer hook, avoiding a
 second octave conversion.

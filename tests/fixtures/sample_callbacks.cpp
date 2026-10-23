@@ -28,10 +28,10 @@ extern "C" void probe_drum_panel(opxy::PadSettings value, const opxy::i32* param
 }
 static void check(bool value) { if (!value) std::abort(); }
 int main() {
-    const opxy::SampleAssignment replacement{"095_loop.wav", 12, 1234, 48000, 1200, true, 0xabcd};
+    const opxy::SampleAssignment replacement{"095_loop.wav", 12, 1234, 48000, 1200, true, 0xabcd, false};
     check(sdk_sample_machine(46)->assign(&replacement) == 1234 && assigned.replacing &&
           assigned.previous == 0xabcd && assigned.filename == replacement.filename &&
-          assigned.filename_bytes == 12 && assigned.rate == 48000);
+          assigned.filename_bytes == 12 && assigned.rate == 48000 && !assigned.recorded);
     check(sdk_sample_machine(46)->defaults() == 77);
     unsigned raw[8] = {1000, 0, 1000, 0, 1000, 0, 60, 0};
     auto* bytes = reinterpret_cast<unsigned char*>(raw);

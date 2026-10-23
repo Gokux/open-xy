@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from dataclasses import replace
-from opxy_sdk.adapters import generate_sample_callbacks
+from opxy_sdk.adapters import generate_sample_callbacks, generate_screen_order
 from opxy_sdk.machines import machine
 from opxy_sdk.startup import generate as generate_startup
 
@@ -38,6 +38,8 @@ class SampleServices(unittest.TestCase):
             if name == 'sample_callbacks':
                 probe = replace(machine('timestretch'), id='probe', identity=dict(engine=46, page=7))
                 generate_sample_callbacks(folder, [probe])
+            if name == 'screen_order':
+                generate_screen_order(folder)
             if name == 'startup':
                 generate_startup(folder, ['first', 'second', 'sampled'], ['effect'], ['sampled'])
             # A fixture that includes barrier.hpp supplies host_barrier for the Blackfin SSYNC.
@@ -61,6 +63,9 @@ class SampleServices(unittest.TestCase):
 
     def test_callbacks_work_for_another_engine_and_preserve_stock_fields(self):
         self.run_fixture('sample_callbacks', ('sdk/platform/opxy-1.2.0/sample_machines.cpp',))
+
+    def test_owned_primary_screen_precedes_stock_overlays(self):
+        self.run_fixture('screen_order')
 
     def test_registration_never_overwrites_and_rechecks_stock_state(self):
         self.run_fixture('registration')

@@ -41,7 +41,9 @@ void publish_octave(u32 track, i32 octave) {
 }
 }
 
-// 8c0b1e76: the page asks which engine the track uses.
+// 8c0b1e76 and the recorder's target selection, release and save completion
+// ask which engine the track uses. Owned sample engines borrow the
+// multisampler's branch; the track keeps its real engine.
 u32 sdk_sample_ui_engine(u32 track) { return sdk_sample_alias(track_engine(track)); }
 
 // 8d58d9ca: after stock clamps the octave, mirror its stored value immediately.

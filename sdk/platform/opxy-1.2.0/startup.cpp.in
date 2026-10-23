@@ -1,7 +1,8 @@
 // Generated startup for one collection, in ledger order. startup_exit.s calls
 // the two initializer continuations; the menu calls the catalog adapter in
-// place of stock catalog insertion. In a browser kit, an unselected machine's
-// callbacks resolve to kit_absent, which declines.
+// place of stock catalog insertion; the compositor asks which pages are ours.
+// In a browser kit, an unselected machine's callbacks resolve to kit_absent,
+// which declines.
 #include <opxy/types.hpp>
 
 using opxy::u32;
@@ -13,6 +14,7 @@ u32 extensions_catalog_checked(void*, const void*, u32) __asm__("extensions_cata
 int kit_absent() __asm__("kit_absent");
 u32 stock_catalog_insert(void*, const void*, u32) __asm__("stock_catalog_insert");
 u32 stock_gui_role() __asm__("stock_gui_role");
+int sdk_screen_owned(u32) __asm__("sdk_screen_owned");
 @DECLARATIONS@
 }
 
@@ -44,4 +46,10 @@ u32 extensions_catalog_checked(void* catalog, const void* name, u32 id) {
     if (id == @ENGINE_SENTINEL@) return 0;
 @CATALOG@
     return stock_catalog_insert(catalog, name, id);
+}
+
+// 1 when page is the own screen of a machine that is ready (screen_order.cpp.in).
+int sdk_screen_owned(u32 page) {
+@OWNED_SCREENS@
+    return 0;
 }

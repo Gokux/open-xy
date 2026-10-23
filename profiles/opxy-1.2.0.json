@@ -238,13 +238,13 @@
       "after": "27e18000"
     },
     {
-      "kind": "table",
-      "name": "IN-MEMORY screen slot count -> relocated table",
-      "address": "0x8d5208fc",
-      "file_offset": "0x157cd8",
-      "length": 4,
-      "before": "20e15100",
-      "after": "20e18000"
+      "kind": "hook",
+      "address": "0x8d5208fa",
+      "file_offset": "0x157cd6",
+      "length": 8,
+      "before": "0f6420e151008708",
+      "symbol": "sdk_screen_advance",
+      "call": true
     },
     {
       "kind": "hook",
@@ -388,6 +388,60 @@
       "length": 8,
       "before": "00de4f8d46d10000",
       "symbol": "sdk_sample_assignment_frames",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a4f68",
+      "file_offset": "0xdc328",
+      "length": 8,
+      "before": "00de588db45e0000",
+      "symbol": "sdk_sample_ui_engine",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a5072",
+      "file_offset": "0xdc432",
+      "length": 8,
+      "before": "00de588db45e0000",
+      "symbol": "sdk_sample_ui_engine",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a599e",
+      "file_offset": "0xdcd5e",
+      "length": 8,
+      "before": "00de588db45e0000",
+      "symbol": "sdk_sample_ui_engine",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a5abe",
+      "file_offset": "0xdce7e",
+      "length": 8,
+      "before": "00de588db45e0000",
+      "symbol": "sdk_sample_ui_engine",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a5ca0",
+      "file_offset": "0xdd060",
+      "length": 8,
+      "before": "00de588db45e0000",
+      "symbol": "sdk_sample_ui_engine",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a4fa8",
+      "file_offset": "0xdc368",
+      "length": 8,
+      "before": "00de588d24820000",
+      "symbol": "sdk_sample_record_region",
       "call": true
     },
     {

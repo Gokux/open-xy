@@ -8,7 +8,7 @@ extern "C" {
 opxy::u32 sdk_sample_selected_engine() __asm__("sdk_sample_selected_engine");
 opxy::u32 sdk_sample_edit(void*, opxy::u32, opxy::i32, opxy::u32) __asm__("sdk_sample_edit");
 const opxy::DrumPanel* sdk_sample_drum_view(const void*, void*, const opxy::i32*) __asm__("sdk_sample_drum_view");
-opxy::u32 sdk_sample_assignment(opxy::u32, opxy::u32, opxy::u32, const opxy::u32*, opxy::u32)
+opxy::u32 sdk_sample_assignment(opxy::u32, opxy::u32, opxy::u32, const opxy::u32*, opxy::u32, bool)
     __asm__("sdk_sample_assignment");
 }
 using opxy::u32;
@@ -86,15 +86,16 @@ extern "C" const opxy::DrumPanel* sdk_sample_drum_view(const void* raw, void* sh
 }
 // Stock's region initializer for an owned pad: the machine combines the saved
 // settings of a pad being replaced with the new sample's metadata. frames is
-// the file header's count; path is the worker's stock string, or null when
-// it could not be verified for this job.
-extern "C" u32 sdk_sample_assignment(u32 track, u32 frames, u32 rate, const u32* path, u32 previous) {
+// the loaded count; path is the worker's stock string, or null when it could
+// not be verified for this job or the sample is a recording.
+extern "C" u32 sdk_sample_assignment(u32 track, u32 frames, u32 rate, const u32* path, u32 previous,
+                                     bool recorded) {
     const SampleMachine* m = pad_machine(track_engine(track));
     if (!m) return opxy::platform::sample_store_settings(0);
     const opxy::platform::SavedSettings saved = opxy::platform::sample_settings(previous);
     opxy::SampleAssignment input{nullptr, 0, frames < opxy::platform::kLoaderFrames ? frames : opxy::platform::kLoaderFrames, rate,
                                  opxy::platform::project_bpm_x10(),
-                                 saved.saved, saved.saved ? saved.value : m->defaults()};
+                                 saved.saved, saved.saved ? saved.value : m->defaults(), recorded};
     if (path && path[5] && path[5] <= 1024 && path[5] <= path[6]) {
         input.filename = path[6] < 16 ? reinterpret_cast<const char*>(path + 1) : reinterpret_cast<const char*>(path[1]);
         input.filename_bytes = path[5];

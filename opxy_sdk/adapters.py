@@ -236,6 +236,11 @@ def generate_registration_stock(directory):
     return expand('registration_stock.cpp.in', RELOCATED, Path(directory) / 'registration_stock.cpp')
 
 
+def generate_screen_order(directory):
+    """The compositor traversal over the relocated screen slots."""
+    return expand('screen_order.cpp.in', RELOCATED, Path(directory) / 'screen_order.cpp')
+
+
 def generate_screen(directory, m):
     """The machine's renderer: its display shape and artwork IDs as data for the
     SDK renderer (screen_drawing.hpp or screen_segments.hpp), and its exported

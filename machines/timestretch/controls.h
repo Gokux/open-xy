@@ -68,7 +68,11 @@ inline opxy::PadSettings sample_defaults() {
 inline opxy::PadSettings sample_assign(const opxy::SampleAssignment& input) {
     Controls c = input.replacing ? decode_controls(input.previous) :
         Controls{false, false, 0, suggested_length(input.frames, input.rate, input.bpm_x10)};
-    const opxy::u32 bpm = filename_bpm(input.filename, input.filename_bytes);
+    // A recording plays at the project tempo it was recorded at (whole BPM);
+    // a file may name its tempo.
+    const opxy::u32 tempo = input.bpm_x10;
+    const opxy::u32 bpm = !input.recorded ? filename_bpm(input.filename, input.filename_bytes) :
+        tempo >= 200 && tempo <= 3000 ? (tempo + 5) / 10 : 0;
     if (bpm) c.bpm = bpm;
     return encode_controls(c);
 }

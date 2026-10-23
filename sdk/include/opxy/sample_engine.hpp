@@ -32,6 +32,9 @@ struct SampleAssignment {
     // machine may keep. Otherwise previous is sample_defaults().
     bool replacing;
     PadSettings previous;
+    // A completed recording from the stock recorder rather than a file
+    // (a file's filename may be null too).
+    bool recorded;
 };
 
 // Drum page (drumControls). A machine-routed encoder event: zero-based knob,
