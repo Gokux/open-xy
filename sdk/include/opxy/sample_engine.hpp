@@ -31,6 +31,9 @@ struct SampleAssignment {
     // Settings of the pad being replaced, when it held an assigned sample.
     // The machine decides which values survive the new sample's metadata.
     SampleSettings previous;
+    // True for a completed live recording; false for a file assignment,
+    // including one whose filename metadata is unavailable.
+    bool recorded;
 };
 // The stock drum page supplies pitch/play/trim graphics and reverse/volume
 // glyphs. Given the saved settings and eight live Q31 parameters, a machine

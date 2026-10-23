@@ -8,7 +8,7 @@
 extern "C" {
 opxy::u32 extensions_sample_controls_kind(opxy::u32) __asm__("extensions_sample_controls_kind");
 opxy::u32 extensions_sample_key(opxy::u32, opxy::u32) __asm__("extensions_sample_key");
-opxy::u32 sdk_sample_assignment(opxy::u32, opxy::u32, opxy::u32, const opxy::u32*, opxy::u32)
+opxy::u32 sdk_sample_assignment(opxy::u32, opxy::u32, opxy::u32, const opxy::u32*, opxy::u32, bool)
     __asm__("sdk_sample_assignment");
 void sdk_sample_cache_barrier() __asm__("sdk_sample_cache_barrier");
 opxy::u32 sdk_sample_assign_owned(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32)
@@ -40,11 +40,11 @@ bool owned(u32 track) { return track < 8 && extensions_sample_controls_kind(engi
 struct Hint { u32 valid, rate, track, key, generation, frames; };
 volatile Hint hint;
 
-u32 assign_owned(u32 track, u32 key, u32 frames, u32 last, u32 rate, const u32* path) {
+u32 assign_owned(u32 track, u32 key, u32 frames, u32 last, u32 rate, const u32* path, bool recorded) {
     u32 scratch;
     void* raw = stock<void*(u32, u32, u32*, u32)>(0x8d587904)(track, key, &scratch, 0);
     const opxy::platform::SampleReplacement previous = opxy::platform::sample_replacement(raw);
-    const u32 settings = sdk_sample_assignment(track, frames, rate, path, previous.settings);
+    const u32 settings = sdk_sample_assignment(track, frames, rate, path, previous.settings, recorded);
     // Stock normalizes its lookup key but stores the input key. Keep the raw
     // note for lookup; the owned fade hook supplies the canonical stored key.
     // Passing the canonical key into stock would apply the octave twice.
@@ -91,7 +91,7 @@ u32 sdk_sample_assign_region(u32 track, u32 key, u32 third, u32 fourth, u32 fift
             path = reinterpret_cast<const u32*>(kActivePath);
         }
     }
-    return assign_owned(track, key, frames, last, rate, path);
+    return assign_owned(track, key, frames, last, rate, path, false);
 }
 
 // 8c0a4fa8: the recorder has stored its completed file's path for the raw
@@ -100,7 +100,7 @@ u32 sdk_sample_assign_region(u32 track, u32 key, u32 third, u32 fourth, u32 fift
 u32 sdk_sample_record_region(u32 track, u32 key, u32 third, u32 fourth, u32 fifth, u32 frames, u32 last) {
     if (!owned(track))
         return stock<u32(u32, u32, u32, u32, u32, u32, u32)>(0x8d588224)(track, key, third, fourth, fifth, frames, last);
-    return assign_owned(track, key, frames, last, 44100, nullptr);
+    return assign_owned(track, key, frames, last, 44100, nullptr, true);
 }
 
 // Retry stubs: whether an owned drum page on the selected track may retry.

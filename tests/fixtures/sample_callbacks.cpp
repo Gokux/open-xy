@@ -31,7 +31,13 @@ int main() {
         opxy::Transport{1200, 0, false}, opxy::SampleSettings{0xabcd, true}};
     check(assign(46, &replacement) == 1234 && assigned.previous.initialized &&
           assigned.previous.value == 0xabcd && assigned.filename == replacement.filename &&
-          assigned.filename_bytes == 12 && assigned.rate == 48000);
+          assigned.filename_bytes == 12 && assigned.rate == 48000 && !assigned.recorded);
+    opxy::SampleAssignment recording = replacement;
+    recording.filename = nullptr;
+    recording.filename_bytes = 0;
+    recording.recorded = true;
+    check(assign(46, &recording) == 1234 && assigned.recorded &&
+          assigned.transport.bpm_x10 == 1200 && assigned.previous.value == 0xabcd);
     unsigned raw[8] = {1000, 0, 1000, 0, 1000, 0, 60, 0};
     auto* bytes = reinterpret_cast<unsigned char*>(raw);
     // An unassigned, zero-initialized pad has neutral tuning. Painting must

@@ -200,7 +200,9 @@ void sample_panel(opxy::u32 settings, opxy::Parameters live, opxy::SamplePanel&)
 
 Settings are a **16-bit** machine-defined value persisted per pad. Assignment
 receives a bounded filename, loaded frame count, source rate, advisory tempo
-and `previous` settings from an assigned pad being replaced. The machine chooses
+and `previous` settings from an assigned pad being replaced. `recorded` identifies
+a completed live recording, with tempo sampled when it is assigned; a file load
+is false even when filename metadata is unavailable. The machine chooses
 which settings to retain and how new sample metadata overrides them. Empty or
 untagged pads have uninitialized `previous` settings. The SDK retains a replaced
 pad's saved pitch, reverse and volume; the new sample's trim spans its full length.

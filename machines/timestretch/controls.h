@@ -69,7 +69,10 @@ inline opxy::u32 sample_migrate(const opxy::SampleRegion&) {
 inline opxy::u32 sample_assign(const opxy::SampleAssignment& input) {
     Controls c = input.previous.initialized ? decode_controls(input.previous.value) :
         Controls{false, false, 0, suggested_length(input.frames, input.rate, input.transport.bpm_x10)};
-    const opxy::u32 bpm = filename_bpm(input.filename, input.filename_bytes);
+    const opxy::u32 tempo = input.transport.bpm_x10;
+    const opxy::u32 bpm = input.recorded ?
+        (tempo >= 200 && tempo <= 3000 ? (tempo + 5) / 10 : 0) :
+        filename_bpm(input.filename, input.filename_bytes);
     if (bpm) c.bpm = bpm;
     return encode_controls(c);
 }

@@ -8,7 +8,7 @@ opxy::u32 sdk_sample_selected_engine() __asm__("sdk_sample_selected_engine");
 opxy::u32 extensions_sample_controls_kind(opxy::u32) __asm__("extensions_sample_controls_kind");
 opxy::u32 sdk_sample_edit(void*, opxy::u32, opxy::i32, opxy::u32) __asm__("sdk_sample_edit");
 const opxy::SamplePanel* sdk_sample_drum_view(const void*, void*, const opxy::i32*) __asm__("sdk_sample_drum_view");
-opxy::u32 sdk_sample_assignment(opxy::u32, opxy::u32, opxy::u32, const opxy::u32*, opxy::u32)
+opxy::u32 sdk_sample_assignment(opxy::u32, opxy::u32, opxy::u32, const opxy::u32*, opxy::u32, bool)
     __asm__("sdk_sample_assignment");
 }
 using opxy::u32;
@@ -84,9 +84,9 @@ extern "C" const opxy::SamplePanel* sdk_sample_drum_view(const void* raw, void* 
     static_cast<u32*>(shadow)[5] = 0;
     return &current_panel;
 }
-extern "C" u32 sdk_sample_assignment(u32 track, u32 frames, u32 rate, const u32* path, u32 previous) {
+extern "C" u32 sdk_sample_assignment(u32 track, u32 frames, u32 rate, const u32* path, u32 previous, bool recorded) {
     opxy::SampleAssignment input{nullptr, 0, frames > 882000 ? 882000 : frames, rate, clock(),
-                                 opxy::platform::sample_settings(previous)};
+                                 opxy::platform::sample_settings(previous), recorded};
     if (path && path[5] && path[5] <= 1024 && path[5] <= path[6]) {
         input.filename = path[6] < 16 ? reinterpret_cast<const char*>(path + 1) : reinterpret_cast<const char*>(path[1]);
         input.filename_bytes = path[5];

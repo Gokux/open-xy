@@ -34,7 +34,9 @@ BPM; otherwise the previous BPM or bar selection stays in place. Empty pads
 start from the assignment defaults.
 The stock sample recorder also assigns completed external-input recordings to
 the selected pad. Recording over a pad retains its playback settings and starts
-with full-sample trims; a recording does not import BPM from the file browser.
+with full-sample trims. Recordings switch to source-BPM mode using the current
+project tempo at assignment, rounded to the nearest whole BPM. They retain the
+pad's loop/play and repitch/timestretch modes and do not import BPM from the file browser.
 New assignments span the full loaded sample. Trim positions use the waveform
 markers rather than numeric labels. Playback follows these outer start/end
 markers; hidden sampler loop markers do not constrain them.
