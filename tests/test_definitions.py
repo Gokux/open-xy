@@ -37,14 +37,19 @@ class Definitions(unittest.TestCase):
     def setUp(self):
         self.engine = json.loads((ROOT / 'machines/fm2op/definition.json').read_text(encoding='utf-8'))
 
-    def test_catalog_entries_keep_the_reviewed_stock_layout(self):
-        # Byte layout of the entries inserted into the stock catalog.
-        self.assertEqual(catalog_entry(machine('fm2op')).encode(),
-                         b',\n        {\n            "type": "fm2op",\n            "default_params": '
-                         b'[10922, 15728, 3932, 18022, 0, 0, 0, 0]\n        }\n')
-        self.assertEqual(catalog_entry(machine('macroosc')).encode(),
-                         b',\n        {\n            "type": "macroosc",\n            "default_params": '
-                         b'[0, 16384, 16384, 16384, 0, 0, 0, 0]\n        }\n')
+    def test_catalog_entries_use_the_stock_layout_and_q15_defaults(self):
+        for m in (machine('fm2op'), machine('macroosc')):
+            text = catalog_entry(m)
+            # Indented like the stock entries it follows; ends its own line.
+            self.assertTrue(text.startswith(',\n        {\n            "type": ') and text.endswith('\n        }\n'))
+            entry = json.loads(text[1:])
+            self.assertEqual(entry['type'], m.id)
+            defaults = [p['default'] for p in m.definition['parameters']]
+            params = entry['default_params']
+            self.assertEqual(len(params), 8)
+            self.assertEqual(params[len(defaults):], [0] * (8 - len(defaults)))
+            for value, default in zip(params, defaults):
+                self.assertLessEqual(abs(value - default * 32767), 0.5)
 
     def test_bad_controls_fail_before_generating_code(self):
         for value in (-0.1, 1.1, True, float('nan'), float('inf'), 10 ** 400):

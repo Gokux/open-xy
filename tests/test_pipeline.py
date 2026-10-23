@@ -55,23 +55,29 @@ class Formats(unittest.TestCase):
 
 
 class SourceContracts(unittest.TestCase):
-    def test_sdk_layout_is_pinned_and_keeps_reservation(self):
+    def test_linker_layout_is_the_reviewed_one(self):
         profile = config()
-        self.assertEqual(profile['module_base'], 0x8d450d60)
-        self.assertEqual(profile['reserved_bytes'], 0x80000)
         self.assertEqual(sha((ROOT / 'linker/opxy-1.2.0.ld').read_bytes()), profile['linker_sha256'])
 
-    def test_patch_intervals_do_not_overlap(self):
+    def test_profile_is_authenticated(self):
+        original = pipeline.read
+        changed = original(ROOT / pipeline.PROFILE).replace(b'"table_bytes": 4096', b'"table_bytes": 8192')
+        with mock.patch.object(pipeline, 'read', side_effect=lambda path: changed if Path(path).name.endswith(
+                '.json') else original(path)), self.assertRaisesRegex(ValueError, 'profile changed'):
+            config()
+
+    def test_edits_need_a_kind_and_reviewed_bytes(self):
         profile = config()
-        self.assertEqual(len(profile['patches']), 48)
-        seen = set()
-        for patch in profile['patches']:
-            before, after = bytes.fromhex(patch['before']), bytes.fromhex(patch['after'])
-            self.assertEqual(len(before), len(after))
-            self.assertNotEqual(before, after)
-            positions = set(range(int(patch['address'], 16), int(patch['address'], 16) + len(before)))
-            self.assertFalse(seen & positions)
-            seen.update(positions)
+        count = len(profile['patches'])
+        fixed = next(i for i, p in enumerate(profile['patches']) if p['kind'] in ('heap', 'table'))
+        hook = next(i for i, p in enumerate(profile['patches']) if p['kind'] == 'hook')
+        for index, change in ((fixed, dict(kind='other')), (fixed, dict(after=None)), (hook, dict(symbol='')),
+                              (hook, dict(call=1)), (fixed, dict(after=profile['patches'][fixed]['before']))):
+            altered = copy.deepcopy(profile)
+            altered['patches'][index].update(change)
+            altered['patches'][index] = {k: v for k, v in altered['patches'][index].items() if v is not None}
+            with self.subTest(index=index, change=change), self.assertRaises(ValueError):
+                check_patch_boundaries(altered, count)
 
     def test_protected_ranges_reject_profile_edits(self):
         profile = config()
@@ -80,11 +86,11 @@ class SourceContracts(unittest.TestCase):
                 altered = copy.deepcopy(profile)
                 altered['patches'][0]['address'] = hex(start)
                 with self.assertRaises(ValueError):
-                    check_patch_boundaries(altered, 48)
+                    check_patch_boundaries(altered, len(profile['patches']))
         altered = copy.deepcopy(profile)
         altered['patches'][1] = copy.deepcopy(altered['patches'][0])
         with self.assertRaises(ValueError):
-            check_patch_boundaries(altered, 48)
+            check_patch_boundaries(altered, len(profile['patches']))
 
     def test_path_escape_and_absolute_paths_rejected(self):
         for name in ('../os.ldr', '/os.ldr', 'C:/os.ldr', 'a/../../x', 'a\\x', 'a//x', './x', ''):

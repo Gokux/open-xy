@@ -1,7 +1,6 @@
 """Compare browser output to independent GNU ELF and Python container readers."""
 import copy
 import json
-import math
 from pathlib import Path
 import subprocess
 import sys
@@ -10,8 +9,9 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from opxy_sdk.formats import elf32, ldr, mapped_offset, require, sha
-from opxy_sdk import screen, startup_label, sample_hooks
-from opxy_sdk.firmware import HOOKS, assemble, branch_instruction, decode_branch
+from opxy_sdk import screen, startup_label
+from opxy_sdk.adapters import catalog_defaults
+from opxy_sdk.firmware import assemble, decode_branch, hook_instruction
 
 
 def check_startup_label(module, symbols, base):
@@ -30,7 +30,7 @@ FALLBACK_BEFORE_JUMP = bytes.fromhex('0060 1000 0b61 1a08 0318')
 FALLBACK_AFTER_JUMP = bytes.fromhex('0060 1000')
 
 
-def check_fallbacks(module, symbols, base):
+def check_fallbacks(module, symbols, base, stock_catalog_insert):
     """Linked absent-machine stubs are the reviewed bytes; their one jump reaches stock catalog insertion."""
     start = symbols['kit_absent']['value']
     require(symbols['kit_absent']['size'] == 4 and symbols['kit_catalog_stock'] ==
@@ -39,7 +39,7 @@ def check_fallbacks(module, symbols, base):
     code = module[at:at + len(FALLBACK_BEFORE_JUMP) + 4 + len(FALLBACK_AFTER_JUMP)]
     require(code.startswith(FALLBACK_BEFORE_JUMP) and code.endswith(FALLBACK_AFTER_JUMP),
             'Absent-machine stubs differ from their source')
-    require(decode_branch(jump, code[len(FALLBACK_BEFORE_JUMP):len(FALLBACK_BEFORE_JUMP) + 4]) == (0x8d5bbaa0, False),
+    require(decode_branch(jump, code[len(FALLBACK_BEFORE_JUMP):len(FALLBACK_BEFORE_JUMP) + 4]) == (stock_catalog_insert, False),
             'Absent-machine stub does not delegate to stock catalog insertion')
 
 
@@ -57,7 +57,7 @@ def main():
     require(all(32 <= c < 128 for c in label), 'Startup label outside stock font')
     width = sum(widths[c - 32] + 1 for c in label)
     left = 240 - width // 2
-    require(width == 97 and 100 <= left and left + width <= 400, 'Startup label exceeds its drawing area')
+    require(0 < width and 100 <= left and left + width <= 400, 'Startup label exceeds its drawing area')
     # The browser links the native objects in native order, so selecting every
     # machine reproduces the native package exactly.
     everything = directory / 'reference' / str(2 ** len(kit['machines']) - 1)
@@ -69,7 +69,7 @@ def main():
         module = prefix.with_suffix('.bin').read_bytes()
         require(sha(module) == result['module_sha256'], 'GNU module digest differs')
         low = kit['profile']['module_base']
-        check_fallbacks(module, symbols, low)
+        check_fallbacks(module, symbols, low, kit['definitions']['stock_catalog_insert'])
         check_startup_label(module, symbols, low)
         require(symbols['__extensions_initialized_end']['value'] - low == result['sizes']['initialized'] and
                 symbols['__extensions_module_end']['value'] - low == result['sizes']['allocated'] and
@@ -78,20 +78,10 @@ def main():
             require(symbols[name]['value'] == value, 'GNU symbol differs: ' + name)
         profile = copy.deepcopy(kit['profile'])
         for patch in profile['patches']:
-            address = int(patch['address'], 16)
-            if address in HOOKS:
-                symbol, call = HOOKS[address]
-                target = symbols[symbol]['value']
-                width = patch['length']
-                if width == 8:
-                    require(call, 'Eight-byte hook must be an absolute call')
-                    code = sample_hooks.absolute_call(target)
-                else:
-                    require(width in (4, 6), 'Unsupported relative-hook footprint')
-                    code = branch_instruction(address, target, call) + bytes(width - 4)
-                patch['after'] = code.hex()
-            elif startup_label.allowed(profile, patch):
-                patch['after'] = startup_label.jump(symbols[startup_label.SYMBOL]['value']).hex()
+            if patch['kind'] == 'hook':
+                patch['after'] = hook_instruction(patch, symbols[patch['symbol']]['value']).hex()
+            elif patch['kind'] == 'startup':
+                patch['after'] = startup_label.jump(symbols[patch['symbol']]['value']).hex()
         expected = assemble(stock, module, profile, kit['profile'], len(profile['patches']))
         require(expected == prefix.with_suffix('.ldr').read_bytes(), 'Python/browser firmware differs')
         selected = [m for m in kit['machines'] if m['id'] in result['selected']]
@@ -108,8 +98,7 @@ def main():
                 data = (prefix / name).read_bytes()
                 preset = json.loads(data)
                 definition = json.loads((ROOT / 'machines' / machine['id'] / 'definition.json').read_bytes())
-                defaults = [math.floor(p['default'] * 32767 + .5) for p in definition['parameters']]
-                defaults += [0] * (8 - len(defaults))
+                defaults = catalog_defaults(definition)
                 entry = json.loads(machine['catalog'].strip().lstrip(','))
                 require(preset['type'] == entry['type'] and preset['platform'] == 'OP-XY' and
                         preset['version'] == 4 and preset['engine']['params'] == defaults and

@@ -214,7 +214,7 @@ function recalculate() {
       size: linked.segments.filter(s => s.owner === m.id).reduce((n, s) => n + s.size, 0),
       color: colors[kit.machines.indexOf(m) % colors.length]}));
     allocations.push({name: 'Shared & alignment', size: linked.sizes.allocated - allocations.reduce((n, a) => n + a.size, 0), color: 'var(--shared)'},
-      {name: 'Available', size: linked.sizes.available, color: 'var(--paper)'}, {name: 'Tables', size: kit.profile.reserved_bytes - kit.limits.module, color: 'var(--tables)'});
+      {name: 'Available', size: linked.sizes.available, color: 'var(--paper)'}, {name: 'Tables', size: kit.profile.table_bytes, color: 'var(--tables)'});
     for (const a of allocations) {
       const segment = node('div', undefined, 'memory-segment'); segment.style.width = a.size / kit.profile.reserved_bytes * 100 + '%';
       segment.style.background = a.color; segment.title = a.name + ': ' + kib(a.size); $('memory-map').append(segment);
@@ -224,7 +224,7 @@ function recalculate() {
     $('memory-map').setAttribute('aria-label', allocations.map(a => a.name + ': ' + kib(a.size)).join(', '));
     facts($('capacity-details'), {'Code & data': kib(linked.sizes.initialized),
       'Zero-initialized state': kib(linked.sizes.bss),
-      'Module memory': kib(linked.sizes.allocated) + ' / ' + kib(kit.limits.module)});
+      'Module memory': kib(linked.sizes.allocated) + ' / ' + kib(Core.moduleBytes(kit.profile))});
     status();
   } catch (error) { $('room-value').textContent = 'Selection cannot be built'; fail(error); }
   ready();

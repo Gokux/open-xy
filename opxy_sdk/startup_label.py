@@ -28,7 +28,7 @@ def destination(instruction):
 def allowed(profile, patch):
     return (profile['id'] == PROFILE and int(patch['address'], 16) == SITE and
             bytes.fromhex(patch['before']) == BEFORE and patch['length'] == len(BEFORE) and
-            int(patch['file_offset'], 16) == 0xf04d4)
+            int(patch['file_offset'], 16) == 0xf04d4 and patch.get('symbol') == SYMBOL)
 
 
 def thunk_ok(module, offset, size, text):

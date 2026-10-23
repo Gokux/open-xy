@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = {
     'stock_os': ('OPXY_TEST_STOCK_OS', None),
     'stock_content': ('OPXY_TEST_STOCK_CONTENT', 'op1_factory.json'),
-    'native_package': ('OPXY_TEST_FM_PACKAGE', 'analysis/module.elf'),
+    'native_package': ('OPXY_TEST_NATIVE_PACKAGE', 'analysis/module.elf'),
 }
 
 
@@ -35,7 +35,7 @@ def fixture_environment(options, inherited):
         env[variable] = str(path)
     if not Path(options.toolchain).is_dir():
         raise ValueError(f'Missing toolchain directory: {options.toolchain}')
-    env['OPXY_TEST_FM_ELF'] = str(Path(env['OPXY_TEST_FM_PACKAGE']) / 'analysis/module.elf')
+    env['OPXY_TEST_NATIVE_ELF'] = str(Path(env['OPXY_TEST_NATIVE_PACKAGE']) / 'analysis/module.elf')
     return env, True
 
 

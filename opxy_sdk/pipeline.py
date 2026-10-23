@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 import platform
+import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -11,6 +12,7 @@ from .formats import elf32, header, ldr, mapped_offset, require, sha
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_FILE = 16 * 1024 * 1024
+PROFILE = 'profiles/opxy-1.2.0.json'
 TOOLCHAINS = 'profiles/toolchains.json'
 TOOLCHAINS_SHA256 = '570f5e9826a78b83de33b55303985c5e53377f45b735be54749321202dc9ccd5'
 # Additional exclusions, not a complete map of critical code. The exact source,
@@ -29,21 +31,34 @@ PROTECTED = (
 )
 
 
-def check_patch_boundaries(profile, count=7):
+PATCH_KINDS = ('heap', 'table', 'hook', 'startup')
+
+
+def check_patch_boundaries(profile, count):
+    """Well-formed, non-overlapping edits; hooks are the only kind whose bytes the build computes."""
+    from .startup_label import allowed as startup_label_allowed
     occupied = set()
     require(len(profile['patches']) == count, f'Expected {count} reviewed edit intervals')
     for patch in profile['patches']:
+        kind = patch.get('kind')
+        require(kind in PATCH_KINDS, 'Unknown edit kind')
         start = int(patch['address'], 16)
-        before, after = bytes.fromhex(patch['before']), bytes.fromhex(patch['after'])
+        before = bytes.fromhex(patch['before'])
         end = start + len(before)
-        require(before and len(before) == len(after) and before != after and
-                0 <= start < end <= 0x100000000, 'Invalid instruction edit')
-        # Only the separately reviewed startup text-call boundary may intersect
-        # this broad OS exclusion. Storage/entry routines remain protected.
-        from .startup_label import allowed as startup_label_allowed
-        from .sample_hooks import allowed as sample_hook_allowed
-        require(not any(start < hi and lo < end for lo, hi in PROTECTED) or
-                startup_label_allowed(profile, patch) or sample_hook_allowed(profile, patch), 'Protected code/data edit')
+        require(before and len(before) == patch['length'] and 0 <= start < end <= 0x100000000, 'Invalid instruction edit')
+        if 'after' in patch:
+            after = bytes.fromhex(patch['after'])
+            require(len(after) == len(before) and after != before, 'Invalid instruction edit')
+        else:
+            require(kind in ('hook', 'startup'), 'Heap and table edits carry their reviewed bytes')
+        if kind == 'hook':
+            require(isinstance(patch.get('symbol'), str) and patch['symbol'] and type(patch.get('call')) is bool,
+                    'A hook names its module symbol and call/jump form')
+        # Protected code is only ever redirected into the module by a hook whose
+        # destination the build verifies, or by the separately reviewed startup label.
+        require(kind != 'startup' or startup_label_allowed(profile, patch), 'Unexpected startup label edit')
+        require(kind in ('hook', 'startup') or not any(start < hi and lo < end for lo, hi in PROTECTED),
+                'Protected code/data edit')
         positions = set(range(start, end))
         require(not occupied.intersection(positions), 'Overlapping instruction edits')
         occupied.update(positions)
@@ -73,9 +88,19 @@ def child(root, relative):
     return path
 
 
+def reviewed_profile_sha256():
+    """The reviewed profile digest. One constant, shared with the browser builder that enforces it too."""
+    match = re.search(r"^export const PROFILE_SHA256 = '([0-9a-f]{64})';$", read(ROOT / 'builder/core.mjs').decode('utf-8'),
+                      re.MULTILINE)
+    require(match, 'Missing reviewed profile digest')
+    return match.group(1)
+
+
 def config():
-    """The firmware profile: stock 1.2.0 hashes, the reservation and every edit."""
-    profile = document(ROOT / 'profiles/opxy-1.2.0.json')
+    """The firmware profile: stock 1.2.0 hashes, the reservation, every edit and the identity rules."""
+    data = read(ROOT / PROFILE)
+    require(sha(data) == reviewed_profile_sha256(), 'Reviewed firmware profile changed')
+    profile = json.loads(data)
     require(profile['schema'] == 1 and profile['id'] == 'opxy-1.2.0', 'Incompatible profile')
     check_patch_boundaries(profile, len(profile['patches']))
     return profile

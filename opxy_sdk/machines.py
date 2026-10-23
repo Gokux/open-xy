@@ -12,18 +12,13 @@ import re
 
 from .definitions import ROOT, stock_name, validate_definition
 from .formats import require
-from .stock_tables import ENGINE_COUNT, ENGINE_SENTINEL, PAGE_SENTINEL, check_assignment
+from .pipeline import config
 
 KINDS = ('synth', 'sample', 'effect')
 FIELDS = {'schema', 'kind', 'description', 'identity', 'sources', 'includes', 'icon', 'presetDefaults'}
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
 COLLECTION = ROOT / 'profiles/collection.json'
-# Stock 1.2.0 registrations (docs/abi-1.2.0.md).
-STOCK_ENGINE_IDS = frozenset({2, 3, 4, 6, 7, 18, 19, 20, 22, 29, 30, 31, 32})
-SAMPLE_PAGES = frozenset({2, 7})  # stock sampler/multisampler and drum pages
-FREE_FX_IDS = frozenset({1, 2, 3, 4, 6, 7, 8, 11})
-FX_PAGE = 21
 
 
 @dataclass(frozen=True)
@@ -62,23 +57,29 @@ def _relative(machine_root, value):
     return value
 
 
-def _identity(kind, display, value):
+def check_identity(rules, kind, value):
+    """IDs a machine may claim under the profile's identity rules (the browser builder applies the same rules).
+
+    Engines take a free entry of the relocated table, never the stock "none" value; a
+    synth draws its own page above the stock "none" page, a sample engine an ID only
+    the relocated table holds and a stock sample page, an effect a free FX ID on the FX page.
+    """
     require(isinstance(value, dict), 'machine.json needs an identity')
     slot = 'effect' if kind == 'effect' else 'engine'
     require(set(value) == {slot, 'page'}, 'Unexpected identity fields')
     number, page = value[slot], value['page']
     require(type(number) is int and type(page) is int, 'IDs must be integers')
     if kind == 'effect':
-        require(number in FREE_FX_IDS and page == FX_PAGE,
+        require(number in rules['effects'] and page == rules['effect_page'],
                 'Effects use an FX ID stock leaves unregistered, on the stock FX page')
-    else:
-        check_assignment(number, page)
-        require(number not in STOCK_ENGINE_IDS, 'Engine ID is registered by stock')
-        require(display == 'stock' or page > PAGE_SENTINEL,
-                'A machine with its own screen needs a relocated page above %d' % PAGE_SENTINEL)
+        return {slot: number, 'page': page}
+    require(0 < number < rules['engines'] and number != rules['engine_none'] and number not in rules['stock_engines'],
+            'Engine ID outside the relocated table, the stock "none" value or registered by stock')
     if kind == 'sample':
-        require(ENGINE_SENTINEL < number < ENGINE_COUNT and page in SAMPLE_PAGES,
-                'Sample engines need a relocated-table engine ID (34..62) and a stock sample page')
+        require(rules['engine_none'] < number and page in rules['sample_pages'],
+                'Sample engines need a relocated-table engine ID and a stock sample page')
+    else:
+        require(rules['page_none'] < page < rules['pages'], 'A machine with its own screen needs a relocated page')
     return {slot: number, 'page': page}
 
 
@@ -117,7 +118,7 @@ def machine(identity):
     return Machine(id=identity, kind=kind, name=definition['name'], description=value['description'],
                    display=display, sources=sources, includes=includes,
                    definition=definition,
-                   identity=_identity(kind, display, value['identity']), preset_defaults=defaults,
+                   identity=check_identity(config()['identities'], kind, value['identity']), preset_defaults=defaults,
                    icon=icon)
 
 

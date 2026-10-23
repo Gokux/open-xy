@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {readObject, identities, linkKit, openKit, readLdr, recoverFirmware, zipFiles, sha256} from '../builder/core.mjs';
+import {readObject, identities, linkKit, moduleBytes, openKit, readLdr, recoverFirmware, zipFiles, sha256} from '../builder/core.mjs';
 
 // Tiny authored ELF fixture, independent of private firmware/toolchains.
 function elf() {
@@ -21,10 +21,10 @@ function elf() {
   return bytes;
 }
 function machine(id, engine, page) { return {id, kind:'synth', identity:{engine,page}, absent:{}}; }
+const profileBytes = readFileSync(new URL('../profiles/opxy-1.2.0.json',import.meta.url));
 function fixture() {
   const object = {...readObject(elf()), name:'a.o',owner:'a'};
-  return {profile:{id:'fixture',module_base:0x8d450d60,reserved_bytes:524288},
-    definitions:{},limits:{module:520192},machines:[machine('a',34,82)],objects:[object],startup:'startup.o'};
+  return {profile:JSON.parse(profileBytes),definitions:{},machines:[machine('a',34,82)],objects:[object]};
 }
 test('ELF parsing reads symbols and little-endian instructions', () => {
   const o = readObject(elf()); assert.equal(o.symbols[1].name,'entry'); assert.equal(o.symbols[1].size,4);
@@ -40,31 +40,24 @@ test('truncated sections, wrong architectures, merge flags, constructors and COM
 });
 test('exact deterministic section placement and immutable input capsules', () => {
   const k=fixture(), linked=linkKit(k,['a']);
-  assert.equal(linked.globals.get('entry'),0x8d450d60);
-  assert.deepEqual(linked.sizes,{initialized:4,bss:0,allocated:4,available:520188});
+  assert.equal(linked.globals.get('entry'),k.profile.module_base);
+  assert.deepEqual(linked.sizes,{initialized:4,bss:0,allocated:4,available:moduleBytes(k.profile)-4});
   assert.deepEqual(linkKit(k,['a']).module,linked.module);
 });
 
-test('absent sample callbacks resolve only from declared SDK dispatch objects', () => {
+test('declared callbacks of unselected machines resolve to fallbacks only for SDK objects', () => {
   const k=fixture(), o=k.objects[0];
   k.definitions.fallback=k.profile.module_base;
-  const missing={id:'missing',prefix:'probe',kind:'sample',stockPage:true,identity:{engine:46,page:7},absent:{}};
+  const missing={id:'missing',prefix:'probe',kind:'sample',identity:{engine:46,page:7},absent:{probe_ready:'fallback'}};
   k.machines.push(missing);
   o.symbols.push({name:'probe_ready',section:0,value:0,size:0,binding:1,type:0});
   o.relocations.push({section:1,offset:0,type:18,symbol:2,addend:0});
-  for(const name of ['probe_ready','probe_sample_assign','probe_sample_migrate','probe_sample_control','probe_sample_panel']) {
-    o.symbols[2].name=name; missing.absent={[name]:'fallback'};
-    o.name='sdk/sample_callbacks.o'; o.owner=null;
-    assert.doesNotThrow(()=>linkKit(k,['a']));
-    o.owner='a'; assert.throws(()=>linkKit(k,['a']),/Unresolved import/);
-    o.owner=null; o.name='sdk/unrelated.o'; assert.throws(()=>linkKit(k,['a']),/Unresolved import/);
-    o.name='sdk/sample_routes.o';
-    if(name==='probe_ready') assert.doesNotThrow(()=>linkKit(k,['a']));
-    else assert.throws(()=>linkKit(k,['a']),/Unresolved import/);
-  }
-  o.name='sdk/sample_callbacks.o'; o.symbols[2].name='probe_internal';
-  missing.absent={probe_internal:'fallback'};
+  o.owner=null; assert.doesNotThrow(()=>linkKit(k,['a']));
+  o.owner='a'; assert.throws(()=>linkKit(k,['a']),/Unresolved import/);
+  o.owner=null; o.symbols[2].name='probe_internal';
   assert.throws(()=>linkKit(k,['a']),/Unresolved import/);
+  o.symbols[2].name='probe_ready'; missing.absent={probe_ready:'undefined_fallback'};
+  assert.throws(()=>linkKit(k,['a']),/absent-machine callback/);
 });
 test('empty, unknown, repeated selections, duplicate globals and memory exhaustion are rejected', () => {
   const k=fixture(); for(const s of [[],['missing'],['a','a']]) assert.throws(()=>linkKit(k,s),/Choose distinct/);
@@ -72,21 +65,24 @@ test('empty, unknown, repeated selections, duplicate globals and memory exhausti
   k.objects[0].sections[1].size=0x80000; assert.throws(()=>linkKit(k,['a']),/module memory/);
 });
 test('code, data and state share one module limit that names each machine', () => {
-  const k=fixture(); k.limits.module=3; assert.throws(()=>linkKit(k,['a']),/module memory: a /);
-  k.limits.module=520192;
+  const k=fixture(), tables=k.profile.table_bytes;
+  k.profile.table_bytes=k.profile.reserved_bytes-3; assert.throws(()=>linkKit(k,['a']),/module memory: a /);
+  k.profile.table_bytes=tables;
   k.objects[0].sections.push({index:5,name:'.bss',group:'bss',type:8,size:0x7f000,alignment:4});
   assert.throws(()=>linkKit(k,['a']),/module memory/);
 });
-test('engine sentinels, stock slots, page collisions and incompatible restored layouts fail', () => {
-  const k=fixture();
-  for(const n of [0,1,33,63,64,1.5]) { k.machines[0].identity.engine=n; assert.throws(()=>identities(k)); }
+// tests/test_profile_parity.py checks validIdentity against the Python rules.
+test('page and engine collisions and incompatible restored layouts fail', () => {
+  const k=fixture(), id=k.profile.id;
+  k.machines[0].identity.engine=k.profile.identities.engine_none; assert.throws(()=>identities(k),/stock slot/);
   k.machines[0].identity.engine=34;
-  for(const n of [0,1,81,128]) { k.machines[0].identity.page=n; assert.throws(()=>identities(k)); }
-  k.machines[0].identity.page=82;
   k.machines.push(machine('b',35,82)); assert.throws(()=>identities(k),/Conflicting page/); k.machines.pop();
+  k.machines.push(machine('b',34,83)); assert.throws(()=>identities(k),/Conflicting engine/); k.machines.pop();
+  const sample=page=>({id:'s'+page,kind:'sample',identity:{engine:40+page,page},absent:{}});
+  k.machines.push(sample(7),sample(2),{...sample(7),id:'t',identity:{engine:50,page:7}}); identities(k); k.machines.length=1;
   assert.throws(()=>identities(k,{format:'opxy-kit/1',profile:'wrong',selected:[]}),/different firmware/);
-  assert.throws(()=>identities(k,{format:'opxy-kit/1',profile:'fixture',selected:['a'],identities:{a:{engine:35,page:82}}}),/changed/);
-  assert.deepEqual(identities(k,{format:'opxy-kit/1',profile:'fixture',selected:['a'],identities:{a:{page:82,engine:34}}}),{a:{engine:34,page:82}});
+  assert.throws(()=>identities(k,{format:'opxy-kit/1',profile:id,selected:['a'],identities:{a:{engine:35,page:82}}}),/changed/);
+  assert.deepEqual(identities(k,{format:'opxy-kit/1',profile:id,selected:['a'],identities:{a:{page:82,engine:34}}}),{a:{engine:34,page:82}});
 });
 test('IDs do not change when selection order changes', () => {
   const k=fixture(); k.machines.push(machine('b',35,83)); const before=identities(k);
@@ -116,8 +112,7 @@ test('call relocation uses the instruction start and rejects odd or out-of-range
   k.definitions.target=1; assert.throws(()=>linkKit(k,['a']),/relative branch/);
 });
 test('curated profile and object authentication reject modified input', async () => {
-  const bytes=readFileSync(new URL('../profiles/opxy-1.2.0.json',import.meta.url));
-  const k=fixture(); k.format='opxy-browser-kit/1'; k.profile=JSON.parse(bytes); k.profileSource=bytes.toString('base64');
+  const k=fixture(); k.format='opxy-browser-kit/1'; k.profileSource=profileBytes.toString('base64');
   k.objects=[{name:'a.o',owner:'a',bytes:Buffer.from(elf()).toString('base64'),sha256:await sha256(elf())}];
   k.stockCatalog=''; k.screenTemplate=readFileSync(new URL('../sdk/platform/opxy-1.2.0/screen.svg',import.meta.url),'utf8');
   await openKit(k);
@@ -141,7 +136,6 @@ test('malformed loader records and unsafe ZIP paths are rejected', () => {
 
 test('firmware recovery rejects malformed and foreign loader layouts without private inputs', async () => {
   const kit = fixture();
-  kit.profile = JSON.parse(readFileSync(new URL('../profiles/opxy-1.2.0.json',import.meta.url)));
   for (const bytes of [new Uint8Array(), new Uint8Array(16), elf()])
     await assert.rejects(recoverFirmware(kit, bytes));
   // Authored valid FINAL record, not a stock or Open-XY container.

@@ -12,7 +12,7 @@ class CheckRunnerTests(unittest.TestCase):
         return argparse.Namespace(**{key: values.get(key) for key in (*FIXTURES, 'toolchain')})
 
     def test_public_mode_does_not_silently_use_stale_private_fixtures(self):
-        env, native = fixture_environment(self.options(), {'PATH': 'retained', 'OPXY_TEST_FM_ELF': 'stale'})
+        env, native = fixture_environment(self.options(), {'PATH': 'retained', 'OPXY_TEST_NATIVE_ELF': 'stale'})
         self.assertEqual(env, {'PATH': 'retained'})
         self.assertFalse(native)
 
@@ -34,7 +34,7 @@ class CheckRunnerTests(unittest.TestCase):
             env, native = fixture_environment(self.options(**values), {})
             self.assertTrue(native)
             # Hosted Windows runners can expose TEMP through an 8.3 alias.
-            self.assertEqual(Path(env['OPXY_TEST_FM_ELF']),
+            self.assertEqual(Path(env['OPXY_TEST_NATIVE_ELF']),
                              (values['native_package'] / 'analysis/module.elf').resolve())
             values['stock_os'].unlink()
             with self.assertRaises(ValueError):

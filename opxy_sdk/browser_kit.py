@@ -46,7 +46,6 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
                 ('_register_checked_draft', 'kit_absent'), ('_name_matches', 'kit_absent'),
                 ('_catalog_checked', 'kit_catalog_stock'))}
             if m.display == 'stock':
-                entry['stockPage'] = True
                 entry['absent'][m.prefix + '_ready'] = 'kit_absent'
                 if m.definition['resources'].get('drumControls', 0):
                     for callback in ('assign', 'migrate', 'control', 'panel'):
@@ -80,9 +79,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
         objects.append(dict(name=name, owner=owner, bytes=base64.b64encode(data).decode('ascii'), sha256=sha(data)))
     kit = dict(format='opxy-browser-kit/1', profile=profile,
                profileSource=base64.b64encode(read(ROOT / ('profiles/' + profile['id'] + '.json'))).decode('ascii'),
-               definitions=definitions,
-               limits=dict(module=native.module_bytes(profile)),
-               startup='sdk/startup.o', machines=kit_machines, objects=objects, notices=notices(kit_machines),
+               definitions=definitions, machines=kit_machines, objects=objects, notices=notices(kit_machines),
                stockCatalog=base64.b64encode(stock_catalog).decode('ascii'),
                screenTemplate=screen.template().decode('utf-8'))
     kit_path = output / 'kit.json'
@@ -111,7 +108,7 @@ def write_builder(kit, output):
                "import {Audition} from './audition.mjs';\n")
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
-    exports = ('requireThat decode64 sha256 equal readObject identities openKit linkKit readLdr '
+    exports = ('requireThat decode64 sha256 equal readObject identities moduleBytes openKit linkKit readLdr '
                'patchFirmware recoverFirmware presetPath buildAssets zipFiles').split()
     bundled = 'const Core = (() => {\n' + script + '\nreturn {' + ','.join(exports) + '};\n})();\n'
     for namespace, file, classes in (

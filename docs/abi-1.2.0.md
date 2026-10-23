@@ -4,8 +4,12 @@ How the SDK integrates machines into stock OP-XY OS 1.2.0. This is a
 reverse-engineered, version-bound contract for SDK maintainers, not a
 manufacturer ABI; machine authors need only the [engine API](api.md).
 
-Stock and tool hashes, every edited byte and the reservation live in
-[the firmware profile](../profiles/opxy-1.2.0.json). Stock
+[The firmware profile](../profiles/opxy-1.2.0.json) is the single source
+both the Python SDK and the browser builder read: stock and tool hashes, the
+reservation and its table bytes, identity ranges, stock catalog insertion
+offsets and every edit. Heap and table edits carry their replacement bytes; a
+hook names the module symbol it calls or jumps to, and each build computes and
+verifies its bytes. The builder pins the profile digest. Stock
 addresses live beside the code that uses them: the adapter templates in
 `sdk/platform/opxy-1.2.0/`,
 [`stock_tables.py`](../opxy_sdk/stock_tables.py) and
@@ -29,8 +33,8 @@ version is rejected. The output differs from stock in exactly these places:
 | Module | 1 record | One loader block holding the linked module |
 
 Everything else must reconstruct byte for byte. Protected ranges in
-[`pipeline.py`](../opxy_sdk/pipeline.py) admit only the exact authenticated
-sample-page edits in [`sample_hooks.py`](../opxy_sdk/sample_hooks.py).
+[`pipeline.py`](../opxy_sdk/pipeline.py) admit only hooks into the module and
+the reviewed startup label.
 The bootloader is never modified.
 
 ## Startup

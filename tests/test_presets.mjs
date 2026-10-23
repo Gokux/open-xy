@@ -4,26 +4,19 @@ import {readFileSync} from 'node:fs';
 import {buildAssets, presetPath, sha256} from '../builder/core.mjs';
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
-const definitions = Object.fromEntries(['fm2op', 'macroosc', 'timestretch'].map(id =>
-  [id, JSON.parse(read(`machines/${id}/definition.json`))]));
-const expectedDefaults = id => [...definitions[id].parameters.map(p => Math.floor(p.default * 32767 + .5)),
-  ...Array(8 - definitions[id].parameters.length).fill(0)];
-const catalogs = {
-  'fm2op': ',{"type":"fm2op","default_params":[10922,15728,3932,18022,0,0,0,0]}',
-  'macroosc': ',{"type":"macroosc","default_params":[0,16384,16384,16384,0,0,0,0]}',
-  timestretch: ',' + JSON.stringify({type:'timestretch', default_params:expectedDefaults('timestretch')}),
-};
-const machines = ['fm2op', 'macroosc', 'timestretch'].map(id => ({id,
-  kind: id === 'timestretch' ? 'sample' : 'synth', catalog: catalogs[id],
+// Catalog entries as the Python SDK writes them (any valid Q15 defaults).
+const entry = (id, params) => ',\n        ' + JSON.stringify({type:id, default_params:params});
+const machines = ['fm2op', 'macroosc', 'timestretch'].map((id, i) => ({id,
+  kind: id === 'timestretch' ? 'sample' : 'synth', catalog: entry(id, [i, 1000 * i, 32767, 0, 0, 0, 0, 0]),
   presetDefaults: JSON.parse(read(`machines/${id}/machine.json`)).presetDefaults ?? {}}));
-machines.push({id:'decimate', kind:'effect', catalog:',{"type":"decimate","default_params":[0,32767,0,0,0,0,0,0]}'});
+machines.push({id:'decimate', kind:'effect', catalog:entry('decimate', [0, 32767, 0, 0, 0, 0, 0, 0])});
 
 async function fixture(selectedMachines = machines) {
-  // Authored menu fixture padded to the existing reviewed insertion boundary;
-  // no captured firmware or factory content.
-  const catalog = new TextEncoder().encode('{"engine_types":[{"type":"existing"}'.padEnd(4435) +
-    '\n    ],"fx_types":[{"type":"existing-fx"}\n    ]}');
-  return {kit: {machines:selectedMachines, profile:{stock_catalog_sha256:await sha256(catalog)}}, catalog};
+  // Authored menu fixture with its own insertion points; no captured firmware or factory content.
+  const text = '{"engine_types":[{"type":"existing"}\n    ],"fx_types":[{"type":"existing-fx"}\n    ]}';
+  const catalog = new TextEncoder().encode(text);
+  const stock_catalog_inserts = {engine_types: text.indexOf('\n    ]'), fx_types: text.lastIndexOf('\n    ]')};
+  return {kit: {machines:selectedMachines, profile:{stock_catalog_sha256:await sha256(catalog), stock_catalog_inserts}}, catalog};
 }
 
 test('all selections include only their instrument presets with native names and definition defaults', async () => {
@@ -37,7 +30,7 @@ test('all selections include only their instrument presets with native names and
       const p=JSON.parse(new TextDecoder().decode(files[presetPath(m)]));
       assert.equal(p.type,{'fm2op':'fm2op','macroosc':'macroosc',timestretch:'timestretch'}[m.id]);
       assert.equal(p.version,4); assert.equal(p.platform,'OP-XY');
-      assert.deepEqual(p.engine.params,expectedDefaults(m.id));
+      assert.deepEqual(p.engine.params,JSON.parse(m.catalog.slice(1)).default_params);
       assert.equal(p.engine.playmode,'poly');
       assert.deepEqual(p.regions,[]); // Timestretch never points into a user's sample library.
       assert.equal(p.fx.active,false); assert.equal(p.lfo.active,false);

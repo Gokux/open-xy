@@ -53,7 +53,7 @@ test('collection builds require fresh external output, including config override
   // Public profile plus authored metadata; no firmware, stock catalog or tools.
   const screenTemplate = await readFile(new URL('../../sdk/platform/opxy-1.2.0/screen.svg',import.meta.url),'utf8');
   const collection = {format:'opxy-browser-kit/1',profile:JSON.parse(profileSource),
-    profileSource:profileSource.toString('base64'),objects:[],stockCatalog:'',screenTemplate,limits:{module:520192},
+    profileSource:profileSource.toString('base64'),objects:[],stockCatalog:'',screenTemplate,
     machines:[{id:'fixture',kind:'synth',identity:{engine:34,page:82}}]};
   const source = join(directory,'kit.json');
   const external = join(directory,'site');
