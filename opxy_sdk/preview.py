@@ -51,7 +51,8 @@ def compile_preview(compiler, definition, display, out, root, sources=(), includ
                f'-Wl,--max-memory={MEMORY}', *('-Wl,--export=' + name for name in VOICE_EXPORTS + DISPLAY_EXPORTS[display])]
     result = subprocess.run([str(x) for x in command], capture_output=True, text=True, timeout=120,
                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    require(result.returncode == 0, 'Preview compilation failed:\n' + result.stderr)
+    require(result.returncode == 0, 'Preview compilation failed:\n' + result.stderr +
+            f'\nCheck the compiler with: python sdk.py doctor --preview --cxx "{compiler}"')
     check_runtime(out / 'engine.wasm', display)
 
 

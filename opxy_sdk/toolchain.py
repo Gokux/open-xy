@@ -12,6 +12,7 @@ import os
 from pathlib import Path, PurePosixPath
 import shutil
 import sys
+import urllib.error
 import urllib.request
 import zipfile
 
@@ -91,10 +92,18 @@ def main(argv=None):
     parser.add_argument('--archive', type=Path, help='an already downloaded release archive')
     parser.add_argument('--dir', type=Path, default=ROOT / TOOLCHAIN_HOME, help='install directory')
     args = parser.parse_args(argv)
+    record = None
     try:
-        installed = fetch(release_record(), args.dir, args.archive)
+        record = release_record()
+        installed = fetch(record, args.dir, args.archive)
     except (ValueError, KeyError, OSError, zipfile.BadZipFile) as error:
         print('ERROR: ' + str(error), file=sys.stderr)
+        if isinstance(error, urllib.error.URLError) and record:
+            print(f'Download {record["url"]} in a browser, then run:\n'
+                  '  python sdk.py toolchain fetch --archive <downloaded zip>', file=sys.stderr)
+            if 'CERTIFICATE_VERIFY_FAILED' in str(error) and sys.platform == 'darwin':
+                print('Or install Python\'s certificates: run "Install Certificates.command" in its Applications folder.',
+                      file=sys.stderr)
         return 1
     print(('Installed' if installed else 'Already installed') +
           f' the pinned Blackfin toolchain for {host_platform()} in {args.dir.resolve()}')

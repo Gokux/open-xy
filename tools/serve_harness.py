@@ -75,7 +75,11 @@ if __name__ == '__main__':
     parser.add_argument('--preview', type=Path, help='Fresh C++ preview built by sdk.py preview')
     args = parser.parse_args()
     bundle = preview_bundle(args.preview) if args.preview else {}
-    server = PreviewServer(('127.0.0.1', args.port), Handler)
+    try:
+        server = PreviewServer(('127.0.0.1', args.port), Handler)
+    except OSError as error:
+        parser.exit(1, f'Port {args.port} is unavailable ({error.strerror or error}). '
+                       f'Stop the other server or pass --port {args.port + 20}.\n')
     server.preview = bundle
     print(f'OP-XY workbench: http://127.0.0.1:{server.server_port}', flush=True)
     try:

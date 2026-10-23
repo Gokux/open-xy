@@ -51,6 +51,22 @@ class CustomPreviewTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'stale'):
             preview_bundle(out)
 
+    def test_scaffold_artwork_meets_the_native_rules(self):
+        # One root element and outlines with the declared point count, as the firmware build requires.
+        from opxy_sdk.native import check_outlines, panel_root
+        with self.assertRaisesRegex(ValueError, 'must be one SVG element'):
+            panel_root(b'<path id="a"/>\n<path id="b"/>', 'panel.svg.fragment')
+        for points in (4, 7, 64):
+            outline = custom.square_outline(points)
+            self.assertEqual(outline.count('L'), points - 1)
+            self.assertTrue(outline.startswith('M') and outline.endswith(' Z') and 'e' not in outline)
+        display = {'paths': 1, 'nodes': 1, 'palette': 0, 'points': 64}
+        good = panel_root(f'<g><path id="local_node_0" d="{custom.square_outline(64)}" fill="none"/></g>'.encode(), 'test')
+        check_outlines({n.get('id'): n for n in good.iter() if n.get('id')}, 'local', display)
+        bad = panel_root(f'<g><path id="local_node_0" d="{custom.square_outline(4)}" fill="none"/></g>'.encode(), 'test')
+        with self.assertRaisesRegex(ValueError, 'exactly M, 63 L and Z'):
+            check_outlines({n.get('id'): n for n in bad.iter() if n.get('id')}, 'local', display)
+
     def test_tampered_artwork_is_rejected(self):
         out, _ = self.fixture()
         (out / 'panel.svg').write_text('<script/>')

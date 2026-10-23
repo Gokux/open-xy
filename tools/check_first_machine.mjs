@@ -5,7 +5,10 @@ import {PreviewEngine} from '../sdk/browser/engine.mjs';
 
 function frequency(path) {
   const module = new WebAssembly.Module(readFileSync(path));
-  const engine = new PreviewEngine(module, 44100, [0, 0x40000000, 0x53333333, 0x40000000]);
+  // The starter's four controls; the module may expose further parameter words.
+  const count = new WebAssembly.Instance(module, {}).exports.opxy_parameter_count();
+  const controls = [0, 0x40000000, 0x53333333, 0x40000000];
+  const engine = new PreviewEngine(module, 44100, Array.from({length: count}, (_, i) => controls[i] ?? 0));
   engine.noteOn(69);
   const samples = new Float32Array(44100);
   engine.render(samples);
