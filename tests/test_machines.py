@@ -73,6 +73,25 @@ class Identity(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     machines.machine('fm2op')
 
+    def test_dry_parameter_requires_a_normalized_effect_control(self):
+        real = Path.read_text
+        for identity, field in (('ringmod', 'missing'), ('ringmod', 3), ('ringmod', None),
+                                ('ringmod', 'frequency'), ('ringmod', 'low_cut'), ('fm2op', 'dry')):
+            path = machines.ROOT / 'machines' / identity / 'machine.json'
+            value = dict(json.loads(real(path)), dryParameter=field)
+            with self.subTest(identity=identity, field=field), mock.patch.object(
+                    Path, 'read_text', lambda self, *a, **k: json.dumps(value) if self == path else real(self, *a, **k)):
+                with self.assertRaisesRegex(ValueError, 'dryParameter'):
+                    machines.machine(identity)
+        self.assertEqual(machines.machine('ringmod').dry_parameter, 3)
+        self.assertIsNone(machines.machine('fm2op').dry_parameter)
+        path = machines.ROOT / 'machines/ringmod/machine.json'
+        value = json.loads(real(path))
+        del value['dryParameter']
+        with mock.patch.object(Path, 'read_text',
+                               lambda self, *a, **k: json.dumps(value) if self == path else real(self, *a, **k)):
+            self.assertIsNone(machines.machine('ringmod').dry_parameter)
+
 
 if __name__ == '__main__':
     unittest.main()

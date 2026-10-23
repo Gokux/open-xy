@@ -3,7 +3,7 @@
   "machines": [
     "fm2op",
     "macroosc",
-    "decimate",
+    "ringmod",
     "timestretch"
   ]
 }

@@ -372,7 +372,9 @@ def generate_synth_controls(directory, machines):
 
 def generate_fx_object(directory, m):
     return expand('fx_object.cpp.in', dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'],
-                                           NAME=m.native_name, LABELS=stock_labels(m)),
+                                           NAME=m.native_name, LABELS=stock_labels(m),
+                                           DRY_LEVEL='0x7fffffff' if m.dry_parameter is None else
+                                           f'parameters[{m.dry_parameter}]'),
                   Path(directory) / f'fx_object_{m.prefix}.cpp')
 
 

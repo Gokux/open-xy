@@ -251,3 +251,15 @@ place inside the FX slot's **480-byte** storage on the audio thread, calls
 in-place stereo buffers. **No destructor ever runs**, so an effect may hold no
 resources. The first slot word is the object's method table, which leaves 476
 bytes of effect state.
+
+Vtable offset `+0x1c` is a dry-level getter: `(object, parameters) -> Q31`.
+Stock delay (`0x8d500e38`) and reverb (`0x8d5013ae`) return parameter word 3
+unchanged. The stock mixer queries it at `0x8d510676` and `0x8d51070a`, then
+reduces the source dry contribution by `send * (1 - dry)`. The effect's DSP
+supplies only wet audio. The generated adapter exposes the machine's declared
+`dryParameter`, or returns `INT32_MAX` when none is declared, matching stock's
+absent-object fallback. This is a source-mixer control, not a wet/dry crossfade
+inside the effect. See the [effect API](api.md#effects).
+
+Ring Mod uses effect ID 1. Retired Decimate's ID 11 remains unused; do not
+reassign it to a different effect in saved projects.

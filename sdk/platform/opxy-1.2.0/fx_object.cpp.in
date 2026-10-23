@@ -37,6 +37,12 @@ void* @PREFIX@_fx_factory(void* storage) {
     object->vtable = @PREFIX@_fx_vtable;
     return object;
 }
+// +0x1c: stock queries the dry level separately from the wet DSP. Return the
+// declared normalized Q31 control unchanged, or unity when no Dry is declared.
+static opxy::i32 dry_level(void*, const opxy::i32* parameters) {
+    (void)parameters;
+    return @DRY_LEVEL@;
+}
 const char @PREFIX@_fx_name[] = "@NAME@";
 const char* @PREFIX@_fx_parameter_name(opxy::u32 index) {
     static const char* const labels[] = {@LABELS@};
@@ -44,11 +50,11 @@ const char* @PREFIX@_fx_parameter_name(opxy::u32 index) {
 }
 // +0x00/+0x04 destructors, +0x08 unused, +0x0c insert process (unused by
 // send effects), +0x10 send process, +0x14 init, +0x18 insert-active query,
-// +0x1c parameter update (parameters also reach process directly).
+// +0x1c source dry-level query (object, parameter vector) -> Q31.
 const void* const @PREFIX@_fx_vtable[8] = {
     reinterpret_cast<const void*>(&destroy), reinterpret_cast<const void*>(&destroy),
     reinterpret_cast<const void*>(&noop), reinterpret_cast<const void*>(&zero),
     reinterpret_cast<const void*>(&process), reinterpret_cast<const void*>(&init),
-    reinterpret_cast<const void*>(&zero), reinterpret_cast<const void*>(&noop)
+    reinterpret_cast<const void*>(&zero), reinterpret_cast<const void*>(&dry_level)
 };
 }

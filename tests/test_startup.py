@@ -12,7 +12,7 @@ from opxy_sdk.startup import MAX_ENGINES, render
 class Startup(unittest.TestCase):
     def test_stock_is_reached_only_through_link_time_definitions(self):
         # Browser kits relink this object, so it names stock and machine IDs as symbols.
-        text = render(['fm2op', 'macroosc', 'timestretch'], ['decimate'], ['timestretch'])
+        text = render(['fm2op', 'macroosc', 'timestretch'], ['ringmod'], ['timestretch'])
         self.assertIsNone(re.search(r'0x[0-9a-fA-F]+', text))
         stock = set(re.findall(r'__asm__\("(stock_\w+)"\)', text))
         self.assertEqual(stock, {'stock_catalog_insert', 'stock_gui_role'})

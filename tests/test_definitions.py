@@ -132,13 +132,13 @@ class Definitions(unittest.TestCase):
                 validate_definition(changed, 'synth')
 
     def test_every_kind_shares_the_controls_schema(self):
-        for identity in ('timestretch', 'decimate'):
+        for identity in ('timestretch', 'ringmod'):
             m = machine(identity)
             value = copy.deepcopy(m.definition)
             value['parameters'][0]['label'] = 'Feedback amount'
             with self.subTest(identity=identity), self.assertRaisesRegex(ValueError, 'Control labels'):
                 validate_definition(value, m.kind)
-        effect = copy.deepcopy(machine('decimate').definition)
+        effect = copy.deepcopy(machine('ringmod').definition)
         effect['resources']['voiceCapacity'] = 8
         with self.assertRaisesRegex(ValueError, 'resources'): validate_definition(effect, 'effect')
         sample = copy.deepcopy(machine('timestretch').definition)
@@ -185,12 +185,12 @@ class Definitions(unittest.TestCase):
         alternates['parameters'].append(self.alternate(2))
         machines = [SimpleNamespace(kind='synth', prefix='plain', identity=dict(engine=5), definition=self.engine),
                     SimpleNamespace(kind='synth', prefix='alt', identity=dict(engine=9), definition=alternates),
-                    machine('timestretch'), machine('decimate')]
+                    machine('timestretch'), machine('ringmod')]
         with tempfile.TemporaryDirectory() as directory:
             text = generate_synth_controls(directory, machines).read_text(encoding='utf-8')
         self.assertEqual(re.findall(r'^    \{(\d+), (\w+)_ready, \{([\d, ]+)\},', text, re.M),
                          [('5', 'plain', '0, 1, 2, 3, 4, 5, 6, 7'), ('9', 'alt', '0, 1, 4, 3, 2, 5, 6, 7'),
-                          ('11', 'decimate', '0, 1, 2, 3, 4, 5, 6, 7')])
+                          ('1', 'ringmod', '0, 1, 2, 3, 4, 5, 6, 7')])
 
     def test_renderers_generate_for_every_declared_shape(self):
         """Each shape's renderer is data for the SDK renderer: artwork IDs in binding order, and an

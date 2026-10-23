@@ -11,7 +11,7 @@ const machines = ['fm2op', 'macroosc', 'timestretch'].map((id, i) => {
   return {id, kind: machine.kind, catalog: entry(id, [i, 1000 * i, 32767, 0, 0, 0, 0, 0]),
     presetDefaults: machine.presetDefaults ?? {}};
 });
-machines.push({id:'decimate', kind:'effect', catalog:entry('decimate', [0, 32767, 0, 0, 0, 0, 0, 0])});
+machines.push({id:'ringmod', kind:'effect', catalog:entry('ringmod', [0, 32767, 0, 0, 0, 0, 0, 0])});
 
 async function fixture(selectedMachines = machines) {
   // Authored menu fixture with its own insertion points; no captured firmware or factory content.
