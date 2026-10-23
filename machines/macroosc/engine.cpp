@@ -1,7 +1,9 @@
 // Authored Macro Osc sound. Firmware ABI, storage, pitch addresses and host
 // transport are supplied by the SDK. Vendored DSP stays independently pinned.
 #include "core.h"
+#include "fm.h"
 #include "pitch.h"
+#include "stmlib/utils/dsp.h"
 #include "stmlib/utils/random.h"
 
 namespace stmlib {
@@ -12,6 +14,9 @@ using braids::MacroOscillator;
 using braids::MacroOscillatorShape;
 const unsigned kNumShapes = 47, kBlockSize = 64, kMaxChunk = 24;
 const uint8_t kNoSync[kMaxChunk] = {};
+// FM: a sine modulator at a ratio of the note retunes the carrier every
+// kFmChunk samples (5.5 kHz), the cost/fidelity balance measured for Blackfin.
+const unsigned kFmChunk = 8;
 inline bool UsesDelayLines(MacroOscillatorShape shape) {
   return shape == braids::MACRO_OSC_SHAPE_SAW_COMB ||
          (shape >= braids::MACRO_OSC_SHAPE_PLUCKED && shape <= braids::MACRO_OSC_SHAPE_FLUTED);
@@ -58,13 +63,18 @@ void initialize(Voice& voice, Shared& state, opxy::u32 owner) {
 }
 void start(Voice& voice, Shared&, opxy::u32) {
   voice.strike_pending = 1;
+  voice.fm_phase = 0;
+}
+
+inline int32_t ClampPitch(int32_t pitch) {
+  return pitch < 0 ? 0 : pitch > 16383 ? 16383 : pitch;
 }
 void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
             opxy::Parameters parameters, opxy::Pitch pitch_increments) {
   Voice* voice = &value;
   MacroOscillator* osc = &voice->osc;
   MacroOscillatorShape shape = ShapeFromParameter(parameters[0]);
-  int32_t fine = (static_cast<int32_t>(Unipolar15(parameters[3])) - 16384) >> 7;
+  const uint32_t depth = Unipolar15(parameters[4]);
   osc->set_parameters(Unipolar15(parameters[1]), Unipolar15(parameters[2]));
 
   bool changed = shape != osc->shape();
@@ -94,18 +104,29 @@ void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
   osc->set_delay_lines(state.delays.get(owner, voice->delay_slot));
   stmlib::Random::Seed(voice->rng_state);
   int16_t block[kMaxChunk];
-  for (size_t offset = 0; offset < kBlockSize; offset += kMaxChunk) {
-    size_t size = kBlockSize - offset < kMaxChunk ? kBlockSize - offset : kMaxChunk;
-    int32_t pitch = PitchFromIncrement(pitch_increments[offset]) + fine;
-    if (pitch < 0) {
-      pitch = 0;
-    } else if (pitch > 16383) {
-      pitch = 16383;
+  if (depth == 0) {
+    for (size_t offset = 0; offset < kBlockSize; offset += kMaxChunk) {
+      size_t size = kBlockSize - offset < kMaxChunk ? kBlockSize - offset : kMaxChunk;
+      osc->set_pitch(ClampPitch(PitchFromIncrement(pitch_increments[offset])));
+      osc->Render(kNoSync, block, size);
+      for (size_t i = 0; i < size; ++i) {
+        out[offset + i] = static_cast<int32_t>(block[i]) * 32768;  // Half-scale Q31.
+      }
     }
-    osc->set_pitch(pitch);
-    osc->Render(kNoSync, block, size);
-    for (size_t i = 0; i < size; ++i) {
-      out[offset + i] = static_cast<int32_t>(block[i]) * 32768;  // Half-scale Q31.
+  } else {
+    // Linear FM: at full depth the carrier frequency swings between zero and
+    // twice the note. Increments stay below half the sample rate (2^31).
+    const uint32_t halves = RatioFromParameter(parameters[3]).halves;
+    for (size_t offset = 0; offset < kBlockSize; offset += kFmChunk) {
+      const uint32_t increment = pitch_increments[offset] < 0x80000000u ? pitch_increments[offset] : 0x7fffffffu;
+      const int32_t swing = (static_cast<int32_t>(depth) * stmlib::Interpolate824(braids::wav_sine, voice->fm_phase)) >> 15;
+      const uint32_t carrier = increment + static_cast<uint32_t>(static_cast<int32_t>(increment >> 15) * swing);
+      voice->fm_phase += (increment >> 1) * halves * kFmChunk;
+      osc->set_pitch(ClampPitch(PitchFromIncrement(carrier)));
+      osc->Render(kNoSync, block, kFmChunk);
+      for (size_t i = 0; i < kFmChunk; ++i) {
+        out[offset + i] = static_cast<int32_t>(block[i]) * 32768;
+      }
     }
   }
   voice->rng_state = stmlib::Random::state();

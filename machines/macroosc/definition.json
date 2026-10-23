@@ -84,12 +84,36 @@
       "display": "percent"
     },
     {
-      "id": "finetune",
-      "label": "Finetune",
-      "default": 0.5,
+      "id": "fm_ratio",
+      "label": "FM Ratio",
+      "default": 0.125,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "x0.5",
+          "x1",
+          "x1.5",
+          "x2",
+          "x2.5",
+          "x3",
+          "x3.5",
+          "x4",
+          "x5",
+          "x6",
+          "x7",
+          "x8"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "fm_depth",
+      "label": "FM Depth",
+      "control": 3,
+      "default": 0,
       "mapping": {
         "kind": "linear",
-        "minimum": -1,
+        "minimum": 0,
         "maximum": 1
       },
       "display": "percent"
@@ -100,17 +124,19 @@
       "model": 0,
       "timbre": 0.5,
       "color": 0.5,
-      "finetune": 0.5
+      "fm_ratio": 0.125,
+      "fm_depth": 0
     },
     "Pluck": {
       "model": 0.6063829787234043,
       "timbre": 0.5,
       "color": 0.5,
-      "finetune": 0.5
+      "fm_ratio": 0.125,
+      "fm_depth": 0
     }
   },
   "resources": {
-    "voiceBytes": 628,
+    "voiceBytes": 632,
     "voiceAlignment": 4,
     "voiceCapacity": 128,
     "sharedBytes": 131332,
@@ -121,7 +147,8 @@
       "glow": 3,
       "dials": 4,
       "textControls": [
-        0
+        0,
+        3
       ]
     }
   }

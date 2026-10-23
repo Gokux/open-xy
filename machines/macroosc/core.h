@@ -9,6 +9,7 @@ struct Voice {
   opxy::u32 rng_state;
   opxy::u32 strike_pending;
   opxy::u32 delay_slot;
+  opxy::u32 fm_phase;  // FM modulator phase, reset on each note
   braids::MacroOscillator osc;
 };
 struct Shared {
