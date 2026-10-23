@@ -7,7 +7,7 @@ import {presetPath} from './core.mjs';
 // Find / Enable / Disable actions access MIDI. On a Mac with WebUSB, Send to
 // OP–XY copies the build over USB, opening the device only while sending;
 // otherwise copying is manual. Flashing remains manual.
-export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
+export function createWizard({getKit, getSelected, hasDownload, getFiles, onPreviewExit = () => {}}) {
   const $ = id => document.getElementById(id);
   let purpose = null, stage = null, history = [], revision = 0;
   // Set when the OS-copy guide ends in file transfer mode, so the install guide
@@ -15,6 +15,9 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   let inTransfer = false, resumed = false, transferComputer = null;
   let computer = null, busy = false, connected = false;
   let hostPage = 1;
+  let previewMode = false;
+  const previewStages = new Set(['boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit',
+    'transfer', 'exit-transfer', 'write-os', 'write-result', 'write-help', 'restart']);
   // Installing from this page: the chosen device, progress through the build,
   // a log of what happened, and whether every file arrived. `manual` means the user chose to copy.
   let mtp = null, sending = null, log = [], delivered = false, manual = false, downloaded = false;
@@ -22,7 +25,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   let closing = Promise.resolve();
   const stopSending = () => { sending = null; if (mtp) closing = mtp.close(); };
   const release = () => { stopSending(); mtp = null; log = []; delivered = false; };
-  const sendsDirectly = () => computer === 'mac' && Mtp.supported() && !manual;
+  const sendsDirectly = () => computer === 'mac' && (previewMode || Mtp.supported()) && !manual;
   const direct = () => stage === 'transfer' && purpose === 'install' && sendsDirectly();
   const supported = () => globalThis.isSecureContext && !!navigator.requestMIDIAccess;
   const status = (message = '', error = false) => {
@@ -94,7 +97,8 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
     const [title, detail, actions, instructions = []] = content();
     $('device-flow').dataset.stage = stage;
     $('device-flow').setAttribute('aria-busy', String(busy));
-    $('flow-progress').textContent = (purpose === 'disable' ? 'Disable dev menu' : purpose === 'source' ? 'Copy OS' : 'Install on your OP–XY') + ' · Step ' + (history.length + 1);
+    $('flow-progress').textContent = previewMode ? 'Installation preview' : (purpose === 'disable' ? 'Disable dev menu' : purpose === 'source' ? 'Copy OS' : 'Install on your OP–XY') + ' · Step ' + (history.length + 1);
+    $('flow-preview-note').hidden = !previewMode;
     $('flow-title').textContent = title;
     const install = purpose === 'install';
     const kit = getKit();
@@ -116,11 +120,15 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       span.textContent = text; li.append(span); return li;
     }));
     $('flow-instructions').hidden = !instructions.length;
-    $('flow-actions').replaceChildren(...actions.map((a, i) => {
+    $('flow-install-reminder').hidden = !install || !['transfer', 'exit-transfer', 'write-os'].includes(stage);
+    const visibleActions = previewMode && stage === 'transfer'
+      ? [...actions, action('Preview next step', 'exit-transfer')] : actions;
+    $('flow-actions').replaceChildren(...visibleActions.map((a, i) => {
       const button = document.createElement('button');
       button.type = 'button'; button.textContent = a.label; button.className = i === 0 ? 'primary' : 'secondary';
       if (a.id) button.id = a.id;
-      button.disabled = busy || (a.id === 'dev-connect' && !supported());
+      button.disabled = busy || (a.id === 'dev-connect' && !supported()) ||
+        (previewMode && ['mtp-send', 'dev-connect', 'dev-enable', 'dev-disable', 'disable-menu-after-install'].includes(a.id));
       button.onclick = () => {
         if (['dev-connect', 'dev-enable', 'dev-disable'].includes(a.id)) return deviceAction(a.id);
         if (a.id === 'disable-menu-after-install') return begin('disable', 3);
@@ -137,8 +145,10 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
     $('dev-cancel').textContent = sending ? 'Stop sending' : 'Cancel connection';
     $('flow-back').hidden = !history.length || ['write-os', 'write-result', 'write-help'].includes(stage);
     $('flow-back').disabled = $('flow-exit').disabled = busy;
-    $('flow-exit').textContent = hostPage === 1 ? 'Back to file choice' : 'Back to install choice';
-    $('flow-download').hidden = hostPage !== 3 || !hasDownload() || sendsDirectly();
+    $('flow-exit').textContent = previewMode ? 'Back to builder' : hostPage === 1 ? 'Back to file choice' : 'Back to install choice';
+    $('flow-download').hidden = previewMode || hostPage !== 3 || !hasDownload() || sendsDirectly();
+    $('flow-step-link').hidden = !install || !previewStages.has(stage);
+    $('flow-step-link').href = '#preview/' + (computer || 'windows') + '/' + stage;
     $('connection-help').hidden = !['connect', 'menu-help', 'disable-help'].includes(stage);
     if (stage === 'connect' && !supported()) status('MIDI access is unavailable in this browser. Use Connection help below.', true);
     if (focus) { $('flow-title').focus(); Visuals.reveal($('device-flow')); }
@@ -153,23 +163,27 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
     if (stage) history.push(stage);
     stage = next; status(); render(true);
   }
-  function begin(nextPurpose, page = nextPurpose === 'install' ? 3 : 1) {
+  function begin(nextPurpose, page = nextPurpose === 'install' ? 3 : 1, preview = null) {
     exit(false); purpose = nextPurpose; hostPage = page;
+    previewMode = !!preview;
+    if (preview) { computer = preview.computer; manual = downloaded = false; }
     if (hostPage === 1) $('source-start').hidden = $('file-panel').hidden = $('file-actions').hidden = true;
     else $('download-overview').hidden = $('download-actions').hidden = true;
     $(hostPage === 1 ? 'source-flow-host' : 'install-flow-host').append($('device-flow'));
     $('device-flow').hidden = false;
     // Resume only in the transfer mode the device is already in.
-    resumed = purpose === 'install' && inTransfer && !!computer && computer === transferComputer;
-    advance(purpose === 'source' ? 'version' : !resumed ? 'boot' : sendsDirectly() ? 'close-field-kit' : 'transfer');
+    resumed = !previewMode && purpose === 'install' && inTransfer && !!computer && computer === transferComputer;
+    advance(preview?.stage ?? (purpose === 'source' ? 'version' : !resumed ? 'boot' : sendsDirectly() ? 'close-field-kit' : 'transfer'));
   }
   function exit(focus = true) {
-    const previous = purpose;
+    const previous = purpose, wasPreview = previewMode;
+    previewMode = false;
     revision++; stage = purpose = null; history = [];
     busy = connected = false; session.close(); release(); status();
     $('device-flow').hidden = true;
     $('download-overview').hidden = $('download-actions').hidden = false;
     if (previous && hostPage === 1) $('source-start').hidden = false;
+    if (focus && wasPreview) { onPreviewExit(); return; }
     if (focus && previous) {
       $(hostPage === 1 ? 'source-title' : 'download-title').focus();
       Visuals.reveal($(hostPage === 1 ? 'source-start' : 'download-overview'));
@@ -181,6 +195,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
     Visuals.reveal($('file-panel'));
   }
   async function deviceAction(id) {
+    if (previewMode) return;
     const targetStage = id === 'dev-disable' ? 'disable' : 'enable';
     if (busy || (id === 'dev-connect' ? stage !== 'connect' : stage !== targetStage || !connected)) return;
     const ticket = revision;
@@ -224,7 +239,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   // The chooser needs the click's user activation, so request before any await.
   // The device is open only while sending, so other apps can use it in between.
   async function sendBuild() {
-    if (busy || !direct()) return;
+    if (previewMode || busy || !direct()) return;
     const files = Object.entries(getFiles() ?? {}).sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b));
     const total = files.reduce((n, [, bytes]) => n + bytes.length, 0);
     if (!files.length) return status('This build is no longer available. Build it again, then send it.', true);
@@ -318,6 +333,12 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   $('route-mac').onclick = event => chooseRoute('mac', event);
   $('download').onclick = event => chooseRoute('windows', event);
   return {
+    previewLink(hash) {
+      const match = /^#preview\/(mac|windows)\/([a-z-]+)$/.exec(hash);
+      if (busy || !match || !previewStages.has(match[2])) return false;
+      begin('install', 3, {computer: match[1], stage: match[2]});
+      return true;
+    },
     invalidate() { downloaded = false; if (hostPage === 3) exit(false); },
     navigate(page) { if (stage && page !== hostPage) exit(false); if (page === 3) renderRoute(); },
   };

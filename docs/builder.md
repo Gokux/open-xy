@@ -70,6 +70,15 @@ npm run dev        # http://127.0.0.1:8918/
 npm run test:web
 ```
 
+Installation screens have direct preview links, such as
+`http://127.0.0.1:8918/#preview/mac/transfer`, `#preview/mac/exit-transfer`
+and `#preview/mac/write-os`. Replace `mac` with `windows` to see the manual
+copy route. These developer links open the selected step immediately, skipping
+the disclaimer and requiring no OS file or build. Device actions are disabled in previews;
+**Preview next step** continues past the send screen. **Link to this step**
+opens a shareable preview URL. **Back to builder** shows the usual disclaimer
+if it has not been acknowledged; opening a preview does not acknowledge it.
+
 The dev server serves only the browser source allowlist and the configured
 collection; do not replace it with a server rooted at the repository. Previews
 and bundles need a collection: point the ignored `.env.local` at a verified
