@@ -24,7 +24,7 @@ from .adapters import (catalog_entry, generate_display, generate_fx_object, gene
                        generate_sample_callbacks, generate_screen, generate_screen_order, generate_segment_binding,
                        generate_synth_controls, generate_voice)
 from .contributors import validate_source_boundary
-from .firmware import assemble, hook_instruction, hook_target
+from .firmware import active_services, assemble, hook_instruction, hook_target, patch_active
 from .formats import elf32, elf_sections, require, sha
 from .machines import by_kind, collection
 from .pipeline import (PROFILE, ROOT, check_patch_boundaries, child, config, document, execute, fresh_output, host_pins, host_platform,
@@ -151,7 +151,9 @@ def plan(machines):
         else:
             steps = ('registration', 'sample_voice')
         units += [(f'{m.id}/{Path(step.removeprefix("source:")).stem}.o', m, step) for step in steps]
-    units += [(f'sdk/{step}.o', None, step) for step in SDK_UNITS]
+    services = active_services(config(), (m.kind for m in machines))
+    units += [(f'sdk/{step}.o', None, step) for step in SDK_UNITS
+              if UNIT_SERVICES.get(step) is None or UNIT_SERVICES[step] in services]
     names = [name for name, _m, _step in units]
     require(len(names) == len(set(names)), 'Duplicate object name')
     return units
@@ -164,6 +166,11 @@ SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup'
              'sample_cache_hooks', 'sample_progress', 'sample_progress_stock', 'pad_assignment',
              'pad_assignment_stock', 'drum_page', 'drum_controls_stock', 'drum_display_stock', 'screen_order',
              'screen_hooks', 'synth_controls', 'synth_control_table')
+# SDK units that exist only for a profile service, linked when a machine needs it.
+UNIT_SERVICES = dict.fromkeys(('sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache',
+                               'sample_cache_stock', 'sample_cache_hooks', 'sample_progress',
+                               'sample_progress_stock', 'pad_assignment', 'pad_assignment_stock', 'drum_page',
+                               'drum_controls_stock', 'drum_display_stock'), 'samples')
 
 
 def module_bytes(profile):
@@ -206,6 +213,11 @@ def memory_summary(usage, total, limit):
 def object_owners(machines):
     """Object name -> owning machine ID (None for the SDK's shared objects), in link order."""
     return {name: (m.id if m else None) for name, m, _step in plan(machines)}
+
+
+def object_services(machines):
+    """SDK object name -> the profile service it implements, for objects that implement one."""
+    return {name: UNIT_SERVICES[step] for name, m, step in plan(machines) if m is None and step in UNIT_SERVICES}
 
 
 def compile_collection(directory, toolchain, compiler, profile, machines, definitions):
@@ -459,8 +471,11 @@ def check_module(directory, tools, profile, machines):
     patch_profile = copy.deepcopy(profile)
     hooks = {}
     text = allocated['.text']
+    services = active_services(profile, (m.kind for m in machines))
     for patch in patch_profile['patches']:
-        if patch['kind'] == 'startup':
+        if not patch_active(patch, services):
+            patch['after'] = patch['before']  # this build leaves the service's stock code unchanged
+        elif patch['kind'] == 'startup':
             patch['after'] = startup_label.jump(symbols[patch['symbol']]['value']).hex()
         elif patch['kind'] == 'hook':
             symbol = symbols[patch['symbol']]
@@ -618,7 +633,8 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
         module, report, patch_profile = compile_collection(temporary, toolchain, compiler, profile, machines,
                                                            definitions)
         expected_assets = prepare_assets(catalog, profile, machines)
-        expected_assets['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']))
+        expected_assets['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
+                                               active_services(profile, (m.kind for m in machines)))
         expected = {'candidate/' + name: data for name, data in expected_assets.items()}
         expected['analysis/module.bin'] = module
         expected['analysis/module.elf'] = read(temporary / 'module.elf')
@@ -651,7 +667,8 @@ def build(out, toolchain, compiler, stock_os, stock_content):
     analysis.mkdir()
     module, _report, patch_profile = compile_collection(analysis, toolchain, compiler, profile, machines,
                                                         definitions)
-    prepared['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']))
+    prepared['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
+                                  active_services(profile, (m.kind for m in machines)))
     for name, data in prepared.items():
         path = child(output / 'candidate', name)
         path.parent.mkdir(parents=True, exist_ok=True)

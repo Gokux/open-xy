@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT))
 from tooling.formats import elf32, ldr, mapped_offset, require, sha
 from tooling import screen, startup_label
 from tooling.adapters import catalog_defaults
-from tooling.firmware import assemble, hook_instruction
+from tooling.firmware import active_services, assemble, hook_instruction, patch_active
 
 
 def check_startup_label(module, symbols, base):
@@ -70,12 +70,15 @@ def main():
         for name, value in result['globals'].items():
             require(symbols[name]['value'] == value, 'GNU symbol differs: ' + name)
         profile = copy.deepcopy(kit['profile'])
+        services = active_services(kit['profile'], (m['kind'] for m in kit['machines'] if m['id'] in result['selected']))
         for patch in profile['patches']:
-            if patch['kind'] == 'hook':
+            if not patch_active(patch, services):
+                patch['after'] = patch['before']
+            elif patch['kind'] == 'hook':
                 patch['after'] = hook_instruction(patch, symbols[patch['symbol']]['value']).hex()
             elif patch['kind'] == 'startup':
                 patch['after'] = startup_label.jump(symbols[patch['symbol']]['value']).hex()
-        expected = assemble(stock, module, profile, kit['profile'], len(profile['patches']))
+        expected = assemble(stock, module, profile, kit['profile'], len(profile['patches']), services)
         require(expected == prefix.with_suffix('.ldr').read_bytes(), 'Python/browser firmware differs')
         selected = [m for m in kit['machines'] if m['id'] in result['selected']]
         catalog = json.loads((content / 'op1_factory.json').read_bytes())

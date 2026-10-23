@@ -5,6 +5,17 @@ from .pipeline import check_patch_boundaries
 from . import startup_label
 
 
+def active_services(profile, kinds):
+    """Profile services a collection or selection needs; each names the machine kinds that use it."""
+    kinds = set(kinds)
+    return {name for name, users in profile.get('services', {}).items() if kinds & set(users)}
+
+
+def patch_active(patch, services):
+    """An edit applies unless it belongs to a service the build leaves out."""
+    return 'service' not in patch or patch['service'] in services
+
+
 def hooks(profile):
     """Hook site -> (module symbol, call) for every redirect the profile reviews."""
     return {int(p['address'], 16): (p['symbol'], p['call']) for p in profile['patches'] if p['kind'] == 'hook'}
@@ -57,7 +68,7 @@ def hook_target(patch, instruction):
     return decode_branch(int(patch['address'], 16), instruction[:4])
 
 
-def assemble(stock, module, profile, original_profile, edits):
+def assemble(stock, module, profile, original_profile, edits, services):
     require(sha(stock) == original_profile['stock_sha256'] and len(stock) == original_profile['stock_bytes'],
             'Expected exact decrypted stock OP-XY 1.2.0')
     require(len(module) > 0 and len(module) <= original_profile['reserved_bytes'], 'Invalid module size')
@@ -67,7 +78,9 @@ def assemble(stock, module, profile, original_profile, edits):
         require(all(patch[k] == original[k] for k in ('kind', 'address', 'before', 'file_offset', 'length')),
                 'Changed patch boundary')
         after = bytes.fromhex(patch['after'])
-        if original['kind'] == 'startup':
+        if not patch_active(original, services):
+            require(patch['after'] == original['before'], 'An unused service changed stock')
+        elif original['kind'] == 'startup':
             target = startup_label.destination(after)
             require(low <= target < low + len(module), 'Startup hook does not target module')
         elif original['kind'] == 'hook':

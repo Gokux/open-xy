@@ -56,6 +56,11 @@
     "engine_types": 4435
   },
   "screen_template_sha256": "d71b110ac905c1bcfcecc9ad94237aa72fe12c531e651f170bb5a1042547fb16",
+  "services": {
+    "samples": [
+      "sample"
+    ]
+  },
   "patches": [
     {
       "kind": "heap",
@@ -253,6 +258,7 @@
       "length": 6,
       "before": "980d00e80000",
       "symbol": "extensions_sample_classify",
+      "service": "samples",
       "call": false
     },
     {
@@ -262,6 +268,7 @@
       "length": 4,
       "before": "f5602f08",
       "symbol": "extensions_sample_note_region",
+      "service": "samples",
       "call": true
     },
     {
@@ -271,6 +278,7 @@
       "length": 4,
       "before": "ffe304e3",
       "symbol": "sdk_sample_cache_destroy",
+      "service": "samples",
       "call": true
     },
     {
@@ -280,6 +288,7 @@
       "length": 4,
       "before": "00e3f614",
       "symbol": "sdk_sample_progress_frame",
+      "service": "samples",
       "call": true
     },
     {
@@ -289,6 +298,7 @@
       "length": 8,
       "before": "00d80384fc640000",
       "symbol": "sdk_sample_cache_snapshot",
+      "service": "samples",
       "call": true
     },
     {
@@ -298,6 +308,7 @@
       "length": 4,
       "before": "a8e46400",
       "symbol": "sdk_sample_cache_ipc_priority",
+      "service": "samples",
       "call": true
     },
     {
@@ -307,6 +318,7 @@
       "length": 4,
       "before": "01e3bf89",
       "symbol": "sdk_sample_cache_gui_add",
+      "service": "samples",
       "call": true
     },
     {
@@ -316,6 +328,7 @@
       "length": 4,
       "before": "01e36391",
       "symbol": "sdk_sample_cache_audio_add",
+      "service": "samples",
       "call": true
     },
     {
@@ -325,6 +338,7 @@
       "length": 4,
       "before": "01e38f7c",
       "symbol": "sdk_sample_cache_reset",
+      "service": "samples",
       "call": true
     },
     {
@@ -334,6 +348,7 @@
       "length": 4,
       "before": "01e33a84",
       "symbol": "sdk_sample_cache_reset",
+      "service": "samples",
       "call": true
     },
     {
@@ -343,6 +358,7 @@
       "length": 4,
       "before": "ffe382fb",
       "symbol": "sdk_sample_cache_worker",
+      "service": "samples",
       "call": true
     },
     {
@@ -352,6 +368,7 @@
       "length": 4,
       "before": "ffe389ff",
       "symbol": "sdk_sample_cache_send",
+      "service": "samples",
       "call": true
     },
     {
@@ -361,6 +378,7 @@
       "length": 8,
       "before": "00de588db45e0000",
       "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
       "call": true
     },
     {
@@ -370,6 +388,7 @@
       "length": 8,
       "before": "00de4d8db8ca0000",
       "symbol": "sdk_sample_region_control",
+      "service": "samples",
       "call": true
     },
     {
@@ -379,6 +398,7 @@
       "length": 8,
       "before": "00de588db45e0000",
       "symbol": "sdk_sample_press_engine",
+      "service": "samples",
       "call": true
     },
     {
@@ -388,6 +408,7 @@
       "length": 8,
       "before": "00de4f8d46d10000",
       "symbol": "sdk_sample_assignment_frames",
+      "service": "samples",
       "call": true
     },
     {
@@ -397,6 +418,7 @@
       "length": 8,
       "before": "00de588db45e0000",
       "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
       "call": true
     },
     {
@@ -406,6 +428,7 @@
       "length": 8,
       "before": "00de588db45e0000",
       "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
       "call": true
     },
     {
@@ -415,6 +438,7 @@
       "length": 8,
       "before": "00de588db45e0000",
       "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
       "call": true
     },
     {
@@ -424,6 +448,7 @@
       "length": 8,
       "before": "00de588db45e0000",
       "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
       "call": true
     },
     {
@@ -433,6 +458,7 @@
       "length": 8,
       "before": "00de588db45e0000",
       "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
       "call": true
     },
     {
@@ -442,6 +468,7 @@
       "length": 8,
       "before": "00de588d24820000",
       "symbol": "sdk_sample_record_region",
+      "service": "samples",
       "call": true
     },
     {
@@ -451,6 +478,7 @@
       "length": 8,
       "before": "00de588d24820000",
       "symbol": "sdk_sample_assign_region",
+      "service": "samples",
       "call": true
     },
     {
@@ -460,6 +488,7 @@
       "length": 8,
       "before": "00de0204d80f0000",
       "symbol": "sdk_sample_assign_fade",
+      "service": "samples",
       "call": true
     },
     {
@@ -469,6 +498,7 @@
       "length": 4,
       "before": "00e80000",
       "symbol": "extensions_sample_key",
+      "service": "samples",
       "call": false
     },
     {
@@ -478,6 +508,7 @@
       "length": 4,
       "before": "ffe32df6",
       "symbol": "sdk_sample_drum_display",
+      "service": "samples",
       "call": true
     },
     {
@@ -487,6 +518,7 @@
       "length": 4,
       "before": "fde34919",
       "symbol": "sdk_sample_drum_range",
+      "service": "samples",
       "call": true
     },
     {
@@ -496,6 +528,7 @@
       "length": 4,
       "before": "48a1404d",
       "symbol": "sdk_sample_drum_fade",
+      "service": "samples",
       "call": true
     },
     {
@@ -505,6 +538,7 @@
       "length": 8,
       "before": "05da0108c0f70000",
       "symbol": "sdk_sample_pending_retry",
+      "service": "samples",
       "call": true
     },
     {
@@ -514,6 +548,7 @@
       "length": 8,
       "before": "0cda0108dcf70000",
       "symbol": "sdk_sample_active_retry",
+      "service": "samples",
       "call": true
     },
     {
@@ -523,6 +558,7 @@
       "length": 4,
       "before": "00e34752",
       "symbol": "sdk_sample_live_pitch_kind",
+      "service": "samples",
       "call": true
     },
     {
@@ -532,6 +568,7 @@
       "length": 4,
       "before": "ffe37db1",
       "symbol": "sdk_sample_octave_store",
+      "service": "samples",
       "call": true
     },
     {

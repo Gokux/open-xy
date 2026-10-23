@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {readObject, identities, linkKit, moduleBytes, openKit, readLdr, recoverFirmware, zipFiles, sha256} from '../builder/core.mjs';
+import {activeServices, readObject, identities, linkKit, moduleBytes, openKit, readLdr, recoverFirmware, zipFiles, sha256} from '../builder/core.mjs';
 
 // Tiny authored ELF fixture, independent of private firmware/toolchains.
 function elf() {
@@ -58,6 +58,17 @@ test('declared callbacks of unselected machines resolve to fallbacks only for SD
   assert.throws(()=>linkKit(k,['a']),/Unresolved import/);
   o.symbols[2].name='probe_ready'; missing.absent={probe_ready:'undefined_fallback'};
   assert.throws(()=>linkKit(k,['a']),/absent-machine callback/);
+});
+test('SDK objects of a profile service link only when a selected machine uses it', () => {
+  const k=fixture();
+  assert.deepEqual([...activeServices(k.profile,[{kind:'synth'},{kind:'effect'}])],[]);
+  assert.deepEqual([...activeServices(k.profile,[{kind:'synth'},{kind:'sample'}])],['samples']);
+  // The service object redefines `entry`, so linking it would be a duplicate global.
+  k.objects.push({...k.objects[0],name:'service.o',owner:null,service:'samples'});
+  const linked=linkKit(k,['a']);
+  assert.deepEqual(linked.objects.map(o=>o.name),['a.o']); assert.equal(linked.services.size,0);
+  k.machines.push({...machine('b',46,7),kind:'sample'});
+  assert.throws(()=>linkKit(k,['a','b']),/Duplicate global symbol: entry/);
 });
 test('empty, unknown, repeated selections, duplicate globals and memory exhaustion are rejected', () => {
   const k=fixture(); for(const s of [[],['missing'],['a','a']]) assert.throws(()=>linkKit(k,s),/Choose each machine once/);
