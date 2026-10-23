@@ -43,7 +43,9 @@ struct SampleAssignment {
 // pressed is a separate click; turning suppresses that click on release.
 struct DrumControl { u32 knob; i32 direction; bool pressed; bool shifted; bool held; };
 // What the drum page shows for the selected pad, as the machine plays it with
-// the track's live parameters applied. The SDK only projects these values.
+// the track's live parameters applied. The SDK only projects these values. It
+// passes the panel in with pitch 0, the saved direction and an unchanged level,
+// so a machine sets what its controls change.
 struct DrumPanel {
     i32 pitch_cents;      // live offset in cents; the SDK adds the pad's saved pitch
     bool repeat;          // loop (true) or play once (false)

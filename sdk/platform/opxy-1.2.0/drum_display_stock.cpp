@@ -98,16 +98,6 @@ u32 sdk_sample_drum_range(const i32* region, void* start, void* end) {
     return range(header, start, end);
 }
 
-// IEEE single-precision bits of value / 2^31, without floating-point helpers;
-// 0x7fffffff is exactly 1.0, as stock's own conversion treats full scale.
-static u32 q31_float(u32 value) {
-    if (value >= 0x7fffffffu) return 0x3f800000u;
-    if (!value) return 0;
-    u32 exponent = 126;
-    while (!(value & 0x40000000u)) { value <<= 1; --exponent; }
-    return (exponent << 23) | ((value >> 7) & 0x7fffffu);
-}
-
 // 8d5347de: stock 8d533438 paints the drum page. An owned page paints the
 // machine's panel; with Shift held, its two captions replace the pan row.
 void sdk_sample_drum_display(Node* page, const void* region, u32 third, u32 fourth, u32 fifth) {
@@ -144,7 +134,7 @@ void sdk_sample_drum_display(Node* page, const void* region, u32 third, u32 four
             third = reinterpret_cast<u32>(&projected);
             // The shadow record already carries the panel's direction; scale
             // the saved volume (a float) by the panel's level.
-            fourth = stock<u32(u32, u32)>(0x04021ac0)(fourth, q31_float(view->level));
+            fourth = stock<u32(u32, u32)>(0x04021ac0)(fourth, q31_float_bits(view->level));
         }
         else owned = false;
     }

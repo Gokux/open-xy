@@ -67,6 +67,8 @@ extern "C" const opxy::DrumPanel* sdk_sample_drum_view(const void* raw, void* sh
     current_panel = opxy::DrumPanel{};
     if (!raw || !shadow || !m) return nullptr;
     const opxy::SampleRegion region = opxy::platform::sample_gui_region(raw);
+    current_panel.reverse = region.reverse;
+    current_panel.level = 0x7fffffff;
     m->panel(settings(m, raw), &region, parameters, &current_panel);
     // Saved pad pitch is at most an octave either way, as the voice plays it.
     const i32 saved = region.pitch_cents;

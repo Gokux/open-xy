@@ -109,7 +109,6 @@ inline void drum_panel(opxy::PadSettings value, const opxy::SampleRegion& saved,
                        opxy::DrumPanel& panel) {
     const EffectiveControls effective = effective_controls(value, live);
     const Controls c = effective.pad;
-    panel = opxy::DrumPanel{};
     panel.pitch_cents = effective.pitch_cents;
     panel.repeat = !c.once;
     panel.reverse = live_mode(live_parameter(live, 4), saved.reverse);

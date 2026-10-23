@@ -259,13 +259,17 @@ release. Machines decide how that gesture changes their stepping.
 parameters audio uses, and reports the pad as the machine plays it: the live
 pitch offset in cents (the page adds the pad's saved pitch), loop or play once,
 direction, a Q31 scale of the saved volume, and two Shift captions of at most
-15 characters, which replace the pan row. The SDK only projects these onto the
-stock page, so a machine applies its live controls in one place for display and
-audio. Callbacks are bounded and allocation-free.
+15 characters, which replace the pan row. The panel arrives with pitch 0, the
+saved direction and an unchanged level, so a machine sets what its controls
+change. On the drum page `saved.level` is unity: stock keeps the pad's volume
+separately, and `level` scales it. The SDK only projects the panel onto the
+stock page, so a machine applies its live controls in one place for display
+and audio. Callbacks are bounded and allocation-free.
 
-The stock page and editor give two slots a fixed meaning: slot 0 is the pitch
-offset, -12..12 semitones in stock's ten-cent steps, and slots 1 and 2 drive
-stock's start and end trim overlays. The machine defines the others in
+Stock's page reads slots 0 to 3 as pitch, start, end and play mode. The SDK
+replaces pitch and play mode with the panel's, so only slots 1 and 2, the start
+and end trim overlays, reach stock directly; slot 0 keeps stock's ten-cent pitch
+editing, -12..12 semitones. The machine defines the remaining slots in
 `definition.json`. See [Timestretch](../machines/timestretch/controls.h).
 
 ### Sample analysis

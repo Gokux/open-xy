@@ -82,6 +82,11 @@ int main() {
     reinterpret_cast<unsigned char*>(low_root)[24] = 36;
     empty_panel = sdk_sample_drum_view(low_root, shadow, nullptr);
     check(empty_panel && empty_panel->pitch_cents == 1200);
+    // The panel's level reaches stock as rounded float bits.
+    check(opxy::platform::q31_float_bits(0) == 0 && opxy::platform::q31_float_bits(1) == 0x30000000u &&
+          opxy::platform::q31_float_bits(0x20000000) == 0x3e800000u &&
+          opxy::platform::q31_float_bits(0x40000040) == 0x3f000001u &&
+          opxy::platform::q31_float_bits(0x7fffffff) == 0x3f800000u);
     // The painted copy plays in the panel's direction (this probe inverts the
     // saved one); the stored record keeps its own.
     check((reinterpret_cast<unsigned char*>(shadow)[31] & 1) == 1 && (reinterpret_cast<unsigned char*>(low_root)[31] & 1) == 0);
