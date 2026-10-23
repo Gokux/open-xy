@@ -7,7 +7,7 @@ using opxy::u32;
 using opxy::platform::SampleMachine;
 
 extern "C" {
-u32 sdk_sample_page(u32) __asm__("sdk_sample_page");
+u32 sdk_sample_note_route(u32) __asm__("sdk_sample_note_route");
 u32 sdk_sample_alias(u32) __asm__("sdk_sample_alias");
 }
 
@@ -19,9 +19,16 @@ const SampleMachine* sdk_sample_machine(u32 engine) {
     return nullptr;
 }
 
-// Note-region hook: the owned machine's stock page (2 or 7), or 0.
-u32 sdk_sample_page(u32 engine) { return opxy::platform::sample_page(engine); }
+// Note-region hook, decoded by extensions_sample_note_region (sample_hooks.s).
+// An owned engine borrows the multisampler payload and keeps stock's
+// nearest-region test, except on the drum page (7), where notes map to its
+// canonical pads.
+enum NoteRoute : u32 { kStockRoute = 0, kOwnedNearest = 1, kOwnedDrumPads = 2 };
+u32 sdk_sample_note_route(u32 engine) {
+    const u32 page = opxy::platform::sample_page(engine);
+    return !page ? kStockRoute : page == 7 ? kOwnedDrumPads : kOwnedNearest;
+}
 
 // Stock's sample predicates know only stock engine IDs. Owned SDK engines
 // borrow the multisampler's (30) payload; the track keeps the real engine.
-u32 sdk_sample_alias(u32 engine) { return sdk_sample_page(engine) ? 30 : engine; }
+u32 sdk_sample_alias(u32 engine) { return opxy::platform::sample_page(engine) ? 30 : engine; }

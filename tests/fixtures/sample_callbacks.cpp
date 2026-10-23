@@ -3,6 +3,7 @@
 #include <cstring>
 #include <initializer_list>
 static unsigned selected = 46, edits;
+extern "C" unsigned sdk_sample_note_route(unsigned) __asm__("sdk_sample_note_route");
 static bool owned = true;
 static opxy::DrumControl received;
 extern "C" unsigned sdk_sample_selected_engine() { return selected; }
@@ -63,6 +64,8 @@ int main() {
           assigned.previous == 0xabcd && assigned.filename == replacement.filename &&
           assigned.filename_bytes == 12 && assigned.rate == 48000 && !assigned.recorded);
     check(sdk_sample_machine(46)->defaults() == 77);
+    // The probe's drum page skips stock's nearest-region test; other engines stay stock's.
+    check(sdk_sample_note_route(46) == 2 && sdk_sample_note_route(18) == 0);
     unsigned raw[8] = {1000, 0, 1000, 0, 1000, 0, 60, 0};
     auto* bytes = reinterpret_cast<unsigned char*>(raw);
     // An unassigned, zero-initialized pad has neutral tuning. Painting must
