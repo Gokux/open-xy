@@ -93,8 +93,9 @@ shown, whose title and stock percentage the page shows. Every parameter keeps
 its own slot in the eight-word vector, so `render` receives all of them and
 presets, projects and the catalog's defaults store each one. The selection is
 per track, starts on the position's own parameter and is not saved. Display
-inputs carry each position's shown value and its parameter index (`shown`), so
-a [text control](display.md#segment-display) can format whichever is shown.
+inputs carry each position's shown value, its parameter index (`shown`) and
+every parameter's value (`slots`), so a [text control](display.md#segment-display)
+can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position. See
 [Macro Osc](../machines/macroosc/definition.json), whose fourth encoder
 switches between FM ratio and depth.

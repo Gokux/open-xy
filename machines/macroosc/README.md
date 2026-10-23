@@ -9,8 +9,10 @@ fourth switches it to **FM Depth** and back. Timbre/Color retain each model's
 upstream meaning. FM retunes the oscillator with a sine modulator at 0.5 to 8
 times the note frequency; depth 0 is the unmodulated model. The complete
 model/code/label list is in [models.hpp](models.hpp). The screen shows the
-model code on four glowing 14-segment characters and one knob per encoder; the
-Model knob steps between models and the fourth value reads `x2` or `40%`.
+model code on four glowing 14-segment characters and knobs for Timbre, Color
+and, joined on the right, FM Ratio (stepped) and FM Depth; each knob always
+shows its own parameter, and the fourth value reads `2` or `40%` for whichever
+the encoder edits.
 
 ```sh
 python sdk.py preview --engine macroosc --out local/macro-preview-001

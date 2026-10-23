@@ -35,7 +35,12 @@ struct Input {
     u32 note_serial;         // Snapshot, not an event queue; wraps modulo 2^32.
     u32 reduced_motion;
     u8 shown[page_controls];  // Declared parameter shown at each position, as in segments::Input.
+    i32 slots[parameter_slots];  // Every declared parameter's value, as in segments::Input.
 };
+static_assert(sizeof(Input) == 68 && __builtin_offsetof(Input, elapsed) == 16 && __builtin_offsetof(Input, track) == 20 &&
+              __builtin_offsetof(Input, note_serial) == 24 && __builtin_offsetof(Input, reduced_motion) == 28 &&
+              __builtin_offsetof(Input, shown) == 32 && __builtin_offsetof(Input, slots) == 36,
+              "Drawing input layout (display.mjs)");
 
 // Defined floor division by 1024 on both compilers, including negative values.
 // Callers keep products inside int32. No floating point or runtime division.

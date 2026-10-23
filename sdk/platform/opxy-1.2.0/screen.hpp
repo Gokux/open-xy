@@ -128,21 +128,29 @@ inline void set_words(Leaf* node, const u32 (&at)[4], const i32 (&value)[4]) {
 }
 
 // The four page positions as shown: the track, each position's parameter slot
-// (its own, or an alternate an encoder press selected) and that slot's value;
-// valid once the stock vector was readable.
-struct Controls { u32 track; bool valid; u8 shown[page_controls]; i32 values[page_controls]; };
+// (its own, or an alternate an encoder press selected) and that slot's value,
+// and every slot's value; valid once the stock vector was readable.
+struct Controls {
+    u32 track;
+    bool valid;
+    u8 shown[page_controls];
+    i32 values[page_controls];
+    i32 slots[parameter_slots];
+};
 
-// Fills controls.values from the stock parameter vector, bounds-checked; a slot
-// beyond the vector shows the position's own. view receives the same vector
-// with each position's shown word in its place, for stock's percentages.
+// Fills controls.slots and values from the stock parameter vector,
+// bounds-checked; a slot beyond the vector reads 0 and shows the position's
+// own. view receives the same vector with each position's shown word in its
+// place, for stock's percentages.
 inline bool read_shown(const Parameters* p, Controls& controls, u32 (&view)[parameter_slots]) {
     if (!p || !p->begin || p->end < p->begin || p->end - p->begin < 16 || p->begin & 3) return false;
     const u32 words = (p->end - p->begin) / 4 < parameter_slots ? (p->end - p->begin) / 4 : parameter_slots;
     const i32* in = reinterpret_cast<const i32*>(p->begin);
-    for (u32 i = 0; i < parameter_slots; ++i) view[i] = i < words ? in[i] : 0;
+    for (u32 i = 0; i < parameter_slots; ++i) controls.slots[i] = i < words ? in[i] : 0;
+    for (u32 i = 0; i < parameter_slots; ++i) view[i] = static_cast<u32>(controls.slots[i]);
     for (u32 i = 0; i < page_controls; ++i) {
         if (controls.shown[i] >= words) controls.shown[i] = static_cast<u8>(i);
-        controls.values[i] = in[controls.shown[i]];
+        controls.values[i] = controls.slots[controls.shown[i]];
         view[i] = static_cast<u32>(controls.values[i]);
     }
     return true;
@@ -158,6 +166,7 @@ inline bool refresh_controls(Base* o, Controls& controls) {
     controls.track = selected_track();
     sdk_synth_shown(controls.track, controls.shown);
     for (u32 i = 0; i < page_controls; ++i) controls.values[i] = 0;
+    for (u32 i = 0; i < parameter_slots; ++i) controls.slots[i] = 0;
     const Parameters* stock_vector = parameters(controls.track);
     u32 words[parameter_slots];
     const Parameters view = {0, static_cast<u32>(reinterpret_cast<platform::Address>(words)),

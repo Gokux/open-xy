@@ -5,13 +5,14 @@
 #include "models.hpp"
 
 namespace macroosc {
-// Four characters; the model code replaces the first control's value, and the
-// fourth shows the FM ratio or, after a press of its encoder, the FM depth.
+// Four characters show the model; its code replaces the first control's value,
+// and the fourth shows the FM ratio or, after a press of its encoder, the FM depth.
 using Frame = opxy::segments::Frame<4>;
 // The knobs turn 144 degrees either side of 12 o'clock, end to end of their ticks.
 const opxy::i32 kSweep = 1440;
 const unsigned kModels = sizeof(models) / sizeof(models[0]);
-const unsigned kRatioSlot = 3;
+// Parameter slots (definition.json).
+const unsigned kModelSlot = 0, kTimbreSlot = 1, kColorSlot = 2, kRatioSlot = 3, kDepthSlot = 4;
 // A whole percentage, 0..100, rounded as the preview shows it.
 inline void percent(char* out, unsigned capacity, opxy::i32 value) {
   unsigned p = value < 0 ? 0 : ((static_cast<unsigned>(value) >> 8) * 100 + (1u << 22)) >> 23;
@@ -24,17 +25,17 @@ inline void percent(char* out, unsigned capacity, opxy::i32 value) {
   text[n] = 0;
   opxy::segments::text(out, capacity, text);
 }
-// The FM ratio as its enum label: x0.5, x1, x1.5 ... x8.
+// The FM ratio as its enum label: 0.5, 1, 1.5 ... 8.
 inline void ratio(char* out, unsigned capacity, unsigned halves) {
-  char text[5] = {'x', static_cast<char>('0' + halves / 2), 0, 0, 0};
+  char text[4] = {static_cast<char>('0' + halves / 2), 0, 0, 0};
   if (halves & 1) {
-    text[2] = '.';
-    text[3] = '5';
+    text[1] = '.';
+    text[2] = '5';
   }
   opxy::segments::text(out, capacity, text);
 }
 inline void display(const opxy::segments::Input& input, Frame& frame) {
-  const opxy::i32 model = input.parameters[0];
+  const opxy::i32 model = input.slots[kModelSlot];
   unsigned index = model < 0 ? 0 : ((static_cast<unsigned>(model) >> 16) * kModels) >> 15;
   for (unsigned i = 0; i < 4; ++i)
     frame.masks[i] = models[index].masks[i];
@@ -45,9 +46,13 @@ inline void display(const opxy::segments::Input& input, Frame& frame) {
   else
     percent(frame.values[3], sizeof(frame.values[3]), input.parameters[3]);
   frame.key = index + 1;
-  // The model knob steps between models; the others turn continuously.
-  frame.dials[0] = opxy::segments::rotation(-kSweep + static_cast<opxy::i32>(index) * 2 * kSweep / (kModels - 1));
-  for (unsigned i = 1; i < 4; ++i)
-    frame.dials[i] = opxy::segments::sweep(input.parameters[i], kSweep);
+  // Knobs: Timbre and Color along the bottom; on the right, the linked pair
+  // the fourth encoder switches between, each showing its own parameter: FM
+  // Ratio below, stepping between ratios, and FM Depth above.
+  frame.dials[0] = opxy::segments::sweep(input.slots[kTimbreSlot], kSweep);
+  frame.dials[1] = opxy::segments::sweep(input.slots[kColorSlot], kSweep);
+  const opxy::i32 step = static_cast<opxy::i32>(RatioStepFromParameter(input.slots[kRatioSlot]));
+  frame.dials[2] = opxy::segments::rotation(-kSweep + step * 2 * kSweep / (kRatios - 1));
+  frame.dials[3] = opxy::segments::sweep(input.slots[kDepthSlot], kSweep);
 }
 }  // namespace macroosc
