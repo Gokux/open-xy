@@ -9,25 +9,10 @@ import {shownControls} from '../sdk/browser/controls.mjs';
 const $ = id => document.getElementById(id);
 document.querySelectorAll('[data-icon]').forEach(el => el.append(Visuals.icon(el.dataset.icon)));
 $('source-device-art').append(Visuals.device());
-// Acknowledgement is explicit for each page load; no stored or prechecked consent.
+// Preview links can show the guide immediately; using the builder still needs acknowledgement.
+let acknowledged = false;
 $('risk-acknowledgement').checked = false;
 $('risk-continue').disabled = true;
-await new Promise(resolve => {
-  $('risk-acknowledgement').onchange = () => {
-    $('risk-continue').disabled = !$('risk-acknowledgement').checked;
-  };
-  $('risk-form').onsubmit = event => {
-    event.preventDefault();
-    if (!$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
-    $('risk-gate').hidden = true;
-    $('phase-nav').hidden = false;
-    $('builder-workspace').hidden = false;
-    $('builder-workspace').inert = false;
-    $('input-title').focus();
-    Visuals.reveal($('builder-workspace'));
-    resolve();
-  };
-});
 const colors = ['var(--machine-1)', 'var(--machine-2)', 'var(--machine-3)', 'var(--machine-4)'];
 const kib = n => (n / 1024).toFixed(1) + ' KiB';
 let kit, stock, catalog, selected = [], inspected, linked, downloadUrl, built, layout, revision = 0;
@@ -63,7 +48,48 @@ function ready() {
   $('build').disabled = !(stock && linked);
 }
 
-const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => selected, hasDownload: () => !!downloadUrl, getFiles: () => built});
+const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => selected, hasDownload: () => !!downloadUrl, getFiles: () => built,
+  onPreviewExit() {
+    history.replaceState(null, '', location.pathname + location.search);
+    if (acknowledged) navigate(1); else showDisclaimer();
+  },
+});
+function showDisclaimer() {
+  wizard.navigate(1);
+  $('risk-gate').hidden = false;
+  $('phase-nav').hidden = true;
+  $('builder-workspace').hidden = true;
+  $('builder-workspace').inert = true;
+}
+function openPreviewLink() {
+  if (wizard.previewLink(location.hash)) {
+    $('risk-gate').hidden = true;
+    $('builder-workspace').hidden = false;
+    $('builder-workspace').inert = false;
+    if (!acknowledged) $('status').textContent = '';
+    navigate(3);
+  } else if (!acknowledged) showDisclaimer();
+}
+window.addEventListener('hashchange', openPreviewLink);
+openPreviewLink();
+// Keep the full builder paused while browsing preview links. Leaving a preview
+// returns to this unchecked notice instead of treating the preview as consent.
+await new Promise(resolve => {
+  $('risk-acknowledgement').onchange = () => {
+    $('risk-continue').disabled = !$('risk-acknowledgement').checked;
+  };
+  $('risk-form').onsubmit = event => {
+    event.preventDefault();
+    if (!$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
+    acknowledged = true;
+    $('risk-gate').hidden = true;
+    $('phase-nav').hidden = false;
+    $('builder-workspace').hidden = false;
+    $('builder-workspace').inert = false;
+    navigate(1);
+    resolve();
+  };
+});
 
 async function readBounded(file, limit) {
   Core.requireThat(file && file.size > 0 && file.size <= limit, 'Missing or oversized file');
@@ -297,3 +323,4 @@ try {
   $('notices').closest('details').hidden = false;
   renderMachines(); inspect(kit.machines[0].id); recalculate();
 } catch (error) { fail(error); }
+openPreviewLink();

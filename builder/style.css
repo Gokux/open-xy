@@ -187,6 +187,9 @@ details input { max-width:100%; }
 .flow-copy #flow-detail { margin:0; }
 .flow-copy .flow-actions { justify-content:flex-start; margin-top:20px; }
 .flow-copy .instruction-list { margin:18px 0; padding-left:18px; gap:8px; font-size:13px; }
+.install-reminder { margin:20px 0; padding:18px; border:1px solid #ffd45c; border-radius:8px; background:#2b2411; box-shadow:0 0 20px #ffd45c30,inset 0 0 16px #ffd45c0d; }
+.install-reminder h3 { margin:0 0 10px; color:#ffe083; font-size:20px; text-shadow:0 0 14px #ffd45c66; }
+.install-reminder p { margin:10px 0 0; color:#fff0c2; font-size:13px; line-height:1.6; }
 #flow-files .copy-guide { gap:10px; grid-template-columns:minmax(0,1fr) 15px minmax(0,1fr); margin:20px 0 0; }
 #flow-files .copy-tree { padding:12px; border-radius:6px; }
 #flow-files .copy-tree>svg { display:none; }
