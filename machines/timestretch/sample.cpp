@@ -18,7 +18,7 @@ void render_sample(Voice& voice, const opxy::SampleBlock& block) {
     bind_analysis(voice, block.analysis);
     region(voice, live_marker(block.region.begin, voice.sample.frames, live_parameter(block.parameters, 1)),
         live_marker(block.region.end, voice.sample.frames, live_parameter(block.parameters, 2)),
-        block.region.reverse != (live_parameter(block.parameters, 4) >= 0x40000000u));
+        live_mode(live_parameter(block.parameters, 4), block.region.reverse));
     const opxy::u32 channels = block.output_channels == 2 ? 2 : 1;
     render(voice, block.output, parameters, block.pitch, block.transport, channels);
     gain(block.output, live_scale(block.region.level, live_parameter(block.parameters, 7)), channels);

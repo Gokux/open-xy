@@ -64,7 +64,7 @@ inline void bind_controls(Base* o) { stock<void(Leaf**, Base*, u32)>(0x8d520b3c)
 inline void* find(Base* o, const char* id) { return platform::find_node(o, id); }
 inline void draw(Base* o) { stock<void(Base*, u32)>(0x8d51f254)(o, 0); }
 inline u32 selected_track() { return platform::selected_track(); }
-inline const Parameters* parameters() { return stock<const Parameters*()>(0x8d4d7c60)(); }
+inline const Parameters* parameters(u32 track) { return stock<const Parameters*(u32)>(0x8d4d7c60)(track); }
 inline void update_controls(Base* o, u32 track, const Parameters* p) {
     stock<void(Leaf**, u32, const Parameters*)>(0x8d545ae4)(o->values, track, p);
 }
@@ -158,7 +158,7 @@ inline bool refresh_controls(Base* o, Controls& controls) {
     controls.track = selected_track();
     sdk_synth_shown(controls.track, controls.shown);
     for (u32 i = 0; i < page_controls; ++i) controls.values[i] = 0;
-    const Parameters* stock_vector = parameters();
+    const Parameters* stock_vector = parameters(controls.track);
     u32 words[parameter_slots];
     const Parameters view = {0, static_cast<u32>(reinterpret_cast<platform::Address>(words)),
                              static_cast<u32>(reinterpret_cast<platform::Address>(words + parameter_slots))};

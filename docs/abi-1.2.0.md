@@ -125,8 +125,10 @@ parameter slot and a turn edits that slot; everything else reaches stock unchang
 track, reset when the track's engine changes.
 
 Stock draws each position's title from the engine record's parameter-name
-callback and its value as a percentage of the vector word. The adapter's
-callback names the shown parameter, and the screen shell passes stock a copy
+callback and its value as a percentage of the vector word. The screen's
+parameter-vector getter (`0x8d4d7c60`) takes the selected track in R0; the
+adapter passes it explicitly after refreshing alternate-control selection.
+The adapter's callback names the shown parameter, and the screen shell passes stock a copy
 of the vector with each position's shown word in place.
 
 ## Sample engines

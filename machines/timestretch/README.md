@@ -38,8 +38,9 @@ stock drum page (page 7): each pad has its own sample and settings.
   also changes speed. Retriggering a pad, at any octave, chokes its previous
   voice; other pads and tracks keep playing.
 - **Live controls** start from the pad's settings. Start and end move the
-  markers toward the sample's ends; play and mode have a middle `pad`
-  position that keeps the saved choice; reverse flips the saved direction;
+  markers toward the sample's ends; play, mode and reverse have a middle `pad`
+  position that keeps the saved choice. Reverse's outer positions force
+  forward (`off`) or backward (`on`) playback;
   volume scales the saved volume. Tempo offsets the source BPM by up to ±140
   BPM, or the length by up to ±5 steps. The bundled preset centers them.
 - **Analysis.** Timestretch mode needs an analysis of the sample, prepared on
