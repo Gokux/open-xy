@@ -75,6 +75,9 @@ SEGMENT_DIALS = (0, 4)
 # Analysis storage is allocated from the stock heap at runtime, which also holds
 # stock samples; the SDK lets one machine take at most this much of it.
 ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
+# A sample engine's optional services: integer 0/1 flags and the analysis budget.
+SAMPLE_FLAGS = ('chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput')
+SAMPLE_OPTIONS = ('sampleAnalysis', *SAMPLE_FLAGS)
 DISPLAY_FORMATS = ('ratio', 'percent', 'duration', 'semitones', 'enum')
 # Synths fill the four-control page; sample engines and effects use up to the
 # stock eight-word parameter vector.
@@ -86,7 +89,7 @@ def validate_definition(value, kind):
     require(type(value['schema']) is int and value['schema'] == 1, 'Unknown definition schema')
     stock_name(value['id']); label(value['name'])
     resources = value['resources']
-    optional = tuple(k for k in ('sampleAnalysis', 'chokeSameKey', 'drumControls', 'stereoOutput') if kind == 'sample' and isinstance(resources, dict) and k in resources)
+    optional = tuple(k for k in SAMPLE_OPTIONS if kind == 'sample' and isinstance(resources, dict) and k in resources)
     keys(resources, (*RESOURCES[kind], *optional), 'resources')
     require(all(type(v) is int for k, v in resources.items() if k != 'display'),
             'Numeric resource requirements must be integers')
@@ -96,9 +99,10 @@ def validate_definition(value, kind):
         heap = resources.get('sampleAnalysis', 0)
         require(type(heap) is int and (heap == 0 or (4096 <= heap <= ANALYSIS_HEAP_LIMIT and heap % 4 == 0)),
                 'sampleAnalysis is 0 or the analysis heap budget in bytes, up to %d' % ANALYSIS_HEAP_LIMIT)
-        require(resources.get('chokeSameKey', 0) in (0, 1), 'Same-key choke must be 0 or 1')
-        require(resources.get('drumControls', 0) in (0, 1), 'Drum controls must be 0 or 1')
-        require(resources.get('stereoOutput', 0) in (0, 1), 'Stereo output must be 0 or 1')
+        for flag in SAMPLE_FLAGS:
+            require(resources.get(flag, 0) in (0, 1), flag + ' must be 0 or 1')
+        require(resources.get('padSettings', 0) or not resources.get('drumControls', 0),
+                'drumControls edits pad settings: it needs padSettings')
     if kind == 'synth':
         validate_synth_resources(resources)
     parameters = value['parameters']

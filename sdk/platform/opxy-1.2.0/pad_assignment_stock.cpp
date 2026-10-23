@@ -30,7 +30,7 @@ const u32 kPendingGeneration = 0x0801f6a0;
 const u32 kActivePath = 0x0801f7dc;         // the worker's own path, never the browser's pending choice
 const u32 kWorkerBusy = 0x0801f7bc;         // byte
 const u32 kInitializeRegion = 0x8d588224;   // (track, key, ...) initializes a new pad region
-bool owned(u32 track) { return track < kTracks && drum_controls(track_engine(track)); }
+bool owned(u32 track) { return track < kTracks && pad_settings(track_engine(track)); }
 
 // The header worker's metadata for the job it just read, consumed once by the
 // region initializer of the same job. valid is published last. Pad settings

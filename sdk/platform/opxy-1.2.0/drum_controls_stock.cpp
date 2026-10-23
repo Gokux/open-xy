@@ -75,14 +75,15 @@ u32 sdk_sample_live_pitch_kind(u32 id) {
 }
 
 // 8c0b3290 (through the stub in drum_page.s): an encoder press. button
-// is the index minus six (4..7). Main first/fourth and Shift second/third go
-// to the machine; owned presses never enter stock's mode cycle.
+// is the index minus six (4..7). With drum controls, main first/fourth and
+// Shift second/third go to the machine. Presses on a page whose pad records
+// hold machine settings never enter stock's mode cycle.
 u32 sdk_sample_press_engine_owned(u32 track, u32 button) {
     if (track >= kTracks) return kNoEngine;
     const u32 id = track_engine(track);
-    if (!drum_controls(id)) return sdk_sample_alias(id);
+    if (!pad_settings(id)) return sdk_sample_alias(id);
     const bool shifted = shift_held();
-    if (shifted ? button == 5 || button == 6 : button == 4 || button == 7) {
+    if (drum_controls(id) && (shifted ? button == 5 || button == 6 : button == 4 || button == 7)) {
         const u32 key = stock<u32(u32)>(0x8d4d7650)(track);
         if (void* region = pad_region(track, key)) {
             if (sdk_sample_edit(region, button + (shifted ? 8 : 4), 0, id)) publish(key);
@@ -92,10 +93,13 @@ u32 sdk_sample_press_engine_owned(u32 track, u32 button) {
 }
 
 // 8c0b21c6: an encoder turn. Stock keeps trim, reverse and volume mutation
-// and all publication; the machine receives its own controls.
+// and all publication; the machine receives its own controls. Shift encoders
+// 2 and 3 (controls 5 and 6) edit the stock fade word, which holds the pad
+// settings of any machine declaring them, so they never reach stock then.
 u32 sdk_sample_region_control(u32 key, u32 control, const u32* event, u32 fine) {
     const u32 track = byte(kSelectedTrack);
     const u32 id = track < kTracks ? track_engine(track) : kNoEngine;
+    if ((control == 5 || control == 6) && pad_settings(id) && !drum_controls(id)) return 0;
     if ((control <= 3 || control == 5 || control == 6) && drum_controls(id)) {
         // Middle encoders edit the outer markers through stock's normalizer.
         if (control == 1) return region_control(key, 0, event, fine);

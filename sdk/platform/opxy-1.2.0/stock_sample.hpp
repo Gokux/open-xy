@@ -21,6 +21,10 @@ inline SampleView stock_sample_view(const void* opaque) {
     return SampleView{data, frames, rate, object[sample_object::kStereo] ? 2u : 1u};
 }
 
+// Stock decodes at most this many frames of a file (20 s at 44.1 kHz); a longer
+// file loads truncated.
+const u32 kLoaderFrames = 882000;
+
 // The 32-byte pad record the GUI edits (from stock 8d587904): words, then bytes.
 namespace pad_record {
 const u32 kFrames = 0, kStart = 1, kEnd = 2;  // outer markers; words 3/4 are inner loop markers
@@ -43,14 +47,16 @@ static_assert(pad_record::kFade * 4 + 4 <= pad_record::kRoot && pad_record::kFla
 inline u32 pad_word(const void* raw, u32 index) { return static_cast<const u32*>(raw)[index]; }
 inline unsigned char pad_byte(const void* raw, u32 offset) { return static_cast<const unsigned char*>(raw)[offset]; }
 
-// Tagged, float-round-trippable payload in the stock nonnegative fade word.
-inline SampleSettings sample_settings(u32 word) {
+// Pad settings as a tagged, float-round-trippable payload in the stock
+// nonnegative fade word: stock converts it through binary32 on project save.
+struct SavedSettings { PadSettings value; bool saved; };
+inline SavedSettings sample_settings(u32 word) {
     const bool valid = (word & 0xff80007fu) == 0x5a800000u;
-    return SampleSettings{valid ? (word >> 7) & 65535u : 0, valid};
+    return SavedSettings{static_cast<PadSettings>(valid ? (word >> 7) & 65535u : 0), valid};
 }
-inline u32 sample_store_settings(u32 value) { return 0x5a800000u | ((value & 65535u) << 7); }
-inline SampleSettings pad_settings(const void* raw) { return sample_settings(pad_word(raw, pad_record::kFade)); }
-inline void store_pad_settings(void* raw, u32 value) {
+inline u32 sample_store_settings(PadSettings value) { return 0x5a800000u | (u32(value) << 7); }
+inline SavedSettings saved_settings(const void* raw) { return sample_settings(pad_word(raw, pad_record::kFade)); }
+inline void store_pad_settings(void* raw, PadSettings value) {
     static_cast<u32*>(raw)[pad_record::kFade] = sample_store_settings(value);
 }
 // Keep only pad controls across a file replacement. The new initializer still
@@ -75,6 +81,9 @@ inline void sample_restore_replacement(void* raw, const SampleReplacement& prior
     bytes[kLevel] = prior.level;
     bytes[kFlags] = static_cast<unsigned char>((bytes[kFlags] & ~kReverse) | prior.reverse);
 }
+// Stock tunes a pad by its root as MIDI cents: middle C (6000) plays the sample
+// unchanged, so SampleRegion::pitch_cents is 6000 minus the root.
+const i32 kNeutralRootCents = 6000;
 // floor(base * (1 + fraction/2^24)), using bounded 12-bit limbs.
 inline u32 sample_detune_factor(u32 base, u32 fraction) {
     const u32 mid = ((base >> 12) & 4095u) * fraction, low = (base & 4095u) * fraction;
@@ -117,7 +126,7 @@ static inline i32 sample_root_cents(u32 factor) {
         874845u, 885045u, 895250u, 905461u, 915677u, 925900u, 936129u, 946363u,
         956604u, 966850u, 977103u, 987361u, 997625u,
     };
-    if (!factor || factor > roots[0] + 128 || factor + 128 < roots[127]) return 6000;
+    if (!factor || factor > roots[0] + 128 || factor + 128 < roots[127]) return kNeutralRootCents;
     if (factor > roots[0]) factor = roots[0];
     if (factor < roots[127]) factor = roots[127];
     u32 lo = 0, hi = 127;
@@ -136,19 +145,21 @@ static inline i32 sample_root_cents(u32 factor) {
     return static_cast<i32>(note * 100 - lo);
 }
 
+inline i32 sample_pitch_cents(u32 factor) { return kNeutralRootCents - sample_root_cents(factor); }
+
 inline u32 sample_marker(i32 value, u32 frames) {
     return value < 0 ? 0 : static_cast<u32>(value) > frames ? frames : static_cast<u32>(value);
 }
-// GUI records and audio records order their markers differently.
+// GUI records and audio records order their markers differently. The GUI
+// record carries no level; an empty pad has neutral tuning.
 inline SampleRegion sample_gui_region(const void* raw) {
     using namespace pad_record;
     const i32* words = static_cast<const i32*>(raw);
     const u32 frames = words[kFrames] > 0 ? static_cast<u32>(words[kFrames]) : 0;
     const i32 root = pad_byte(raw, kRoot), fine = static_cast<signed char>(pad_byte(raw, kFine));
     return SampleRegion{sample_marker(words[kStart], frames),
-        words[kEnd] < 0 ? frames : sample_marker(words[kEnd], frames), 0x08000000u,
-        (pad_byte(raw, kFlags) & kReverse) != 0, !frames && !root && !fine ? 6000 : root * 100 - fine,
-        words[kFade] > 0 ? static_cast<u32>(words[kFade]) : 0};
+        words[kEnd] < 0 ? frames : sample_marker(words[kEnd], frames), sample_unity_level,
+        (pad_byte(raw, kFlags) & kReverse) != 0, !frames && !root && !fine ? 0 : kNeutralRootCents - (root * 100 - fine)};
 }
 // Persist pad pitch in stock's root/fine fields, leaving all other metadata
 // intact. Audio decodes inverse tuning as root * 100 - signed fine cents.
@@ -156,9 +167,9 @@ inline void sample_gui_pitch(void* raw, i32 cents) {
     if (cents < -1200) cents = -1200;
     if (cents > 1200) cents = 1200;
     unsigned char* bytes = static_cast<unsigned char*>(raw);
-    const i32 root = (6000 - cents + 99) / 100;
+    const i32 root = (kNeutralRootCents - cents + 99) / 100;
     bytes[pad_record::kRoot] = static_cast<unsigned char>(root);
-    bytes[pad_record::kFine] = static_cast<unsigned char>(root * 100 - (6000 - cents));
+    bytes[pad_record::kFine] = static_cast<unsigned char>(root * 100 - (kNeutralRootCents - cents));
 }
 // Stock note-start (8d519f40 / 8d51a09c): parameter 52 spans -36..36.
 inline i32 sample_track_transpose(i32 value) {
@@ -170,9 +181,9 @@ inline i32 sample_track_transpose(i32 value) {
 inline u32 sample_drum_key(u32 key, i32 octave) {
     return 53u + static_cast<u32>((i32(key) + 19 + 12 * (octave % 2)) % 24);
 }
-inline SampleRegion sample_region(const i32* words, u32 frames, i32 root_cents, bool outer_only = false) {
+inline SampleRegion sample_region(const i32* words, u32 frames, i32 pitch_cents, bool outer_only = false) {
     using namespace audio_region;
-    SampleRegion result{0, frames, 0x08000000u, false, root_cents, 0};
+    SampleRegion result{0, frames, sample_unity_level, false, pitch_cents};
     if (!words) return result;
     result.begin = sample_marker(words[kStart], frames);
     result.end = words[kEnd] == -1 ? frames : sample_marker(words[kEnd], frames);
@@ -184,7 +195,6 @@ inline SampleRegion sample_region(const i32* words, u32 frames, i32 root_cents, 
             if (inner_end < result.end) result.end = inner_end;
         }
     }
-    result.fade_q31 = words[kFade] > 0 ? static_cast<u32>(words[kFade]) : 0;
     result.reverse = (words[kFlags] & kReverse) != 0;
     result.level = words[kLevel] > 0 ? static_cast<u32>(words[kLevel]) : 0;
     return result;

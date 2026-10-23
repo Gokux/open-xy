@@ -12,11 +12,12 @@ struct SampleMachine {
     u32 engine;
     u32 page;      // stock sample page, 2 or 7
     int (*ready)();
+    // padSettings
+    PadSettings (*defaults)();
+    PadSettings (*assign)(const SampleAssignment*);
     // drumControls
-    u32 (*assign)(const SampleAssignment*);
-    u32 (*migrate)(const SampleRegion*);
-    void (*control)(u32*, const SampleControl*);
-    void (*panel)(u32, const i32*, SamplePanel*);
+    void (*control)(PadSettings*, const DrumControl*);
+    void (*panel)(PadSettings, const i32*, DrumPanel*);
     // sampleAnalysis
     u32 analysis_budget;  // bytes
     u32 (*prepare_begin)(const SampleView*, u32*, u32);
@@ -42,6 +43,10 @@ namespace opxy { namespace platform {
 inline u32 sample_page(u32 engine) {
     const SampleMachine* m = sdk_sample_machine(engine);
     return m ? m->page : 0;
+}
+inline bool pad_settings(u32 engine) {
+    const SampleMachine* m = sdk_sample_machine(engine);
+    return m && m->assign;
 }
 inline bool drum_controls(u32 engine) {
     const SampleMachine* m = sdk_sample_machine(engine);

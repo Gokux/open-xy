@@ -269,13 +269,33 @@ OPXY_SCREEN(opxy::screen::{kind}<Machine>, "{m.prefix}", "{m.native_name}.svg", 
     return destination
 
 
+# Each optional sample service and the C entry points (prefix + suffix) its
+# machine exports, in sample_machines.hpp's SampleMachine order.
+SAMPLE_SERVICES = (
+    ('padSettings', (('_sample_defaults', 'opxy::PadSettings', ''),
+                     ('_sample_assign', 'opxy::PadSettings', 'const opxy::SampleAssignment*'))),
+    ('drumControls', (('_drum_control', 'void', 'opxy::PadSettings*, const opxy::DrumControl*'),
+                      ('_drum_panel', 'void', 'opxy::PadSettings, const opxy::i32*, opxy::DrumPanel*'))),
+    ('sampleAnalysis', (('_sample_prepare_begin', 'opxy::u32', 'const opxy::SampleView*, opxy::u32*, opxy::u32'),
+                        ('_sample_prepare_step', 'opxy::u32', 'opxy::u32, opxy::u32*'),
+                        ('_sample_prepare_words', 'opxy::u32', ''),
+                        ('_sample_prepare_result', 'opxy::u32', 'opxy::SampleAnalysis*'))),
+)
+
+
+def sample_callbacks(m):
+    """The C entry points a sample machine exports for the services it declares."""
+    resources = m.definition['resources']
+    return [m.prefix + suffix for flag, entries in SAMPLE_SERVICES if resources.get(flag, 0) for suffix, *_ in entries]
+
+
 def generate_sample_voice(directory, m):
+    resources = m.definition['resources']
     values = dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'], NAME=m.native_name,
-                  LABELS=stock_labels(m), CAPACITY=m.definition['resources']['voiceCapacity'],
-                  ANALYSIS=m.definition['resources'].get('sampleAnalysis', 0),
-                  STEREO=m.definition['resources'].get('stereoOutput', 0),
-                  CHOKE=m.definition['resources'].get('chokeSameKey', 0), DRUM_KEYS=int(m.identity['page'] == 7))
-    values['CONTROLS'] = m.definition['resources'].get('drumControls', 0)
+                  LABELS=stock_labels(m), CAPACITY=resources['voiceCapacity'],
+                  ANALYSIS=resources.get('sampleAnalysis', 0), STEREO=resources.get('stereoOutput', 0),
+                  CHOKE=resources.get('chokeSameKey', 0), DRUM_KEYS=int(m.identity['page'] == 7),
+                  PAD_SETTINGS=resources.get('padSettings', 0), DRUM_CONTROLS=resources.get('drumControls', 0))
     return expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
 
 
@@ -287,24 +307,16 @@ def generate_sample_callbacks(directory, machines):
             continue
         p, resources = m.prefix, m.definition['resources']
         declarations.append(f'int {p}_ready() __asm__("{p}_ready");')
-        callbacks = []
-        for flag, names in (('drumControls', (('assign', 'opxy::u32', 'const opxy::SampleAssignment*'),
-                                              ('migrate', 'opxy::u32', 'const opxy::SampleRegion*'),
-                                              ('control', 'void', 'opxy::u32*, const opxy::SampleControl*'),
-                                              ('panel', 'void', 'opxy::u32, const opxy::i32*, opxy::SamplePanel*'))),
-                            ('sampleAnalysis', (('prepare_begin', 'opxy::u32', 'const opxy::SampleView*, opxy::u32*, opxy::u32'),
-                                                ('prepare_step', 'opxy::u32', 'opxy::u32, opxy::u32*'),
-                                                ('prepare_words', 'opxy::u32', ''),
-                                                ('prepare_result', 'opxy::u32', 'opxy::SampleAnalysis*')))):
+        fields = [str(m.identity['engine']), str(m.identity['page']), p + '_ready']
+        for flag, entries in SAMPLE_SERVICES:
             declared = bool(resources.get(flag, 0))
-            for name, result, arguments in names:
-                symbol = f'{p}_sample_{name}'
+            if flag == 'sampleAnalysis':
+                fields.append(f'{resources.get(flag, 0)}u')
+            for suffix, result, arguments in entries:
                 if declared:
-                    declarations.append(f'{result} {symbol}({arguments}) __asm__("{symbol}");')
-                callbacks.append(symbol if declared else 'nullptr')
-        budget = resources.get('sampleAnalysis', 0)
-        rows.append(f'    {{{m.identity["engine"]}, {m.identity["page"]}, {p}_ready, ' + ', '.join(callbacks[:4]) +
-                    f', {budget}u, ' + ', '.join(callbacks[4:]) + '},')
+                    declarations.append(f'{result} {p}{suffix}({arguments}) __asm__("{p}{suffix}");')
+                fields.append(p + suffix if declared else 'nullptr')
+        rows.append('    {' + ', '.join(fields) + '},')
     return expand('sample_callbacks.cpp.in', dict(CALLBACK_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows)),
                   Path(directory) / 'sample_callbacks.cpp')
 

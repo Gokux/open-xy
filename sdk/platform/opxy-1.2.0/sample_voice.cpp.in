@@ -7,7 +7,6 @@
 #include "stock_sample.hpp"
 #include "sample_cache.hpp"
 #include "stock.hpp"
-#include <opxy/audio_tempo.hpp>
 #include <opxy/transport.hpp>
 extern "C" {
 void* @PREFIX@_factory(opxy::u32, opxy::u32) __asm__("@PREFIX@_factory");
@@ -22,9 +21,9 @@ struct Slot {
     const void* sample_object;
     const opxy::SampleAnalysis* analysis;
     unsigned char track, key, retry;
-    opxy::u32 root_factor;
-    opxy::i32 root_cents;
-    opxy::i32 key_transpose;
+    opxy::u32 tuning;
+    opxy::i32 pitch_cents;
+    opxy::i32 drum_transpose;
     bool started;
 };
 static Slot voices[@CAPACITY@];
@@ -49,7 +48,7 @@ static const opxy::u32 kVoiceRegion = 0x84ebba70;      // region record of the v
 // Audio clock tempo, decoded without floating-point work on the callback.
 static opxy::Transport transport() {
     using namespace opxy::platform;
-    return opxy::Transport{opxy::audio_bpm_x10(word(kAudioBpm)), word(kTicks96),
+    return opxy::Transport{project_bpm_x10(), word(kTicks96),
                            byte(kPlaying) || byte(kPlaying + 1)};
 }
 static opxy::i32 track_transpose(opxy::u32 track) {
@@ -60,15 +59,17 @@ static opxy::i32 track_transpose(opxy::u32 track) {
 
 extern "C" {
 extern const void* const @PREFIX@_vtable[];
-#if @CONTROLS@
-opxy::u32 @PREFIX@_sample_assign(const opxy::SampleAssignment* input) __asm__("@PREFIX@_sample_assign");
-opxy::u32 @PREFIX@_sample_migrate(const opxy::SampleRegion* input) __asm__("@PREFIX@_sample_migrate");
-void @PREFIX@_sample_control(opxy::u32*, const opxy::SampleControl*) __asm__("@PREFIX@_sample_control");
-void @PREFIX@_sample_panel(opxy::u32, const opxy::i32*, opxy::SamplePanel*) __asm__("@PREFIX@_sample_panel");
-opxy::u32 @PREFIX@_sample_assign(const opxy::SampleAssignment* input) { return @NAMESPACE@::sample_assign(*input); }
-opxy::u32 @PREFIX@_sample_migrate(const opxy::SampleRegion* input) { return @NAMESPACE@::sample_migrate(*input); }
-void @PREFIX@_sample_control(opxy::u32* value, const opxy::SampleControl* event) { @NAMESPACE@::sample_control(*value, *event); }
-void @PREFIX@_sample_panel(opxy::u32 value, const opxy::i32* parameters, opxy::SamplePanel* panel) { @NAMESPACE@::sample_panel(value, parameters, *panel); }
+#if @PAD_SETTINGS@
+opxy::PadSettings @PREFIX@_sample_defaults() __asm__("@PREFIX@_sample_defaults");
+opxy::PadSettings @PREFIX@_sample_assign(const opxy::SampleAssignment* input) __asm__("@PREFIX@_sample_assign");
+opxy::PadSettings @PREFIX@_sample_defaults() { return @NAMESPACE@::sample_defaults(); }
+opxy::PadSettings @PREFIX@_sample_assign(const opxy::SampleAssignment* input) { return @NAMESPACE@::sample_assign(*input); }
+#endif
+#if @DRUM_CONTROLS@
+void @PREFIX@_drum_control(opxy::PadSettings*, const opxy::DrumControl*) __asm__("@PREFIX@_drum_control");
+void @PREFIX@_drum_panel(opxy::PadSettings, const opxy::i32*, opxy::DrumPanel*) __asm__("@PREFIX@_drum_panel");
+void @PREFIX@_drum_control(opxy::PadSettings* value, const opxy::DrumControl* event) { @NAMESPACE@::drum_control(*value, *event); }
+void @PREFIX@_drum_panel(opxy::PadSettings value, const opxy::i32* parameters, opxy::DrumPanel* panel) { @NAMESPACE@::drum_panel(value, parameters, *panel); }
 #endif
 #if @ANALYSIS@
 // One preparation at a time, on the stock file worker (sample_cache.cpp).
@@ -87,6 +88,16 @@ opxy::u32 @PREFIX@_sample_prepare_step(opxy::u32 frames, opxy::u32* cursor) {
 opxy::u32 @PREFIX@_sample_prepare_words() { return @NAMESPACE@::prepare_words(preparation); }
 opxy::u32 @PREFIX@_sample_prepare_result(opxy::SampleAnalysis* out) { return @NAMESPACE@::prepared(preparation, *out); }
 #endif
+// The pad's saved settings, or the machine's defaults when it has none.
+static opxy::PadSettings settings(const opxy::i32* region) {
+#if @PAD_SETTINGS@
+    const opxy::platform::SavedSettings saved =
+        opxy::platform::sample_settings(region ? static_cast<opxy::u32>(region[opxy::platform::audio_region::kFade]) : 0);
+    return saved.saved ? saved.value : @NAMESPACE@::sample_defaults();
+#else
+    return 0;
+#endif
+}
 // Stock +16 note-start receives the parent note in R1. Preparing a factory
 // never chokes a playing voice; only an actual start takes ownership.
 static int start(void* self, opxy::u32 key) {
@@ -99,7 +110,7 @@ static int start(void* self, opxy::u32 key) {
     // getters here can assert on the audio role's unavailable pattern state.
     slot->key = keyed ? (@DRUM_KEYS@ ? opxy::platform::sample_drum_key(
         key, sdk_sample_drum_octaves[slot->track]) : key) : 128;
-    slot->key_transpose = keyed && @DRUM_KEYS@ ? opxy::i32(key) - opxy::i32(slot->key) : 0;
+    slot->drum_transpose = keyed && @DRUM_KEYS@ ? opxy::i32(key) - opxy::i32(slot->key) : 0;
     if (slot->started) {
         if (@CHOKE@ && keyed) active[slot->track][slot->key] = slot;
         @NAMESPACE@::start(slot->voice);
@@ -118,9 +129,9 @@ void* @PREFIX@_factory(opxy::u32 index, opxy::u32 track) {
     Slot* slot = &voices[index];
     clear_owner(slot);
     slot->track = track < 8 ? static_cast<unsigned char>(track) : 255;
-    slot->root_factor = 0;
-    slot->root_cents = 6000;
-    slot->key_transpose = 0;
+    slot->tuning = 0;
+    slot->pitch_cents = 0;
+    slot->drum_transpose = 0;
     slot->key = 128;
     slot->started = false;
     slot->retry = 0;
@@ -148,14 +159,14 @@ static int render(void* self, opxy::i32* output, const opxy::i32* parameters) {
     }
     const opxy::i32* region = *reinterpret_cast<const opxy::i32* const volatile*>(kVoiceRegion);
     const opxy::u32 factor = region ? static_cast<opxy::u32>(region[opxy::platform::audio_region::kTuning]) : 0;
-    if (factor != slot->root_factor) {
-        slot->root_factor = factor;
-        slot->root_cents = opxy::platform::sample_root_cents(factor);
+    if (factor != slot->tuning) {
+        slot->tuning = factor;
+        slot->pitch_cents = opxy::platform::sample_pitch_cents(factor);
     }
+    // The drum page edits outer markers only; hidden inner loop markers do not narrow playback.
     const opxy::SampleBlock block{output, parameters, increments, transport(),
-        opxy::platform::sample_region(region, slot->frames, slot->root_cents, @CONTROLS@ != 0), slot->analysis,
-        opxy::platform::sample_settings(region ? static_cast<opxy::u32>(region[opxy::platform::audio_region::kFade]) : 0), @STEREO@ ? 2u : 1u,
-        track_transpose(slot->track), slot->key_transpose};
+        opxy::platform::sample_region(region, slot->frames, slot->pitch_cents, @DRUM_CONTROLS@ != 0), slot->analysis,
+        settings(region), @STEREO@ ? 2u : 1u, track_transpose(slot->track), slot->drum_transpose};
     @NAMESPACE@::render_sample(slot->voice, block);
     return 0;
 }

@@ -105,6 +105,7 @@
     "voiceCapacity": 256,
     "sampleAnalysis": 2097152,
     "chokeSameKey": 1,
+    "padSettings": 1,
     "drumControls": 1,
     "stereoOutput": 1
   }

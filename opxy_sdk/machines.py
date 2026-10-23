@@ -108,8 +108,9 @@ def machine(identity):
     # The native plan compiles extra translation units only into synths.
     if kind != 'synth':
         require(not sources and not includes, 'Sample engines and effects compile one fx.cpp or sample.cpp')
-    if kind == 'sample' and definition['resources'].get('drumControls', 0):
-        require(value['identity']['page'] == 7, 'Drum control callbacks need stock page 7')
+    # Pad settings live in the stock drum page's pad records, whose fade the SDK then owns.
+    if kind == 'sample' and definition['resources'].get('padSettings', 0):
+        require(value['identity']['page'] == 7, 'Pad settings and drum controls need stock page 7')
     defaults = value.get('presetDefaults', {})
     require(isinstance(defaults, dict) and set(defaults) <= {'amp'}, 'Invalid preset defaults')
     amp = defaults.get('amp', {})

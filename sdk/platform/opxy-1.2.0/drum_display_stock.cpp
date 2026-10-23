@@ -8,7 +8,7 @@
 
 extern "C" {
 opxy::u32 sdk_sample_selected_engine() __asm__("sdk_sample_selected_engine");
-const opxy::SamplePanel* sdk_sample_drum_view(const void*, void*, const opxy::i32*) __asm__("sdk_sample_drum_view");
+const opxy::DrumPanel* sdk_sample_drum_view(const void*, void*, const opxy::i32*) __asm__("sdk_sample_drum_view");
 int sdk_sample_drum_owned() __asm__("sdk_sample_drum_owned");
 opxy::i32 sdk_sample_drum_fade_word(const void*) __asm__("sdk_sample_drum_fade_word");
 opxy::u32 sdk_sample_drum_range(const opxy::i32*, void*, void*) __asm__("sdk_sample_drum_range");
@@ -82,9 +82,9 @@ void restore(Node* page) {
 int sdk_sample_drum_owned() { return drum_controls(sdk_sample_selected_engine()); }
 
 // 8d5349e4 (through drum_page.s): the painter's fade, the record's fade word
-// >> 8. An owned page keeps machine settings there, so it paints no fade.
+// >> 8. A machine with pad settings keeps them there, so it paints no fade.
 i32 sdk_sample_drum_fade_word(const void* region) {
-    return sdk_sample_drum_owned() ? 0 : static_cast<i32>(pad_word(region, pad_record::kFade)) >> 8;
+    return pad_settings(sdk_sample_selected_engine()) ? 0 : static_cast<i32>(pad_word(region, pad_record::kFade)) >> 8;
 }
 
 // 8d53465a: stock 8d4d78ec(region, &start, &end) normalizes the trim markers.
@@ -107,7 +107,7 @@ void sdk_sample_drum_display(Node* page, const void* region, u32 third, u32 four
     u32 values[8];
     i32 parameters[8];
     Parameters projected;
-    const opxy::SamplePanel* view = nullptr;
+    const opxy::DrumPanel* view = nullptr;
     const void* painted = region;
     if (owned && region) {
         const Parameters* live = reinterpret_cast<const Parameters*>(third);

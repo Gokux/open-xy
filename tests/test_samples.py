@@ -14,7 +14,7 @@ from opxy_sdk import firmware
 class Generation(unittest.TestCase):
     def test_optional_services_are_explicit_integer_flags(self):
         definition = copy.deepcopy(machine('timestretch').definition)
-        for key in ('sampleAnalysis', 'chokeSameKey', 'drumControls', 'stereoOutput'):
+        for key in ('sampleAnalysis', 'chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput'):
             for value in (True, -1, 2, '1', None):
                 invalid = copy.deepcopy(definition)
                 invalid['resources'][key] = value
@@ -25,6 +25,10 @@ class Generation(unittest.TestCase):
             invalid['resources']['sampleAnalysis'] = value
             with self.subTest(heap=value), self.assertRaises(ValueError):
                 validate_definition(invalid, 'sample')
+        drum_only = copy.deepcopy(definition)
+        del drum_only['resources']['padSettings']
+        with self.assertRaisesRegex(ValueError, 'padSettings'):
+            validate_definition(drum_only, 'sample')
         definition['resources'] = {'voiceCapacity': 256}
         validate_definition(definition, 'sample')
 
