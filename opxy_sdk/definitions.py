@@ -79,9 +79,21 @@ ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
 SAMPLE_FLAGS = ('chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput')
 SAMPLE_OPTIONS = ('sampleAnalysis', *SAMPLE_FLAGS)
 DISPLAY_FORMATS = ('ratio', 'percent', 'bipolar', 'duration', 'semitones', 'enum')
-# Synths fill the four-control page; sample engines and effects use up to the
-# stock eight-word parameter vector.
-CONTROLS = {'synth': (4, 4), 'sample': (1, 8), 'effect': (1, 8)}
+# Every kind's parameters occupy the stock eight-word parameter vector in order.
+# A synth's first four fill the four-control page; up to four more are alternates
+# (see control_positions). Sample engines and effects use one to eight.
+CONTROLS = {'synth': (4, 8), 'sample': (1, 8), 'effect': (1, 8)}
+SYNTH_POSITIONS = 4
+
+
+def control_positions(definition):
+    """The synth page position (encoder) that edits each parameter, in parameter order.
+
+    The first four parameters are the positions' own; each later one names the
+    position it alternates on with `control`. Pressing an encoder cycles its
+    position through its own parameter, then its alternates in parameter order.
+    """
+    return [parameter.get('control', i) for i, parameter in enumerate(definition['parameters'])]
 
 
 def validate_definition(value, kind):
@@ -110,8 +122,9 @@ def validate_definition(value, kind):
     require(isinstance(parameters, list) and low <= len(parameters) <= high,
             f'Control count outside {low}..{high} for this kind')
     names = set()
-    for parameter in parameters:
-        validate_parameter(parameter)
+    for i, parameter in enumerate(parameters):
+        alternate = kind == 'synth' and i >= SYNTH_POSITIONS
+        validate_parameter(parameter, alternate)
         require(parameter['id'] not in names, 'Duplicate parameter identity')
         names.add(parameter['id'])
     require(isinstance(value['presets'], dict) and len(value['presets']) <= 64, 'Invalid presets')
@@ -158,8 +171,12 @@ def validate_display(display):
                 controls == sorted(set(controls)), 'textControls lists distinct control indices 0..3 in order')
 
 
-def validate_parameter(parameter):
-    keys(parameter, ('id', 'label', 'default', 'mapping', 'display'), 'parameter')
+def validate_parameter(parameter, alternate=False):
+    # A synth's parameters after the first four are alternates of one control position.
+    keys(parameter, ('id', 'label', 'default', 'mapping', 'display', *(('control',) if alternate else ())), 'parameter')
+    if alternate:
+        require(type(parameter['control']) is int and 0 <= parameter['control'] < SYNTH_POSITIONS,
+                'An alternate parameter names its control position 0..3')
     identifier(parameter['id']); control_label(parameter['label'])
     number(parameter['default'], 0, 1, 'normalized default')
     require(parameter['display'] in DISPLAY_FORMATS, 'Unsupported display format')
@@ -171,7 +188,7 @@ def validate_parameter(parameter):
         keys(mapping, ('kind', 'labels'), 'enum mapping')
         labels = mapping['labels']
         require(isinstance(labels, list) and 2 <= len(labels) <= 256 and
-                all(isinstance(s, str) and re.fullmatch(r'[A-Za-z0-9 *+_-]{1,15}', s) for s in labels) and
+                all(isinstance(s, str) and re.fullmatch(r'[A-Za-z0-9 .:*+_-]{1,15}', s) for s in labels) and
                 len(set(labels)) == len(labels) and parameter['display'] == 'enum', 'Invalid enum labels')
     elif kind == 'linear':
         keys(mapping, ('kind', 'minimum', 'maximum'), 'linear mapping')

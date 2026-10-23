@@ -6,6 +6,7 @@
 #pragma once
 #include "opxy/types.hpp"
 #include "stock.hpp"
+#include "synth_controls.hpp"
 
 namespace opxy { namespace screen { namespace {
 
@@ -32,7 +33,7 @@ struct PathNode {
 struct Command { i32 x, y; u32 stock8[4]; unsigned char type, stock25[7]; };
 // The loaded artwork: its fill (4-byte) and stroke (20-byte) palette records.
 struct Document { u32 stock0[25]; Vector fills; u32 stock112[5]; Vector strokes; };
-// The stock control parameter vector: four Q31 words from begin.
+// The stock control parameter vector: eight Q31 words from begin.
 struct Parameters { u32 stock0; u32 begin, end; };
 static_assert(sizeof(Leaf) == 40 && __builtin_offsetof(PathNode, fill) == 112 &&
               __builtin_offsetof(PathNode, stroke) == 114 && __builtin_offsetof(PathNode, commands) == 120 &&
@@ -126,24 +127,43 @@ inline void set_words(Leaf* node, const u32 (&at)[4], const i32 (&value)[4]) {
     set_matrix(node, matrix);
 }
 
-// Copies the four control words from the stock parameter vector, bounds-checked.
-inline bool read_parameters(const Parameters* p, i32 (&out)[4]) {
+// The four page positions as shown: the track, each position's parameter slot
+// (its own, or an alternate an encoder press selected) and that slot's value;
+// valid once the stock vector was readable.
+struct Controls { u32 track; bool valid; u8 shown[page_controls]; i32 values[page_controls]; };
+
+// Fills controls.values from the stock parameter vector, bounds-checked; a slot
+// beyond the vector shows the position's own. view receives the same vector
+// with each position's shown word in its place, for stock's percentages.
+inline bool read_shown(const Parameters* p, Controls& controls, u32 (&view)[parameter_slots]) {
     if (!p || !p->begin || p->end < p->begin || p->end - p->begin < 16 || p->begin & 3) return false;
+    const u32 words = (p->end - p->begin) / 4 < parameter_slots ? (p->end - p->begin) / 4 : parameter_slots;
     const i32* in = reinterpret_cast<const i32*>(p->begin);
-    for (u32 i = 0; i < 4; ++i) out[i] = in[i];
+    for (u32 i = 0; i < parameter_slots; ++i) view[i] = i < words ? in[i] : 0;
+    for (u32 i = 0; i < page_controls; ++i) {
+        if (controls.shown[i] >= words) controls.shown[i] = static_cast<u8>(i);
+        controls.values[i] = in[controls.shown[i]];
+        view[i] = static_cast<u32>(controls.values[i]);
+    }
     return true;
 }
 
 // The shared opening of every frame: once the artwork and all four value and
-// title nodes exist, stock updates the control titles and percentage values.
-struct Controls { u32 track; const Parameters* parameters; };
+// title nodes exist, stock updates the control titles and percentage values of
+// the shown parameters. False when there is nothing to draw yet.
 inline bool refresh_controls(Base* o, Controls& controls) {
     if (!o->svg) return false;
     for (u32 i = 0; i < 4; ++i)
         if (!o->values[i] || !o->titles[i]) return false;
     controls.track = selected_track();
-    controls.parameters = parameters();
-    update_controls(o, controls.track, controls.parameters);
+    sdk_synth_shown(controls.track, controls.shown);
+    for (u32 i = 0; i < page_controls; ++i) controls.values[i] = 0;
+    const Parameters* stock_vector = parameters();
+    u32 words[parameter_slots];
+    const Parameters view = {0, static_cast<u32>(reinterpret_cast<platform::Address>(words)),
+                             static_cast<u32>(reinterpret_cast<platform::Address>(words + parameter_slots))};
+    controls.valid = read_shown(stock_vector, controls, words);
+    update_controls(o, controls.track, controls.valid ? &view : stock_vector);
     return true;
 }
 

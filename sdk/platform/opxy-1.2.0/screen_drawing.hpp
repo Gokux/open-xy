@@ -66,7 +66,11 @@ template <class Machine> struct Drawing {
     }
 
     static void animate(Object* o, const Controls& controls) {
-        if (!read_parameters(controls.parameters, display_input.parameters)) return;
+        if (!controls.valid) return;
+        for (u32 i = 0; i < page_controls; ++i) {
+            display_input.parameters[i] = controls.values[i];
+            display_input.shown[i] = controls.shown[i];
+        }
         display_input.elapsed = o->delta;
         display_input.track = controls.track;
         display_input.note_serial = controls.track < 8 ? note_serial(controls.track) : 0;

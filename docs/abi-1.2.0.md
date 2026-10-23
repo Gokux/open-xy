@@ -31,6 +31,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
 | Relocated tables | 13 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
+| Synth controls | 2 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit |
 | Startup label | 1 | Shows `OPEN 0.0.1-1.2.0` at boot through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
@@ -106,6 +107,27 @@ page IDs are unchanged.
 The stock SVG parser **asserts (halts) on a number with five or more decimal
 places**, and parses exponents on a separate, unverified path. Every authored
 asset is limited to at most four decimal places and no exponents.
+
+### Alternate controls
+
+One stock controller serves a track's four parameter pages; its bank getter
+`0x8c08ff3c` returns the page (0 is the engine page). A turn of encoder `e`
+edits parameter `e + 8 × bank` of the selected track through `0x8d5ab8ec`,
+which owns stepping, parameter locks and publication; the engine page's
+parameters are the first eight words of the vector the voice renders. The GUI
+key dispatcher `0x8c0b6670` passes a press of encoder `e` (key `10 + e`,
+without shift) to `0x8d51e634(e)` before the top controller, whose engine page
+ignores it; the track page controller's vtable is `0x0803fa28`.
+[`synth_controls.cpp`](../sdk/platform/opxy-1.2.0/synth_controls.cpp) replaces
+both calls: while the track page shows an owned synth with
+[alternates](api.md#alternate-controls), a press moves the position to its next
+parameter slot and a turn edits that slot; everything else reaches stock unchanged. The selection is GUI state per
+track, reset when the track's engine changes.
+
+Stock draws each position's title from the engine record's parameter-name
+callback and its value as a percentage of the vector word. The adapter's
+callback names the shown parameter, and the screen shell passes stock a copy
+of the vector with each position's shown word in place.
 
 ## Sample engines
 

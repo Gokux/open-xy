@@ -34,6 +34,7 @@ struct Input {
     u32 track;               // Track identity, not a device address.
     u32 note_serial;         // Snapshot, not an event queue; wraps modulo 2^32.
     u32 reduced_motion;
+    u8 shown[page_controls];  // Declared parameter shown at each position, as in segments::Input.
 };
 
 // Defined floor division by 1024 on both compilers, including negative values.

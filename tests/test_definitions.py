@@ -8,9 +8,9 @@ import tempfile
 import json
 import unittest
 
-from opxy_sdk.adapters import (catalog_defaults, catalog_entry, generate_display, generate_screen,
-                               generate_segment_binding, screen_bytes)
-from opxy_sdk.definitions import ROOT, validate_definition
+from opxy_sdk.adapters import (catalog_defaults, catalog_entry, control_cycles, generate_display, generate_screen,
+                               generate_segment_binding, generate_synth_controls, screen_bytes)
+from opxy_sdk.definitions import ROOT, control_positions, validate_definition
 from opxy_sdk.machines import machine
 from opxy_sdk.native import drawing_ids, segment_ids
 
@@ -145,6 +145,51 @@ class Definitions(unittest.TestCase):
         sample['parameters'] = []
         with self.assertRaisesRegex(ValueError, 'Control count'): validate_definition(sample, 'sample')
 
+
+    def alternate(self, control=3, identity='alt'):
+        return dict(id=identity, label='Alt', control=control, default=0.25,
+                    mapping=dict(kind='linear', minimum=0, maximum=1), display='percent')
+
+    def test_synth_alternates_name_their_control_position(self):
+        value = copy.deepcopy(self.engine)
+        value['parameters'] += [self.alternate(3, 'a'), self.alternate(1, 'b'), self.alternate(3, 'c')]
+        for preset in value['presets'].values():
+            preset.update(a=0, b=0, c=0)
+        validate_definition(value, 'synth')
+        self.assertEqual(control_positions(value), [0, 1, 2, 3, 3, 1, 3])
+        # Each position cycles through its own slot, then its alternates in slot order.
+        self.assertEqual(control_cycles(value), [0, 5, 2, 4, 6, 1, 3, 7])
+        self.assertIsNone(control_cycles(self.engine))
+        catalog = catalog_defaults(value)
+        self.assertEqual(catalog[4:], [8192, 8192, 8192, 0])
+        rejected = []
+        first = copy.deepcopy(value); first['parameters'][0]['control'] = 0
+        rejected.append(first)
+        missing = copy.deepcopy(value); del missing['parameters'][4]['control']
+        rejected.append(missing)
+        for bad in (4, -1, True, '3', None):
+            changed = copy.deepcopy(value); changed['parameters'][4]['control'] = bad
+            rejected.append(changed)
+        many = copy.deepcopy(value)
+        many['parameters'] += [self.alternate(0, 'd'), self.alternate(0, 'e')]
+        rejected.append(many)
+        for bad in rejected:
+            with self.subTest(parameters=[p.get('control') for p in bad['parameters']]), self.assertRaises(ValueError):
+                validate_definition(bad, 'synth')
+        sample = copy.deepcopy(machine('timestretch').definition)
+        sample['parameters'][-1]['control'] = 0
+        with self.assertRaisesRegex(ValueError, 'parameter fields'): validate_definition(sample, 'sample')
+
+    def test_alternate_table_lists_only_synths_with_alternates(self):
+        alternates = copy.deepcopy(self.engine)
+        alternates['parameters'].append(self.alternate(2))
+        machines = [SimpleNamespace(kind='synth', prefix='plain', identity=dict(engine=5), definition=self.engine),
+                    SimpleNamespace(kind='synth', prefix='alt', identity=dict(engine=9), definition=alternates),
+                    machine('timestretch'), machine('decimate')]
+        with tempfile.TemporaryDirectory() as directory:
+            text = generate_synth_controls(directory, machines).read_text(encoding='utf-8')
+        self.assertEqual(re.findall(r'^    \{(\d+), (\w+)_ready, \{([\d, ]+)\}\},$', text, re.M),
+                         [('9', 'alt', '0, 1, 4, 3, 2, 5, 6, 7')])
 
     def test_renderers_generate_for_every_declared_shape(self):
         """Each shape's renderer is data for the SDK renderer: artwork IDs in binding order, and an

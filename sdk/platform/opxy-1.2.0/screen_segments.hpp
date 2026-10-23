@@ -69,8 +69,11 @@ template <class Machine> struct Segments {
     static void frame(Object* o, i32) {
         Controls controls;
         if (!refresh_controls(&o->base, controls)) return;
-        if (read_parameters(controls.parameters, segment_input.parameters) &&
-            binding::segment_render(&segment_input, &segment_frame)) {
+        for (u32 i = 0; i < page_controls; ++i) {
+            segment_input.parameters[i] = controls.values[i];
+            segment_input.shown[i] = controls.shown[i];
+        }
+        if (controls.valid && binding::segment_render(&segment_input, &segment_frame)) {
             for (u32 i = 0; i < 4; ++i)
                 if (Machine::text_controls >> i & 1)
                     if (Leaf* value = text_node(o->base.values[i])) set_text(value, segment_frame.values[i]);

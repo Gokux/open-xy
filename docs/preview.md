@@ -1,6 +1,7 @@
 # Local preview and patch protocol
 
-Browser previews audition synths: their four controls, sound and own screen.
+Browser previews audition synths: their controls, alternates included, their
+sound and their own screen.
 Sample engines and effects use stock pages and stock sample or send processing,
 so they have no browser preview; they are checked by the native build.
 

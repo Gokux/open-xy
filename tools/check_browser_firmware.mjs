@@ -25,8 +25,8 @@ for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
   }
   writeFileSync(target + '.zip', zipFiles({'os.ldr': firmware, ...files}));
   const changed = stock.slice(); changed[50] ^= 1;
-  await assert.rejects(patchFirmware(kit, linked, changed), /original, decrypted/);
-  await assert.rejects(patchFirmware(kit, linked, firmware), /original, decrypted/);
+  await assert.rejects(patchFirmware(kit, linked, changed), /Only OP–XY OS 1.2.0 is supported/);
+  await assert.rejects(patchFirmware(kit, linked, firmware), /Only OP–XY OS 1.2.0 is supported/);
   // Corruption outside allowed edits, inside a hook, and inside the module
   // must all reject, even when reversing the profile can recover stock bytes.
   for (const offset of [50, Number(kit.profile.patches[2].file_offset), readLdr(firmware).at(-2).offset + 16]) {

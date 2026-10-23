@@ -23,7 +23,7 @@ fails the build or, for the artwork rule, halts the device's SVG parser.
 | Machine folder | C++ source, definition JSON, `machine.json` and artwork only. No build scripts, generators or tests |
 | C++ | Freestanding C++11: no exceptions, RTTI, static constructors, allocation, OS headers, `#if`, inline assembly or platform macros |
 | Callbacks | Bounded work per 64-sample block; no blocking, logging, file access or graphics from audio callbacks |
-| Synth controls | Exactly four controls; values arrive as Q31 and the stock menu stores Q15 defaults |
+| Synth controls | Four control positions, plus up to four alternates; values arrive as Q31 and the stock menu stores Q15 defaults |
 | Audio | 64 frames at 44.1 kHz, Q31 output at half-scale peak; mono by default, optional stereo for sample engines |
 | Identity | Name and IDs follow the [identity rules](#identity); they never change once published |
 | Sample engines | The sample is read-only and borrowed for the voice's lifetime |
@@ -47,7 +47,7 @@ figures. State usually dominates, since a synth's voice pool is
 | Module memory | 508 KiB for the whole collection | Firmware heap reservation minus the relocated tables |
 | Voices | 1..256 per machine | Stock voice indices |
 | Effect state | 476 bytes | The 480-byte stock FX slot minus its object header |
-| Synth controls | Exactly 4 | The stock four-knob page |
+| Synth controls | 4 positions, at most 8 parameters | The stock four-knob page and eight-word parameter vector |
 | Sample and effect controls | 1..8 | The stock eight-word parameter vector |
 | Control labels | 8 characters | The stock parameter page |
 | Drawing shape | ≤ 4 paths of ≤ 64 points, ≤ 64 nodes, ≤ 16 palette entries | Fixed-size renderer object and frame |
@@ -69,7 +69,7 @@ Every machine kind keeps its controls in `definition.json` (for example
 | `schema` | 1 |
 | `id` | The machine's name, equal to its folder name; also its C++ namespace |
 | `name` | Display name |
-| `parameters` | Ordered controls, each with `id`, `label`, `default`, `mapping`, `display`: four for a synth, one to eight for a sample engine or effect. Labels are at most eight letters, digits or spaces |
+| `parameters` | Ordered controls, each with `id`, `label`, `default`, `mapping`, `display`: four to eight for a synth (see [alternate controls](#alternate-controls)), one to eight for a sample engine or effect. Labels are at most eight letters, digits or spaces |
 | `presets` | Named maps containing exactly the declared controls; may be empty |
 | `resources` | What the kind declares about its storage (below) |
 
@@ -82,6 +82,22 @@ percentage), `duration`, `semitones` and `enum`. Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
 Parameter order and mapping changes affect saved sounds. The stock parameter
 page shows labels in lower case.
+
+### Alternate controls
+
+A synth's first four parameters belong to the four encoder positions of its
+page. Up to four more are alternates: each also names its position with
+`"control": 0..3`. Pressing that encoder cycles the position through its own
+parameter, then its alternates in parameter order; turning it edits the one
+shown, whose title and stock percentage the page shows. Every parameter keeps
+its own slot in the eight-word vector, so `render` receives all of them and
+presets, projects and the catalog's defaults store each one. The selection is
+per track, starts on the position's own parameter and is not saved. Display
+inputs carry each position's shown value and its parameter index (`shown`), so
+a [text control](display.md#segment-display) can format whichever is shown.
+Browser previews show the parameter last edited at each position. See
+[Macro Osc](../machines/macroosc/definition.json), whose fourth encoder
+switches between FM ratio and depth.
 
 A sample engine declares `voiceCapacity` (1..256) and the optional
 [sample services](#sample-engines) it uses. An effect declares no resources (`{}`).
@@ -107,7 +123,7 @@ Exceptions and allocation are not supported.
 | --- | --- |
 | Voice state | SDK-owned, correctly aligned storage; the engine initializes all sound fields |
 | `Output` | Writable 64-word mono signed Q1.31 buffer; write every sample |
-| `Parameters` | Read-only normalized Q31 words; the first four are the declared controls |
+| `Parameters` | Read-only normalized Q31 words, eight; the declared controls in order, then zero |
 | `Pitch` | Read-only 64-word unsigned phase-increment buffer, modulo 2^32 cycles |
 
 Pointers are non-null, aligned and non-overlapping. Do not retain borrowed

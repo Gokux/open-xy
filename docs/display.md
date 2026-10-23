@@ -32,10 +32,12 @@ void display(DisplayState& state, const opxy::draw::Input& input, Frame& output)
 | `stateBytes`, `stateAlignment` | `DisplayState` size (whole words) and alignment, checked against the compiled type |
 
 [draw.hpp](../sdk/include/opxy/draw.hpp) is the format definition.
-`DisplayState` is trivial, standard-layout data. Input holds the four Q31
-controls, Q10 elapsed seconds, track identity, a uint32 note-start serial and
-the reduced-motion preference. A serial is a snapshot, not a queue: several
-note starts between frames can coalesce. Initializing or changing track must
+`DisplayState` is trivial, standard-layout data. Input holds the Q31 value
+each of the four control positions shows, Q10 elapsed seconds, track identity,
+a uint32 note-start serial, the reduced-motion preference and `shown`, the
+declared parameter index each position shows (its own, or an
+[alternate](api.md#alternate-controls)). A serial is a snapshot, not a queue:
+several note starts between frames can coalesce. Initializing or changing track must
 not fabricate a note.
 
 The frame persists between calls. Each path has a nonzero geometry key; change
@@ -79,13 +81,15 @@ void display(const opxy::segments::Input& input, Frame& output);
 | `dials` | 0..4 rotating nodes |
 | `textControls` | Distinct control indices 0..3 |
 
-Input holds the four Q31 controls.
+Input holds the Q31 value each control position shows and, in `shown`, which
+declared parameter that is (its own index or an [alternate](api.md#alternate-controls)).
 [segments.hpp](../sdk/include/opxy/segments.hpp) defines the frame: one
 14-segment mask per character (bits 15..2, segments `abcdefghjklmnp`),
 `label[16]`, `values[4][8]`, a nonzero key and four dials. Segments, glow and
-label repaint when the key changes. For each control listed in `textControls`,
-the screen shows `values[i]` in place of the stock value, at three-quarter size;
-other controls keep their stock value. Text must terminate within its buffer.
+label repaint when the key changes. For each position listed in `textControls`,
+the screen shows `values[i]` in place of the stock value, at three-quarter size,
+for whichever parameter the position shows; other positions keep the stock
+percentage of their shown parameter. Text must terminate within its buffer.
 
 Dials apply every frame. Each is a clockwise rotation from the authored pose as
 a Q10 unit vector; `{0, 0}` is the authored pose. `rotation(tenths)` turns by

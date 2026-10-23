@@ -20,6 +20,23 @@ export function physicalValue(mapping, value) {
   throw new Error('Unsupported parameter mapping');
 }
 
+// A synth's page position (encoder) for each parameter, in parameter order:
+// the first four are the positions' own, later ones name theirs in `control`
+// (the definition schema; opxy_sdk.definitions.control_positions).
+export const controlPositions = parameters => parameters.map((p, i) => p.control ?? i);
+
+// The display input for parameter words in parameter order, when shown[i] is
+// the parameter position i shows (initially its own; on the device an encoder
+// press selects an alternate, in a preview the control last edited): each
+// position's value, and the slots as the input's four bytes.
+export function shownControls(words, shown) {
+  if (!Array.isArray(shown) || shown.length !== 4 || shown.some(s => !Number.isInteger(s) || s < 0 || s >= words.length)) {
+    throw new Error('Invalid shown controls');
+  }
+  return { parameters: shown.map(slot => words[slot]),
+    shown: (shown[0] | shown[1] << 8 | shown[2] << 16 | shown[3] << 24) >>> 0 };
+}
+
 // Screen views of the browser preview.
 export const VIEWS = Object.freeze(['routing', 'waveform']);
 
@@ -67,6 +84,6 @@ export function createControls(input) {
     }
     return canonical;
   }
-  return Object.freeze({ definition, parameters, defaults, presets: descriptor.presets,
-    physical, displayValue, q31, validateParameters, makePatch, readPatch });
+  return Object.freeze({ definition, parameters, positions: Object.freeze(controlPositions(parameters)),
+    defaults, presets: descriptor.presets, physical, displayValue, q31, validateParameters, makePatch, readPatch });
 }

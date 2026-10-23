@@ -12,13 +12,13 @@ export class PreviewDisplay {
     }
     this.api = new WebAssembly.Instance(module).exports;
     const e = this.api;
-    if (e.opxy_display_abi() !== 1 || e.opxy_display_input_bytes() !== 32) throw new Error('Unsupported drawing ABI');
+    if (e.opxy_display_abi() !== 1 || e.opxy_display_input_bytes() !== 36) throw new Error('Unsupported drawing ABI');
     this.stateBytes = integer(e.opxy_display_state_bytes(), 4, e.memory.buffer.byteLength, 'display state size');
     // Largest declared frame: 4 paths of 64 points and 64 nodes.
     const frameBytes = integer(e.opxy_display_frame_bytes(), 4, 4 * 516 + 64 * 20, 'drawing frame size');
     this.memory = e.memory.buffer;
     const ranges = [
-      [e.opxy_display_state(), this.stateBytes], [e.opxy_display_input(), 32], [e.opxy_display_frame(), frameBytes],
+      [e.opxy_display_state(), this.stateBytes], [e.opxy_display_input(), 36], [e.opxy_display_frame(), frameBytes],
     ];
     for (let i = 0; i < ranges.length; i++) {
       const [at, size] = ranges[i];
@@ -28,22 +28,26 @@ export class PreviewDisplay {
         if (at < ranges[j][0] + ranges[j][1] && ranges[j][0] < at + size) throw new Error('Overlapping drawing storage');
       }
     }
-    this.input = new Uint32Array(this.memory, ranges[1][0], 8);
+    this.input = new Uint32Array(this.memory, ranges[1][0], 9);
     this.frame = new Int32Array(this.memory, ranges[2][0], frameBytes / 4);
     this.reset();
   }
   reset() { this.api.opxy_display_reset(); }
-  tick(parameters, elapsed, serial, track = 0, reducedMotion = false) {
+  // parameters: the value each control position shows; shown: which declared
+  // parameter that is, one byte per position (shownControls in controls.mjs).
+  tick(parameters, elapsed, serial, track = 0, reducedMotion = false, shown = 0x03020100) {
     if (!Array.isArray(parameters) || parameters.length !== 4 || typeof reducedMotion !== 'boolean') {
       throw new Error('Invalid display input');
     }
+    integer(shown, 0, 0x07070707, 'shown controls');
+    if (shown & 0xf8f8f8f8) throw new Error('Invalid shown controls');
     // Validate the complete snapshot before mutating input/state.
     for (const parameter of parameters) integer(parameter, 0, 0x7fffffff, 'display parameter');
     integer(elapsed, -0x80000000, 0x7fffffff, 'elapsed Q10 seconds');
     integer(serial, 0, 0xffffffff, 'note serial');
     integer(track, 0, 0xffffffff, 'track identity');
     if (this.api.memory.buffer !== this.memory) throw new Error('Display memory changed');
-    this.input.set([...parameters, elapsed >>> 0, track, serial, Number(reducedMotion)]);
+    this.input.set([...parameters, elapsed >>> 0, track, serial, Number(reducedMotion), shown]);
     this.api.opxy_display_render();
     if (this.api.opxy_display_valid() !== 1) throw new Error('Display emitted an invalid drawing frame');
     return this.frame;

@@ -7,7 +7,12 @@ namespace opxy { namespace segments {
 // frame here, e.g.
 //   using Frame = opxy::segments::Frame<4>;
 // The SDK owns node bindings, text setters and repainting.
-struct Input { i32 parameters[page_controls]; };
+// The value each control position shows and which declared parameter that is:
+// its own (shown[i] == i) or an alternate selected by pressing its encoder.
+struct Input {
+    i32 parameters[page_controls];
+    u8 shown[page_controls];
+};
 // A dial's rotation from its authored pose, clockwise on screen, as a Q10 unit
 // vector. {0, 0} is the authored pose.
 struct Dial { i32 cos, sin; };

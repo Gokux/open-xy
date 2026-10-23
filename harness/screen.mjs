@@ -1,5 +1,6 @@
 // This drawing is an original screen concept, not a device UI emulator.
-export function renderScreen(values, view, samples = null, graphics = '', controls, segmented = false) {
+// Each of the four positions shows the parameter shown[i] (its own or an alternate).
+export function renderScreen(values, view, samples = null, graphics = '', controls, segmented = false, shown = [0, 1, 2, 3]) {
   const selected = controls;
   const title = selected.definition.name;
   let drawing;
@@ -22,6 +23,6 @@ export function renderScreen(values, view, samples = null, graphics = '', contro
     <text x="460" y="28" text-anchor="end" font-size="10">${view === 'routing' ? 'SIGNAL / 01' : 'SCOPE / 02'}</text>
     <path d="M20 39H460M20 170H460" stroke="#454949"/>
     ${drawing}
-    ${selected.parameters.map((p, i) => `<text x="${20 + i * 115}" y="190" font-size="10" fill="#a0aaa7">${p.label.toUpperCase()}</text><text x="${20 + i * 115}" y="212" font-size="16">${selected.displayValue(p.id, values)}</text>`).join('')}
+    ${shown.map(slot => selected.parameters[slot]).map((p, i) => `<text x="${20 + i * 115}" y="190" font-size="10" fill="#a0aaa7">${p.label.toUpperCase()}</text><text x="${20 + i * 115}" y="212" font-size="16">${selected.displayValue(p.id, values)}</text>`).join('')}
     </g></svg>`;
 }

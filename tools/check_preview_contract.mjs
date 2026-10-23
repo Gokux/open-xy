@@ -9,11 +9,11 @@ import {SegmentDisplay} from '../sdk/browser/segments.mjs';
 const module = await WebAssembly.compile(readFileSync(process.argv[2]));
 const graphics = process.argv[3];
 assert.ok(['drawing', 'segments'].includes(graphics), 'Known display contract required');
-const engine = new PreviewEngine(module, 44100, [0, 0, 0, 0]);
+const engine = new PreviewEngine(module, 44100, Array(8).fill(0));
 const display = graphics === 'segments' ? new SegmentDisplay(module) : new PreviewDisplay(module);
 const memory = engine.api.memory.buffer, displayMemory = display.api.memory.buffer;
 assert.equal(engine.blockFrames, 64);
-assert.equal(engine.parameterCount, 4);
+assert.equal(engine.parameterCount, 8);
 assert.ok(memory.byteLength <= 1024 * 1024, 'Preview memory limit');
 assert.throws(() => engine.api.memory.grow(1), RangeError);
 assert.throws(() => display.api.memory.grow(1), RangeError);
@@ -23,7 +23,8 @@ engine.render(samples);
 assert.ok(samples.every(value => value === 0), 'Inactive voices are silent');
 const peak = engine.api.opxy_output_peak_q31();
 for (let corner = 0; corner < 16; ++corner) {
-  const controls = Array.from({length:4}, (_, i) => corner & (1 << i) ? 0x7fffffff : 0);
+  // Every slot at both extremes: the four controls, then their alternates inverted.
+  const controls = Array.from({length:8}, (_, i) => (corner >> (i & 3) & 1) ^ (i >> 2) ? 0x7fffffff : 0);
   engine.setParameters(controls);
   for (let voice = 0; voice < engine.voices.length + 2; ++voice) engine.noteOn(48 + voice * 2);
   const pitches = engine.voices.map(voice => Array.from(voice.pitch));
@@ -35,7 +36,10 @@ for (let corner = 0; corner < 16; ++corner) {
       assert.deepEqual(Array.from(voice.pitch), pitches[i], 'Read-only pitch');
       assert.ok(voice.output.every(value => Math.abs(value) <= peak), 'Declared output peak');
     }
-    display.tick(controls, 17, corner * 8 + block);
+    // Each position shows its own control, then its first alternate slot.
+    const shown = block & 1 ? 0x07060504 : 0x03020100;
+    if (graphics === 'segments') display.tick(controls.slice(0, 4), shown);
+    else display.tick(controls.slice(0, 4), 17, corner * 8 + block, 0, false, shown);
     assert.equal(engine.api.memory.buffer, memory);
     assert.equal(display.api.memory.buffer, displayMemory);
   }
