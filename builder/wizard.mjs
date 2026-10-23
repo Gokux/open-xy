@@ -16,10 +16,10 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   let computer = null, busy = false, connected = false;
   let hostPage = 1;
   // Installing from this page: the chosen device, progress through the build,
-  // and whether every file arrived. `manual` means the user chose to copy.
-  let mtp = null, sending = null, sent = [], delivered = false, manual = false, downloaded = false;
+  // a log of what happened, and whether every file arrived. `manual` means the user chose to copy.
+  let mtp = null, sending = null, log = [], delivered = false, manual = false, downloaded = false;
   const stopSending = () => { sending = null; mtp?.close(); };
-  const release = () => { stopSending(); mtp = null; sent = []; delivered = false; };
+  const release = () => { stopSending(); mtp = null; log = []; delivered = false; };
   const sendsDirectly = () => computer === 'mac' && Mtp.supported() && !manual;
   const direct = () => stage === 'transfer' && purpose === 'install' && sendsDirectly();
   const supported = () => globalThis.isSecureContext && !!navigator.requestMIDIAccess;
@@ -75,7 +75,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       transfer: install && sendsDirectly() ? ['Send the files to your OP–XY.',
         resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Quit Field Kit, OpenMTP or Android File Transfer first. Your device’s other content stays in place.',
         delivered ? [action('Files sent · Continue', 'exit-transfer')]
-          : [action(busy ? 'Sending…' : sent.length ? 'Try again' : 'Send to OP–XY', null, 'mtp-send'),
+          : [action(busy ? 'Sending…' : log.length ? 'Try again' : 'Send to OP–XY', null, 'mtp-send'),
             ...(busy ? [] : [action('Copy them myself instead', null, 'mtp-manual')]), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])]] :
       [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
       'exit-transfer': ['Exit file transfer.', 'Once every file has finished copying, press track 2 for "2. exit".', [action('I’m back at the factory menu', 'write-os')]],
@@ -197,19 +197,24 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   const size = n => n < 1024 ? n + ' bytes' : n < 1024 ** 2 ? (n / 1024).toFixed(1) + ' KiB' : (n / 1024 ** 2).toFixed(1) + ' MiB';
   function showProgress() {
     if (!sending) return;
-    const {path, index, count, done, total} = sending;
+    const {path, index, count, done, total, fileDone, fileSize, started} = sending;
+    const seconds = (performance.now() - started) / 1000;
     $('mtp-bar').style.width = done / total * 100 + '%';
-    $('mtp-progress').textContent = `File ${index + 1} of ${count} · ${path} · ${size(done)} of ${size(total)}`;
+    $('mtp-progress').textContent = `${index + 1} of ${count} files · ${size(done)} of ${size(total)} · ${Math.floor(done / total * 100)}%` +
+      (seconds > 0.5 ? ` · ${size(Math.round(done / seconds))}/s` : '');
+    $('mtp-current').textContent = `Sending ${path} · ${size(fileDone)} of ${size(fileSize)}`;
   }
   function renderDirect() {
-    $('mtp-panel').hidden = !direct() || (!sending && !sent.length);
+    $('mtp-panel').hidden = !direct() || (!sending && !log.length);
     $('mtp-sending').hidden = !sending;
-    $('mtp-sent').hidden = !sent.length;
-    $('mtp-sent').replaceChildren(...sent.map(path => {
-      const li = document.createElement('li'); li.textContent = '✓ ' + path; return li;
+    $('mtp-log').hidden = !log.length;
+    $('mtp-log').replaceChildren(...log.map(({text, kind}) => {
+      const li = document.createElement('li'); li.textContent = text; li.dataset.kind = kind; return li;
     }));
+    $('mtp-log').scrollTop = $('mtp-log').scrollHeight;
     showProgress();
   }
+  const note = (text, kind = 'info') => { log.push({text, kind}); renderDirect(); };
   // Content first and the OS last, so os.ldr on the device means the copy finished.
   const order = path => path === 'os.ldr' ? 2 : path.startsWith('content/') ? 0 : 1;
   // The chooser needs the click's user activation, so request before any await.
@@ -219,26 +224,39 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
     const ticket = revision, request = mtp ? Promise.resolve(mtp) : Mtp.Device.request();
     const files = Object.entries(getFiles() ?? {}).sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b));
     const total = files.reduce((n, [, bytes]) => n + bytes.length, 0);
-    busy = true; sent = []; render(); status(mtp ? '' : 'Choose your OP–XY when your browser asks…');
+    busy = true; log = []; render(); status(mtp ? '' : 'Choose your OP–XY when your browser asks…');
     let device;
     try {
       device = mtp = await request;
       if (ticket !== revision) return;
-      status(); await device.open();
+      status(); note('Connecting to your OP–XY…');
+      await device.open();
+      if (ticket !== revision) return;
+      note('Connected. Sending ' + files.length + ' files, ' + size(total) + '.');
+      const started = performance.now();
       let before = 0;
       for (const [index, [path, bytes]] of files.entries()) {
-        sending = {path, index, count: files.length, done: before, total}; render();
-        await device.send(path, bytes, {replace: async () => true, onProgress: part => {
-          if (ticket === revision && sending) { sending.done = before + part * bytes.length; showProgress(); }
-        }});
+        let replaced = false;
+        sending = {path, index, count: files.length, done: before, total, fileDone: 0, fileSize: bytes.length, started}; render();
+        await device.send(path, bytes, {
+          replace: async () => true,
+          onStep: (kind, at) => { if (ticket !== revision) return; if (kind === 'folder') note('Created ' + at + '/'); else replaced = true; },
+          onProgress: part => {
+            if (ticket !== revision || !sending) return;
+            sending.fileDone = Math.round(part * bytes.length); sending.done = before + sending.fileDone; showProgress();
+          },
+        });
         if (ticket !== revision) return;
-        before += bytes.length; sent.push(path);
+        before += bytes.length;
+        note(`${replaced ? 'Replaced' : 'Added'} ${path} · ${size(bytes.length)}`, 'done');
       }
       delivered = true;
-      status(`✓ All ${files.length} files are on your OP–XY.`);
+      note(`Done · ${files.length} files, ${size(total)} in ${((performance.now() - started) / 1000).toFixed(1)} s`, 'done');
     } catch (error) {
       if (ticket !== revision) return;
-      status(error.name === 'NotFoundError' ? 'No OP–XY chosen.' : error.message || String(error), true);
+      const message = error.name === 'NotFoundError' ? 'No OP–XY chosen.' : error.message || String(error);
+      if (log.length) note('Stopped: ' + message, 'error');
+      status(message, true);
     } finally {
       await device?.close();
       if (ticket === revision) { busy = false; sending = null; render(); }
@@ -259,6 +277,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   $('dev-cancel').onclick = () => {
     const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending || (direct() && busy);
     revision++; busy = connected = false; session.close(); stopSending();
+    if (stopped) log.push({text: 'Stopped by you. Files already sent stay on your OP–XY.', kind: 'error'});
     if (enabling) advance('menu'); else { render(); status(stopped ? 'Sending stopped. Check the last file on your OP–XY.' : 'Connection cancelled.'); }
   };
   $('flow-back').onclick = () => {

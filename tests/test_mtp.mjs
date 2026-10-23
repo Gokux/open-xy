@@ -147,12 +147,13 @@ test('sends a whole build into existing folders, replacing files and keeping oth
   const build = {'os.ldr': Uint8Array.of(2), 'layout.json': Uint8Array.of(2), 'content/op1_factory.json': Uint8Array.of(2),
     'content/display/macroosc.svg': Uint8Array.of(2), 'content/presets/macroosc/default.json': Uint8Array.of(2),
     'content/presets/fm2op/default.json': Uint8Array.of(2)};
-  const asked = [];
+  const asked = [], steps = [];
   await mtp.open();
   for (const [path, bytes] of Object.entries(build)) {
-    assert.equal(await mtp.send(path, bytes, {replace: async p => { asked.push(p); return true; }}), true);
+    assert.equal(await mtp.send(path, bytes, {replace: async p => { asked.push(p); return true; }, onStep: (...step) => steps.push(step.join(' '))}), true);
   }
   await mtp.close();
+  assert.deepEqual(steps, ['replace os.ldr', 'replace content/op1_factory.json', 'folder content/presets/macroosc', 'folder content/presets/fm2op']);
   for (const [path, bytes] of Object.entries(build)) assert.deepEqual(state.read(path), bytes, path);
   assert.deepEqual(asked, ['os.ldr', 'content/op1_factory.json']);
   assert.deepEqual(state.paths(), ['content/', 'content/display/', 'content/display/macroosc.svg', 'content/display/stock.svg',

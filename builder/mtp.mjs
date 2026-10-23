@@ -120,7 +120,7 @@ export class Device {
     return files;
   }
   // The handle of a folder path, creating missing folders on the way.
-  async #folder(names) {
+  async #folder(names, onStep) {
     let parent = ROOT, path = '';
     for (const name of names) {
       path = path ? path + '/' + name : name;
@@ -129,20 +129,24 @@ export class Device {
       if (existing && !existing.folder) throw new Error(`Your OP–XY has a file named ${path} where a folder is needed.`);
       parent = existing?.handle ?? this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, parent],
         objectInfo(this.#storage, name, 0, parent, true)), 'create the folder ' + path).params[2];
+      if (!existing) onStep('folder', path);
       this.#folders.set(path, parent);
     }
     return parent;
   }
   // Sends one file, such as os.ldr or content/op1_factory.json. Returns false
-  // when a same-named file exists and replace() declines.
-  async send(path, bytes, {replace = async () => false, onProgress = () => {}} = {}) {
+  // when a same-named file exists and replace() declines. onStep reports
+  // ('folder', path) for each folder created and ('replace', path) before a
+  // replacement.
+  async send(path, bytes, {replace = async () => false, onProgress = () => {}, onStep = () => {}} = {}) {
     const names = segments(path), name = names.pop();
     if (bytes.length > 0xffffffff - 12) throw new Error('That file is too large for your OP–XY.');
-    const parent = await this.#folder(names);
+    const parent = await this.#folder(names, onStep);
     const existing = (await this.#children(parent)).get(name);
     if (existing?.folder) throw new Error(`Your OP–XY already has a folder named ${path}.`);
     if (existing) {
       if (!await replace(path)) return false;
+      onStep('replace', path);
       this.#expect(await this.#run(DELETE_OBJECT, [existing.handle, 0]), 'replace ' + path);
     }
     this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, parent], objectInfo(this.#storage, name, bytes.length, parent)), 'accept ' + path);

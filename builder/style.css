@@ -201,9 +201,13 @@ details input { max-width:100%; }
 .direct-copy .file-result { margin:10px 0 0; color:var(--ink); }
 .transfer-bar { height:12px; background:#333; border-radius:3px; overflow:hidden; }
 .transfer-bar span { display:block; width:0; height:100%; background:var(--machine-1); }
-.sent-list { list-style:none; margin:14px 0 0; padding:10px 12px; border:1px solid #555; border-radius:6px; }
-.sent-list li { font:11px/1.7 Consolas,monospace; overflow-wrap:anywhere; }
-.sent-list [data-kept=true] { color:var(--muted); }
+.transfer-current { font:11px/1.7 Consolas,monospace; color:var(--muted); margin:2px 0 0; overflow-wrap:anywhere; }
+.transfer-log { list-style:none; margin:14px 0 0; padding:10px 12px; max-height:172px; overflow:auto; border:1px solid #555; border-radius:6px; }
+.transfer-log li { font:11px/1.7 Consolas,monospace; overflow-wrap:anywhere; color:var(--muted); }
+.transfer-log [data-kind=done] { color:var(--ink); }
+.transfer-log [data-kind=done]::before { content:'✓ '; }
+.transfer-log [data-kind=error] { color:var(--error); }
+.transfer-log [data-kind=error]::before { content:'✕ '; }
 #dev-status { max-width:600px; margin:22px auto 0; font-size:13px; }
 #dev-status:empty { display:none; }
 #connection-help { max-width:600px; text-align:left; margin:24px auto; }
