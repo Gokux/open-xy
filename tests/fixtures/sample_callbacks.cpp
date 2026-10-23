@@ -21,9 +21,11 @@ extern "C" void probe_drum_control(opxy::PadSettings* value, const opxy::DrumCon
     ++edits; received = *event; ++*value;
 }
 static const opxy::i32* expected_parameters;
-extern "C" void probe_drum_panel(opxy::PadSettings value, const opxy::i32* parameters, opxy::DrumPanel* frame) {
-    if (parameters != expected_parameters) std::abort();
+extern "C" void probe_drum_panel(opxy::PadSettings value, const opxy::SampleRegion* saved,
+                                 const opxy::i32* parameters, opxy::DrumPanel* frame) {
+    if (parameters != expected_parameters || !saved) std::abort();
     frame->pitch_cents = int(value) - 1200; frame->repeat = value & 1;
+    frame->reverse = !saved->reverse; frame->level = 0x7fffffff;
     std::memcpy(frame->shifted[0], "first", 6); std::memcpy(frame->shifted[1], "second", 7);
 }
 static void check(bool value) { if (!value) std::abort(); }
@@ -80,6 +82,17 @@ int main() {
     reinterpret_cast<unsigned char*>(low_root)[24] = 36;
     empty_panel = sdk_sample_drum_view(low_root, shadow, nullptr);
     check(empty_panel && empty_panel->pitch_cents == 1200);
+    // The panel's level reaches stock as rounded float bits.
+    check(opxy::platform::q31_float_bits(0) == 0 && opxy::platform::q31_float_bits(1) == 0x30000000u &&
+          opxy::platform::q31_float_bits(0x20000000) == 0x3e800000u &&
+          opxy::platform::q31_float_bits(0x40000040) == 0x3f000001u &&
+          opxy::platform::q31_float_bits(0x7fffffff) == 0x3f800000u);
+    // The painted copy plays in the panel's direction (this probe inverts the
+    // saved one); the stored record keeps its own.
+    check((reinterpret_cast<unsigned char*>(shadow)[31] & 1) == 1 && (reinterpret_cast<unsigned char*>(low_root)[31] & 1) == 0);
+    reinterpret_cast<unsigned char*>(low_root)[31] |= 1;
+    empty_panel = sdk_sample_drum_view(low_root, shadow, nullptr);
+    check(empty_panel && !empty_panel->reverse && (reinterpret_cast<unsigned char*>(shadow)[31] & 1) == 0);
     bytes[27] = 192; bytes[31] = 1;
     for (unsigned index = 0; index < 32; ++index) {
         if ((index & 15) == 0 || (index & 15) == 8) continue; // SDK-owned pad pitch/reset.
@@ -129,7 +142,8 @@ int main() {
         const auto* copy = reinterpret_cast<const unsigned char*>(guarded + 1);
         check(frame->pitch_cents == 310 + int(value) - 1200);
         check(int(copy[24]) * 100 + int(copy[28]) == 6000 + 310 + int(value) - 1200);
-        check((copy[27] & 63) == ((value & 1) ? 3 : 1) && (copy[27] & 192) == 192 && copy[31] == 1);
+        check((copy[27] & 63) == ((value & 1) ? 3 : 1) && (copy[27] & 192) == 192 &&
+              copy[31] == 0);  // the probe inverts the saved direction
         check(guarded[6] == 0 && guarded[0] == 0x12345678 && guarded[9] == 0x87654321);
         check(std::memcmp(raw, original, sizeof(raw)) == 0);
     }

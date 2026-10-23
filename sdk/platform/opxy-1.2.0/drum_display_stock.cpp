@@ -132,12 +132,9 @@ void sdk_sample_drum_display(Node* page, const void* region, u32 third, u32 four
             values[3] = view->repeat ? 0x3f000000u : 0x3e800000u;
             projected = Parameters{0, values, values + 8, values + 8};
             third = reinterpret_cast<u32>(&projected);
-            // Off/pad/on: the middle third keeps the saved direction, matching
-            // the other live mode controls and stock's centered track defaults.
-            unsigned char& direction = reinterpret_cast<unsigned char*>(shadow)[pad_record::kFlags];
-            if (parameters[4] < 0x2aaaaaaa) direction &= ~pad_record::kReverse;
-            else if (parameters[4] >= 0x55555555) direction |= pad_record::kReverse;
-            fourth = stock<u32(u32, u32)>(0x04021ac0)(fourth, values[7]);
+            // The shadow record already carries the panel's direction; scale
+            // the saved volume (a float) by the panel's level.
+            fourth = stock<u32(u32, u32)>(0x04021ac0)(fourth, q31_float_bits(view->level));
         }
         else owned = false;
     }

@@ -241,7 +241,7 @@ its pitch, reverse and volume. Settings survive project save exactly.
 
 ```cpp
 void drum_control(opxy::PadSettings&, const opxy::DrumControl&);
-void drum_panel(opxy::PadSettings, opxy::Parameters live, opxy::DrumPanel&);
+void drum_panel(opxy::PadSettings, const opxy::SampleRegion& saved, opxy::Parameters live, opxy::DrumPanel&);
 ```
 
 | Encoder | Main | Shift |
@@ -255,26 +255,22 @@ void drum_panel(opxy::PadSettings, opxy::Parameters live, opxy::DrumPanel&);
 encoder, with `shifted` set on the Shift row, and edits the settings. `held`
 marks a turn while the encoder is held down; turning suppresses the click on
 release. Machines decide how that gesture changes their stepping.
-`drum_panel` receives the settings and the eight live parameters audio uses.
-It returns the live pitch offset in cents (the page adds the pad's pitch), loop
-or play once, and two Shift captions of at most 15 characters, which replace
-the pan row. Callbacks are bounded and allocation-free.
+`drum_panel` receives the settings, the pad's saved region and the eight live
+parameters audio uses, and reports the pad as the machine plays it: the live
+pitch offset in cents (the page adds the pad's saved pitch), loop or play once,
+direction, a Q31 scale of the saved volume, and two Shift captions of at most
+15 characters, which replace the pan row. The panel arrives with pitch 0, the
+saved direction and an unchanged level, so a machine sets what its controls
+change. On the drum page `saved.level` is unity: stock keeps the pad's volume
+separately, and `level` scales it. The SDK only projects the panel onto the
+stock page, so a machine applies its live controls in one place for display
+and audio. Callbacks are bounded and allocation-free.
 
-The track's live parameters modify the pad's settings, for display and audio
-alike; the machine applies them to both. Drum-page definitions use these
-slots:
-
-| Slot | Control | Neutral |
-| --- | --- | --- |
-| 0 | Pitch offset, -12..12 semitones in stock's ten-cent steps | 0.5 |
-| 1, 2 | Start and end modifiers | 0.5 |
-| 3 | Play mode | Machine policy |
-| 4 | Reverse, toggling the pad's direction | 0 |
-| 5, 6 | The machine's Shift controls | Machine policy |
-| 7 | Volume, scaling the pad's level | 1 |
-
-Machine names and defaults come from `definition.json`. See
-[Timestretch](../machines/timestretch/controls.h).
+Stock's page reads slots 0 to 3 as pitch, start, end and play mode. The SDK
+replaces pitch and play mode with the panel's, so only slots 1 and 2, the start
+and end trim overlays, reach stock directly; slot 0 keeps stock's ten-cent pitch
+editing, -12..12 semitones. The machine defines the remaining slots in
+`definition.json`. See [Timestretch](../machines/timestretch/controls.h).
 
 ### Sample analysis
 

@@ -150,8 +150,19 @@ inline i32 sample_pitch_cents(u32 factor) { return kNeutralRootCents - sample_ro
 inline u32 sample_marker(i32 value, u32 frames) {
     return value < 0 ? 0 : static_cast<u32>(value) > frames ? frames : static_cast<u32>(value);
 }
+// IEEE single-precision bits of value / 2^31, rounded, without floating-point
+// helpers (the module links none); 0x7fffffff is exactly 1.0, as stock's own
+// conversion treats full scale. Adding the round bit carries into the exponent.
+inline u32 q31_float_bits(u32 value) {
+    if (value >= 0x7fffffffu) return 0x3f800000u;
+    if (!value) return 0;
+    u32 exponent = 126;
+    while (!(value & 0x40000000u)) { value <<= 1; --exponent; }
+    return (exponent << 23) + ((value >> 7) & 0x7fffffu) + ((value >> 6) & 1u);
+}
 // GUI records and audio records order their markers differently. The GUI
-// record carries no level; an empty pad has neutral tuning.
+// record carries no level (stock keeps the volume separately), so its level is
+// unity; an empty pad has neutral tuning.
 inline SampleRegion sample_gui_region(const void* raw) {
     using namespace pad_record;
     const i32* words = static_cast<const i32*>(raw);

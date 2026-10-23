@@ -42,13 +42,16 @@ struct SampleAssignment {
 // held is true for a turn while the encoder is physically held down.
 // pressed is a separate click; turning suppresses that click on release.
 struct DrumControl { u32 knob; i32 direction; bool pressed; bool shifted; bool held; };
-// What the drum page shows for the selected pad: a live pitch offset in cents
-// (the SDK adds the pad's saved pitch), loop (true) or play once (false), and
-// two NUL-terminated Shift captions of at most 15 characters.
+// What the drum page shows for the selected pad, as the machine plays it with
+// the track's live parameters applied. The SDK only projects these values. It
+// passes the panel in with pitch 0, the saved direction and an unchanged level,
+// so a machine sets what its controls change.
 struct DrumPanel {
-    i32 pitch_cents;
-    bool repeat;
-    char shifted[2][16];
+    i32 pitch_cents;      // live offset in cents; the SDK adds the pad's saved pitch
+    bool repeat;          // loop (true) or play once (false)
+    bool reverse;         // the direction the pad plays in
+    u32 level;            // Q31 scale of the pad's saved volume; 0x7fffffff leaves it unchanged
+    char shifted[2][16];  // two NUL-terminated Shift captions of at most 15 characters
 };
 
 // One audio block. All pointers are borrowed for this call. Analysis is

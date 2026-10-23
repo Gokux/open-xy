@@ -66,9 +66,12 @@ extern "C" const opxy::DrumPanel* sdk_sample_drum_view(const void* raw, void* sh
     const SampleMachine* m = drum_machine(sdk_sample_selected_engine());
     current_panel = opxy::DrumPanel{};
     if (!raw || !shadow || !m) return nullptr;
-    m->panel(settings(m, raw), parameters, &current_panel);
+    const opxy::SampleRegion region = opxy::platform::sample_gui_region(raw);
+    current_panel.reverse = region.reverse;
+    current_panel.level = 0x7fffffff;
+    m->panel(settings(m, raw), &region, parameters, &current_panel);
     // Saved pad pitch is at most an octave either way, as the voice plays it.
-    const i32 saved = opxy::platform::sample_gui_region(raw).pitch_cents;
+    const i32 saved = region.pitch_cents;
     current_panel.pitch_cents += saved < -1200 ? -1200 : saved > 1200 ? 1200 : saved;
     current_panel.shifted[0][15] = current_panel.shifted[1][15] = 0;
     for (u32 i = 0; i < 8; ++i) static_cast<u32*>(shadow)[i] = static_cast<const u32*>(raw)[i];
@@ -83,6 +86,7 @@ extern "C" const opxy::DrumPanel* sdk_sample_drum_view(const void* raw, void* sh
     bytes[kRoot] = static_cast<unsigned char>(root);
     bytes[kFine] = static_cast<unsigned char>(cents - (root - 60) * 100);
     bytes[kMode] = static_cast<unsigned char>((bytes[kMode] & ~kModeBits) | (current_panel.repeat ? 3u : 1u));
+    bytes[kFlags] = static_cast<unsigned char>(current_panel.reverse ? bytes[kFlags] | kReverse : bytes[kFlags] & ~kReverse);
     static_cast<u32*>(shadow)[kFade] = 0;
     return &current_panel;
 }

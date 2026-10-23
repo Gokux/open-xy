@@ -67,9 +67,10 @@ opxy::PadSettings @PREFIX@_sample_assign(const opxy::SampleAssignment* input) { 
 #endif
 #if @DRUM_CONTROLS@
 void @PREFIX@_drum_control(opxy::PadSettings*, const opxy::DrumControl*) __asm__("@PREFIX@_drum_control");
-void @PREFIX@_drum_panel(opxy::PadSettings, const opxy::i32*, opxy::DrumPanel*) __asm__("@PREFIX@_drum_panel");
+void @PREFIX@_drum_panel(opxy::PadSettings, const opxy::SampleRegion*, const opxy::i32*, opxy::DrumPanel*) __asm__("@PREFIX@_drum_panel");
 void @PREFIX@_drum_control(opxy::PadSettings* value, const opxy::DrumControl* event) { @NAMESPACE@::drum_control(*value, *event); }
-void @PREFIX@_drum_panel(opxy::PadSettings value, const opxy::i32* parameters, opxy::DrumPanel* panel) { @NAMESPACE@::drum_panel(value, parameters, *panel); }
+void @PREFIX@_drum_panel(opxy::PadSettings value, const opxy::SampleRegion* saved, const opxy::i32* parameters,
+                          opxy::DrumPanel* panel) { @NAMESPACE@::drum_panel(value, *saved, parameters, *panel); }
 #endif
 #if @ANALYSIS@
 // One preparation at a time, on the stock file worker (sample_cache.cpp).
