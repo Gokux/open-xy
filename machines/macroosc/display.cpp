@@ -24,12 +24,12 @@ inline void percent(char* out, unsigned capacity, opxy::i32 value) {
   text[n] = 0;
   opxy::segments::text(out, capacity, text);
 }
-// The FM ratio as its enum label: x0.5, x1, x1.5 ... x8.
+// The FM ratio as its enum label: 0.5, 1, 1.5 ... 8.
 inline void ratio(char* out, unsigned capacity, unsigned halves) {
-  char text[5] = {'x', static_cast<char>('0' + halves / 2), 0, 0, 0};
+  char text[4] = {static_cast<char>('0' + halves / 2), 0, 0, 0};
   if (halves & 1) {
-    text[2] = '.';
-    text[3] = '5';
+    text[1] = '.';
+    text[2] = '5';
   }
   opxy::segments::text(out, capacity, text);
 }
