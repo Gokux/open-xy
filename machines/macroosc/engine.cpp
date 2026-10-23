@@ -15,7 +15,9 @@ using braids::MacroOscillatorShape;
 const unsigned kNumShapes = 47, kBlockSize = 64, kMaxChunk = 24;
 const uint8_t kNoSync[kMaxChunk] = {};
 // FM: a sine modulator at a ratio of the note retunes the carrier every
-// kFmChunk samples (5.5 kHz), the cost/fidelity balance measured for Blackfin.
+// kFmChunk samples (5.5 kHz), which keeps an x8 modulator unaliased up to
+// about F4. Each extra Braids render call costs per-call setup: on the Blackfin
+// simulator FM adds about a third to most models and doubles the costliest.
 const unsigned kFmChunk = 8;
 inline bool UsesDelayLines(MacroOscillatorShape shape) {
   return shape == braids::MACRO_OSC_SHAPE_SAW_COMB ||
@@ -116,7 +118,7 @@ void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
   } else {
     // Linear FM: at full depth the carrier frequency swings between zero and
     // twice the note. Increments stay below half the sample rate (2^31).
-    const uint32_t halves = RatioFromParameter(parameters[3]).halves;
+    const uint32_t halves = RatioHalvesFromParameter(parameters[3]);
     for (size_t offset = 0; offset < kBlockSize; offset += kFmChunk) {
       const uint32_t increment = pitch_increments[offset] < 0x80000000u ? pitch_increments[offset] : 0x7fffffffu;
       const int32_t swing = (static_cast<int32_t>(depth) * stmlib::Interpolate824(braids::wav_sine, voice->fm_phase)) >> 15;

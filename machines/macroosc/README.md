@@ -54,7 +54,10 @@ Changing model restrikes the oscillator. At depth 0, render produces
 8-sample chunks, each at the note's phase increment scaled by
 `1 + depth × sin(modulator)` (linear FM, between zero and twice the note at
 full depth); the modulator phase advances at ratio × the note and restarts on
-each note. Output is int16 scaled to half-scale Q31.
+each note. The modulator aliases once ratio × note passes about 2.75 kHz, half
+the 5.5 kHz update rate. Models that advance their envelopes once per render
+call (for example the struck bell and drum) decay about 2.7 times faster while
+depth is above 0. Output is int16 scaled to half-scale Q31.
 
 Five models (SAW_COMB, PLUK, BOWD, BLOW, FLUT) lease an 8,200-byte delay line
 from a shared pool of 16. When the pool is full the oldest lease is stolen and

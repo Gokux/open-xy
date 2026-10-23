@@ -536,11 +536,11 @@
     },
     {
       "kind": "hook",
-      "address": "0x8c09022c",
-      "file_offset": "0xc75ec",
+      "address": "0x8c0b66d2",
+      "file_offset": "0xeda92",
       "length": 8,
-      "before": "00de5b8d8c690000",
-      "symbol": "sdk_synth_key",
+      "before": "00de518d34e60000",
+      "symbol": "sdk_synth_press",
       "call": true
     },
     {

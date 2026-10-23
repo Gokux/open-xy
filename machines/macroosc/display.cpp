@@ -24,6 +24,15 @@ inline void percent(char* out, unsigned capacity, opxy::i32 value) {
   text[n] = 0;
   opxy::segments::text(out, capacity, text);
 }
+// The FM ratio as its enum label: x0.5, x1, x1.5 ... x8.
+inline void ratio(char* out, unsigned capacity, unsigned halves) {
+  char text[5] = {'x', static_cast<char>('0' + halves / 2), 0, 0, 0};
+  if (halves & 1) {
+    text[2] = '.';
+    text[3] = '5';
+  }
+  opxy::segments::text(out, capacity, text);
+}
 inline void display(const opxy::segments::Input& input, Frame& frame) {
   const opxy::i32 model = input.parameters[0];
   unsigned index = model < 0 ? 0 : ((static_cast<unsigned>(model) >> 16) * kModels) >> 15;
@@ -32,7 +41,7 @@ inline void display(const opxy::segments::Input& input, Frame& frame) {
   opxy::segments::text(frame.label, sizeof(frame.label), models[index].label);
   opxy::segments::text(frame.values[0], sizeof(frame.values[0]), models[index].code);
   if (input.shown[3] == kRatioSlot)
-    opxy::segments::text(frame.values[3], sizeof(frame.values[3]), RatioFromParameter(input.parameters[3]).label);
+    ratio(frame.values[3], sizeof(frame.values[3]), RatioHalvesFromParameter(input.parameters[3]));
   else
     percent(frame.values[3], sizeof(frame.values[3]), input.parameters[3]);
   frame.key = index + 1;
