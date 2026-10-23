@@ -126,8 +126,5 @@ directory, and use the SDK server rather than serving the checkout root.
 
 Local authoring permits different sounds and drawings while running the shared
 callback checks described in the [preview guide](preview.md). It does not
-allocate a native engine ID or produce an installable machine. To build it for
-the device, move the folder to `machines/<id>/`, rename its artwork IDs from
-`local_` to `<id>_`, add a [`machine.json`](api.md#registration-boundary) with a
-free [identity](api.md#identity), add it to `profiles/collection.json` and run
-the full [native build verification](build.md).
+allocate a native engine ID or produce an installable machine. To put it on
+the device, [build your own firmware](build.md#3-add-your-machine).

@@ -38,7 +38,7 @@ python sdk.py check
 SDK checks cover declared interfaces, storage, generated bindings and packaging.
 Sound correctness is the machine maintainer's responsibility: keep sound tests
 with the machine's own project, not in this repository. Native
-changes also require the complete [build verification](docs/build.md); its
+changes also require the complete [release verification](docs/build.md#release-verification); its
 required checks and private fixtures cannot be skipped. Keep all firmware,
 user data and generated packages outside every checkout.
 
