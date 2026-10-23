@@ -57,7 +57,7 @@ def probe(compiler, node):
     """Build and run a WebAssembly module with this compiler."""
     advice = 'Choose LLVM with wasm32 and wasm-ld using --cxx.'
     if sys.platform == 'darwin':
-        advice += (" Apple's Xcode clang has neither; install Homebrew llvm and lld and pass"
+        advice += (" Apple's Xcode clang lacks wasm-ld; install Homebrew llvm and lld and pass"
                    ' --cxx "$(brew --prefix llvm)/bin/clang++".')
     executable = shutil.which(str(compiler))
     require(executable, f'{compiler} was not found. {advice}')
