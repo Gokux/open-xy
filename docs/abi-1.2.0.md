@@ -35,7 +35,10 @@ version is rejected. The output differs from stock in exactly these places:
 | Startup label | 1 | Shows `OPEN 0.0.1-1.2.0` at boot through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
-Everything else must reconstruct byte for byte. Protected ranges in
+The sample rows (sample dispatch, analysis, drum-page services and recorder)
+form the profile's `samples` service: a build applies those edits, and links
+the SDK code behind them, only when it includes a sample engine. Otherwise
+their sites stay stock. Everything else must reconstruct byte for byte. Protected ranges in
 [`pipeline.py`](../tooling/pipeline.py) admit only hooks into the module and
 the reviewed startup label.
 The bootloader is never modified.
@@ -165,8 +168,9 @@ ID checks. One generated table describes the collection's sample machines
 [`sample_machines.cpp`](../sdk/platform/opxy-1.2.0/sample_machines.cpp)
 admits an ID only while its registration is still ours, and an owned engine
 borrows the multisampler payload. Track and voice IDs stay unchanged. Stock,
-absent and conflicting registrations follow the original paths. Adding a
-sample machine adds no firmware patch sites.
+absent and conflicting registrations follow the original paths. The first
+sample machine in a build enables the `samples` service; further ones add no
+firmware patch sites.
 
 Stock starts these voices through a separate note-start method; factory
 creation alone does not start or choke a voice. Page 7 maps notes to

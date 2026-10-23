@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = 'ca3c135896250e501b91e4273820d56eb72c0b968d4c39ba9f8ad71d6fec7409';
+export const PROFILE_SHA256 = 'fb2e68b15a1a8a177dd5308d5d89d584c837903ba89d043bd011d263f0321d2c';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -154,6 +154,8 @@ export async function openKit(kit) {
   const objects = [];
   for (const o of kit.objects) {
     check(!names.has(o.name) && (o.owner === null || ids.has(o.owner)), 'Duplicate or unowned object');
+    check(o.service === undefined || (o.owner === null && Object.hasOwn(kit.profile.services ?? {}, o.service)),
+      'Undeclared service: ' + o.service);
     names.add(o.name);
     const bytes = decode64(o.bytes);
     check(await sha256(bytes) === o.sha256, 'Curated object hash mismatch: ' + o.name);
@@ -162,12 +164,20 @@ export async function openKit(kit) {
   return {...kit, objects};
 }
 
+// Profile services a selection needs: each names the machine kinds that use it.
+// tooling.firmware.active_services applies the same rule.
+export function activeServices(profile, machines) {
+  return new Set(Object.entries(profile.services ?? {})
+    .filter(([, kinds]) => machines.some(m => kinds.includes(m.kind))).map(([name]) => name));
+}
+
 export function linkKit(kit, selection) {
   identities(kit);
   check(Array.isArray(selection) && selection.length > 0 && new Set(selection).size === selection.length &&
     selection.every(id => kit.machines.some(m => m.id === id)), 'Choose each machine once.');
   const selected = new Set(selection), limit = moduleBytes(kit.profile);
-  const objects = kit.objects.filter(o => o.owner === null || selected.has(o.owner));
+  const services = activeServices(kit.profile, kit.machines.filter(m => selected.has(m.id)));
+  const objects = kit.objects.filter(o => o.owner === null ? !o.service || services.has(o.service) : selected.has(o.owner));
   const globals = new Map(Object.entries(kit.definitions)), placements = new Map(), segments = [];
   let cursor = kit.profile.module_base, initializedEnd;
   for (const group of ['text', 'rodata', 'data', 'bss']) {
@@ -237,7 +247,7 @@ export function linkKit(kit, selection) {
       }
     }
   }
-  return {module, globals, aliases, objects, segments,
+  return {module, globals, aliases, objects, segments, services,
     sizes: {initialized, bss: cursor - bssStart, allocated, available: limit - allocated}};
 }
 
@@ -309,7 +319,11 @@ export async function patchFirmware(kit, linked, stock) {
       covering[0].offset + 16 + site - covering[0].target === offset &&
       equal(stock.subarray(offset, offset + before.length), before), 'Patch preimage/mapping mismatch');
     let after;
-    if (['hook', 'startup'].includes(edit.kind)) {
+    check(edit.service === undefined || (edit.kind === 'hook' && Object.hasOwn(p.services ?? {}, edit.service)),
+      'Undeclared service: ' + edit.service);
+    if (edit.service && !linked.services.has(edit.service)) {
+      after = before;  // the selection leaves this service's stock code unchanged
+    } else if (['hook', 'startup'].includes(edit.kind)) {
       const destination = linked.globals.get(edit.symbol);
       check(destination >= low && destination < low + linked.module.length, 'Hook destination outside module');
       after = redirect(edit, destination);

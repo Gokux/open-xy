@@ -33,7 +33,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
     profile, machines, definitions = native.configuration()
     require(recipe['schema'] == 1, 'Unsupported collection')
     require(sha(stock_catalog) == profile['stock_catalog_sha256'], 'Stock catalog hash mismatch')
-    owners = native.object_owners(machines)
+    owners, services = native.object_owners(machines, profile), native.object_services(machines, profile)
     kit_machines = []
     for m in machines:
         entry = dict(id=m.id, name=m.name, kind=m.kind, prefix=m.prefix, description=m.description,
@@ -73,7 +73,10 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
         destination = child(object_dir, name)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
-        objects.append(dict(name=name, owner=owner, bytes=base64.b64encode(data).decode('ascii'), sha256=sha(data)))
+        entry = dict(name=name, owner=owner, bytes=base64.b64encode(data).decode('ascii'), sha256=sha(data))
+        if name in services:
+            entry['service'] = services[name]
+        objects.append(entry)
     kit = dict(format='opxy-browser-kit/1', profile=profile,
                profileSource=base64.b64encode(read(ROOT / ('profiles/' + profile['id'] + '.json'))).decode('ascii'),
                definitions=definitions, machines=kit_machines, objects=objects, notices=notices(kit_machines),

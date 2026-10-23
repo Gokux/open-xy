@@ -24,7 +24,7 @@ from .adapters import (catalog_entry, generate_display, generate_fx_object, gene
                        generate_sample_callbacks, generate_screen, generate_screen_order, generate_segment_binding,
                        generate_synth_controls, generate_voice)
 from .contributors import validate_source_boundary
-from .firmware import assemble, hook_instruction, hook_target
+from .firmware import active_services, assemble, hook_instruction, hook_target, patch_active
 from .formats import elf32, elf_sections, require, sha
 from .machines import by_kind, collection
 from .pipeline import (PROFILE, ROOT, check_patch_boundaries, child, config, document, execute, fresh_output, host_pins, host_platform,
@@ -136,11 +136,12 @@ def includes(m=None):
     return paths
 
 
-def plan(machines):
+def plan(machines, profile=None):
     """Every object in link order as (name, owner machine or None, step).
 
     Each machine's objects come first, in collection order, then the SDK's
-    shared runtime and startup. The browser kit links in this same order.
+    shared runtime and startup, less units of profile services no machine uses.
+    The browser kit links in this same order.
     """
     units = []
     for m in machines:
@@ -151,7 +152,9 @@ def plan(machines):
         else:
             steps = ('registration', 'sample_voice')
         units += [(f'{m.id}/{Path(step.removeprefix("source:")).stem}.o', m, step) for step in steps]
-    units += [(f'sdk/{step}.o', None, step) for step in SDK_UNITS]
+    services = active_services(profile or config(), (m.kind for m in machines))
+    units += [(f'sdk/{step}.o', None, step) for step in SDK_UNITS
+              if UNIT_SERVICES.get(step) is None or UNIT_SERVICES[step] in services]
     names = [name for name, _m, _step in units]
     require(len(names) == len(set(names)), 'Duplicate object name')
     return units
@@ -164,6 +167,11 @@ SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup'
              'sample_cache_hooks', 'sample_progress', 'sample_progress_stock', 'pad_assignment',
              'pad_assignment_stock', 'drum_page', 'drum_controls_stock', 'drum_display_stock', 'screen_order',
              'screen_hooks', 'synth_controls', 'synth_control_table')
+# SDK units that exist only for a profile service, linked when a machine needs it.
+UNIT_SERVICES = dict.fromkeys(('sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache',
+                               'sample_cache_stock', 'sample_cache_hooks', 'sample_progress',
+                               'sample_progress_stock', 'pad_assignment', 'pad_assignment_stock', 'drum_page',
+                               'drum_controls_stock', 'drum_display_stock'), 'samples')
 
 
 def module_bytes(profile):
@@ -183,10 +191,10 @@ def object_memory(data):
     return initialized, state
 
 
-def memory_by_owner(directory, machines):
+def memory_by_owner(directory, machines, profile=None):
     """Bytes each machine (and 'sdk' for shared code) places in the module, before alignment."""
     usage = {}
-    for name, owner in object_owners(machines).items():
+    for name, owner in object_owners(machines, profile).items():
         initialized, state = object_memory(read(Path(directory) / name))
         share = usage.setdefault(owner or 'sdk', dict(initialized_bytes=0, state_bytes=0))
         share['initialized_bytes'] += initialized
@@ -203,9 +211,15 @@ def memory_summary(usage, total, limit):
         f'{owner} {size / 1024:.1f} KiB' for owner, size in shares)
 
 
-def object_owners(machines):
+def object_owners(machines, profile=None):
     """Object name -> owning machine ID (None for the SDK's shared objects), in link order."""
-    return {name: (m.id if m else None) for name, m, _step in plan(machines)}
+    return {name: (m.id if m else None) for name, m, _step in plan(machines, profile)}
+
+
+def object_services(machines, profile=None):
+    """SDK object name -> the profile service it implements, for objects that implement one."""
+    return {name: UNIT_SERVICES[step] for name, m, step in plan(machines, profile)
+            if m is None and step in UNIT_SERVICES}
 
 
 def compile_collection(directory, toolchain, compiler, profile, machines, definitions):
@@ -265,7 +279,7 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         return cxx(str(source()), obj, m)
 
     names = []
-    for name, m, step in plan(machines):
+    for name, m, step in plan(machines, profile):
         obj = directory / name
         build_unit(obj, m, step)
         # Disable string pooling so the browser linker places sections exactly as GNU ld does.
@@ -283,7 +297,7 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         overflow = re.search(r"region `MODULE' overflowed by (\d+) bytes", error.output or '')
         if not overflow and 'Module overlaps the relocated tables' not in (error.output or ''):
             raise
-        usage, limit = memory_by_owner(directory, machines), module_bytes(profile)
+        usage, limit = memory_by_owner(directory, machines, profile), module_bytes(profile)
         total = limit + int(overflow.group(1)) if overflow else sum(sum(share.values()) for share in usage.values())
         raise ValueError('Machines exceed the shared module memory, ' + memory_summary(usage, total, limit)) from None
     module, sizes, patch_profile, hooks, stack, usage = check_module(directory, tools, profile, machines)
@@ -294,7 +308,8 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
                   sizes=sizes, memory=usage, module_bytes=module_bytes(profile), audio_stack_bytes=stack,
                   reserved_bytes=profile['reserved_bytes'],
                   module_sha256=sha(module), elf_sha256=sha(read(directory / 'module.elf')), hooks=hooks,
-                  objects=object_owners(machines), patches=patch_profile['patches'], device_operations=False,
+                  objects=object_owners(machines, profile), patches=patch_profile['patches'],
+                  services=sorted(active_services(profile, (m.kind for m in machines))), device_operations=False,
                   hardware_tested=False, cpu_timing_measured=False)
     save_json(directory / 'compile-report.json', report)
     return bytes(module), report, patch_profile
@@ -447,7 +462,7 @@ def check_module(directory, tools, profile, machines):
     limit = module_bytes(profile)
     require(all(sizes.values()), 'Empty module section')
     require(symbols['__extensions_reserved_end']['value'] - low == limit, 'Linker module region differs from the profile')
-    usage = memory_by_owner(directory, machines)
+    usage = memory_by_owner(directory, machines, profile)
     # One pool for code, data and state of every machine; name each share when it overflows.
     if sizes['allocated_span_bytes'] > limit:
         raise ValueError('Machines exceed the shared module memory, ' +
@@ -459,8 +474,11 @@ def check_module(directory, tools, profile, machines):
     patch_profile = copy.deepcopy(profile)
     hooks = {}
     text = allocated['.text']
+    services = active_services(profile, (m.kind for m in machines))
     for patch in patch_profile['patches']:
-        if patch['kind'] == 'startup':
+        if not patch_active(patch, services):
+            patch['after'] = patch['before']  # this build leaves the service's stock code unchanged
+        elif patch['kind'] == 'startup':
             patch['after'] = startup_label.jump(symbols[patch['symbol']]['value']).hex()
         elif patch['kind'] == 'hook':
             symbol = symbols[patch['symbol']]
@@ -618,7 +636,8 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
         module, report, patch_profile = compile_collection(temporary, toolchain, compiler, profile, machines,
                                                            definitions)
         expected_assets = prepare_assets(catalog, profile, machines)
-        expected_assets['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']))
+        expected_assets['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
+                                               set(report['services']))
         expected = {'candidate/' + name: data for name, data in expected_assets.items()}
         expected['analysis/module.bin'] = module
         expected['analysis/module.elf'] = read(temporary / 'module.elf')
@@ -632,7 +651,8 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
         require(actual == {p for p in expected if p.startswith('candidate/')}, 'Unexpected deployment file')
     result = dict(target=TARGET, status='experimental-unqualified', os_sha256=sha(expected_assets['os.ldr']),
                   fresh_source_rebuild_matches=True, original_entry_preserved=True,
-                  exact_edits=len(profile['patches']), single_shared_reservation_bytes=profile['reserved_bytes'],
+                  exact_edits=sum(patch_active(p, set(report['services'])) for p in profile['patches']),
+                  single_shared_reservation_bytes=profile['reserved_bytes'],
                   sizes=report['sizes'], device_operations=False, hardware_tested=False, cpu_timing_measured=False,
                   brick_risk_eliminated=False)
     if require_record:
@@ -649,9 +669,10 @@ def build(out, toolchain, compiler, stock_os, stock_content):
     output = fresh_output(out)
     analysis = output / 'analysis'
     analysis.mkdir()
-    module, _report, patch_profile = compile_collection(analysis, toolchain, compiler, profile, machines,
-                                                        definitions)
-    prepared['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']))
+    module, report, patch_profile = compile_collection(analysis, toolchain, compiler, profile, machines,
+                                                       definitions)
+    prepared['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
+                                  set(report['services']))
     for name, data in prepared.items():
         path = child(output / 'candidate', name)
         path.parent.mkdir(parents=True, exist_ok=True)
