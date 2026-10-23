@@ -35,7 +35,9 @@ export function createWizard({getKit, getSelected, hasDownload}) {
         'If you previously installed an Open-XY bundle, you can use its os.ldr from the device’s top level instead.');
     }
     return {
-      boot: ['Start in the te-boot menu.', disabling ? 'Finish any file transfers or OS installation before disabling the menu.' : install ? '' : 'os.ldr is your device’s firmware file. Follow these steps to copy it.', [action('Connected and at te-boot', 'menu')], [
+      version: ['Is your OP–XY on OS 1.2.0?', 'Open-XY supports only OS 1.2.0. Install it on your OP–XY before you copy the OS file.', [action('Yes, it’s on 1.2.0', 'boot', 'version-yes'), action('No, or I’m not sure', 'version-help', 'version-no')]],
+      'version-help': ['Install OS 1.2.0 first.', 'Use teenage engineering’s usual update steps to put OS 1.2.0 on your OP–XY, then come back. Open-XY can’t work from any other version.', [action('It’s on 1.2.0 now', 'boot', 'version-done')]],
+      boot: ['Start in the te-boot menu.', disabling ? 'Finish any file transfers or OS installation before disabling the menu.' : install ? '' : 'The OS file (os.ldr) is your device’s firmware. It is not the .tfw update file on teenage engineering’s site. Follow these steps to copy it.', [action('Connected and at te-boot', 'menu')], [
         'Power off your OP-XY.', 'Hold COM while switching it on.',
         'Release COM when the te-boot menu appears.', 'Connect it to this computer with USB.',
       ]],
@@ -56,7 +58,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". The next screen is titled "factory menu".', [action('Factory menu is open', 'start-transfer')]],
       'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', 'transfer')]],
-      transfer: [install ? 'Copy the bundle.' : 'Get your os.ldr.', 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files')], transferSteps],
+      transfer: [install ? 'Copy the bundle.' : 'Copy the OS file.', 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files')], transferSteps],
       'exit-transfer': ['Exit file transfer.', 'Once every file has finished copying, press track 2 for "2. exit".', [action('I’m back at the factory menu', 'write-os')]],
       'write-os': ['Write the OS.', 'Press track 5 for "5. write os to boot partition". Keep your OP-XY connected to power.', [action('I pressed track 5', 'write-result')]],
       'write-result': ['Wait for the write result.', 'Do not restart while writing. Wait for "firmware written ok" on your OP-XY.', [action('I see "firmware written ok"', 'restart'), action('I see an error', 'write-help')]],
@@ -69,7 +71,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     const [title, detail, actions, instructions = []] = content();
     $('device-flow').dataset.stage = stage;
     $('device-flow').setAttribute('aria-busy', String(busy));
-    $('flow-progress').textContent = (purpose === 'disable' ? 'Disable dev menu' : purpose === 'source' ? 'Copy firmware' : 'Install on your OP–XY') + ' · Step ' + (history.length + 1);
+    $('flow-progress').textContent = (purpose === 'disable' ? 'Disable dev menu' : purpose === 'source' ? 'Copy OS' : 'Install on your OP–XY') + ' · Step ' + (history.length + 1);
     $('flow-title').textContent = title;
     const install = purpose === 'install';
     const kit = getKit();
@@ -128,7 +130,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     else $('download-overview').hidden = $('download-actions').hidden = true;
     $(hostPage === 1 ? 'source-flow-host' : 'install-flow-host').append($('device-flow'));
     $('device-flow').hidden = false;
-    advance('boot');
+    advance(purpose === 'source' ? 'version' : 'boot');
   }
   function exit(focus = true) {
     const previous = purpose;
