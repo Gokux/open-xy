@@ -128,6 +128,9 @@ struct SawSwarmState {
 
 struct HarmonicsState {
   int32_t amplitude[kNumAdditiveHarmonics];
+  // OP-XY: spectrum cached per parameter pair; Init() clears the key.
+  uint32_t key;
+  int32_t target[kNumAdditiveHarmonics];
 };
 
 struct AdditiveState {

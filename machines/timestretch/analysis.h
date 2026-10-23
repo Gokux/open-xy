@@ -75,39 +75,52 @@ inline bool prepare(Builder& builder, u32 frame_budget) {
     if (!builder.storage || builder.failed || builder.analysis.ready)
         return builder.analysis.ready;
     const opxy::SampleView& sample = builder.analysis.sample;
-    while (frame_budget && builder.cursor < sample.frames) {
-        --frame_budget;
-        const u32 n = builder.cursor;
+    const u32 frames = sample.frames, stride = sample.channels;
+    // Frames are always in range here, so read the channel directly and
+    // carry the three-sample window forward instead of rereading it.
+    const opxy::i16* data = sample.data + builder.analysis.channel;
+    u32 n = builder.cursor;
+    const u32 end = frame_budget < frames - n ? n + frame_budget : frames;
+    u32* storage = builder.storage;
+    u32 keys = builder.keys, last_key = builder.last_key, activity = builder.analysis.activity;
+    i32 previous_derivative = builder.previous_derivative, previous_value = builder.previous_value;
+    i32 before = data[(n ? n - 1 : frames - 1) * stride];
+    i32 here = n < frames ? data[n * stride] : 0;
+    for (; n < end; ++n) {
         const u32 block = (n >> 8) * kBlockWords;
         if (!(n & 255)) {
-            builder.storage[block] = builder.keys;
-            for (u32 i = 1; i < kBlockWords; ++i) builder.storage[block + i] = 0;
+            storage[block] = keys;
+            for (u32 i = 1; i < kBlockWords; ++i) storage[block + i] = 0;
         }
-        const u32 channel = builder.analysis.channel;
-        const i32 before = analysis_pcm(sample, n ? n - 1 : sample.frames - 1, channel);
-        const i32 here = analysis_pcm(sample, n, channel);
-        const i32 after = analysis_pcm(sample, n + 1 < sample.frames ? n + 1 : 0, channel);
+        const i32 after = data[(n + 1 < frames ? n + 1 : 0) * stride];
         const i32 derivative = before - after;
         // <= 255 per frame and fewer than 2^20 frames: no accumulator overflow.
-        builder.analysis.activity += static_cast<u32>(derivative < 0 ? -derivative : derivative) >> 8;
-        const i32 difference = here - builder.previous_value;
-        const bool crossing = ((builder.previous_derivative > 0 && derivative <= 0) ||
-                               (builder.previous_derivative < 0 && derivative >= 0));
+        activity += static_cast<u32>(derivative < 0 ? -derivative : derivative) >> 8;
+        const i32 difference = here - previous_value;
+        const bool crossing = ((previous_derivative > 0 && derivative <= 0) ||
+                               (previous_derivative < 0 && derivative >= 0));
         // These points select grain duration, never waveform amplitude. A
         // finite-difference crossing and a small PCM threshold suffice here.
         // The forced 256-frame spacing bounds every bitmap neighbor search.
-        const bool store = !n || n - builder.last_key >= 256 ||
-            (crossing && n - builder.last_key > 1 &&
+        const bool store = !n || n - last_key >= 256 ||
+            (crossing && n - last_key > 1 &&
              (difference > kKeyThreshold || difference < -kKeyThreshold));
         if (store) {
-            builder.storage[block + 1 + ((n & 255) >> 5)] |= 1u << (n & 31);
-            ++builder.keys;
-            builder.last_key = n;
-            builder.previous_value = here;
+            storage[block + 1 + ((n & 255) >> 5)] |= 1u << (n & 31);
+            ++keys;
+            last_key = n;
+            previous_value = here;
         }
-        builder.previous_derivative = derivative;
-        ++builder.cursor;
+        previous_derivative = derivative;
+        before = here;
+        here = after;
     }
+    builder.cursor = n;
+    builder.keys = keys;
+    builder.last_key = last_key;
+    builder.analysis.activity = activity;
+    builder.previous_derivative = previous_derivative;
+    builder.previous_value = previous_value;
     builder.analysis.ready = builder.cursor == sample.frames;
     builder.analysis.keys = builder.keys;
     return builder.analysis.ready;

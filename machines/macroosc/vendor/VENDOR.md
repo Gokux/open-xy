@@ -12,8 +12,8 @@ byte-identical to upstream (line endings aside) or patched. Patched files carry
 
 | File | Patch |
 | --- | --- |
-| `braids/digital_oscillator.h` | Delay lengths halved for 44.1 kHz; delay-line union made a public type held by pointer (`set_delay_lines`) so lines come from a shared pool. |
-| `braids/digital_oscillator.cc` | Delay-line member accesses use `->` for the pointer. |
+| `braids/digital_oscillator.h` | Delay lengths halved for 44.1 kHz; delay-line union made a public type held by pointer (`set_delay_lines`) so lines come from a shared pool; `HarmonicsState` holds a cached spectrum. |
+| `braids/digital_oscillator.cc` | Delay-line member accesses use `->` for the pointer; `RenderHarmonics` recomputes its spectrum only when the parameters change (identical output). |
 | `braids/macro_oscillator.h` | Forwards `set_delay_lines`; adds a `shape()` accessor. |
 | `braids/resources.cc`, `braids/resources.h` | Regenerated with the upstream table scripts at 44,100 Hz instead of 96,000 Hz. |
 
