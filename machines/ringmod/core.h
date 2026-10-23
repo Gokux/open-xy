@@ -13,4 +13,4 @@ struct State {
 };
 void initialize(State&);
 void process(State&, opxy::Channel left, opxy::Channel right, opxy::Parameters parameters);
-}
+} // namespace ringmod
