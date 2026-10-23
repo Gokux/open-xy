@@ -11,8 +11,9 @@ Read README.md and CONTRIBUTING.md. For native changes also read
 - Preserve exact stock/tool authentication, allowed edits, entry/loader records,
   protected ranges, reserved memory, occupied-ID guards and full reconstruction.
   Do not change expected hashes merely to admit a failed build.
-- Keep firmware, stock artwork, user data, tools and generated outputs in ignored
-  `local/`. Use fresh output directories and the allowlisted preview server.
+- Keep tools and non-firmware generated outputs in ignored `local/`; firmware,
+  stock artwork and user data live outside the checkout (below). Use fresh
+  output directories and the allowlisted preview server.
 - Run `python sdk.py check` for every change. Machine tests are the machine
   maintainer's responsibility and do not live in this repository.
   Native changes require the full command in [native builds](docs/build.md),
@@ -27,7 +28,6 @@ User instructions take precedence over this file.
 ## Private firmware storage
 
 Firmware, stock content, extracted firmware and firmware-containing packages
-must live outside every checkout, including ignored local/ directories. This
-overrides older local/inputs and local/candidate examples. On this workstation
-use %LOCALAPPDATA%/OPXY-SDK/private/ and pass external input/output paths to
+must live outside every checkout, including ignored local/ directories. The
+docs use %LOCALAPPDATA%/OPXY-SDK/private/; pass external input/output paths to
 build commands. Never force-add these files or bypass the commit/push guards.
