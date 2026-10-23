@@ -8,9 +8,9 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from opxy_sdk.custom_preview import scaffold, build
-from opxy_sdk.formats import require
-from opxy_sdk.preview import preview_bundle
+from tooling.custom_preview import scaffold, build
+from tooling.formats import require
+from tooling.preview import preview_bundle
 
 
 def main():

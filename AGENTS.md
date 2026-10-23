@@ -4,7 +4,7 @@ Read README.md and CONTRIBUTING.md. For native changes also read
 [the firmware ABI](docs/abi-1.2.0.md) and [building firmware](docs/build.md).
 
 - Engine-specific source, metadata, generators and sound tests belong under that
-  engine. Keep `opxy_sdk/` and root `tests/` focused on shared contracts.
+  engine. Keep `tooling/` and root `tests/` focused on shared contracts.
 - Contributor C++ contains no platform conditionals, OS headers or assembly.
   Put platform support in `sdk/`. Audio callbacks must not allocate, block,
   log, perform I/O, register engines or call graphics.

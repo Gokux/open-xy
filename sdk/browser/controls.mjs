@@ -22,7 +22,7 @@ export function physicalValue(mapping, value) {
 
 // A synth's page position (encoder) for each parameter, in parameter order:
 // the first four are the positions' own, later ones name theirs in `control`
-// (the definition schema; opxy_sdk.definitions.control_positions).
+// (the definition schema; tooling.definitions.control_positions).
 export const controlPositions = parameters => parameters.map((p, i) => p.control ?? i);
 
 // The display input (segments.hpp, draw.hpp) for the eight parameter words in

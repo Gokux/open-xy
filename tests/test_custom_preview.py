@@ -6,9 +6,9 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from opxy_sdk import custom_preview as custom
-from opxy_sdk.formats import sha
-from opxy_sdk.preview import preview_bundle
+from tooling import custom_preview as custom
+from tooling.formats import sha
+from tooling.preview import preview_bundle
 
 
 class CustomPreviewTests(unittest.TestCase):
@@ -53,7 +53,7 @@ class CustomPreviewTests(unittest.TestCase):
 
     def test_scaffold_artwork_meets_the_native_rules(self):
         # One root element and outlines with the declared point count, as the firmware build requires.
-        from opxy_sdk.native import check_outlines, panel_root
+        from tooling.native import check_outlines, panel_root
         with self.assertRaisesRegex(ValueError, 'must be one SVG element'):
             panel_root(b'<path id="a"/>\n<path id="b"/>', 'panel.svg.fragment')
         for points in (4, 7, 64):

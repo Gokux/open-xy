@@ -12,8 +12,8 @@ hook names the module symbol it calls or jumps to, and each build computes and
 verifies its bytes. The builder pins the profile digest. Stock
 addresses live beside the code that uses them: the adapter templates in
 `sdk/platform/opxy-1.2.0/`,
-[`stock_tables.py`](../opxy_sdk/stock_tables.py) and
-[`firmware.py`](../opxy_sdk/firmware.py). This page says what they mean.
+[`stock_tables.py`](../tooling/stock_tables.py) and
+[`firmware.py`](../tooling/firmware.py). This page says what they mean.
 
 ## What a build changes
 
@@ -36,7 +36,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Module | 1 record | One loader block holding the linked module |
 
 Everything else must reconstruct byte for byte. Protected ranges in
-[`pipeline.py`](../opxy_sdk/pipeline.py) admit only hooks into the module and
+[`pipeline.py`](../tooling/pipeline.py) admit only hooks into the module and
 the reviewed startup label.
 The bootloader is never modified.
 

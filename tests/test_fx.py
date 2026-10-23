@@ -7,9 +7,9 @@ import subprocess
 import tempfile
 import unittest
 
-from opxy_sdk import adapters
-from opxy_sdk.machines import machine
-from opxy_sdk.native import extend_catalog
+from tooling import adapters
+from tooling.machines import machine
+from tooling.native import extend_catalog
 from test_sample_services import HOST_CXX
 
 ROOT = Path(__file__).resolve().parents[1]

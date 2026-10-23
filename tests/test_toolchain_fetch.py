@@ -9,7 +9,7 @@ import threading
 import unittest
 import zipfile
 
-from opxy_sdk import toolchain
+from tooling import toolchain
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = 'open-xy-toolchain-test'

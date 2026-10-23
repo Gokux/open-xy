@@ -2,7 +2,7 @@
 from types import SimpleNamespace
 import unittest
 
-from opxy_sdk.native import audio_stack_bounds
+from tooling.native import audio_stack_bounds
 
 BASE = 0x1000
 

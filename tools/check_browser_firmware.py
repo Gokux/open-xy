@@ -8,10 +8,10 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from opxy_sdk.formats import elf32, ldr, mapped_offset, require, sha
-from opxy_sdk import screen, startup_label
-from opxy_sdk.adapters import catalog_defaults
-from opxy_sdk.firmware import assemble, hook_instruction
+from tooling.formats import elf32, ldr, mapped_offset, require, sha
+from tooling import screen, startup_label
+from tooling.adapters import catalog_defaults
+from tooling.firmware import assemble, hook_instruction
 
 
 def check_startup_label(module, symbols, base):

@@ -7,10 +7,10 @@ import unittest
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from opxy_sdk.formats import sha
-from opxy_sdk.machines import machine
-from opxy_sdk import preview
-from opxy_sdk.preview import preview_bundle
+from tooling.formats import sha
+from tooling.machines import machine
+from tooling import preview
+from tooling.preview import preview_bundle
 FM = machine('fm2op')
 SOURCE = FM.root
 source_hashes = lambda: preview.source_hashes(FM)

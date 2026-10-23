@@ -1,6 +1,6 @@
 // Stock OS 1.2.0 side of checked registration: record tables, name maps,
 // resolvers, registrars and screen page slots. Engine records and page slots
-// are the relocated tables (opxy_sdk/stock_tables.py); effects keep stock's.
+// are the relocated tables (tooling/stock_tables.py); effects keep stock's.
 #include "registration.hpp"
 #include "stock.hpp"
 

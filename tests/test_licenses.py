@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SHARED = ('sdk', 'opxy_sdk', 'builder', 'tools', 'linker', 'profiles', 'harness')
+SHARED = ('sdk', 'tooling', 'builder', 'tools', 'linker', 'profiles', 'harness')
 
 
 class Licenses(unittest.TestCase):

@@ -3,8 +3,8 @@ import re
 import unittest
 import xml.etree.ElementTree as ET
 
-from opxy_sdk import native, screen
-from opxy_sdk.pipeline import ROOT
+from tooling import native, screen
+from tooling.pipeline import ROOT
 
 
 class PlatformScreenTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 No Blackfin code is compiled here. These checks keep the profile edits, the
 linker layout and the stock side of registration consistent with the audited
-constants in opxy_sdk/stock_tables.py.
+constants in tooling/stock_tables.py.
 """
 import copy
 import json
@@ -10,10 +10,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from opxy_sdk import stock_tables as tables
-from opxy_sdk.adapters import generate_registration_stock
-from opxy_sdk.firmware import hooks
-from opxy_sdk.pipeline import config
+from tooling import stock_tables as tables
+from tooling.adapters import generate_registration_stock
+from tooling.firmware import hooks
+from tooling.pipeline import config
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = 'profiles/opxy-1.2.0.json'

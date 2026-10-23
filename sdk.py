@@ -17,26 +17,26 @@ Preview server: python tools/serve_harness.py --preview local/preview-001'''
 if __name__ == '__main__':
     command, argv = (sys.argv[1], sys.argv[2:]) if len(sys.argv) > 1 else (None, [])
     if command in ('compile', 'build', 'verify'):
-        from opxy_sdk.native import main
+        from tooling.native import main
         raise SystemExit(main(argv, command))
     if command == 'new':
-        from opxy_sdk.custom_preview import main
+        from tooling.custom_preview import main
         raise SystemExit(main(argv))
     if command == 'kit':
-        from opxy_sdk.browser_kit import main
+        from tooling.browser_kit import main
         raise SystemExit(main(argv))
     if command == 'preview':
-        from opxy_sdk.preview import main
+        from tooling.preview import main
         raise SystemExit(main(argv))
     if command == 'toolchain':
-        from opxy_sdk.toolchain import main
+        from tooling.toolchain import main
         raise SystemExit(main(argv))
     if command == 'check':
-        from opxy_sdk.checks import main
+        from tooling.checks import main
         raise SystemExit(main(argv))
     if command == 'doctor':
         import argparse
-        from opxy_sdk.pipeline import host_platform, resolve_toolchain, tool_paths
+        from tooling.pipeline import host_platform, resolve_toolchain, tool_paths
         parser = argparse.ArgumentParser(prog='sdk.py doctor')
         kind = parser.add_mutually_exclusive_group(required=True)
         kind.add_argument('--toolchain', nargs='?', const='', help='binutils directory (default: local/toolchain/bin)')
@@ -44,7 +44,7 @@ if __name__ == '__main__':
         parser.add_argument('--cxx', default='clang++', help='Clang++ for --preview')
         args = parser.parse_args(argv)
         if args.preview:
-            from opxy_sdk.preview_doctor import check
+            from tooling.preview_doctor import check
             try:
                 raise SystemExit(check(args.cxx))
             except (ValueError, OSError) as error:

@@ -64,10 +64,10 @@ previews, firmware builds and packaging.
 | --- | --- |
 | `machines/<engine>/` | Machine source, definition, `machine.json` and artwork |
 | `sdk/` | C++ interfaces, adapter templates and browser runners |
-| `opxy_sdk/` | Shared build support, definitions, firmware container checks and command orchestration |
+| `tooling/` | The Python behind `sdk.py`: definitions, builds, firmware container checks and packaging |
 | `profiles/`, `linker/` | The firmware profile, the machine collection and the memory layout |
 | `tests/` | SDK contracts and infrastructure tests |
-| `tools/` | Shared development utilities and compiler tooling |
+| `tools/` | Standalone scripts: the preview server, browser and firmware checkers, and compiler build and release scripts |
 | `local/` | Ignored non-firmware development outputs and tool binaries |
 
 `python sdk.py check` checks the SDK. A machine's sound tests belong to its

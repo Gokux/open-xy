@@ -6,9 +6,9 @@ import re
 import tempfile
 import unittest
 
-from opxy_sdk.browser_kit import write_builder
-from opxy_sdk.formats import sha
-from opxy_sdk.screen import template
+from tooling.browser_kit import write_builder
+from tooling.formats import sha
+from tooling.screen import template
 
 
 class BrowserBundleTests(unittest.TestCase):

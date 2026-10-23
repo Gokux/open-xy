@@ -8,7 +8,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from opxy_sdk.preview import preview_bundle
+from tooling.preview import preview_bundle
 
 ALLOWED = {
     '/sdk/browser/controls.mjs': 'sdk/browser/controls.mjs',

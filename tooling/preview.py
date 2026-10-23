@@ -23,8 +23,8 @@ DISPLAY_EXPORTS = dict(
                                                        'render')))
 MANIFEST_LIMIT = 65536
 # Shared inputs of every curated preview; the machine's own folder is added per build.
-SDK_SOURCES = ('opxy_sdk/preview.py', 'opxy_sdk/machines.py', 'opxy_sdk/adapters.py', 'opxy_sdk/definitions.py',
-               'opxy_sdk/contributors.py', 'tools/check_preview_contract.mjs', 'sdk/host/voice_preview.cpp.in',
+SDK_SOURCES = ('tooling/preview.py', 'tooling/machines.py', 'tooling/adapters.py', 'tooling/definitions.py',
+               'tooling/contributors.py', 'tools/check_preview_contract.mjs', 'sdk/host/voice_preview.cpp.in',
                'sdk/host/segment_preview.cpp', 'sdk/host/display_preview.cpp', 'sdk/platform/blackfin/memory.cpp')
 SDK_FOLDERS = ('sdk/include', 'sdk/browser', 'sdk/platform/blackfin/freestanding')
 FLAGS = ['--target=wasm32', '-std=c++11', '-O2', '-ffreestanding', '-fno-exceptions', '-fno-rtti',

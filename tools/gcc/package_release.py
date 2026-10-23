@@ -27,9 +27,9 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from opxy_sdk.formats import require  # noqa: E402
-from opxy_sdk.native import file_hash  # noqa: E402
-from opxy_sdk.pipeline import child, host_platform, toolchains  # noqa: E402
+from tooling.formats import require  # noqa: E402
+from tooling.native import file_hash  # noqa: E402
+from tooling.pipeline import child, host_platform, toolchains  # noqa: E402
 
 MANIFEST = Path(__file__).with_name('release-sources.json')
 # Imports satisfied by every supported Windows installation.
