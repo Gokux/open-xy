@@ -78,7 +78,7 @@ function segments(path) {
 }
 
 export class Device {
-  #device; #number; #in; #out; #packet; #transaction = 0; #storage; #running = false; #folders;
+  #device; #number; #in; #out; #packet; #transaction = 0; #current; #storage; #running = false; #folders; #listings;
   static async request(usb = navigator.usb) {
     return new Device(await usb.requestDevice({filters: [{vendorId: VENDOR, classCode: VENDOR_CLASS}]}));
   }
@@ -108,15 +108,19 @@ export class Device {
     if (storage === undefined) throw new Error('Your OP–XY has no storage available.');
     this.#storage = storage;
     this.#folders = new Map([['', ROOT]]);
+    this.#listings = new Map();
   }
-  // Names in one folder, mapped to their object handles.
+  // Names in one folder, mapped to their object handles. Listed once per
+  // session and kept current as this client adds and deletes objects.
   async #children(parent) {
+    if (this.#listings.has(parent)) return this.#listings.get(parent);
     const {payload} = this.#expect(await this.#run(OBJECT_HANDLES, [this.#storage, 0, parent]), 'list its files');
     const files = new Map();
     for (const handle of readWords(payload)) {
       const info = this.#expect(await this.#run(OBJECT_INFO, [handle]), 'list its files').payload;
       files.set(readString(info, 52), {handle, folder: view(info).getUint16(4, true) === FOLDER_FORMAT});
     }
+    this.#listings.set(parent, files);
     return files;
   }
   // The handle of a folder path, creating missing folders on the way.
@@ -125,11 +129,15 @@ export class Device {
     for (const name of names) {
       path = path ? path + '/' + name : name;
       if (this.#folders.has(path)) { parent = this.#folders.get(path); continue; }
-      const existing = (await this.#children(parent)).get(name);
+      const siblings = await this.#children(parent), existing = siblings.get(name);
       if (existing && !existing.folder) throw new Error(`Your OP–XY has a file named ${path} where a folder is needed.`);
-      parent = existing?.handle ?? this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, parent],
+      const handle = existing?.handle ?? this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, parent],
         objectInfo(this.#storage, name, 0, parent, true)), 'create the folder ' + path).params[2];
-      if (!existing) onStep('folder', path);
+      if (!existing) {
+        siblings.set(name, {handle, folder: true}); this.#listings.set(handle, new Map());
+        onStep('folder', path);
+      }
+      parent = handle;
       this.#folders.set(path, parent);
     }
     return parent;
@@ -142,25 +150,39 @@ export class Device {
     const names = segments(path), name = names.pop();
     if (bytes.length > 0xffffffff - 12) throw new Error('That file is too large for your OP–XY.');
     const parent = await this.#folder(names, onStep);
-    const existing = (await this.#children(parent)).get(name);
+    const siblings = await this.#children(parent), existing = siblings.get(name);
     if (existing?.folder) throw new Error(`Your OP–XY already has a folder named ${path}.`);
     if (existing) {
       if (!await replace(path)) return false;
       onStep('replace', path);
       this.#expect(await this.#run(DELETE_OBJECT, [existing.handle, 0]), 'replace ' + path);
+      siblings.delete(name);
     }
-    this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, parent], objectInfo(this.#storage, name, bytes.length, parent)), 'accept ' + path);
+    const {params} = this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, parent],
+      objectInfo(this.#storage, name, bytes.length, parent)), 'accept ' + path);
     this.#expect(await this.#run(SEND_OBJECT, [], bytes, onProgress), 'save ' + path);
+    siblings.set(name, {handle: params[2], folder: false});
     return true;
   }
-  // Safe to call at any time. A pending transfer fails rather than ending the session.
+  // Safe to call at any time. A pending transfer is cancelled with the MTP class
+  // Cancel Request so the device isn't left waiting for the rest of a file.
   async close() {
     const device = this.#device;
     if (!device.opened) return;
-    if (this.#storage !== undefined && !this.#running) await this.#run(CLOSE_SESSION).catch(() => {});
+    if (this.#running) await this.#cancel();
+    else if (this.#storage !== undefined) await this.#run(CLOSE_SESSION).catch(() => {});
     this.#storage = undefined;
     if (this.#number !== undefined) await device.releaseInterface(this.#number).catch(() => {});
     await device.close().catch(() => {});
+  }
+  async #cancel() {
+    const request = new Uint8Array(6);
+    view(request).setUint16(0, 0x4001, true); view(request).setUint32(2, this.#current, true);
+    await this.#device.controlTransferOut({requestType: 'class', recipient: 'interface', request: 0x64, value: 0,
+      index: this.#number}, request).catch(() => {});
+    for (const [direction, endpoint] of [['out', this.#out], ['in', this.#in]]) {
+      await this.#device.clearHalt(direction, endpoint).catch(() => {});
+    }
   }
   #expect(result, action) {
     if (result.code !== OK) {
@@ -169,7 +191,7 @@ export class Device {
     return result;
   }
   async #run(code, params = [], data = null, onProgress = () => {}) {
-    const id = this.#transaction++;
+    const id = this.#current = this.#transaction++;
     this.#running = true;
     try {
       await this.#send(container(COMMAND, code, id, words(params)));

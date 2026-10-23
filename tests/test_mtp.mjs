@@ -8,7 +8,7 @@ import {BUSY, Device, container, objectInfo, ptpString, readString} from '../bui
 const STORAGE = 0x10001, ROOT = 0xffffffff, PACKET = 512;
 const le = bytes => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 // `files` maps paths to bytes, or to null for a folder.
-function fakeDevice({files = {}, busy = false, refuse = null, split = false} = {}) {
+function fakeDevice({files = {}, busy = false, refuse = null, split = false, hang = null} = {}) {
   const objects = new Map(), state = {opened: false, claimed: null, ops: [], zeroLength: 0, deleted: []};
   let next = 1;
   const find = (parent, name) => [...objects].find(([, o]) => o.parent === parent && o.name === name)?.[0];
@@ -41,6 +41,7 @@ function fakeDevice({files = {}, busy = false, refuse = null, split = false} = {
   function command(code, id, args, data) {
     state.ops.push(code.toString(16));
     if (refuse && code === refuse.code) return reply(3, refuse.response, id);
+    if (code === hang) return;  // Never answers; only cancelling ends the wait.
     if (code === 0x1002 || code === 0x1003) return reply(3, 0x2001, id);
     if (code === 0x1004) { reply(2, code, id, words([STORAGE])); return reply(3, 0x2001, id); }
     if (code === 0x1007) {
@@ -81,7 +82,9 @@ function fakeDevice({files = {}, busy = false, refuse = null, split = false} = {
     get opened() { return state.opened; },
     configuration: null,
     async open() { state.opened = true; },
-    async close() { state.opened = false; state.claimed = null; },
+    async close() { state.opened = false; state.claimed = null; state.abort?.(new DOMException('The transfer was cancelled.', 'AbortError')); },
+    async controlTransferOut(setup, data) { state.control = {...setup, data: [...new Uint8Array(data)]}; return {status: 'ok'}; },
+    async clearHalt(direction, endpoint) { (state.halts ??= []).push(direction + ' ' + endpoint); },
     async selectConfiguration() {
       device.configuration = {interfaces: [{interfaceNumber: 0, alternate: {interfaceClass: 255, endpoints: [
         {direction: 'out', type: 'bulk', endpointNumber: 10, packetSize: PACKET},
@@ -113,7 +116,9 @@ function fakeDevice({files = {}, busy = false, refuse = null, split = false} = {
     },
     async transferIn(endpoint) {
       assert.equal(endpoint, 9);
-      const reply = outgoing.shift(); assert.ok(reply, 'read with nothing to answer');
+      const reply = outgoing.shift();
+      if (!reply && hang) return new Promise((_, reject) => { state.abort = reject; });
+      assert.ok(reply, 'read with nothing to answer');
       return {status: 'ok', data: new DataView(reply.buffer, reply.byteOffset, reply.byteLength)};
     },
   };
@@ -154,6 +159,8 @@ test('sends a whole build into existing folders, replacing files and keeping oth
   }
   await mtp.close();
   assert.deepEqual(steps, ['replace os.ldr', 'replace content/op1_factory.json', 'folder content/presets/macroosc', 'folder content/presets/fm2op']);
+  // Each existing folder is listed once: the top level, content, display and presets.
+  assert.equal(state.ops.filter(op => op === '1007').length, 4);
   for (const [path, bytes] of Object.entries(build)) assert.deepEqual(state.read(path), bytes, path);
   assert.deepEqual(asked, ['os.ldr', 'content/op1_factory.json']);
   assert.deepEqual(state.paths(), ['content/', 'content/display/', 'content/display/macroosc.svg', 'content/display/stock.svg',
@@ -206,4 +213,20 @@ test('rejects paths that would leave the device or name nothing', async () => {
     await assert.rejects(mtp.send(path, Uint8Array.of(1)), /isn’t a file path/, JSON.stringify(path));
   }
   await mtp.close();
+});
+
+test('stopping mid-file cancels the transfer instead of leaving the device waiting', async () => {
+  const {device, state} = fakeDevice({hang: 0x100d}), mtp = new Device(device);
+  await mtp.open();
+  const sending = mtp.send('os.ldr', new Uint8Array(2048));
+  while (!state.ops.includes('100d')) await new Promise(resolve => setImmediate(resolve));
+  await mtp.close();
+  await assert.rejects(sending);
+  // Class Cancel Request (0x64) naming the SendObject transaction, then both endpoints cleared.
+  assert.deepEqual([state.control.requestType, state.control.recipient, state.control.request, state.control.index], ['class', 'interface', 0x64, 0]);
+  const transaction = state.ops.length - 1;
+  assert.deepEqual(state.control.data, [0x01, 0x40, transaction, 0, 0, 0]);
+  assert.deepEqual(state.halts, ['out 10', 'in 9']);
+  assert.ok(!state.ops.includes('1003'), 'no CloseSession while a transfer is pending');
+  assert.equal(state.opened, false);
 });

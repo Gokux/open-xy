@@ -150,6 +150,7 @@ export function guide(stage, {install, computer, files, disabling = false}) {
     const key = computer === 'mac' ? 2 : 3;
     return press('factory', key);
   }
+  if (stage === 'close-field-kit') return bootGuide('mtp', null, 'Your OP–XY stays in file transfer mode.');
   if (stage === 'transfer') return bootGuide('mtp', null, 'Keep file transfer open until copying finishes.');
   if (stage === 'exit-transfer') return press('mtp', 2);
   if (stage === 'write-os') return press('factory', 5);

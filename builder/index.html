@@ -64,10 +64,10 @@
     <div class="page-header"><div><span class="eyebrow">Step 3 of 3 · Install</span><h1 id="download-title" tabindex="-1">Install</h1><p id="download-summary"></p></div></div>
     <div id="download-overview" class="download-overview flow-shell">
     <div class="download-card"><div id="bundle-art"></div><h2>Ready to install</h2>
-      <div id="route-choice" class="route-choice"><p>Which computer will you install from?</p><div class="route-options" role="group" aria-label="Computer"><button type="button" id="route-mac" aria-pressed="false">Mac</button><button type="button" id="route-windows" aria-pressed="false">Windows</button></div></div>
-      <button type="button" id="install-direct" class="primary" hidden>Install from this page <span aria-hidden="true">→</span></button>
-      <a id="download" class="primary" download="open-xy.zip" hidden>Download ZIP <span aria-hidden="true">↓</span></a>
-      <p id="route-note" class="route-note" hidden></p></div>
+      <div id="route-choice" class="route-choice"><p>Which computer will you install from?</p><div class="route-options">
+        <button type="button" id="route-mac" class="route-option"><strong>Mac <span aria-hidden="true">→</span></strong><span id="route-mac-note"></span></button>
+        <a id="download" class="route-option" download="open-xy.zip"><strong>Windows <span aria-hidden="true">↓</span></strong><span>Downloads the ZIP. Copy it with File Explorer.</span></a>
+      </div></div></div>
     <p class="qualification">Checks passed. This combination hasn’t been tested on a device, so CPU load and recovery aren’t guaranteed.</p>
     <details><summary>What was checked</summary><ul><li>Your OS file matched OP–XY OS 1.2.0 exactly</li><li>Only the reviewed changes were made, and the machines fit their memory</li><li>The original OS can be rebuilt from the new one</li></ul><p id="output-hash" class="hash"></p></details>
     </div>

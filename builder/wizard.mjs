@@ -18,7 +18,9 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   // Installing from this page: the chosen device, progress through the build,
   // a log of what happened, and whether every file arrived. `manual` means the user chose to copy.
   let mtp = null, sending = null, log = [], delivered = false, manual = false, downloaded = false;
-  const stopSending = () => { sending = null; mtp?.close(); };
+  // Closing finishes before the device is opened again.
+  let closing = Promise.resolve();
+  const stopSending = () => { sending = null; if (mtp) closing = mtp.close(); };
   const release = () => { stopSending(); mtp = null; log = []; delivered = false; };
   const sendsDirectly = () => computer === 'mac' && Mtp.supported() && !manual;
   const direct = () => stage === 'transfer' && purpose === 'install' && sendsDirectly();
@@ -71,9 +73,10 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       disabled: ['Dev menu hidden.', 'You can enable it again from “I don’t have the OS file” when you need it.', [action('Done', 'exit')]],
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". The next screen is titled "factory menu".', [action('Factory menu is open', 'start-transfer')]],
-      'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', 'transfer')]],
+      'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', 'close-field-kit')]],
+      'close-field-kit': ['Make sure Field Kit isn’t running for this next step!', 'Field Kit holds your OP–XY’s USB connection while it’s open, so copying can’t start. Quit it, then continue.', [action('I closed Field Kit', 'transfer', 'field-kit-closed')]],
       transfer: install && sendsDirectly() ? ['Send the files to your OP–XY.',
-        resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Quit Field Kit, OpenMTP or Android File Transfer first. Your device’s other content stays in place.',
+        resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Quit OpenMTP or Android File Transfer if either is open. Your device’s other content stays in place.',
         delivered ? [action('Files sent · Continue', 'exit-transfer')]
           : [action(busy ? 'Sending…' : log.length ? 'Try again' : 'Send to OP–XY', null, 'mtp-send'),
             ...(busy ? [] : [action('Copy them myself instead', null, 'mtp-manual')]), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])]] :
@@ -156,7 +159,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
     $(hostPage === 1 ? 'source-flow-host' : 'install-flow-host').append($('device-flow'));
     $('device-flow').hidden = false;
     resumed = purpose === 'install' && inTransfer && !!computer;
-    advance(purpose === 'source' ? 'version' : resumed ? 'transfer' : 'boot');
+    advance(purpose === 'source' ? 'version' : resumed ? 'close-field-kit' : 'boot');
   }
   function exit(focus = true) {
     const previous = purpose;
@@ -229,6 +232,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       device = mtp = await request;
       if (ticket !== revision) return;
       status(); note('Connecting to your OP–XY…');
+      await closing;
       await device.open();
       if (ticket !== revision) return;
       note('Connected. Sending ' + files.length + ' files, ' + size(total) + '.');
@@ -254,30 +258,24 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
     } catch (error) {
       if (ticket !== revision) return;
       const message = error.name === 'NotFoundError' ? 'No OP–XY chosen.' : error.message || String(error);
-      if (log.length) note('Stopped: ' + message, 'error');
+      if (log.length) note('Stopped: ' + message + (sending ? ' Select Try again to send every file again.' : ''), 'error');
       status(message, true);
+      // The device may have been unplugged; Try again asks the browser for it afresh.
+      mtp = null;
     } finally {
-      await device?.close();
-      if (ticket === revision) { busy = false; sending = null; render(); }
+      // A cancelled attempt was already closed by Stop sending or leaving the step.
+      if (ticket === revision) { closing = device?.close() ?? closing; await closing; busy = false; sending = null; render(); }
     }
   }
   function renderRoute() {
-    const chosen = computer, direct = sendsDirectly();
-    for (const name of ['mac', 'windows']) $('route-' + name).setAttribute('aria-pressed', String(chosen === name));
-    $('install-direct').hidden = !chosen || !direct;
-    $('download').hidden = !chosen || direct;
-    $('route-note').textContent = chosen === 'mac' && !Mtp.supported()
-      ? 'To install without downloading, open this page in Chrome or Edge.'
-      : chosen === 'mac' && manual ? 'You chose to copy the files yourself.' : '';
-    $('route-note').hidden = !$('route-note').textContent;
+    $('route-mac-note').textContent = Mtp.supported() ? 'Send from this page. No download needed.'
+      : 'Downloads the ZIP. Use Chrome or Edge to skip the download.';
   }
-  for (const name of ['mac', 'windows']) $('route-' + name).onclick = () => { computer = name; manual = false; renderRoute(); };
-  $('install-direct').onclick = () => { if (hasDownload() && sendsDirectly()) begin('install'); };
   $('dev-cancel').onclick = () => {
-    const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending || (direct() && busy);
+    const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending;
     revision++; busy = connected = false; session.close(); stopSending();
     if (stopped) log.push({text: 'Stopped by you. Files already sent stay on your OP–XY.', kind: 'error'});
-    if (enabling) advance('menu'); else { render(); status(stopped ? 'Sending stopped. Check the last file on your OP–XY.' : 'Connection cancelled.'); }
+    if (enabling) advance('menu'); else { render(); status(stopped ? 'Sending stopped. Select Try again to send every file again.' : 'Connection cancelled.'); }
   };
   $('flow-back').onclick = () => {
     if (busy || !history.length) return;
@@ -294,9 +292,16 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
     Visuals.reveal($('source-start'));
   };
   $('flow-download').addEventListener('click', () => { downloaded = true; });
-  $('download').onclick = () => {
+  // Each route offers only what it needs: a Mac with WebUSB sends from this
+  // page; Windows, or a Mac browser without WebUSB, downloads the ZIP.
+  function chooseRoute(name, event) {
+    computer = name; manual = false;
+    if (sendsDirectly()) { event.preventDefault(); if (hasDownload()) begin('install'); return; }
     downloaded = true;
     const url = $('download').getAttribute('href');
+    if (event.currentTarget !== $('download')) {
+      const link = document.createElement('a'); link.href = url; link.download = 'open-xy.zip'; link.click();
+    }
     // Let the anchor start its download before changing the visible step.
     // Browsers do not report whether the user completed or cancelled saving.
     setTimeout(() => {
@@ -304,7 +309,9 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
           !document.querySelector('[data-page="3"]').hidden && !$('download-overview').hidden)
         begin('install');
     }, 0);
-  };
+  }
+  $('route-mac').onclick = event => chooseRoute('mac', event);
+  $('download').onclick = event => chooseRoute('windows', event);
   return {
     invalidate() { downloaded = false; if (hostPage === 3) exit(false); },
     navigate(page) { if (stage && page !== hostPage) exit(false); if (page === 3) renderRoute(); },
