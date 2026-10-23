@@ -63,7 +63,6 @@ test('installation links preview the edited steps without a build or device acce
     assert.equal($('flow-install-reminder').hidden, false);
     assert.equal($('flow-preview-note').hidden, false);
     assert.equal($('flow-download').hidden, true);
-    assert.equal($('flow-step-link').href, hash);
   }
   wizard.previewLink('#preview/mac/transfer');
   assert.equal($('flow-title').textContent, 'Send the files to your OP–XY.');

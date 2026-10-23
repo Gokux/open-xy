@@ -75,8 +75,8 @@ Installation screens have direct preview links, such as
 and `#preview/mac/write-os`. Replace `mac` with `windows` to see the manual
 copy route. These developer links open the selected step immediately, skipping
 the disclaimer and requiring no OS file or build. Device actions are disabled in previews;
-**Preview next step** continues past the send screen. **Link to this step**
-opens a shareable preview URL. **Back to builder** shows the usual disclaimer
+**Preview next step** continues past the send screen. These URLs are developer
+tools and are not linked from the installation interface. **Back to builder** shows the usual disclaimer
 if it has not been acknowledged; opening a preview does not acknowledge it.
 
 The dev server serves only the browser source allowlist and the configured

@@ -147,8 +147,6 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
     $('flow-back').disabled = $('flow-exit').disabled = busy;
     $('flow-exit').textContent = previewMode ? 'Back to builder' : hostPage === 1 ? 'Back to file choice' : 'Back to install choice';
     $('flow-download').hidden = previewMode || hostPage !== 3 || !hasDownload() || sendsDirectly();
-    $('flow-step-link').hidden = !install || !previewStages.has(stage);
-    $('flow-step-link').href = '#preview/' + (computer || 'windows') + '/' + stage;
     $('connection-help').hidden = !['connect', 'menu-help', 'disable-help'].includes(stage);
     if (stage === 'connect' && !supported()) status('MIDI access is unavailable in this browser. Use Connection help below.', true);
     if (focus) { $('flow-title').focus(); Visuals.reveal($('device-flow')); }
