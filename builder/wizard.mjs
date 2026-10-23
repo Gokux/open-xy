@@ -1,13 +1,13 @@
 import * as Ferret from './ferret.mjs';
 import * as Mtp from './mtp.mjs';
 import * as Visuals from './visuals.mjs';
-import {presetPath} from './core.mjs';
+import {presetPath, sha256} from './core.mjs';
 
 // Screen state is supplied by the user at the relevant step. Only the explicit
-// Find / Enable / Disable actions access MIDI. On a Mac with WebUSB, Send to
-// OP–XY copies the build over USB, opening the device only while sending;
-// otherwise copying is manual. Flashing remains manual.
-export function createWizard({getKit, getSelected, hasDownload, getFiles, onPreviewExit = () => {}}) {
+// Find / Enable / Disable actions access MIDI. On a Mac with WebUSB, explicit
+// read/send actions copy files over USB and release the device afterwards.
+// Otherwise copying is manual. Flashing remains manual.
+export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirmware = async () => false, onPreviewExit = () => {}}) {
   const $ = id => document.getElementById(id);
   let purpose = null, stage = null, history = [], revision = 0;
   // Set when the OS-copy guide ends in file transfer mode, so the install guide
@@ -15,18 +15,24 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
   let inTransfer = false, resumed = false, transferComputer = null;
   let computer = null, busy = false, connected = false;
   let hostPage = 1;
-  let previewMode = false;
+  let previewMode = false, previousComputer = null;
   const previewStages = new Set(['boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit',
     'transfer', 'exit-transfer', 'write-os', 'write-result', 'write-help', 'restart']);
+  const sourcePreviewStages = new Set(['version', 'boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit', 'transfer']);
   // Installing from this page: the chosen device, progress through the build,
   // a log of what happened, and whether every file arrived. `manual` means the user chose to copy.
   let mtp = null, sending = null, log = [], delivered = false, manual = false, downloaded = false;
   // Closing finishes before the device is opened again.
   let closing = Promise.resolve();
+  let sourceBackupUrl = null;
+  function clearSourceBackup() {
+    if (sourceBackupUrl) URL.revokeObjectURL(sourceBackupUrl);
+    sourceBackupUrl = null; $('source-backup').hidden = true; $('source-backup').removeAttribute('href');
+  }
   const stopSending = () => { sending = null; if (mtp) closing = mtp.close(); };
   const release = () => { stopSending(); mtp = null; log = []; delivered = false; };
   const sendsDirectly = () => computer === 'mac' && (previewMode || Mtp.supported()) && !manual;
-  const direct = () => stage === 'transfer' && purpose === 'install' && sendsDirectly();
+  const direct = () => stage === 'transfer' && ['source', 'install'].includes(purpose) && sendsDirectly();
   const supported = () => globalThis.isSecureContext && !!navigator.requestMIDIAccess;
   const status = (message = '', error = false) => {
     $('dev-status').textContent = message; $('dev-status').dataset.error = String(error);
@@ -35,7 +41,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
     connected = false;
     if (['enable', 'disable'].includes(stage) && !busy) { advance('connect'); status('Connection lost. Find your OP–XY again.', true); }
   }, 2500, {onProgress: message => { if (stage) status(message); }});
-  window.addEventListener('pagehide', () => { session.close(); release(); });
+  window.addEventListener('pagehide', () => { session.close(); release(); clearSourceBackup(); });
   const action = (label, next, id) => ({label, next, id});
   function content() {
     const install = purpose === 'install', disabling = purpose === 'disable', kit = getKit();
@@ -77,9 +83,12 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
       disabled: ['Dev menu hidden.', 'You can enable it again from “I don’t have the OS file” when you need it.', [action('Done', 'exit')]],
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". The next screen is titled "factory menu".', [action('Factory menu is open', 'start-transfer')]],
-      'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', install && sendsDirectly() ? 'close-field-kit' : 'transfer')]],
-      'close-field-kit': ['Make sure Field Kit isn’t running for this next step!', 'Field Kit holds your OP–XY’s USB connection while it’s open, so copying can’t start. Quit it, then continue.', [action('I closed Field Kit', 'transfer', 'field-kit-closed')]],
-      transfer: install && sendsDirectly() ? ['Send the files to your OP–XY.',
+      'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', sendsDirectly() ? 'close-field-kit' : 'transfer')]],
+      'close-field-kit': ['Quit Field Kit and OpenMTP.', 'These apps can hold your OP–XY’s USB connection. Quit Field Kit, OpenMTP and Android File Transfer if any are running, then continue.', [action('They’re closed · Continue', 'transfer', 'field-kit-closed')]],
+      transfer: !install && sendsDirectly() ? ['Read the original OS from your OP–XY.',
+        'Keep your OP–XY in file transfer mode. This reads and verifies the original OS, then loads it into the patcher.',
+        [action(busy ? 'Reading…' : log.length ? 'Try again' : 'Read original OS', null, 'mtp-read'),
+          ...(busy ? [] : [action('Copy it myself instead', null, 'mtp-manual')])]] : install && sendsDirectly() ? ['Send the files to your OP–XY.',
         resumed ? stillInTransfer : 'Quit OpenMTP or Android File Transfer if either is open. Your device’s other content stays in place.',
         delivered ? [action('Files sent · Continue', 'exit-transfer')]
           : [action(busy ? 'Sending…' : log.length ? 'Try again' : 'Send to OP–XY', null, 'mtp-send'),
@@ -97,8 +106,9 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
     const [title, detail, actions, instructions = []] = content();
     $('device-flow').dataset.stage = stage;
     $('device-flow').setAttribute('aria-busy', String(busy));
-    $('flow-progress').textContent = previewMode ? 'Installation preview' : (purpose === 'disable' ? 'Disable dev menu' : purpose === 'source' ? 'Copy OS' : 'Install on your OP–XY') + ' · Step ' + (history.length + 1);
+    $('flow-progress').textContent = previewMode ? (purpose === 'source' ? 'OS read preview' : 'Installation preview') : (purpose === 'disable' ? 'Disable dev menu' : purpose === 'source' ? 'Copy OS' : 'Install on your OP–XY') + ' · Step ' + (history.length + 1);
     $('flow-preview-note').hidden = !previewMode;
+    $('flow-preview-note').textContent = purpose === 'source' ? 'Preview only. Return to the builder to read your original OS.' : 'Preview only. Build firmware in the builder to send files to your OP–XY.';
     $('flow-title').textContent = title;
     const install = purpose === 'install';
     const kit = getKit();
@@ -121,18 +131,19 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
     }));
     $('flow-instructions').hidden = !instructions.length;
     $('flow-install-reminder').hidden = !install || !['transfer', 'exit-transfer', 'write-os'].includes(stage);
-    const visibleActions = previewMode && stage === 'transfer'
+    const visibleActions = previewMode && purpose === 'install' && stage === 'transfer'
       ? [...actions, action('Preview next step', 'exit-transfer')] : actions;
     $('flow-actions').replaceChildren(...visibleActions.map((a, i) => {
       const button = document.createElement('button');
       button.type = 'button'; button.textContent = a.label; button.className = i === 0 ? 'primary' : 'secondary';
       if (a.id) button.id = a.id;
       button.disabled = busy || (a.id === 'dev-connect' && !supported()) ||
-        (previewMode && ['mtp-send', 'dev-connect', 'dev-enable', 'dev-disable', 'disable-menu-after-install'].includes(a.id));
+        (previewMode && ['mtp-send', 'mtp-read', 'dev-connect', 'dev-enable', 'dev-disable', 'disable-menu-after-install'].includes(a.id));
       button.onclick = () => {
         if (['dev-connect', 'dev-enable', 'dev-disable'].includes(a.id)) return deviceAction(a.id);
         if (a.id === 'disable-menu-after-install') return begin('disable', 3);
         if (a.id === 'mtp-send') return sendBuild();
+        if (a.id === 'mtp-read') return readOriginal();
         if (a.id === 'mtp-manual') { manual = true; release(); status(); return render(true); }
         if (a.id === 'flow-restart') { inTransfer = resumed = false; history = []; stage = null; }
         if (a.id?.startsWith('computer-')) computer = a.id.slice(9);
@@ -142,7 +153,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
     }));
     renderDirect();
     $('dev-cancel').hidden = !busy;
-    $('dev-cancel').textContent = sending ? 'Stop sending' : 'Cancel connection';
+    $('dev-cancel').textContent = purpose === 'source' && direct() ? 'Stop reading' : sending ? 'Stop sending' : 'Cancel connection';
     $('flow-back').hidden = !history.length || ['write-os', 'write-result', 'write-help'].includes(stage);
     $('flow-back').disabled = $('flow-exit').disabled = busy;
     $('flow-exit').textContent = previewMode ? 'Back to builder' : hostPage === 1 ? 'Back to file choice' : 'Back to install choice';
@@ -162,9 +173,11 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
     stage = next; status(); render(true);
   }
   function begin(nextPurpose, page = nextPurpose === 'install' ? 3 : 1, preview = null) {
-    exit(false); purpose = nextPurpose; hostPage = page;
+    exit(false); purpose = nextPurpose; hostPage = page; manual = false;
+    previousComputer = computer;
     previewMode = !!preview;
     if (preview) { computer = preview.computer; manual = downloaded = false; }
+    $('computer-choice').hidden = true;
     if (hostPage === 1) $('source-start').hidden = $('file-panel').hidden = $('file-actions').hidden = true;
     else $('download-overview').hidden = $('download-actions').hidden = true;
     $(hostPage === 1 ? 'source-flow-host' : 'install-flow-host').append($('device-flow'));
@@ -176,11 +189,12 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
   function exit(focus = true) {
     const previous = purpose, wasPreview = previewMode;
     previewMode = false;
+    if (wasPreview) computer = previousComputer;
     revision++; stage = purpose = null; history = [];
     busy = connected = false; session.close(); release(); status();
     $('device-flow').hidden = true;
     $('download-overview').hidden = $('download-actions').hidden = false;
-    if (previous && hostPage === 1) $('source-start').hidden = false;
+    if (previous && (hostPage === 1 || wasPreview)) { $('source-start').hidden = !computer; $('computer-choice').hidden = !!computer; }
     if (focus && wasPreview) { onPreviewExit(); return; }
     if (focus && previous) {
       $(hostPage === 1 ? 'source-title' : 'download-title').focus();
@@ -219,9 +233,10 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
     $('mtp-bar').style.width = done / total * 100 + '%';
     $('mtp-progress').textContent = `${index + 1} of ${count} files · ${size(done)} of ${size(total)} · ${Math.floor(done / total * 100)}%` +
       (seconds > 0.5 ? ` · ${size(Math.round(done / seconds))}/s` : '');
-    $('mtp-current').textContent = `Sending ${path} · ${size(fileDone)} of ${size(fileSize)}`;
+    $('mtp-current').textContent = `${purpose === 'source' ? 'Reading' : 'Sending'} ${path} · ${size(fileDone)} of ${size(fileSize)}`;
   }
   function renderDirect() {
+    $('mtp-title').textContent = purpose === 'source' ? 'Reading from your OP–XY' : 'Sending to your OP–XY';
     $('mtp-panel').hidden = !direct() || (!sending && !log.length);
     $('mtp-sending').hidden = !sending;
     $('mtp-log').hidden = !log.length;
@@ -285,13 +300,67 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
       if (ticket === revision) { closing = device?.close() ?? closing; await closing; busy = false; sending = null; render(); }
     }
   }
+  async function readOriginal() {
+    if (previewMode || busy || purpose !== 'source' || !direct()) return;
+    const kit = getKit();
+    if (!kit) return status('The machines have not loaded yet. Reload the page and try again.', true);
+    const path = 'upgrade/firmware/blackfin/bin/os.ldr', total = kit.profile.stock_bytes;
+    const ticket = revision, request = Mtp.Device.request();
+    busy = true; log = []; render(); status('Choose your OP–XY when your browser asks…');
+    let device, file;
+    try {
+      device = await request;
+      if (ticket !== revision) return;
+      mtp = device;
+      await closing;
+      await device.open();
+      if (ticket !== revision) { await device.close(); return; }
+      status(); note('Connected. Reading the original OS…');
+      sending = {path, index: 0, count: 1, done: 0, total, fileDone: 0, fileSize: total, started: performance.now()};
+      renderDirect();
+      const bytes = await device.read(path, {maxBytes: total, onProgress: part => {
+        if (ticket !== revision || !sending) return;
+        sending.done = sending.fileDone = Math.round(part * total); showProgress();
+      }});
+      if (ticket !== revision) return;
+      note('Checking the original OS…');
+      if (bytes.length !== total || await sha256(bytes) !== kit.profile.stock_sha256)
+        throw new Error('This is not the supported original OP–XY OS 1.2.0. It has not been loaded.');
+      if (ticket !== revision) return;
+      file = new File([bytes], 'os.ldr', {type: 'application/octet-stream'});
+    } catch (error) {
+      if (ticket !== revision) return;
+      const message = !device && error.name === 'NotFoundError' ? 'No OP–XY chosen.' : error.message || String(error);
+      note(message, 'error'); status(message, true);
+    } finally {
+      if (ticket === revision) { closing = device?.close() ?? closing; await closing; mtp = null; }
+    }
+    if (ticket !== revision) return;
+    if (file) {
+      try {
+        if (!await onFirmware(file, () => ticket === revision)) throw new Error('The OS could not be loaded. Try again.');
+        if (ticket !== revision) return;
+        clearSourceBackup(); sourceBackupUrl = URL.createObjectURL(file);
+        $('source-backup').href = sourceBackupUrl; $('source-backup').hidden = false;
+        inTransfer = true; transferComputer = computer;
+        busy = false; sending = null; showFiles();
+        return;
+      } catch (error) { if (ticket === revision) { note(error.message, 'error'); status(error.message, true); } }
+    }
+    if (ticket === revision) { busy = false; sending = null; render(); }
+  }
   function renderRoute() {
+    $('route-title').textContent = computer ? 'Install from ' + (computer === 'mac' ? 'Mac' : 'Windows') : 'Which computer will you install from?';
+    $('route-mac').hidden = computer === 'windows';
+    $('download').hidden = computer === 'mac';
+    $('route-change').hidden = !computer;
     $('route-mac-note').textContent = Mtp.supported() ? 'Send from this page. No download needed.'
       : 'Downloads the ZIP. Use Chrome or Edge to skip the download.';
   }
   $('dev-cancel').onclick = () => {
-    const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending;
+    const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending, reading = purpose === 'source' && direct();
     revision++; busy = connected = false; session.close(); stopSending();
+    if (reading) { log.push({text: 'Reading stopped. No device files were changed.', kind: 'error'}); render(); status('Select Try again to read the OS again.'); return; }
     if (stopped) log.push({text: 'Stopped by you. Files already sent stay on your OP–XY.', kind: 'error'});
     if (enabling) advance('menu'); else { render(); status(stopped ? 'Sending stopped. Select Try again to send every file again.' : 'Connection cancelled.'); }
   };
@@ -304,6 +373,16 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
   $('flow-exit').onclick = () => exit();
   $('source-local').onclick = showFiles;
   $('source-device').onclick = () => begin('source');
+  for (const name of ['mac', 'windows']) $('source-' + name).onclick = () => {
+    computer = name; manual = false;
+    $('computer-choice').hidden = true; $('source-start').hidden = false;
+    $('source-device').textContent = name === 'mac' && Mtp.supported() ? 'Read OS from OP–XY' : 'I don’t have the OS file';
+    $('source-title').focus(); Visuals.reveal($('source-start'));
+  };
+  $('source-computer-change').onclick = () => {
+    $('source-start').hidden = true; $('computer-choice').hidden = false;
+    $('computer-title').focus(); Visuals.reveal($('computer-choice'));
+  };
   $('files-back').onclick = () => {
     $('file-panel').hidden = $('file-actions').hidden = true;
     $('source-start').hidden = false; $('source-title').focus();
@@ -328,15 +407,18 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onPrev
         begin('install');
     }, 0);
   }
+  $('route-change').onclick = () => { computer = null; renderRoute(); };
   $('route-mac').onclick = event => chooseRoute('mac', event);
   $('download').onclick = event => chooseRoute('windows', event);
   return {
+    clearSourceBackup,
     previewLink(hash) {
-      const match = /^#preview\/(mac|windows)\/([a-z-]+)$/.exec(hash);
-      if (busy || !match || !previewStages.has(match[2])) return false;
-      begin('install', 3, {computer: match[1], stage: match[2]});
+      const match = /^#preview\/(source\/)?(mac|windows)\/([a-z-]+)$/.exec(hash);
+      if (busy || !match || !(match[1] ? sourcePreviewStages : previewStages).has(match[3])) return false;
+      begin(match[1] ? 'source' : 'install', match[1] ? 1 : 3, {computer: match[2], stage: match[3]});
       return true;
     },
+    previewPage() { return previewMode ? hostPage : null; },
     invalidate() { downloaded = false; if (hostPage === 3) exit(false); },
     navigate(page) { if (stage && page !== hostPage) exit(false); if (page === 3) renderRoute(); },
   };

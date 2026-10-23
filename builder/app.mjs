@@ -49,6 +49,7 @@ function ready() {
 }
 
 const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => selected, hasDownload: () => !!downloadUrl, getFiles: () => built,
+  onFirmware: (file, isCurrent) => acceptFirmware(file, isCurrent),
   onPreviewExit() {
     history.replaceState(null, '', location.pathname + location.search);
     if (acknowledged) navigate(1); else showDisclaimer();
@@ -67,7 +68,7 @@ function openPreviewLink() {
     $('builder-workspace').hidden = false;
     $('builder-workspace').inert = false;
     if (!acknowledged) $('status').textContent = '';
-    navigate(3);
+    navigate(wizard.previewPage());
   } else if (!acknowledged) showDisclaimer();
 }
 window.addEventListener('hashchange', openPreviewLink);
@@ -96,13 +97,14 @@ async function readBounded(file, limit) {
   return new Uint8Array(await file.arrayBuffer());
 }
 let ticket = 0;
-async function acceptFirmware(file) {
-  if (!file || !kit) return;
+async function acceptFirmware(file, isCurrent = () => true) {
+  if (!file || !kit || !isCurrent()) return false;
+  wizard.clearSourceBackup();
   const current = ++ticket; invalidate();
   stock = null; ready();
   try {
     const recovered = await Core.recoverFirmware(kit, await readBounded(file, 16 * 1024 ** 2));
-    if (current !== ticket) return;
+    if (current !== ticket || !isCurrent()) return false;
     stock = recovered.stock;
     if (recovered.selected) {
       selected = recovered.selected; renderMachines(); recalculate();
@@ -110,10 +112,12 @@ async function acceptFirmware(file) {
         kit.machines.filter(m => selected.includes(m.id)).map(m => m.name).join(' + ');
     } else $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 verified · ' + file.name;
     status(); ready();
+    return true;
   } catch (error) {
-    if (current !== ticket) return;
+    if (current !== ticket || !isCurrent()) return false;
     $('firmware-result').textContent = 'OS not loaded';
     fail(error); ready();
+    return false;
   }
 }
 function node(tag, text, className) {

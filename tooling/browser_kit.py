@@ -129,9 +129,9 @@ def write_builder(kit, output):
     wizard_import = ("import * as Ferret from './ferret.mjs';\n"
                      "import * as Mtp from './mtp.mjs';\n"
                      "import * as Visuals from './visuals.mjs';\n"
-                     "import {presetPath} from './core.mjs';\n")
+                     "import {presetPath, sha256} from './core.mjs';\n")
     require(wizard.startswith(wizard_import), 'Unexpected wizard imports')
-    bundled += 'const Wizard = (() => {\nconst {presetPath} = Core;\n' + wizard[len(wizard_import):].replace(
+    bundled += 'const Wizard = (() => {\nconst {presetPath, sha256} = Core;\n' + wizard[len(wizard_import):].replace(
         'export ', '') + '\nreturn {createWizard};\n})();\n'
     audition = read(ROOT / 'builder/audition.mjs').decode('utf-8')
     audition_imports = ("import engineSource from '../sdk/browser/engine.mjs?raw';\n"
