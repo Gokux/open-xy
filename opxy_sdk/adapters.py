@@ -205,6 +205,7 @@ def generate_registration(directory, m):
     entries, screen = {}, 'nullptr'
     if effect:
         entries[p + '_fx_register()'] = 'sdk_register_effect(&record)'
+        entries[p + '_ready()'] = 'sdk_effect_ready(&record)'
     else:
         if m.display != 'stock':
             declarations += [f'extern char {p}_screen_state[] __asm__("{p}_screen_state");',
@@ -338,15 +339,34 @@ def control_cycles(definition):
 
 
 def generate_synth_controls(directory, machines):
-    """The collection's synths with alternate controls as one table (synth_controls.hpp)."""
-    declarations, rows = [], []
+    """Synth ownership, alternate selection and continuous fine controls."""
+    declarations, rows, formatters = [], [], []
     for m in machines:
-        following = m.kind == 'synth' and control_cycles(m.definition)
-        if not following:
+        if m.kind not in ('synth', 'effect'):
             continue
+        effect = m.kind == 'effect'
+        following = (not effect and control_cycles(m.definition)) or list(range(8))
+        continuous = sum(1 << i for i, p in enumerate(m.definition['parameters']) if p['mapping']['kind'] != 'enum')
         declarations.append(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");')
-        rows.append(f"    {{{m.identity['engine']}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}}},")
-    return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows)),
+        body = [f'static bool {m.prefix}_format(opxy::u32 slot, opxy::i32 value, char* text) {{', '    switch (slot) {']
+        for i, p in enumerate(m.definition['parameters']):
+            mapping = p['mapping']
+            if mapping['kind'] == 'enum':
+                continue
+            # Compact native ratio captions; unusual/signed ranges retain the
+            # stock normalized display, with an extra decimal place.
+            if p['display'] == 'ratio' and mapping['kind'] == 'anchors' and 0 <= mapping['values'][0] < mapping['values'][-1] <= 1000:
+                anchors = ', '.join(str(math.floor(v * 10 + 0.5)) for v in mapping['values'])
+                body.extend([f'    case {i}: {{', f'        static const opxy::u32 anchors[] = {{{anchors}}};',
+                             f'        control_tenths(text, control_ratio(value, anchors, {len(mapping["values"])}), ":1");',
+                             '        return true;', '    }'])
+            else:
+                body.extend([f'    case {i}:', '        control_tenths(text, value < 0 ? 0 : ((static_cast<opxy::u32>(value) >> 10) * 1000 + (1u << 20)) >> 21, "%");',
+                             '        return true;'])
+        body.extend(['    default: return false;', '    }', '}'])
+        formatters.append('\n'.join(body))
+        rows.append(f"    {{{m.identity['effect' if effect else 'engine']}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, {m.prefix}_format, {'true' if effect else 'false'}}},")
+    return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows), FORMATTERS='\n'.join(formatters)),
                   Path(directory) / 'synth_control_table.cpp')
 
 

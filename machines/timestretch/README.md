@@ -14,7 +14,9 @@ stock drum page (page 7): each pad has its own sample and settings.
 | 4 | Loop or play once; press toggles | Stock volume |
 
 - **Length and tempo.** Lengths are 1/4, 1/2, 1, 2, 4 and 8 bars of 4/4.
-  Source BPM is an integer from 20 to 300. Switching from bars to BPM starts
+  Source BPM runs from 20.0 to 300.0. Shift + turn encoder 2 changes it by
+  0.1 BPM; hold that encoder down while turning for 1 BPM. A turn suppresses
+  the release's mode-switch click. Switching from bars to BPM starts
   at 120; switching back starts at one bar. Set the length or source BPM
   correctly before judging stretch quality.
 - **Automatic source BPM.** Put exactly three digits at the start or end of
@@ -28,7 +30,7 @@ stock drum page (page 7): each pad has its own sample and settings.
   pitch and the suggested length; a pad without saved settings plays one bar.
 - **Recording.** A recording made with the stock recorder is assigned to the
   selected pad like a file, keeping a replaced pad's settings. Its source BPM
-  is the project tempo at assignment, rounded to a whole BPM.
+  is the project tempo at assignment, including its decimal digit.
 - **Trim.** Playback follows the outer start/end markers, which new
   assignments set to the whole sample; the sampler's hidden loop markers do
   not apply.

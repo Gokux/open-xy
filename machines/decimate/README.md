@@ -11,6 +11,9 @@ buffer's own scale.
 | jitter | Each hold's length varies randomly by up to its own length, like an unstable sampler clock; 0 is steady |
 | mix | Dry to wet (Q15 crossfade); the catalog default is fully wet |
 
+Shift + turn adjusts rate, jitter and mix at one tenth of their normal rate;
+bit depth stays discrete. The FX page retains its stock value captions.
+
 `fx.cpp` implements the [effect interface](../../docs/api.md#effects):
 `initialize` and `process` over one 64-sample block with no allocation, I/O or
 stock calls. `core.h` declares the 20-byte `State`. `machine.json` declares FX

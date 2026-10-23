@@ -100,6 +100,12 @@ Browser previews show the parameter last edited at each position. See
 [Macro Osc](../machines/macroosc/definition.json), whose fourth encoder
 switches between FM ratio and depth.
 
+On custom synth engine pages, Shift + turn edits the same visible parameter
+at one tenth of the normal rate. Enum choices keep their ordinary stepping.
+Synth percentage and bounded positive anchor-ratio captions show one decimal
+place; a machine's text controls can override them. Custom send effects also
+use the slower Shift rate for continuous controls, with stock FX captions.
+
 A sample engine declares `voiceCapacity` (1..256) and the optional
 [sample services](#sample-engines) it uses. An effect declares no resources (`{}`).
 A synth declares:
@@ -246,7 +252,9 @@ void drum_panel(opxy::PadSettings, opxy::Parameters live, opxy::DrumPanel&);
 | 4 | Machine, knob 3 | Stock volume |
 
 `drum_control` receives each turn (signed direction) or press of a machine
-encoder, with `shifted` set on the Shift row, and edits the settings.
+encoder, with `shifted` set on the Shift row, and edits the settings. `held`
+marks a turn while the encoder is held down; turning suppresses the click on
+release. Machines decide how that gesture changes their stepping.
 `drum_panel` receives the settings and the eight live parameters audio uses.
 It returns the live pitch offset in cents (the page adds the pad's pitch), loop
 or play once, and two Shift captions of at most 15 characters, which replace

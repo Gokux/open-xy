@@ -123,15 +123,30 @@ controller, whose engine page ignores it.
 [`synth_controls.cpp`](../sdk/platform/opxy-1.2.0/synth_controls.cpp) replaces
 both calls: while the engine page shows an owned synth with
 [alternates](api.md#alternate-controls), a press moves the position to its next
-parameter slot and a turn edits that slot; everything else reaches stock unchanged. The selection is GUI state per
-track, reset when the track's engine changes.
+parameter slot and a turn edits that slot. For owned synths, Shift's indices
+4..7 map back to the same shown positions; continuous controls receive a copy
+of the three-word event with signed word 0 divided by ten. Words 1 (detents)
+and 2 (acceleration) stay intact. Stock consumes the event synchronously and
+still owns lock editing and publication. The selection is GUI state per track,
+reset when the track's engine changes. Other pages and unowned engines retain
+stock routing.
+
+The auxiliary-track controller already folds Shift into positions 0..3.
+Its call at `0x8c090636` uses the same fine scaling only for owned FX on tracks
+14/15, checked against the FX registry rather than the synth registry.
+The stock held-key getter `0x8d5b5ef4(10 + encoder)` supplies the sample
+callback's held-turn flag. Encoder turns clear the separate pending-click
+flag, so a press-and-turn does not also click on release.
 
 Stock draws each position's title from the engine record's parameter-name
 callback and its value as a percentage of the vector word. The screen's
 parameter-vector getter (`0x8d4d7c60`) takes the selected track in R0; the
 adapter passes it explicitly after refreshing alternate-control selection.
 The adapter's callback names the shown parameter, and the screen shell passes stock a copy
-of the vector with each position's shown word in place.
+of the vector with each position's shown word in place. Generated metadata
+then supplies one-decimal percentage and bounded positive anchor-ratio
+captions on custom synth screens; enums and machine text overrides remain
+discrete. FX pages retain their stock captions.
 
 ## Sample engines
 

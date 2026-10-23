@@ -12,7 +12,7 @@ void render_sample(Voice& voice, const opxy::SampleBlock& block) {
     voice.live_pitch_cents = (saved_pitch < -1200 ? -1200 : saved_pitch > 1200 ? 1200 : saved_pitch) +
                              effective.pitch_cents;
     if (voice.play_once != c.once) { voice.play_once = c.once; voice.finished = false; voice.sync_pending = true; }
-    set_source_bpm(voice, c.bpm);
+    set_source_bpm_x10(voice, c.bpm_x10);
     const opxy::i32 parameters[2] = {opxy::i32(c.length * 0x15555555u + 0x0aaaaaaau),
                                     c.stretch ? 0x7fffffff : 0};
     bind_analysis(voice, block.analysis);
@@ -42,9 +42,9 @@ opxy::u32 add_mod(opxy::u32 a, opxy::u32 b, opxy::u32 modulus) {
 }
 
 TimeStep source_advance(opxy::u32 frames, opxy::u32 shift, opxy::u32 rate,
-                         opxy::u32 source_bpm, opxy::u32 target_bpm_x10) {
+                         opxy::u32 source_bpm_x10, opxy::u32 target_bpm_x10) {
     const opxy::u32 numerator = rate * target_bpm_x10; // <= 576,000,000
-    const opxy::u32 denominator = 441000u * source_bpm; // <= 132,300,000
+    const opxy::u32 denominator = 44100u * source_bpm_x10; // <= 132,300,000
     opxy::u32 remainder = numerator % denominator;
     opxy::u32 fraction = 0;
     // Binary long division gives every available fractional bit without a
@@ -75,28 +75,42 @@ opxy::u32 synced_position(opxy::u32 frames, opxy::u32 beats, opxy::u32 ticks96) 
     return ticks96 % span * frames / span;
 }
 
-opxy::u32 synced_source_position(opxy::u32 frames, opxy::u32 rate, opxy::u32 source_bpm,
+opxy::u32 synced_source_position(opxy::u32 frames, opxy::u32 rate, opxy::u32 source_bpm_x10,
                                   opxy::u32 ticks96) {
     if (frames < 2 || frames > stretch::kMaxFrames || rate < 8000 || rate > 192000 ||
-        source_bpm < 20 || source_bpm > 300) return 0;
-    // frames * 8 * 300 <= 2,516,580,000; the unreduced tick product may not fit.
-    const opxy::u32 denominator = 8 * source_bpm;
-    const opxy::u32 modulus = frames * denominator;
-    opxy::u32 factor = rate * 5 % modulus;
-    opxy::u32 product = 0;
-    for (opxy::u32 bit = 0; bit < 32; ++bit) {
-        if (ticks96 & 1) product = add_mod(product, factor, modulus);
-        factor = add_mod(factor, factor, modulus);
-        ticks96 >>= 1;
+        source_bpm_x10 < 200 || source_bpm_x10 > 3000) return 0;
+    // floor(ticks * rate * 25 / (4 * BPM_x10)) modulo frames. Accumulate
+    // quotient and remainder separately: frames*denominator would exceed u32
+    // for a long sample at a high fractional tempo. This runs only on sync.
+    const opxy::u32 denominator = 4 * source_bpm_x10;
+    const opxy::u32 numerator = rate * 25;
+    const opxy::u32 whole = numerator / denominator % frames;
+    const opxy::u32 fraction = numerator % denominator;
+    opxy::u32 position = 0, remainder = 0;
+    for (opxy::u32 bit = 32; bit; --bit) {
+        position = add_mod(position, position, frames);
+        remainder <<= 1;
+        if (remainder >= denominator) {
+            remainder -= denominator;
+            position = add_mod(position, 1, frames);
+        }
+        if ((ticks96 >> (bit - 1)) & 1u) {
+            position = add_mod(position, whole, frames);
+            remainder += fraction;
+            if (remainder >= denominator) {
+                remainder -= denominator;
+                position = add_mod(position, 1, frames);
+            }
+        }
     }
-    return product / denominator;
+    return position;
 }
 
-void set_source_bpm(Voice& voice, opxy::u32 bpm) {
-    if (bpm < 20 || bpm > 300) bpm = 0;
-    if (voice.source_bpm != bpm) voice.time_step.divisor = 0;
-    if ((!voice.source_bpm) != (!bpm)) voice.sync_pending = true;
-    voice.source_bpm = bpm;
+void set_source_bpm_x10(Voice& voice, opxy::u32 bpm) {
+    if (bpm < 200 || bpm > 3000) bpm = 0;
+    if (voice.source_bpm_x10 != bpm) voice.time_step.divisor = 0;
+    if ((!voice.source_bpm_x10) != (!bpm)) voice.sync_pending = true;
+    voice.source_bpm_x10 = bpm;
 }
 
 void initialize(Voice& voice, const opxy::SampleView& sample) {
@@ -208,8 +222,8 @@ void render(Voice& voice, opxy::i32* output, const opxy::i32* parameters, const 
     if (voice.sync_pending) {
         voice.time_remainder = 0;
         voice.time_divisor = 0;
-        const opxy::u32 synced = voice.source_bpm ?
-            synced_source_position(frames, rate, voice.source_bpm, transport.ticks96) :
+        const opxy::u32 synced = voice.source_bpm_x10 ?
+            synced_source_position(frames, rate, voice.source_bpm_x10, transport.ticks96) :
             synced_position(frames, length, transport.ticks96);
         voice.position = transport.playing && !voice.play_once ? synced << shift : 0;
         voice.sync_pending = false;
@@ -219,8 +233,8 @@ void render(Voice& voice, opxy::i32* output, const opxy::i32* parameters, const 
     // the divisor. Tempo and bar length are the remaining timing inputs.
     const opxy::u32 timing_key = (target_bpm_x10 << 6) | length;
     if (!voice.time_step.divisor || voice.timing_key != timing_key) {
-        if (voice.source_bpm)
-            voice.time_step = source_advance(frames, shift, rate, voice.source_bpm, target_bpm_x10);
+        if (voice.source_bpm_x10)
+            voice.time_step = source_advance(frames, shift, rate, voice.source_bpm_x10, target_bpm_x10);
         else {
             const opxy::u32 span = duration(length, target_bpm_x10);
             voice.time_step = TimeStep{loop / span, loop % span, span, (loop / span) >> shift};

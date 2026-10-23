@@ -13,25 +13,24 @@ const opxy::i32 kSweep = 1440;
 const unsigned kModels = sizeof(models) / sizeof(models[0]);
 // Parameter slots (definition.json).
 const unsigned kModelSlot = 0, kTimbreSlot = 1, kColorSlot = 2, kRatioSlot = 3, kDepthSlot = 4;
-// A whole percentage, 0..100, rounded as the preview shows it.
+// One decimal place, matching fine turns and the browser preview.
 inline void percent(char* out, unsigned capacity, opxy::i32 value) {
-  unsigned p = value < 0 ? 0 : ((static_cast<unsigned>(value) >> 8) * 100 + (1u << 22)) >> 23;
-  char text[5];
+  unsigned p = value < 0 ? 0 : ((static_cast<unsigned>(value) >> 10) * 1000 + (1u << 20)) >> 21;
+  char text[7];
   unsigned n = 0;
-  if (p >= 100) text[n++] = '1';
-  if (p >= 10) text[n++] = static_cast<char>('0' + p / 10 % 10);
+  if (p >= 1000) text[n++] = '1';
+  if (p >= 100) text[n++] = static_cast<char>('0' + p / 100 % 10);
+  text[n++] = static_cast<char>('0' + p / 10 % 10);
+  text[n++] = '.';
   text[n++] = static_cast<char>('0' + p % 10);
   text[n++] = '%';
   text[n] = 0;
   opxy::segments::text(out, capacity, text);
 }
-// The FM ratio as its enum label: 0.5, 1, 1.5 ... 8.
-inline void ratio(char* out, unsigned capacity, unsigned halves) {
-  char text[4] = {static_cast<char>('0' + halves / 2), 0, 0, 0};
-  if (halves & 1) {
-    text[1] = '.';
-    text[2] = '5';
-  }
+// One decimal place; audio retains the full interpolated Q16 ratio.
+inline void ratio(char* out, unsigned capacity, unsigned q16) {
+  const unsigned tenths = (q16 * 10 + 32768) >> 16;
+  char text[4] = {static_cast<char>('0' + tenths / 10), '.', static_cast<char>('0' + tenths % 10), 0};
   opxy::segments::text(out, capacity, text);
 }
 inline void display(const opxy::segments::Input& input, Frame& frame) {
@@ -42,7 +41,7 @@ inline void display(const opxy::segments::Input& input, Frame& frame) {
   opxy::segments::text(frame.label, sizeof(frame.label), models[index].label);
   opxy::segments::text(frame.values[0], sizeof(frame.values[0]), models[index].code);
   if (input.shown[3] == kRatioSlot)
-    ratio(frame.values[3], sizeof(frame.values[3]), RatioHalvesFromParameter(input.parameters[3]));
+    ratio(frame.values[3], sizeof(frame.values[3]), RatioQ16FromParameter(input.parameters[3]));
   else
     percent(frame.values[3], sizeof(frame.values[3]), input.parameters[3]);
   frame.key = index + 1;
@@ -51,8 +50,7 @@ inline void display(const opxy::segments::Input& input, Frame& frame) {
   // Ratio below, stepping between ratios, and FM Depth above.
   frame.dials[0] = opxy::segments::sweep(input.slots[kTimbreSlot], kSweep);
   frame.dials[1] = opxy::segments::sweep(input.slots[kColorSlot], kSweep);
-  const opxy::i32 step = static_cast<opxy::i32>(RatioStepFromParameter(input.slots[kRatioSlot]));
-  frame.dials[2] = opxy::segments::rotation(-kSweep + step * 2 * kSweep / (kRatios - 1));
+  frame.dials[2] = opxy::segments::sweep(input.slots[kRatioSlot], kSweep);
   frame.dials[3] = opxy::segments::sweep(input.slots[kDepthSlot], kSweep);
 }
 }  // namespace macroosc

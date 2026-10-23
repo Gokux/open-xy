@@ -75,11 +75,11 @@ export function createControls(input) {
     if (!parameter) throw new Error('Unknown control');
     const v = physicalValue(parameter.mapping, value[id]);
     if (parameter.display === 'enum') return parameter.mapping.labels[v];
-    if (parameter.display === 'ratio') return `${v.toFixed(3)}:1`;
+      if (parameter.display === 'ratio') return `${v.toFixed(1)}:1`;
     if (parameter.display === 'bipolar') return `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
     if (parameter.display === 'semitones') return `${v > 0 ? '+' : ''}${v.toFixed(1)} st`;
     if (parameter.display === 'duration') return v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toFixed(2)} s`;
-    return `${Math.round(value[id] * 100)}%`;
+      return `${(value[id] * 100).toFixed(1)}%`;
   }
   function q31(value) {
     validateParameters(value);

@@ -173,6 +173,13 @@ inline bool refresh_controls(Base* o, Controls& controls) {
                              static_cast<u32>(reinterpret_cast<platform::Address>(words + parameter_slots))};
     controls.valid = read_shown(stock_vector, controls, words);
     update_controls(o, controls.track, controls.valid ? &view : stock_vector);
+    if (controls.valid) {
+        for (u32 i = 0; i < page_controls; ++i) {
+            char text[16];
+            if (sdk_synth_value(controls.track, controls.shown[i], controls.values[i], text))
+                set_text(o->values[i], text);
+        }
+    }
     return true;
 }
 
