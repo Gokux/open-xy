@@ -9,13 +9,33 @@ import json
 import os
 from pathlib import Path
 import shutil
+import struct
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from tooling import native
-from tooling.formats import elf32, sha
+from tooling.formats import elf32, elf_sections, sha
 from tooling.pipeline import document, read, save_json
+
+
+def object_symbols(data):
+    """(defined global names, undefined names) of a relocatable ELF32 object."""
+    headers = [h for _at, h in elf_sections(data)]
+    defined, undefined = set(), set()
+    for h in headers:
+        if h[1] != 2:  # SHT_SYMTAB
+            continue
+        strings = headers[h[6]]
+        for at in range(h[4], h[4] + h[5], 16):
+            index, _value, _size, info, _other, section = struct.unpack_from('<IIIBBH', data, at)
+            end = data.index(b'\0', strings[4] + index)
+            name = data[strings[4] + index:end].decode('ascii')
+            if name and section == 0:
+                undefined.add(name)
+            elif name and info >> 4 in (1, 2):  # global or weak
+                defined.add(name)
+    return defined, undefined
 
 
 @unittest.skipUnless(os.environ.get('OPXY_TEST_NATIVE_PACKAGE') and os.environ.get('OPXY_TEST_STOCK_OS') and
@@ -56,6 +76,25 @@ class PackageVerification(unittest.TestCase):
         result = self.verify()
         self.assertTrue(result['fresh_source_rebuild_matches'])
         self.assertFalse(result['hardware_tested'])
+
+    def test_service_hooks_live_in_their_units_and_only_their_users_reach_them(self):
+        services = native.object_services(self.machines)
+        kinds = {m.id: m.kind for m in self.machines}
+        owner_of, needs = {}, {}
+        for name, owner in self.report['objects'].items():
+            defined, undefined = object_symbols(read(self.package / 'analysis' / name))
+            owner_of.update(dict.fromkeys(defined, name))
+            needs[name] = (owner, undefined)
+        for patch in self.report['patches']:
+            if patch.get('service') and patch['after'] != patch['before']:
+                self.assertEqual(services.get(owner_of[patch['symbol']]), patch['service'], patch['symbol'])
+        # Only a service's own units and machines of the kinds it serves may use its symbols.
+        users = self.patch_profile['services']
+        for name, (owner, undefined) in needs.items():
+            for symbol in undefined:
+                service = services.get(owner_of.get(symbol))
+                if service and name not in services:
+                    self.assertIn(kinds.get(owner), users[service], (name, symbol))
 
     def test_only_curated_engines_are_linked_and_added_to_stock_content(self):
         _, symbols = elf32(self.elf)

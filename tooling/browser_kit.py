@@ -33,7 +33,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
     profile, machines, definitions = native.configuration()
     require(recipe['schema'] == 1, 'Unsupported collection')
     require(sha(stock_catalog) == profile['stock_catalog_sha256'], 'Stock catalog hash mismatch')
-    owners, services = native.object_owners(machines), native.object_services(machines)
+    owners, services = native.object_owners(machines, profile), native.object_services(machines, profile)
     kit_machines = []
     for m in machines:
         entry = dict(id=m.id, name=m.name, kind=m.kind, prefix=m.prefix, description=m.description,

@@ -154,6 +154,8 @@ export async function openKit(kit) {
   const objects = [];
   for (const o of kit.objects) {
     check(!names.has(o.name) && (o.owner === null || ids.has(o.owner)), 'Duplicate or unowned object');
+    check(o.service === undefined || (o.owner === null && Object.hasOwn(kit.profile.services ?? {}, o.service)),
+      'Undeclared service: ' + o.service);
     names.add(o.name);
     const bytes = decode64(o.bytes);
     check(await sha256(bytes) === o.sha256, 'Curated object hash mismatch: ' + o.name);
@@ -317,6 +319,8 @@ export async function patchFirmware(kit, linked, stock) {
       covering[0].offset + 16 + site - covering[0].target === offset &&
       equal(stock.subarray(offset, offset + before.length), before), 'Patch preimage/mapping mismatch');
     let after;
+    check(edit.service === undefined || (edit.kind === 'hook' && Object.hasOwn(p.services ?? {}, edit.service)),
+      'Undeclared service: ' + edit.service);
     if (edit.service && !linked.services.has(edit.service)) {
       after = before;  // the selection leaves this service's stock code unchanged
     } else if (['hook', 'startup'].includes(edit.kind)) {

@@ -50,8 +50,9 @@ def check_patch_boundaries(profile, count):
         require('service' not in patch or patch['service'] in profile.get('services', {}), 'Undeclared service')
         if 'after' in patch:
             after = bytes.fromhex(patch['after'])
-            # A service's edit stays stock in a build that leaves the service out.
-            require(len(after) == len(before) and (after != before or 'service' in patch), 'Invalid instruction edit')
+            # A service's hook stays stock in a build that leaves the service out.
+            require(len(after) == len(before) and (after != before or (kind == 'hook' and 'service' in patch)),
+                    'Invalid instruction edit')
         else:
             require(kind in ('hook', 'startup'), 'Heap and table edits carry their reviewed bytes')
         if kind == 'hook':

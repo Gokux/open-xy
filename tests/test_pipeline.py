@@ -58,11 +58,12 @@ class Services(unittest.TestCase):
     def test_only_machines_that_use_a_service_link_and_patch_it(self):
         from tooling import native
         from tooling.firmware import active_services
-        from tooling.machines import collection
+        from tooling.machines import discovered
         profile = config()
         self.assertEqual(active_services(profile, ['synth', 'effect']), set())
         self.assertEqual(active_services(profile, ['sample']), {'samples'})
-        machines = collection()
+        machines = discovered()  # every machine folder, whatever the collection selects
+        self.assertTrue(any(m.kind == 'sample' for m in machines))
         steps = lambda selection: [step for _name, m, step in native.plan(selection) if m is None]
         self.assertEqual(steps(machines), list(native.SDK_UNITS))  # full collections keep the link order
         without = [m for m in machines if m.kind != 'sample']
