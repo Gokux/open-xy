@@ -19,6 +19,10 @@ const uint8_t kNoSync[kMaxChunk] = {};
 // about F4. Each extra Braids render call costs per-call setup: on the Blackfin
 // simulator FM adds about a third to most models and doubles the costliest.
 const unsigned kFmChunk = 8;
+// Output level per int16 Braids sample (32768 would be half-scale Q31): -6.8 dB
+// from half scale, so stock volume readouts match stock instruments and 2op FM.
+// The declared output peak in definition.json is 32768 * kOutputLevel.
+const int32_t kOutputLevel = 14910;
 inline bool UsesDelayLines(MacroOscillatorShape shape) {
   return shape == braids::MACRO_OSC_SHAPE_SAW_COMB ||
          (shape >= braids::MACRO_OSC_SHAPE_PLUCKED && shape <= braids::MACRO_OSC_SHAPE_FLUTED);
@@ -112,7 +116,7 @@ void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
       osc->set_pitch(ClampPitch(PitchFromIncrement(pitch_increments[offset])));
       osc->Render(kNoSync, block, size);
       for (size_t i = 0; i < size; ++i) {
-        out[offset + i] = static_cast<int32_t>(block[i]) * 32768;  // Half-scale Q31.
+        out[offset + i] = static_cast<int32_t>(block[i]) * kOutputLevel;
       }
     }
   } else {
@@ -127,7 +131,7 @@ void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
       osc->set_pitch(ClampPitch(PitchFromIncrement(carrier)));
       osc->Render(kNoSync, block, kFmChunk);
       for (size_t i = 0; i < kFmChunk; ++i) {
-        out[offset + i] = static_cast<int32_t>(block[i]) * 32768;
+        out[offset + i] = static_cast<int32_t>(block[i]) * kOutputLevel;
       }
     }
   }

@@ -11,6 +11,8 @@ times the note frequency; depth 0 is the unmodulated model. The complete
 model/code/label list is in [models.hpp](models.hpp). The screen shows the
 model code on four glowing 14-segment characters and one knob per encoder; the
 Model knob steps between models and the fourth value reads `x2` or `40%`.
+Output is 6.8 dB below half scale (`kOutputLevel`), so a stock volume readout
+sounds about as loud as on stock instruments and 2op FM.
 
 ```sh
 python sdk.py preview --engine macroosc --out local/macro-preview-001

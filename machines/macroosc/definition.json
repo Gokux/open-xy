@@ -140,7 +140,7 @@
     "voiceAlignment": 4,
     "voiceCapacity": 128,
     "sharedBytes": 131332,
-    "outputPeakQ31": 1073741824,
+    "outputPeakQ31": 488570880,
     "display": {
       "kind": "segments",
       "characters": 4,
