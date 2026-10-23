@@ -73,7 +73,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       disabled: ['Dev menu hidden.', 'You can enable it again from “I don’t have the OS file” when you need it.', [action('Done', 'exit')]],
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". The next screen is titled "factory menu".', [action('Factory menu is open', 'start-transfer')]],
-      'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', 'close-field-kit')]],
+      'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', install ? 'close-field-kit' : 'transfer')]],
       'close-field-kit': ['Make sure Field Kit isn’t running for this next step!', 'Field Kit holds your OP–XY’s USB connection while it’s open, so copying can’t start. Quit it, then continue.', [action('I closed Field Kit', 'transfer', 'field-kit-closed')]],
       transfer: install && sendsDirectly() ? ['Send the files to your OP–XY.',
         resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Quit OpenMTP or Android File Transfer if either is open. Your device’s other content stays in place.',
