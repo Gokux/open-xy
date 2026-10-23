@@ -15,7 +15,7 @@ MAX_FILE = 16 * 1024 * 1024
 PROFILE = 'profiles/opxy-1.2.0.json'
 TOOLCHAINS = 'profiles/toolchains.json'
 TOOLCHAIN_HOME = 'local/toolchain'  # where `sdk.py toolchain fetch` installs
-TOOLCHAINS_SHA256 = '9946c3625cafad8f2825e8b4218600d79d19379df00e021ed60a6950f57ff946'
+TOOLCHAINS_SHA256 = 'ab575720dc8685fa3e5edac1891c9e917cced62a723bfa61e7faf83b1da64d72'
 # Additional exclusions, not a complete map of critical code. The exact source,
 # module and whole-output pins remain the stronger reference boundary.
 PROTECTED = (

@@ -75,7 +75,11 @@ Each pinned host's tools are published as assets of this repository's
 | `SHA256SUMS` | Hashes of both assets. |
 
 The SDK hash-checks every pinned file wherever the folder is unpacked; the
-zip needs no other software on the host. A maintainer on the pinned host
+zip needs no other software on the host. The macOS compiler links gmp, mpfr
+and mpc statically and loads only system libraries. Its binaries are ad-hoc
+signed, so macOS refuses copies unpacked by Finder from a browser download;
+install with `sdk.py toolchain fetch`, which never marks files as
+downloaded, passing `--archive` for a zip downloaded by hand. A maintainer on the pinned host
 builds the assets with
 [`tools/gcc/package_release.py`](../tools/gcc/package_release.py), which takes
 the reviewed bundle, a checkout of the fork and the runtime source packages

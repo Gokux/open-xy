@@ -22,7 +22,8 @@ This is an unofficial, experimental SDK. Native integration patches exact stock
 OS 1.2.0 with a curated collection of machines; arbitrary engine installation
 and dynamic loading are not implemented. Native code is not sandboxed, and build
 checks cannot guarantee recovery from a faulty image. Browser previews work on
-any OS; native firmware builds currently need Windows ([toolchains](docs/toolchain.md)).
+any OS; native firmware builds need Windows x86_64 or Apple-silicon macOS, where
+`python sdk.py toolchain fetch` installs the compiler ([toolchains](docs/toolchain.md)).
 
 ## Try an example
 
