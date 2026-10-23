@@ -7,6 +7,9 @@ import {presetPath} from './core.mjs';
 export function createWizard({getKit, getSelected, hasDownload}) {
   const $ = id => document.getElementById(id);
   let purpose = null, stage = null, history = [], revision = 0;
+  // Set when the OS-copy guide ends in file transfer mode, so the install guide
+  // can continue there; `resumed` marks an install guide that started there.
+  let inTransfer = false, resumed = false;
   let computer = null, busy = false, connected = false;
   let hostPage = 1;
   const supported = () => globalThis.isSecureContext && !!navigator.requestMIDIAccess;
@@ -32,7 +35,8 @@ export function createWizard({getKit, getSelected, hasDownload}) {
       transferSteps.push('Wait until every file has finished copying.');
     } else {
       transferSteps.push('Open upgrade → firmware → blackfin → bin on your OP–XY, then copy the OS file, os.ldr, to this computer.',
-        'If you previously installed open-xy, you can use the OS file, os.ldr, from the device’s top level instead.');
+        'If you previously installed open-xy, you can use the OS file, os.ldr, from the device’s top level instead.',
+        'Leave your OP–XY in file transfer mode. Installing continues from here.');
     }
     return {
       version: ['Is your OP–XY on OS 1.2.0?', 'open-xy supports only OS 1.2.0. Install it on your OP–XY before you copy the OS file.', [action('Yes, it’s on 1.2.0', 'boot', 'version-yes'), action('No, or I’m not sure', 'version-help', 'version-no')]],
@@ -58,7 +62,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". The next screen is titled "factory menu".', [action('Factory menu is open', 'start-transfer')]],
       'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', 'transfer')]],
-      transfer: [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files')], transferSteps],
+      transfer: [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
       'exit-transfer': ['Exit file transfer.', 'Once every file has finished copying, press track 2 for "2. exit".', [action('I’m back at the factory menu', 'write-os')]],
       'write-os': ['Write the OS.', 'Press track 5 for "5. write os to boot partition". Keep your OP–XY connected to power.', [action('I pressed track 5', 'write-result')]],
       'write-result': ['Wait for the write result.', 'Do not restart while writing. Wait for "firmware written ok" on your OP–XY.', [action('I see "firmware written ok"', 'restart'), action('I see an error', 'write-help')]],
@@ -102,6 +106,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
       button.onclick = () => {
         if (['dev-connect', 'dev-enable', 'dev-disable'].includes(a.id)) return deviceAction(a.id);
         if (a.id === 'disable-menu-after-install') return begin('disable', 3);
+        if (a.id === 'flow-restart') { inTransfer = resumed = false; history = []; stage = null; }
         if (a.id?.startsWith('computer-')) computer = a.id.slice(9);
         advance(a.next);
       };
@@ -118,7 +123,8 @@ export function createWizard({getKit, getSelected, hasDownload}) {
   }
   function advance(next) {
     if (busy) return;
-    if (next === 'files') return showFiles();
+    if (next === 'files') { inTransfer = purpose === 'source' && stage === 'transfer'; return showFiles(); }
+    if (next === 'write-os') inTransfer = resumed = false;
     if (next === 'exit') return exit();
     if (['computer', 'open-dev-menu', 'transfer', 'disabled'].includes(next)) { connected = false; session.close(); }
     if (stage) history.push(stage);
@@ -130,7 +136,8 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     else $('download-overview').hidden = $('download-actions').hidden = true;
     $(hostPage === 1 ? 'source-flow-host' : 'install-flow-host').append($('device-flow'));
     $('device-flow').hidden = false;
-    advance(purpose === 'source' ? 'version' : 'boot');
+    resumed = purpose === 'install' && inTransfer && !!computer;
+    advance(purpose === 'source' ? 'version' : resumed ? 'transfer' : 'boot');
   }
   function exit(focus = true) {
     const previous = purpose;
