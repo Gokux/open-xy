@@ -123,14 +123,14 @@ export function identities(kit, saved = null) {
   }
   if (saved) {
     check(saved.format === 'opxy-kit/1' && saved.profile === kit.profile.id && Array.isArray(saved.selected),
-      'Layout belongs to a different firmware profile');
+      'This saved selection is for a different OS version.');
     for (const [id, assigned] of Object.entries(saved.identities ?? {})) {
       check(result[id] && assigned && Object.keys(assigned).length === Object.keys(result[id]).length &&
         Object.entries(result[id]).every(([key, value]) => assigned[key] === value),
-        'Saved identity has changed: ' + id);
+        'A machine in this saved selection has changed: ' + id);
     }
     check(saved.selected.every(id => result[id] && Object.hasOwn(saved.identities, id)),
-      'Layout contains an unknown machine or missing identity');
+      'This saved selection lists a machine this site doesn’t have.');
   }
   return result;
 }
@@ -165,7 +165,7 @@ export async function openKit(kit) {
 export function linkKit(kit, selection) {
   identities(kit);
   check(Array.isArray(selection) && selection.length > 0 && new Set(selection).size === selection.length &&
-    selection.every(id => kit.machines.some(m => m.id === id)), 'Choose distinct curated machines');
+    selection.every(id => kit.machines.some(m => m.id === id)), 'Choose each machine once.');
   const selected = new Set(selection), limit = moduleBytes(kit.profile);
   const objects = kit.objects.filter(o => o.owner === null || selected.has(o.owner));
   const globals = new Map(Object.entries(kit.definitions)), placements = new Map(), segments = [];
@@ -183,7 +183,7 @@ export function linkKit(kit, selection) {
         const used = new Map();
         for (const x of objects) for (const y of x.sections) if (y.group) used.set(x.owner ?? 'sdk', (used.get(x.owner ?? 'sdk') || 0) + y.size);
         const shares = [...used].sort((a, b) => b[1] - a[1]).map(([owner, size]) => `${owner} ${(size / 1024).toFixed(1)} KiB`);
-        check(false, `Selection exceeds the ${limit / 1024} KiB module memory: ${shares.join(', ')}`);
+        check(false, `These machines need more than the ${limit / 1024} KiB available: ${shares.join(', ')}`);
       }
     }
     if (group === 'data') initializedEnd = cursor;
@@ -343,7 +343,7 @@ export async function recoverFirmware(kit, input) {
     readLdr(input);
     return {stock: input.slice(), selected: null};
   }
-  check(kit.machines.length <= 4, 'Recovery supports the reviewed four-machine collection only');
+  check(kit.machines.length <= 4, 'This open-xy OS can’t be recognized. Choose the original OP–XY OS 1.2.0.');
   const blocks = readLdr(input), first = blocks[0], module = blocks.at(-2), final = blocks.at(-1);
   check(blocks.length === p.stock_records + 1 && first.count === 0 &&
     (first.code & 0xffff) === 0x5004 && first.argument === input.length - 16 &&
@@ -352,12 +352,12 @@ export async function recoverFirmware(kit, input) {
     module.target === p.module_base && module.argument === 0 &&
     module.count > 0 && module.count <= moduleBytes(p) &&
     input.length === p.stock_bytes + 16 + module.count,
-    'Only OP–XY OS 1.2.0 is supported. This file is not OS 1.2.0 or an open-xy build of it. Install OS 1.2.0 on your OP–XY, then copy its OS file (os.ldr) again; a .tfw update file will not work.');
+    'Only OP–XY OS 1.2.0 is supported. This file is not OS 1.2.0 or an open-xy OS made from it. Install OS 1.2.0 on your OP–XY, then copy its OS file (os.ldr) again; a .tfw update file will not work.');
   const stock = join([input.subarray(0, module.offset), input.subarray(final.offset)]);
   stock.set(header(0x5004, first.target, 0, stock.length - 16));
   for (const edit of p.patches) stock.set(unhex(edit.before), Number(edit.file_offset));
   check(await sha256(stock) === p.stock_sha256,
-    'Only OP–XY OS 1.2.0 is supported. This open-xy build was not made from OS 1.2.0.');
+    'Only OP–XY OS 1.2.0 is supported. This open-xy OS was not made from OS 1.2.0.');
   const payload = input.subarray(module.offset + 16, final.offset);
   // Reconstruct every selection's entire image; never trust the uploaded
   // module or infer ownership from its label. At most 15 deterministic links.
@@ -370,7 +370,7 @@ export async function recoverFirmware(kit, input) {
       return {stock, selected};
     await new Promise(resolve => setTimeout(resolve, 0));
   }
-  throw new Error('This open-xy build does not match this collection. Choose OP–XY OS 1.2.0 or an OS built by this site.');
+  throw new Error('This open-xy OS has machines this site doesn’t offer. Choose the original OP–XY OS 1.2.0.');
 }
 
 export function presetPath(machine) {
@@ -415,7 +415,7 @@ function defaultPreset(machine) {
 }
 
 export async function buildAssets(kit, selection, catalog) {
-  check(await sha256(catalog) === kit.profile.stock_catalog_sha256, 'Choose the original stock content/op1_factory.json');
+  check(await sha256(catalog) === kit.profile.stock_catalog_sha256, 'The site’s machine data is damaged. Reload this page.');
   const machines = kit.machines.filter(m => selection.includes(m.id));
   // Each machine's entry ends its stock list; the offsets are bound to the
   // authenticated stock catalog (opxy_sdk.native.extend_catalog).

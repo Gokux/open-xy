@@ -23,46 +23,46 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     const install = purpose === 'install', disabling = purpose === 'disable', kit = getKit();
     const transfer = computer ? 'open-dev-menu' : 'computer';
     const transferSteps = [
-      computer === 'mac' ? 'Open your MTP file-transfer app.' : 'Open your OP-XY in File Explorer.',
+      computer === 'mac' ? 'Open your MTP file-transfer app.' : 'Open your OP–XY in File Explorer.',
     ];
     if (install) {
       transferSteps.push('Extract the ZIP you just downloaded.',
-        'Drag everything from the extracted ZIP to your OP-XY’s root folder.',
+        'Drag everything from the extracted ZIP to your OP–XY’s root folder.',
         'Confirm when asked to replace files.');
       transferSteps.push('Wait until every file has finished copying.');
     } else {
-      transferSteps.push('Open upgrade → firmware → blackfin → bin on your OP-XY, then copy the OS file, os.ldr, to this computer.',
-        'If you previously installed an open-xy bundle, you can use its OS file, os.ldr, from the device’s top level instead.');
+      transferSteps.push('Open upgrade → firmware → blackfin → bin on your OP–XY, then copy the OS file, os.ldr, to this computer.',
+        'If you previously installed open-xy, you can use the OS file, os.ldr, from the device’s top level instead.');
     }
     return {
       version: ['Is your OP–XY on OS 1.2.0?', 'open-xy supports only OS 1.2.0. Install it on your OP–XY before you copy the OS file.', [action('Yes, it’s on 1.2.0', 'boot', 'version-yes'), action('No, or I’m not sure', 'version-help', 'version-no')]],
       'version-help': ['Install OS 1.2.0 first.', 'Use teenage engineering’s usual update steps to put OS 1.2.0 on your OP–XY, then come back. open-xy can’t work from any other version.', [action('It’s on 1.2.0 now', 'boot', 'version-done')]],
       boot: ['Start in the te-boot menu.', disabling ? 'Finish any file transfers or OS installation before disabling the menu.' : install ? '' : 'The OS file, os.ldr, is your device’s firmware. It is not the .tfw update file on teenage engineering’s site. Follow these steps to copy it.', [action('Connected and at te-boot', 'menu')], [
-        'Power off your OP-XY.', 'Hold COM while switching it on.',
+        'Power off your OP–XY.', 'Hold COM while switching it on.',
         'Release COM when the te-boot menu appears.', 'Connect it to this computer with USB.',
       ]],
-      menu: ['Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP-XY.', [action('Yes, I see it', disabling ? 'connect' : transfer, 'menu-yes'), action('No, it’s missing', disabling ? 'disabled' : 'connect', 'menu-no')]],
-      connect: ['Connect your OP-XY.', 'When you select Find OP-XY, allow MIDI access if prompted.', [action('Find OP-XY', null, 'dev-connect')], [
-        'Connect your OP-XY to this computer with a USB-C data cable.',
+      menu: ['Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', [action('Yes, I see it', disabling ? 'connect' : transfer, 'menu-yes'), action('No, it’s missing', disabling ? 'disabled' : 'connect', 'menu-no')]],
+      connect: ['Connect your OP–XY.', 'When you select Find OP–XY, allow MIDI access if prompted.', [action('Find OP–XY', null, 'dev-connect')], [
+        'Connect your OP–XY to this computer with a USB-C data cable.',
         'Open this site in Chrome, Edge, or another browser that supports Web MIDI.',
-        'Keep your OP-XY on the te-boot menu.',
+        'Keep your OP–XY on the te-boot menu.',
       ]],
-      enable: ['Enable the dev menu.', 'Your OP-XY is connected. This enables the menu; it does not flash firmware.', [action('Enable dev menu', null, 'dev-enable')]],
-      disable: ['Disable the dev menu.', 'This hides the bootloader dev menu. It does not uninstall your machines or restore stock firmware.', [action('Disable dev menu', null, 'dev-disable')]],
-      'refresh-open': ['Open the system menu.', 'On your OP-XY, press track 8 for "8. system menu".', [action('System menu is open', 'refresh-return')]],
+      enable: ['Enable the dev menu.', 'Your OP–XY is connected. This enables the menu; it does not change the OS.', [action('Enable dev menu', null, 'dev-enable')]],
+      disable: ['Disable the dev menu.', 'This hides the bootloader dev menu. It does not uninstall your machines or restore the original OS.', [action('Disable dev menu', null, 'dev-disable')]],
+      'refresh-open': ['Open the system menu.', 'On your OP–XY, press track 8 for "8. system menu".', [action('System menu is open', 'refresh-return')]],
       'refresh-return': ['Return to te-boot.', 'Press track 8 for "8. back" to refresh the te-boot menu.', [action('I’m back at te-boot', 'confirm')]],
-      confirm: [disabling ? 'Has "3. dev menu" disappeared?' : 'Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP-XY.', disabling ? [action('It’s gone', 'disabled', 'dev-confirm'), action('It’s still there', 'disable-help')] : [action('Yes, I see it', transfer, 'dev-confirm'), action('No, it’s still missing', 'menu-help')]],
+      confirm: [disabling ? 'Has "3. dev menu" disappeared?' : 'Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', disabling ? [action('It’s gone', 'disabled', 'dev-confirm'), action('It’s still there', 'disable-help')] : [action('Yes, I see it', transfer, 'dev-confirm'), action('No, it’s still missing', 'menu-help')]],
       'menu-help': ['The dev menu is still missing.', 'Stay on te-boot. Retry the connection or use Connection help below.', [action('Try connecting again', 'connect'), action('Refresh the screen again', 'refresh-open')]],
       'disable-help': ['The dev menu is still visible.', 'Stay on te-boot. Reconnect to try again, or refresh the screen once more.', [action('Try connecting again', 'connect'), action('Refresh the screen again', 'refresh-open')]],
-      disabled: ['Dev menu hidden.', 'You can enable it again through the firmware-copy guide when you need it.', [action('Done', 'exit')]],
+      disabled: ['Dev menu hidden.', 'You can enable it again from “I don’t have the OS file” when you need it.', [action('Done', 'exit')]],
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". The next screen is titled "factory menu".', [action('Factory menu is open', 'start-transfer')]],
       'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', 'transfer')]],
-      transfer: [install ? 'Copy the bundle.' : 'Copy the OS file.', 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files')], transferSteps],
+      transfer: [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files')], transferSteps],
       'exit-transfer': ['Exit file transfer.', 'Once every file has finished copying, press track 2 for "2. exit".', [action('I’m back at the factory menu', 'write-os')]],
-      'write-os': ['Write the OS.', 'Press track 5 for "5. write os to boot partition". Keep your OP-XY connected to power.', [action('I pressed track 5', 'write-result')]],
-      'write-result': ['Wait for the write result.', 'Do not restart while writing. Wait for "firmware written ok" on your OP-XY.', [action('I see "firmware written ok"', 'restart'), action('I see an error', 'write-help')]],
-      'write-help': ['Check the message on your OP-XY.', '"Looking for /os.ldr" is not a completed write. Check that os.ldr is at the device’s top level. For another error, stop here and investigate it before restarting.', [action('Return to the write status', 'write-result')]],
+      'write-os': ['Write the OS.', 'Press track 5 for "5. write os to boot partition". Keep your OP–XY connected to power.', [action('I pressed track 5', 'write-result')]],
+      'write-result': ['Wait for the write result.', 'Do not restart while writing. Wait for "firmware written ok" on your OP–XY.', [action('I see "firmware written ok"', 'restart'), action('I see an error', 'write-help')]],
+      'write-help': ['Check the message on your OP–XY.', '"Looking for /os.ldr" is not a completed write. Check that os.ldr is at the device’s top level. For another error, stop here and investigate it before restarting.', [action('Return to the write status', 'write-result')]],
       restart: ['Restart without holding COM.', 'After restarting, check your selected machines on the device.', [action('Device restarted · Done', 'exit'), action('Disable dev menu', null, 'disable-menu-after-install')]],
     }[stage];
   }
