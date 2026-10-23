@@ -58,12 +58,16 @@
       <aside class="inspector" aria-label="Machine details"><div class="inspector-top"><span id="detail-kind" class="eyebrow">Synth</span><span class="tag">Experimental</span></div><h2 id="detail-name"></h2><p id="detail-description"></p><div id="art-preview" class="art-preview"></div><p id="art-caption" class="caption"></p><div id="controls" class="controls"></div><div id="audition-controls" class="audition-controls" aria-label="Sound preview"></div><details><summary>Machine details</summary><dl class="machine-facts" id="machine-facts"></dl></details></aside>
     </div>
 
-    <div class="actions"><button data-step="1" class="secondary">← OS</button><button id="build" class="primary" disabled>Build ZIP <span aria-hidden="true">→</span></button></div>
+    <div class="actions"><button data-step="1" class="secondary">← OS</button><button id="build" class="primary" disabled>Install firmware <span aria-hidden="true">→</span></button></div>
   </section>
   <section data-page="3" class="download-page" hidden aria-labelledby="download-title">
-    <div class="page-header"><div><span class="eyebrow">Step 3 of 3 · Download & install</span><h1 id="download-title" tabindex="-1">Download and install</h1><p id="download-summary"></p></div></div>
+    <div class="page-header"><div><span class="eyebrow">Step 3 of 3 · Install</span><h1 id="download-title" tabindex="-1">Install</h1><p id="download-summary"></p></div></div>
     <div id="download-overview" class="download-overview flow-shell">
-    <div class="download-card"><div id="bundle-art"></div><h2>Your open-xy ZIP</h2><a id="download" class="primary" download="open-xy.zip">Download ZIP <span aria-hidden="true">↓</span></a></div>
+    <div class="download-card"><div id="bundle-art"></div><h2>Ready to install</h2>
+      <div id="route-choice" class="route-choice"><p>Which computer will you install from?</p><div class="route-options">
+        <button type="button" id="route-mac" class="route-option"><strong>Mac <span aria-hidden="true">→</span></strong><span id="route-mac-note"></span></button>
+        <a id="download" class="route-option" download="open-xy.zip"><strong>Windows <span aria-hidden="true">↓</span></strong><span>Downloads the ZIP. Copy it with File Explorer.</span></a>
+      </div></div></div>
     <p class="qualification">Checks passed. This combination hasn’t been tested on a device, so CPU load and recovery aren’t guaranteed.</p>
     <details><summary>What was checked</summary><ul><li>Your OS file matched OP–XY OS 1.2.0 exactly</li><li>Only the reviewed changes were made, and the machines fit their memory</li><li>The original OS can be rebuilt from the new one</li></ul><p id="output-hash" class="hash"></p></details>
     </div>
@@ -89,6 +93,11 @@
   <p id="flow-detail"></p>
   <ol id="flow-instructions" class="instruction-list" hidden></ol>
   <details id="flow-file-details" hidden><summary>File locations</summary><div id="flow-files"></div></details>
+  <section id="mtp-panel" class="direct-copy" aria-labelledby="mtp-title" hidden>
+    <h3 id="mtp-title" class="sr-only">Sending to your OP–XY</h3>
+    <div id="mtp-sending" hidden><div class="transfer-bar"><span id="mtp-bar"></span></div><p id="mtp-progress" class="file-result"></p><p id="mtp-current" class="transfer-current"></p></div>
+    <ol id="mtp-log" class="transfer-log" aria-label="Transfer log" aria-live="polite" hidden></ol>
+  </section>
   <div id="flow-actions" class="flow-actions"></div>
   <p id="dev-status" role="status" aria-live="polite"></p>
   <button type="button" id="dev-cancel" hidden>Cancel connection</button>

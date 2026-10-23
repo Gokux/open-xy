@@ -22,11 +22,19 @@ test('dev server serves browser sources and rejects private paths and writes', a
     const html = await page.text();
     assert.match(html,/@vite\/client/);
     assert.match(html,/src="\/entry.mjs"/);
-    for (const path of ['/entry.mjs','/style.css','/app.mjs','/wizard.mjs','/ferret.mjs','/visuals.mjs','/audition.mjs']) {
+    for (const path of ['/entry.mjs','/style.css','/app.mjs','/wizard.mjs','/ferret.mjs','/mtp.mjs','/visuals.mjs','/audition.mjs']) {
       const response = await fetch(url+path); assert.equal(response.status,200,path);
     }
+    // Vite's client and the shared renderers load through /@fs/ on every platform.
+    const clientEnv = fileURLToPath(new URL('../../node_modules/vite/dist/client/env.mjs', import.meta.url));
+    const shared = ['display.mjs','segments.mjs','controls.mjs'].map(name =>
+      fileURLToPath(new URL('../../sdk/browser/' + name, import.meta.url)));
+    for (const file of [clientEnv, ...shared]) {
+      const path = '/@fs/' + file.replaceAll('\\', '/').replace(/^\//, '');
+      assert.equal((await fetch(url + path)).status, 200, path);
+    }
     for (const path of ['/kit.json','/.env.local','/local/inputs/os.ldr','/builder/../local/inputs/os.ldr',
-      '/%2e%2e/local/inputs/os.ldr','/@fs/C:/Users/ericx/.codex/config.toml','/vite.config.mjs','/__open-in-editor?file=README.md']) {
+      '/%2e%2e/local/inputs/os.ldr','/@fs/C:/Users/ericx/.codex/config.toml','/@fs/etc/passwd','/@fs//etc/passwd','/vite.config.mjs','/__open-in-editor?file=README.md']) {
       const response = await fetch(url+path); assert.equal(response.status,404,path);
     }
     assert.equal((await fetch(url+'/style.css',{method:'POST',body:'x'})).status,405);
@@ -40,7 +48,7 @@ test('public UI build works without a collection; release build requires one', a
     assert.doesNotMatch(html,/@vite\/client|ws:\/\//);
     assert.match(html,/assets\//);
     const headers = await readFile(join(directory,'_headers'),'utf8');
-    assert.match(headers,/Permissions-Policy: midi=\(self\)/);
+    assert.match(headers,/Permissions-Policy: midi=\(self\), usb=\(self\)/);
     assert.match(headers,/\/kit\.json\n  Cache-Control: no-cache/);
     await assert.rejects(readFile(join(directory,'kit.json')),/ENOENT/);
     await assert.rejects(build({configFile,mode:'release',logLevel:'silent',build:{outDir:directory}}),/OPEN_XY_KIT/);
