@@ -25,16 +25,32 @@ export function physicalValue(mapping, value) {
 // (the definition schema; opxy_sdk.definitions.control_positions).
 export const controlPositions = parameters => parameters.map((p, i) => p.control ?? i);
 
-// The display input for parameter words in parameter order, when shown[i] is
-// the parameter position i shows (initially its own; on the device an encoder
-// press selects an alternate, in a preview the control last edited): each
-// position's value, and the slots as the input's four bytes.
+// The display input (segments.hpp, draw.hpp) for the eight parameter words in
+// parameter order, when shown[i] is the parameter position i shows (initially
+// its own; on the device an encoder press selects an alternate, in a preview
+// the control last edited): each position's value, the shown slots as four
+// bytes, and every slot's word.
 export function shownControls(words, shown) {
+  if (!Array.isArray(words) || words.length !== 8 || words.some(w => !Number.isInteger(w) || w < 0 || w > 0x7fffffff)) {
+    throw new Error('Invalid parameter words');
+  }
   if (!Array.isArray(shown) || shown.length !== 4 || shown.some(s => !Number.isInteger(s) || s < 0 || s >= words.length)) {
     throw new Error('Invalid shown controls');
   }
   return { parameters: shown.map(slot => words[slot]),
-    shown: (shown[0] | shown[1] << 8 | shown[2] << 16 | shown[3] << 24) >>> 0 };
+    shown: (shown[0] | shown[1] << 8 | shown[2] << 16 | shown[3] << 24) >>> 0, slots: [...words] };
+}
+
+// Checks a shownControls result and returns it as the input's words in
+// layout order: parameters, the shown bytes, slots.
+export function inputWords(input) {
+  const { parameters, shown, slots } = input ?? {};
+  const word = v => Number.isInteger(v) && v >= 0 && v <= 0x7fffffff;
+  if (!Array.isArray(slots) || slots.length !== 8 || !slots.every(word) ||
+      !Number.isInteger(shown) || shown < 0 || shown > 0x07070707 || shown & 0xf8f8f8f8 ||
+      !Array.isArray(parameters) || parameters.length !== 4 ||
+      parameters.some((v, i) => v !== slots[shown >>> 8 * i & 0xff])) throw new Error('Invalid display input');
+  return [...parameters, shown, ...slots];
 }
 
 // Screen views of the browser preview.

@@ -6,7 +6,8 @@ namespace macroosc {
 static const unsigned char kRatioHalves[] = {1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16};
 const unsigned kRatios = sizeof(kRatioHalves) / sizeof(kRatioHalves[0]);
 // The enum control's step, as the definition quantizes Q31 through Q15.
-inline unsigned RatioHalvesFromParameter(int q31) {
-  return kRatioHalves[q31 < 0 ? 0 : ((static_cast<unsigned>(q31) >> 16) * kRatios) >> 15];
+inline unsigned RatioStepFromParameter(int q31) {
+  return q31 < 0 ? 0 : ((static_cast<unsigned>(q31) >> 16) * kRatios) >> 15;
 }
+inline unsigned RatioHalvesFromParameter(int q31) { return kRatioHalves[RatioStepFromParameter(q31)]; }
 }  // namespace macroosc

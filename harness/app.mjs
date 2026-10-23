@@ -72,8 +72,7 @@ function draw(elapsed = 0) {
   if (display) {
     const input = shownControls(parameterWords(), shown);
     try {
-      scene.apply(segmented ? display.tick(input.parameters, input.shown)
-        : display.tick(input.parameters, elapsed, visualNotes, 0, reducedMotion.matches, input.shown));
+      scene.apply(segmented ? display.tick(input) : display.tick(input, elapsed, visualNotes, 0, reducedMotion.matches));
     }
     catch (error) { display = scene = displayBackend = null; status(`Display stopped: ${error.message}`); }
   }

@@ -73,6 +73,7 @@ template <class Machine> struct Segments {
             segment_input.parameters[i] = controls.values[i];
             segment_input.shown[i] = controls.shown[i];
         }
+        for (u32 i = 0; i < parameter_slots; ++i) segment_input.slots[i] = controls.slots[i];
         if (controls.valid && binding::segment_render(&segment_input, &segment_frame)) {
             for (u32 i = 0; i < 4; ++i)
                 if (Machine::text_controls >> i & 1)
