@@ -27,7 +27,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Hooks | 5 | Branches from the synth initializer, both screen factories and both catalog-insertion calls into SDK startup code |
 | Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock multisampler audio payload |
 | Sample analysis | 10 | Schedules bounded background work, snapshots committed assignments, releases cached analysis and reports progress |
-| Drum-page services | 14 | Routes controls, octave publication, assignment and waveform projection for machines declaring drum controls |
+| Drum-page services | 14 | Routes controls, octave publication, assignment and waveform projection for machines declaring pad settings or drum controls |
 | Relocated tables | 14 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
 | Startup label | 1 | Shows `OPEN 0.0.1-1.2.0` at boot through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
@@ -119,55 +119,77 @@ Requirements: flag 1, an engine ID of 34–62, and page 2 or 7. The engine never
 touches the sample cache or its lock.
 
 Stock's sample predicate and note-region dispatcher also have explicit engine
-ID checks. The SDK generates their adapters from the collection: each candidate
-ID must pass its registration ownership check before borrowing the multisampler
-payload. Track and voice IDs stay unchanged. Stock, absent and conflicting
-registrations follow the original paths. These shared boundaries are part of the
-platform profile; adding a sample machine does not add firmware patch sites.
+ID checks. One generated table describes the collection's sample machines
+([`sample_callbacks.cpp.in`](../sdk/platform/opxy-1.2.0/sample_callbacks.cpp.in));
+[`sample_machines.cpp`](../sdk/platform/opxy-1.2.0/sample_machines.cpp)
+admits an ID only while its registration is still ours, and an owned engine
+borrows the multisampler payload. Track and voice IDs stay unchanged. Stock,
+absent and conflicting registrations follow the original paths. Adding a
+sample machine adds no firmware patch sites.
 
 The stock note-start callback for these registrations is vtable offset +16;
 factory creation alone does not start or choke a voice. Page 7 maps notes to
 the stock 24 canonical pads. Optional same-key choke is scoped to track and
 canonical pad, and checked before DSP or analysis lookup.
 
-The optional analysis service owns preparation, allocation and reclamation.
-The audio callback only reads published data. Browser page 4 suppresses new
-analysis requests. The assignment bridge validates worker generation, track,
-key and frame count before supplying filename metadata to the assignment
-callback. The callback also receives the replaced pad's saved settings.
-Custom drum-page assignments span the full loaded sample; replacements retain
-saved pitch, reverse and volume before stock publishes the new region.
+### Hooks
 
-The shared drum bridge stores a tagged 16-bit machine setting in the region's
-fade word, with padding to survive stock's integer/float serialization. It
-suppresses stock fade painting for owned custom pages and projects machine
-effective pitch/play state through a temporary region copy. The panel receives
-the same live parameter values as audio. A local GUI vector prevents stock
-from adding the already-applied pitch offset twice; the original vector still
-drives stock waveform trim overlays. Live encoder and automation dispatch
-remain stock-owned. Stock reverse, volume and
-waveform graphics remain stock-owned. Untagged data is migrated by the
-machine's C++ callback. Unowned registrations delegate to stock. The bridge
-does not extend the stock loader's 882,000 decoded-frame cap.
+Hooks that replace a CALL are C++ with the C ABI. Hooks entered inside a stock
+function are tiny assembly stubs: they save everything compiled C++ may
+clobber through one routine pair ([`hook.s`](../sdk/platform/opxy-1.2.0/hook.s):
+R0-R3, P0-P2, ASTAT, the I/M/B/L registers, both hardware loops and both
+accumulators), call C++, and replay or deliver what stock expects. Stubs remain
+only where the contract is not C: an argument in R5, outputs in R5/R7/CC, a
+return-address marker, the caller's frame, and replayed instructions.
+Stock addresses used by more than one unit are in
+[`stock.hpp`](../sdk/platform/opxy-1.2.0/stock.hpp); every sample record
+offset is in [`stock_sample.hpp`](../sdk/platform/opxy-1.2.0/stock_sample.hpp).
 
-The live/step editor's pitch classification also recognizes owned drum-page
-machines, so parameter zero uses stock's ten-cent stepping and lock handling.
-Other parameters retain their original editing paths and engine identity.
-Saved pad pitch uses the same ten-cent step, stored in stock root/fine fields
-and published through the existing region handler. Machine settings do not
-store pitch; the display adds saved region tuning to the panel's live offset.
+### Sample analysis
+
+The analysis service owns preparation, allocation and reclamation; the audio
+callback only reads published data. Entries are keyed by sample object and
+engine. The GUI marks assigned paths of analysis machines through the cache
+message's priority byte, which carries only "assigned", so the file worker
+prepares each such sample for every registered analysis machine, each within
+its own budget. Browser page 4 suppresses new requests: stock auditions
+replace regions while it is open. Results are released before stock frees the
+PCM object.
+
+### Pad settings and the drum page
+
+Pad settings occupy the stock pad record's fade word as a tagged 16-bit value,
+padded to survive stock's integer/float serialization. For a machine with pad
+settings the drum bridge owns that word: stock does not paint a fade, the
+Shift encoders 2/3 never reach stock, and presses never enter stock's mode
+cycle. With drum controls they reach the machine instead. Unowned
+registrations delegate to stock.
+
+The assignment bridge validates worker generation, track, key and frame count
+before supplying file metadata to `sample_assign`, then initializes the owned
+region over the full loaded sample and restores the replaced pad's pitch,
+reverse and volume before stock publishes it. The stock loader's 882,000
+decoded-frame cap still applies. Assignment looks up the raw note once and
+stores the canonical key through the owned initializer hook, avoiding a
+second octave conversion.
+
+The drum page paints a temporary copy of the pad record: the machine's
+effective pitch and play mode, never the saved tuning, markers or reverse. A
+local GUI parameter vector keeps stock from adding the live pitch offset twice;
+the original vector still drives stock's waveform trim overlays. Owned pages
+show the outer markers. The live/step editor's pitch classification also
+recognizes owned drum-page machines, so parameter zero uses stock's ten-cent
+stepping and lock handling. Saved pad pitch uses the same step, stored in
+stock root/fine fields and published through the existing region handler.
+
 The sample adapter reads track transpose from the stock per-track audio
 parameter table using stock note-start's 73-position mapping to -36..36
-semitones. It supplies this separately from
-pitch increments, which also include absolute note pitch and modulation.
-Drum-key routing passes stock's track octave to its key mapper and publishes the octave in an aligned per-track word. Audio
-uses that snapshot with the same integer mapping, without calling GUI
-project/pattern getters. The stock octave setter also publishes each change
-immediately; playback can reuse a sample without another GUI lookup.
-Voice choke uses that canonical pad; the raw note minus
-the canonical pad supplies a separate octave pitch offset captured at start.
-Assignment looks up the raw note once and stores the canonical key through
-the existing owned initializer hook, avoiding a second octave conversion.
+semitones, separately from pitch increments, which also include absolute note
+pitch and modulation. Drum-key routing passes stock's track octave to its key
+mapper and publishes the octave in a per-track word; the octave setter also
+publishes each change. Audio maps notes with that snapshot and the same
+integer mapping, without calling GUI project or pattern getters. Choke uses
+the canonical pad; the raw note minus the canonical pad is `drum_transpose`.
 
 ## Send effects
 
