@@ -23,8 +23,6 @@
     <h1 id="browser-notice-title" tabindex="-1">Use a compatible desktop browser.</h1>
     <p>This guide needs Web MIDI for device setup and WebUSB for file transfers on Mac. Desktop Chrome, Edge and Opera support both.</p>
     <p id="browser-blocked" role="alert" hidden>This browser doesn’t expose both required features, or you’re using a mobile device. Open this page in a compatible browser on your computer. <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer">Get Chrome</a></p>
-    <p id="browser-ready" hidden>Your browser supports both. Continue to read the disclaimer.</p>
-    <button id="browser-continue" class="primary" disabled>Continue</button>
     <noscript><p>JavaScript is required to check your browser and use the builder.</p></noscript>
   </section>
   <section id="risk-gate" class="panel risk-notice" aria-labelledby="risk-title" hidden>
@@ -56,7 +54,7 @@
       <div class="flow-body"><div id="source-device-art" class="flow-visual" data-device-art></div><div class="flow-copy">
         <h2 id="source-title" tabindex="-1">Start with your OP–XY’s OS file.</h2>
         <p class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
-        <div class="flow-actions"><button id="source-local" class="primary">Choose OS</button><button id="source-device" class="secondary">I don’t know where the OS is, help me find it</button></div>
+        <div class="flow-actions"><button id="source-device" class="primary">Help me get the OS file</button><button id="source-local" class="secondary">I already have the OS file</button></div>
         <div class="flow-navigation"><button id="source-computer-change" class="text-button">Change computer</button></div>
       </div></div>
     </section>

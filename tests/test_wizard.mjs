@@ -291,7 +291,6 @@ test('installation links preview the edited steps without a build or device acce
   $('risk-acknowledgement').onchange();
   assert.equal($('risk-continue').disabled, true);
   $('risk-form').onsubmit({preventDefault() {}});
-  $('browser-continue').onclick();
   assert.equal($('builder-workspace').inert, true);
   assert.equal($('browser-gate').hidden, false);
   assert.equal($('risk-gate').hidden, true);

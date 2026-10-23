@@ -85,7 +85,6 @@ main { display:grid; grid-template-columns:230px minmax(0,1fr); gap:24px; max-wi
 .browser-notice h1 { margin:18px 0; }
 .browser-notice p { max-width:540px; margin:0 0 20px; }
 .browser-notice #browser-blocked { color:#ffe083; }
-.browser-notice #browser-ready { color:var(--muted); font-size:13px; }
 .risk-notice p { font-size:14px; margin-bottom:18px; }
 .risk-accept { display:grid; grid-template-columns:20px minmax(0,1fr); gap:14px; font-size:14px; padding:20px 0; margin:24px 0 8px; border-top:1px solid var(--line); cursor:pointer; }
 .risk-accept input { width:18px; height:18px; margin:3px 0; accent-color:white; }

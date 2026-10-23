@@ -11,13 +11,11 @@ const $ = id => document.getElementById(id);
 document.querySelectorAll('[data-icon]').forEach(el => el.append(Visuals.icon(el.dataset.icon)));
 document.querySelectorAll('[data-device-art]').forEach(el => el.append(Visuals.device()));
 // Preview links can show the guide immediately; using the builder still needs acknowledgement.
-let acknowledged = false, browserConfirmed = false;
+let acknowledged = false;
 const browserAllowed = supportsDeviceApis();
 $('browser-blocked').hidden = browserAllowed;
-$('browser-ready').hidden = !browserAllowed;
-$('browser-continue').disabled = !browserAllowed;
 $('risk-acknowledgement').checked = false;
-$('risk-acknowledgement').disabled = true;
+$('risk-acknowledgement').disabled = !browserAllowed;
 $('risk-continue').disabled = true;
 const colors = ['var(--machine-1)', 'var(--machine-2)', 'var(--machine-3)', 'var(--machine-4)'];
 const kib = n => (n / 1024).toFixed(1) + ' KiB';
@@ -63,20 +61,12 @@ const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => select
 });
 function showEntryGate() {
   wizard.navigate(1);
-  $('browser-gate').hidden = browserConfirmed;
-  $('risk-gate').hidden = !browserConfirmed;
+  $('browser-gate').hidden = browserAllowed;
+  $('risk-gate').hidden = !browserAllowed;
   $('phase-nav').hidden = true;
   $('builder-workspace').hidden = true;
   $('builder-workspace').inert = true;
 }
-$('browser-continue').onclick = () => {
-  if (!browserAllowed) return;
-  browserConfirmed = true;
-  $('risk-acknowledgement').disabled = false;
-  showEntryGate();
-  $('risk-title').focus();
-  Visuals.reveal($('risk-gate'));
-};
 function openPreviewLink() {
   if (wizard.previewLink(location.hash)) {
     $('browser-gate').hidden = true;
@@ -93,11 +83,11 @@ openPreviewLink();
 // returns to this unchecked notice instead of treating the preview as consent.
 await new Promise(resolve => {
   $('risk-acknowledgement').onchange = () => {
-    $('risk-continue').disabled = !browserAllowed || !browserConfirmed || !$('risk-acknowledgement').checked;
+    $('risk-continue').disabled = !browserAllowed || !$('risk-acknowledgement').checked;
   };
   $('risk-form').onsubmit = event => {
     event.preventDefault();
-    if (!browserAllowed || !browserConfirmed || !$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
+    if (!browserAllowed || !$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
     acknowledged = true;
     $('risk-gate').hidden = true;
     $('phase-nav').hidden = false;

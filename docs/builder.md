@@ -6,12 +6,16 @@ leaves the browser.
 
 ## Using the builder
 
-1. The centered opening screen requires a desktop browser exposing both Web MIDI
-   and WebUSB, such as Chrome, Edge or Opera. Continue to the separate risk notice
-   and acknowledge it (asked again on every load). Unsupported browsers cannot
-   proceed. Developer preview links still display the guide without enabling
-   device access; returning to the builder restores the required entry screen.
-2. Choose Mac or Windows, then choose the OS: the decrypted OP-XY OS 1.2.0 file `os.ldr`, or an Open-XY
+1. Use a desktop browser exposing both Web MIDI and WebUSB, such as Chrome, Edge
+   or Opera. Compatible browsers go straight to the risk notice; acknowledge it
+   on every load. Unsupported browsers see a centered blocking message with no
+   Continue button. Developer preview links still display the guide without
+   enabling device access; returning to the builder restores the risk notice
+   or browser block as appropriate.
+2. Choose Mac or Windows. **Help me get the OS file** starts the guided setup;
+   **I already have the OS file** opens the file picker. At the dev menu check,
+   **No, it’s missing** is the first option and leads to enabling the menu.
+   Choose the OS: the decrypted OP-XY OS 1.2.0 file `os.ldr`, or an Open-XY
    build to change. Only OS 1.2.0 is supported; the `.tfw` update files teenage
    engineering hosts are a different, encrypted format. The stock file is in a
    device capture at `/upgrade/firmware/blackfin/bin/os.ldr`; a previously
@@ -21,7 +25,7 @@ leaves the browser.
    the original firmware path, checks the exact stock hash and loads the OS
    directly into the builder, with an optional backup download. It does not change device files or fall back to
    the patched root OS. Keep file transfer open to resume installation later.
-   Windows and browsers without WebUSB use the manual copy guide; Mac users
+   Windows uses the manual copy guide; Mac users
    can also choose **Copy it myself instead**.
    Both transfer guides show a yellow notice for the rare case where a factory
    reset or initialization leaves `OPXY/upgrade/firmware/blackfin/bin/os.ldr`
