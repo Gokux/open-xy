@@ -8,7 +8,8 @@
 | Release browser kit (`sdk.py kit`) | The same, on the release host | Windows x86_64 |
 
 `python sdk.py doctor --preview` checks the preview tools, and
-`python sdk.py doctor --toolchain <dir>` checks the native binutils.
+`python sdk.py doctor --toolchain [<dir>]` checks the native binutils.
+`python sdk.py toolchain fetch` installs the native tools (below).
 
 ## Native tools
 
@@ -56,6 +57,13 @@ refuses other Homebrew versions. A rebuilt tool gets a new reviewed entry and
 a new `TOOLCHAINS_SHA256`; never relax a hash to admit it.
 
 ## Release downloads
+
+`python sdk.py toolchain fetch` downloads this host's archive, checks its
+hash and every pinned file, and installs it in `local/toolchain`. Native
+commands use that folder when `--toolchain` and `--compiler` are omitted.
+`--archive <zip>` installs an archive downloaded by hand. The archive URL and
+hash are part of the host's reviewed pins (`download` in
+`profiles/toolchains.json`).
 
 Each pinned host's tools are published as assets of this repository's
 `toolchain-1` GitHub release:

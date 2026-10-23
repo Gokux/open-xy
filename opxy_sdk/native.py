@@ -27,7 +27,7 @@ from .firmware import assemble, hook_instruction, hook_target
 from .formats import elf32, elf_sections, require, sha
 from .machines import by_kind, collection
 from .pipeline import (PROFILE, ROOT, check_patch_boundaries, child, config, document, execute, fresh_output, host_pins, host_platform,
-                       read, require_release_host, save_json, tool_paths)
+                       read, require_release_host, resolve_toolchain, save_json, tool_paths)
 from .startup import generate as generate_startup
 
 LINKER = 'linker/opxy-1.2.0.ld'
@@ -649,8 +649,8 @@ def build(out, toolchain, compiler, stock_os, stock_content):
 
 def main(argv=None, command=None):
     parser = argparse.ArgumentParser(prog='sdk.py ' + (command or 'build'), description=__doc__)
-    parser.add_argument('--toolchain', type=Path, required=True, help='pinned binutils directory')
-    parser.add_argument('--compiler', type=Path, required=True, help='pinned Blackfin GCC bundle root')
+    parser.add_argument('--toolchain', type=Path, help='pinned binutils directory (default: local/toolchain/bin)')
+    parser.add_argument('--compiler', type=Path, help='pinned Blackfin GCC bundle root (default: local/toolchain)')
     if command == 'verify':
         parser.add_argument('--package', type=Path, required=True)
     else:
@@ -663,9 +663,9 @@ def main(argv=None, command=None):
         if command == 'verify':
             require_release_host()  # only its tools reproduce published package bytes
         profile, machines, definitions = configuration()
-        tool_paths(args.toolchain)
-        compiler_paths(args.compiler)
-        tools = (args.toolchain, args.compiler)
+        tools = resolve_toolchain(args.toolchain, args.compiler)
+        tool_paths(tools[0])
+        compiler_paths(tools[1])
         if command == 'compile':
             output = fresh_output(args.out)
             _module, report, _patches = compile_collection(output, *tools, profile, machines, definitions)

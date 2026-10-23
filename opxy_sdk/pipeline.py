@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_FILE = 16 * 1024 * 1024
 PROFILE = 'profiles/opxy-1.2.0.json'
 TOOLCHAINS = 'profiles/toolchains.json'
-TOOLCHAINS_SHA256 = '570f5e9826a78b83de33b55303985c5e53377f45b735be54749321202dc9ccd5'
+TOOLCHAIN_HOME = 'local/toolchain'  # where `sdk.py toolchain fetch` installs
+TOOLCHAINS_SHA256 = '9946c3625cafad8f2825e8b4218600d79d19379df00e021ed60a6950f57ff946'
 # Additional exclusions, not a complete map of critical code. The exact source,
 # module and whole-output pins remain the stronger reference boundary.
 PROTECTED = (
@@ -141,6 +142,15 @@ def host_pins(kind):
     host = toolchains()['hosts'].get(host_platform(), {})
     require(kind in host, f'No reviewed Blackfin {kind} for {host_platform()} (docs/toolchain.md)')
     return host[kind], host['executable_suffix']
+
+
+def resolve_toolchain(toolchain=None, compiler=None):
+    """--toolchain and --compiler, defaulting to the fetched toolchain folder."""
+    home = ROOT / TOOLCHAIN_HOME
+    if toolchain is None or compiler is None:
+        require(home.is_dir(), 'No --toolchain/--compiler given and nothing in local/toolchain; '
+                'run: python sdk.py toolchain fetch')
+    return Path(toolchain or home / 'bin'), Path(compiler or home)
 
 
 def tool_paths(directory):
