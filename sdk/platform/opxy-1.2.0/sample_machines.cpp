@@ -19,12 +19,14 @@ const SampleMachine* sdk_sample_machine(u32 engine) {
     return nullptr;
 }
 
-// Note-region hook: 0 leaves an unowned engine to stock. An owned engine
-// borrows the multisampler payload and keeps stock's nearest-region test (1),
-// except on the drum page (7), where notes map to its canonical pads (2).
+// Note-region hook, decoded by extensions_sample_note_region (sample_hooks.s).
+// An owned engine borrows the multisampler payload and keeps stock's
+// nearest-region test, except on the drum page (7), where notes map to its
+// canonical pads.
+enum NoteRoute : u32 { kStockRoute = 0, kOwnedNearest = 1, kOwnedDrumPads = 2 };
 u32 sdk_sample_note_route(u32 engine) {
     const u32 page = opxy::platform::sample_page(engine);
-    return !page ? 0 : page == 7 ? 2 : 1;
+    return !page ? kStockRoute : page == 7 ? kOwnedDrumPads : kOwnedNearest;
 }
 
 // Stock's sample predicates know only stock engine IDs. Owned SDK engines

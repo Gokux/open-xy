@@ -27,9 +27,9 @@ extensions_sample_classify:
 
 /* Replaces R5 = 30; CC = R7 == R5 in stock's note-region dispatcher (R7 =
  * engine; stock's frame restores R7 on return). sdk_sample_note_route decides:
- * 0 runs stock's test; otherwise the owned engine selects the multisampler
- * payload (R7 = 30) while the track and factory keep the real engine, and 2
- * also skips the nearest-region test (CC = 0). */
+ * kStockRoute (0) runs stock's test; otherwise the owned engine selects the
+ * multisampler payload (R7 = 30) while the track and factory keep the real
+ * engine, and kOwnedDrumPads (2) also skips the nearest-region test (CC = 0). */
 .global extensions_sample_note_region
 .type extensions_sample_note_region, STT_FUNC
 extensions_sample_note_region:

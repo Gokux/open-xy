@@ -2,7 +2,7 @@
 // frame-count hook, the region initializer hooks of file loads and completed
 // recordings, and the retry decision. Stock calls the three hooks with the
 // ordinary C ABI (each replaces a CALL to the function it forwards to); the
-// retry stubs and the initializer's fade stub are in pad_assignment.s.
+// retry stubs and the owned initializer call are in pad_assignment.s.
 #include "sample_machines.hpp"
 #include "stock_sample.hpp"
 #include "stock.hpp"
@@ -13,11 +13,8 @@ extern "C" {
 opxy::u32 extensions_sample_key(opxy::u32, opxy::u32) __asm__("extensions_sample_key");
 opxy::u32 sdk_sample_assignment(opxy::u32, opxy::u32, opxy::u32, const opxy::u32*, opxy::u32, bool)
     __asm__("sdk_sample_assignment");
-// The owned initializer call in progress, read by the fade stub. Region
-// initialization runs on the GUI role, one call at a time; active is set only
-// for the duration of assign_owned's synchronous call into stock.
-struct Assigning { volatile opxy::u32 active, settings, key; };
-Assigning sdk_sample_assigning __asm__("sdk_sample_assigning");
+opxy::u32 sdk_sample_assign_owned(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32)
+    __asm__("sdk_sample_assign_owned");
 opxy::u32 sdk_sample_assignment_frames(opxy::u32) __asm__("sdk_sample_assignment_frames");
 opxy::u32 sdk_sample_assign_region(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32)
     __asm__("sdk_sample_assign_region");
@@ -54,14 +51,9 @@ u32 assign_owned(u32 track, u32 key, u32 frames, u32 last, u32 rate, const u32* 
     const SampleReplacement previous = sample_replacement(raw);
     const u32 settings = sdk_sample_assignment(track, frames, rate, path, previous.settings, recorded);
     // Stock normalizes its lookup key but stores the input key. Keep the raw
-    // note for lookup; the fade stub supplies the canonical stored key.
+    // note for lookup; the owned fade hook supplies the canonical stored key.
     // Passing the canonical key into stock would apply the octave twice.
-    sdk_sample_assigning.settings = settings;
-    sdk_sample_assigning.key = extensions_sample_key(track, key);
-    sdk_sample_assigning.active = 1;
-    // Middle C root, no fade, inner markers at the loaded frames.
-    const u32 result = initialize_stock(track, key, 60, 0, frames, frames, last);
-    sdk_sample_assigning.active = 0;
+    const u32 result = sdk_sample_assign_owned(track, key, settings, frames, last, extensions_sample_key(track, key));
     // No publisher runs inside the stock initializer. Restore saved controls
     // before returning to the stock caller and subsequent GUI publication.
     sample_restore_replacement(raw, previous);

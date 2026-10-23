@@ -1,8 +1,7 @@
 /* Pad assignment hooks whose register contract C++ cannot express: two retry
- * hooks that replace literal loads inside stock functions, and the fade
- * conversion inside the region initializer, which delivers a result in R4.
- * The decisions and the owned initializer call are C++ in
- * pad_assignment_stock.cpp.
+ * hooks that replace literal loads inside stock functions, and the owned
+ * region initializer call, whose return address the fade hook recognizes.
+ * The decisions are C++ in pad_assignment_stock.cpp.
  */
 .include "sdk/platform/opxy-1.2.0/hook.inc"
 .section .text
@@ -36,20 +35,50 @@ RETRY sdk_sample_active_retry, 0, P4, 0x0801, 0xf7dc
  * pending path, which stock's duplicate check drops even with the worker idle. */
 RETRY sdk_sample_pending_retry, 1, R5, 0x0801, 0xf7c0
 
-/* 8d5882d8: the region initializer's fade conversion. While C++ runs the owned
- * initializer call it publishes sdk_sample_assigning {active, settings, key}:
- * the stub returns the settings in R0 and the canonical key in R4, which stock
- * stores next. Any other initializer call keeps stock's conversion. */
+/* R0=track, R1=raw key, R2=settings, stack: frames, last, canonical key. Calls stock
+ * 8d588224(track, key, 60, 0, frames, frames, last) with the settings at
+ * FP-8 and the canonical key at FP-12, and the return address
+ * sdk_sample_assign_owned_return, which is how the fade hook below recognizes
+ * this call without shared state. */
+.global sdk_sample_assign_owned
+.type sdk_sample_assign_owned, STT_FUNC
+sdk_sample_assign_owned:
+    LINK 48;
+    [SP + 40] = R2;
+    R2 = [FP + 28];
+    [SP + 36] = R2;
+    R2 = [FP + 20];
+    [SP + 16] = R2;
+    [SP + 20] = R2;
+    R2 = [FP + 24];
+    [SP + 24] = R2;
+    R2 = 0;
+    [SP + 12] = R2;
+    R2 = 60;
+    P0 = 0x8d588224;
+    CALL (P0);
+.global sdk_sample_assign_owned_return
+sdk_sample_assign_owned_return:
+    UNLINK;
+    RTS;
+.size sdk_sample_assign_owned, .-sdk_sample_assign_owned
+
+/* Only the fade conversion at 8d5882d8 is redirected here. Stock initializer
+ * LINK 0 leaves its caller's return PC at [FP+4]. Recognizing our owned call
+ * site scopes this override without shared state or changing other callers.
+ * Its explicit inner-marker args skip the earlier 20%/80% conversions. */
 .global sdk_sample_assign_fade
 .type sdk_sample_assign_fade, STT_FUNC
 sdk_sample_assign_fade:
-    P0.H = sdk_sample_assigning;
-    P0.L = sdk_sample_assigning;
-    R1 = [P0];
-    CC = R1 == 0;
-    IF CC JUMP .Lassign_fade_stock;
-    R4 = [P0 + 8];
-    R0 = [P0 + 4];
+    R1 = [FP + 4];
+    R2.H = sdk_sample_assign_owned_return;
+    R2.L = sdk_sample_assign_owned_return;
+    CC = R1 == R2;
+    IF !CC JUMP .Lassign_fade_stock;
+    P0 = [FP];
+    /* Stock writes R4 to the region key after this call. */
+    R4 = [P0 - 12];
+    R0 = [P0 - 8];
     RTS;
 .Lassign_fade_stock:
     LINK 12;

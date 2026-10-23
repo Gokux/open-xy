@@ -180,8 +180,8 @@ function are tiny assembly stubs: they save everything compiled C++ may
 clobber through one routine pair ([`hook.s`](../sdk/platform/opxy-1.2.0/hook.s):
 R0-R3, P0-P2, ASTAT, the I/M/B/L registers, both hardware loops and both
 accumulators), call C++, and replay or deliver what stock expects. Stubs remain
-only where the contract is not C: an argument in R5, outputs in R4/R5/R7/P4/CC,
-and replayed instructions. Decisions, including stock calls, are C++.
+only where the contract is not C: an argument in R5, outputs in R5/R7/P4/CC, a
+return-address marker, the caller's frame, and replayed instructions.
 Stock addresses used by more than one unit are in
 [`stock.hpp`](../sdk/platform/opxy-1.2.0/stock.hpp); every sample record
 offset is in [`stock_sample.hpp`](../sdk/platform/opxy-1.2.0/stock_sample.hpp).
