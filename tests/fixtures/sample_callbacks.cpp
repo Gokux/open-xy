@@ -27,7 +27,35 @@ extern "C" void probe_drum_panel(opxy::PadSettings value, const opxy::i32* param
     std::memcpy(frame->shifted[0], "first", 6); std::memcpy(frame->shifted[1], "second", 7);
 }
 static void check(bool value) { if (!value) std::abort(); }
+static opxy::u16 project[2] = {1230, 0xffff};
+static bool project_present = true;
+static opxy::u32 audio_tempo = 0x42f00000u; // Cached audio tempo: 120 BPM.
+static const volatile opxy::u16* project_data() { return project_present ? project : nullptr; }
+static unsigned assignment_engine(unsigned track) { check(track == 0); return 46; }
+opxy::platform::Address opxy::platform::host_stock_address(Address address) {
+    if (address == 0x8d5827b0) return reinterpret_cast<Address>(&project_data);
+    if (address == 0x8d585eb4) return reinterpret_cast<Address>(&assignment_engine);
+    if (address == kAudioBpm) return reinterpret_cast<Address>(&audio_tempo);
+    std::abort();
+}
 int main() {
+    // A GUI tempo edit must reach assignment even when the audio clock has
+    // not caught up. Playback must continue reading the audio clock.
+    check(opxy::platform::audio_bpm_x10() == 1200);
+    for (bool recorded : {false, true}) {
+        for (unsigned tempo : {200u, 1230u, 1235u, 3000u, 0u, 199u, 3001u, 65535u}) {
+            project[0] = static_cast<opxy::u16>(tempo);
+            sdk_sample_assignment(0, 1234, 44100, nullptr,
+                                  opxy::platform::sample_store_settings(77), recorded);
+            check(assigned.bpm_x10 == (tempo >= 200 && tempo <= 3000 ? tempo : 0));
+            check(assigned.recorded == recorded && assigned.replacing && assigned.previous == 77);
+            check(opxy::platform::audio_bpm_x10() == 1200);
+        }
+    }
+    project_present = false;
+    sdk_sample_assignment(0, 1234, 44100, nullptr, 0, true);
+    check(assigned.bpm_x10 == 0 && assigned.recorded && !assigned.replacing);
+    project_present = true;
     const opxy::SampleAssignment replacement{"095_loop.wav", 12, 1234, 48000, 1200, true, 0xabcd, false};
     check(sdk_sample_machine(46)->assign(&replacement) == 1234 && assigned.replacing &&
           assigned.previous == 0xabcd && assigned.filename == replacement.filename &&

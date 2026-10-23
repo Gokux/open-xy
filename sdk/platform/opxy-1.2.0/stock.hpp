@@ -26,11 +26,20 @@ const u32 kNoEngine = 33;                  // stock "none" engine ID
 // The audio clock's tempo as Transport::bpm_x10, decoding its positive binary32
 // BPM without floating-point helpers; 0 outside 20..300 BPM. The bounded
 // exponent gives shifts 15..19; mantissa*10 and rounding fit u32.
-inline u32 project_bpm_x10() {
+inline u32 audio_bpm_x10() {
     const u32 bits = word(kAudioBpm);
     if (bits < 0x41a00000u || bits > 0x43960000u) return 0;
     const u32 shift = 150u - (bits >> 23);
     return (((bits & 0x007fffffu) | 0x00800000u) * 10u + (1u << (shift - 1u))) >> shift;
+}
+
+// Assignment runs on the GUI side. Read the project's stored tenths of BPM,
+// as the internal-clock branch of stock's tempo display does (8d57e404).
+// The audio clock is a separate cached value and may not reflect GUI edits.
+inline u32 project_bpm_x10() {
+    const volatile u16* project = stock<const volatile u16*()>(0x8d5827b0)();
+    const u32 tempo = project ? *project : 0;
+    return tempo >= 200 && tempo <= 3000 ? tempo : 0;
 }
 
 inline u32 track_engine(u32 track) { return stock<u32(u32)>(0x8d585eb4)(track); }
