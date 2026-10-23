@@ -1,5 +1,6 @@
-// Authored Macro Osc sound. Firmware ABI, storage, pitch addresses and host
-// transport are supplied by the SDK. Vendored DSP stays independently pinned.
+// Authored Macro Osc sound around the vendored Braids DSP. The SDK supplies
+// storage, per-sample pitch increments and the firmware adapters; the vendored
+// DSP stays independently pinned.
 #include "core.h"
 #include "fm.h"
 #include "pitch.h"
@@ -16,8 +17,8 @@ const unsigned kNumShapes = 47, kBlockSize = 64, kMaxChunk = 24;
 const uint8_t kNoSync[kMaxChunk] = {};
 // FM: a sine modulator at a ratio of the note retunes the carrier every
 // kFmChunk samples (5.5 kHz), which keeps an x8 modulator unaliased up to
-// about F4. Each extra Braids render call costs per-call setup: on the Blackfin
-// simulator FM adds about a third to most models and doubles the costliest.
+// about F4. Each extra Braids render call costs per-call setup, so FM renders
+// cost more than unmodulated ones.
 const unsigned kFmChunk = 8;
 // Output level per int16 Braids sample (32768 would be half-scale Q31): -6.8 dB
 // from half scale, so stock volume readouts match stock instruments and 2op FM.
@@ -37,7 +38,7 @@ inline MacroOscillatorShape ShapeFromParameter(int32_t q31) {
 }
 
 // Inverse of the stock increment: Braids pitch in 1/128 semitone, MIDI 0 = 0.
-int32_t PitchFromIncrement(uint32_t increment) {
+static int32_t PitchFromIncrement(uint32_t increment) {
   if (increment == 0) {
     return 0;
   }
@@ -75,10 +76,9 @@ void start(Voice& voice, Shared&, opxy::u32) {
 inline int32_t ClampPitch(int32_t pitch) {
   return pitch < 0 ? 0 : pitch > 16383 ? 16383 : pitch;
 }
-void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
+void render(Voice& voice, Shared& state, opxy::u32 owner, opxy::Output out,
             opxy::Parameters parameters, opxy::Pitch pitch_increments) {
-  Voice* voice = &value;
-  MacroOscillator* osc = &voice->osc;
+  MacroOscillator* osc = &voice.osc;
   MacroOscillatorShape shape = ShapeFromParameter(parameters[0]);
   const uint32_t depth = Unipolar15(parameters[4]);
   osc->set_parameters(Unipolar15(parameters[1]), Unipolar15(parameters[2]));
@@ -86,20 +86,20 @@ void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
   bool changed = shape != osc->shape();
   osc->set_shape(shape);  // Strikes on change, as on the module.
   if (UsesDelayLines(shape)) {
-    if (changed || voice->strike_pending) {
-      voice->delay_slot = state.delays.acquire(owner, voice->delay_slot);
+    if (changed || voice.strike_pending) {
+      voice.delay_slot = state.delays.acquire(owner, voice.delay_slot);
     }
-  } else if (voice->delay_slot != 0) {
-    state.delays.release(owner, voice->delay_slot);
-    voice->delay_slot = 0;
+  } else if (voice.delay_slot != 0) {
+    state.delays.release(owner, voice.delay_slot);
+    voice.delay_slot = 0;
     osc->set_delay_lines(nullptr);
   }
-  if (voice->strike_pending) {
+  if (voice.strike_pending) {
     osc->Strike();
-    voice->strike_pending = 0;
+    voice.strike_pending = 0;
   }
 
-  if (UsesDelayLines(shape) && !state.delays.get(owner, voice->delay_slot)) {
+  if (UsesDelayLines(shape) && !state.delays.get(owner, voice.delay_slot)) {
     // Storage was reassigned to a newer note; stay silent until restruck.
     for (size_t i = 0; i < kBlockSize; ++i) {
       out[i] = 0;
@@ -107,8 +107,8 @@ void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
     return;
   }
 
-  osc->set_delay_lines(state.delays.get(owner, voice->delay_slot));
-  stmlib::Random::Seed(voice->rng_state);
+  osc->set_delay_lines(state.delays.get(owner, voice.delay_slot));
+  stmlib::Random::Seed(voice.rng_state);
   int16_t block[kMaxChunk];
   if (depth == 0) {
     for (size_t offset = 0; offset < kBlockSize; offset += kMaxChunk) {
@@ -125,9 +125,9 @@ void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
     const uint32_t ratio = RatioQ16FromParameter(parameters[3]);
     for (size_t offset = 0; offset < kBlockSize; offset += kFmChunk) {
       const uint32_t increment = pitch_increments[offset] < 0x80000000u ? pitch_increments[offset] : 0x7fffffffu;
-      const int32_t swing = (static_cast<int32_t>(depth) * stmlib::Interpolate824(braids::wav_sine, voice->fm_phase)) >> 15;
+      const int32_t swing = (static_cast<int32_t>(depth) * stmlib::Interpolate824(braids::wav_sine, voice.fm_phase)) >> 15;
       const uint32_t carrier = increment + static_cast<uint32_t>(static_cast<int32_t>(increment >> 15) * swing);
-      voice->fm_phase += RatioIncrement(increment, ratio) * kFmChunk;
+      voice.fm_phase += RatioIncrement(increment, ratio) * kFmChunk;
       osc->set_pitch(ClampPitch(PitchFromIncrement(carrier)));
       osc->Render(kNoSync, block, kFmChunk);
       for (size_t i = 0; i < kFmChunk; ++i) {
@@ -135,7 +135,6 @@ void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
       }
     }
   }
-  voice->rng_state = stmlib::Random::state();
-  return;
+  voice.rng_state = stmlib::Random::state();
 }
 }  // namespace macroosc

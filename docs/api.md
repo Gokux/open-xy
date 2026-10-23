@@ -313,8 +313,7 @@ calls `initialize` once; storage starts zeroed. `process` runs once per
 64-frame block on the stereo send buffers and replaces them in place: `left`
 and `right` are distinct 64-word Q31 buffers. `parameters` holds the stock
 eight-word vector of normalized Q31 words; the first are the one to eight
-declared controls. The sample scale of the send buffers has not been
-established, so an effect should not depend on absolute level.
+declared controls. Do not depend on the absolute level of the send buffers.
 
 `State` is at most `opxy::effect_state_bytes` (476) with alignment at most 4.
 No destructor ever runs, so it holds no resources. The generated adapter

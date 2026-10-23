@@ -9,9 +9,8 @@ static inline opxy::u32 pitch_ratio(int semitones) {
     };
     return ratios[(semitones < -12 || semitones > 12 ? 0 : semitones) + 12];
 }
-// Linear interpolation between semitone ratios retains the existing Q12
-// ratios at integer pitches. Track transpose extends saved plus live tuning
-// from +/-24 to +/-60 semitones using exact octave shifts.
+// Linear interpolation between semitone ratios, exact at integer pitches.
+// Beyond +/-24 semitones (to the +/-60 limit) whole octaves shift exactly.
 static inline opxy::u32 pitch_ratio_cents(int cents) {
     static const opxy::u32 ratios[] = {
         1024,1085,1149,1218,1290,1367,1448,1534,1625,1722,1825,1933,

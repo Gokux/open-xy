@@ -9,6 +9,7 @@ interfaces. This directory implements those contracts across platforms.
 | `host/` | WebAssembly preview bindings |
 | `browser/` | AudioWorklet, controls, patch handling and retained drawing backends |
 | `platform/` | Blackfin primitives and stock 1.2.0 calling-convention adapters |
+| `templates/` | The starter machine `sdk.py new` copies |
 
 Platform conditionals belong here, never in a machine. The generated adapters
 provide C linkage and typed storage; machines implement ordinary C++ callbacks.

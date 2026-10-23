@@ -27,11 +27,10 @@ artifacts. Do not force-add private inputs or generated firmware packages.
 
 `python tools/check_private_files.py --staged` checks the actual index before
 a commit. `--history --all-objects` audits all available refs, reflogs and
-unreachable objects. Local commit/push hooks use this guard across the SDK's
-worktrees; CI also checks the current tree and fetched history. These checks
-reject private paths and firmware/archive/executable signatures even when a
-file has been renamed. They are additional protection, not permission to put
-private files in the checkout or bypass hooks.
+unreachable objects. CI also checks the current tree and fetched history.
+These checks reject private paths and firmware/archive/executable signatures
+even when a file has been renamed. They are additional protection, not
+permission to put private files in the checkout.
 
 ```sh
 python sdk.py check
@@ -41,13 +40,11 @@ SDK checks cover declared interfaces, storage, generated bindings and packaging.
 Sound correctness is the machine maintainer's responsibility: keep sound tests
 with the machine's own project, not in this repository. Native
 changes also require the complete [release verification](docs/build.md#release-verification); its
-required checks and private fixtures cannot be skipped. Keep all firmware,
-user data and generated packages outside every checkout.
+required checks and private fixtures cannot be skipped.
 
 In a PR, explain the behavior, how to try it, compatibility changes and checks
 run. For a device observation, include the exact image/asset hashes and what you
-actually exercised. Build success and simulated instruction counts are not
-hardware timing measurements.
+actually exercised. Build success is not a hardware timing measurement.
 
 ## Documentation
 

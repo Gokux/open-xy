@@ -2,8 +2,8 @@
 
 | Task | Needs | Platforms |
 | --- | --- | --- |
-| Browser preview (`sdk.py preview`, `new`) | Python 3.11+, NumPy, Node 22+, Clang with the wasm32 target | Any |
-| SDK checks (`sdk.py check`) | Python 3.11+, Node 22+ | Any |
+| Browser preview (`sdk.py preview`, `new`) | Python 3.11+, NumPy, Node 22.12+, Clang with the wasm32 target | Any |
+| SDK checks (`sdk.py check`) | Python 3.11+, Node 22.12+ | Any |
 | Native firmware (`sdk.py compile`, `build`) | The pinned Blackfin+ binutils and GCC 8 bundle below | Pinned hosts below |
 | Release browser kit (`sdk.py kit`) | The same, on the release host | Windows x86_64 |
 
@@ -51,8 +51,8 @@ on any other host.
 
 Every tool file is hash-checked before it runs. Source and install paths are
 compiled into the tools, so a rebuild matches its pins only at the same paths.
-A host's `build` record in `profiles/toolchains.json` names the script, source
-and output paths and host tools its pins were built with; `build-macos.sh`
+A host's `build` record in `profiles/toolchains.json`, where present, names the
+script, source and output paths and host tools its pins were built with; `build-macos.sh`
 refuses other Homebrew versions. A rebuilt tool gets a new reviewed entry and
 a new `TOOLCHAINS_SHA256`; never relax a hash to admit it.
 
@@ -86,7 +86,3 @@ the reviewed bundle, a checkout of the fork and the runtime source packages
 listed with their hashes in
 [`tools/gcc/release-sources.json`](../tools/gcc/release-sources.json). Both
 assets are reproducible from the same inputs.
-
-## Known gaps
-
-- Linux has no pins.

@@ -3,12 +3,9 @@
 `sdk.py build` statically links every machine in the collection into exact
 stock OS 1.2.0, using the [firmware ABI](abi-1.2.0.md), and checks the result.
 It runs on Windows x86_64 and Apple-silicon macOS. To choose among the curated
-machines without building, use the [browser builder](builder.md) instead.
-External-engine discovery and dynamic loading are not implemented: a machine
-reaches the firmware by joining the collection.
-
-This firmware is unofficial and experimental. Native code is not sandboxed,
-and host checks cannot guarantee a recoverable device.
+machines without building, use the [browser builder](builder.md) instead. A
+machine reaches the firmware by joining the collection; read the
+[caveats](../README.md) before installing.
 
 Commands use `python`; on macOS it is usually `python3`. Building needs only
 Python 3.11+, no virtual environment or packages; the browser preview in
@@ -66,9 +63,9 @@ this repository uses. To build it for the device:
    and IDs are saved in presets and projects, so they never change once
    published.
 3. Add `<id>` to `profiles/collection.json`. All selected machines share
-   508 KiB ([memory and limits](api.md#memory-and-limits)) and the bundled ones
-   use most of it, Macro Osc about 300 KiB; remove machines you don't want to
-   make room.
+   508 KiB ([memory and limits](api.md#memory-and-limits)), and the bundled
+   ones use most of it; `compile` shows each machine's share. Remove machines
+   you don't want to make room.
 
 `python sdk.py compile --out <folder>` then builds the module alone, without
 stock files, and prints each machine's memory use: a quick check before the

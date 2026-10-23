@@ -136,4 +136,4 @@ Template validation checks structure, not actual device text rendering.
 See [2op display.cpp](../machines/fm2op/display.cpp) and
 [Macro display.cpp](../machines/macroosc/display.cpp) for implementations;
 [Macro Osc's artwork](../machines/macroosc/panel.svg.fragment) uses glow and dials.
-Stock helper addresses and pointer validation are in the [firmware ABI](abi-1.2.0.md).
+How screens reach stock is described in the [firmware ABI](abi-1.2.0.md#screens).

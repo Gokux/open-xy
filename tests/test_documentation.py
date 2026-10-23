@@ -1,4 +1,4 @@
-"""Keep contributor navigation usable without private research directories."""
+"""Relative links in the repository's Markdown resolve to files inside it."""
 from pathlib import Path
 import re
 import unittest
