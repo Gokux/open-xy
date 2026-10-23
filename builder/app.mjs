@@ -79,7 +79,7 @@ async function acceptFirmware(file) {
     stock = recovered.stock;
     if (recovered.selected) {
       selected = recovered.selected; renderMachines(); recalculate();
-      $('firmware-result').textContent = '✓ Selection recovered: ' +
+      $('firmware-result').textContent = '✓ open-xy OS with ' +
         kit.machines.filter(m => selected.includes(m.id)).map(m => m.name).join(' + ');
     } else $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 verified · ' + file.name;
     status(); ready();
@@ -106,15 +106,15 @@ async function inspect(id) {
   $('audition-controls').replaceChildren();
   stopAudio = () => {};
   if (m.preview) {
-    $('art-caption').textContent = 'Audition the sound and screen. Stock envelopes and effects aren’t included.';
+    $('art-caption').textContent = 'Audition the sound and screen. The OP–XY’s own envelopes and effects aren’t included.';
   } else {
     $('art-preview').append(node('span', 'No browser preview for this machine yet.', 'art-placeholder'));
     $('art-caption').textContent = '';
   }
   $('controls').replaceChildren(...m.controls.map(c => node('div', c, 'control')));
   const own = kit.objects.filter(o => o.owner === id).flatMap(o => o.sections.filter(s => s.group));
-  facts($('machine-facts'), {'Code & data': kib(own.filter(s => s.type !== 8).reduce((n, s) => n + s.size, 0)),
-    'Reserved state': kib(own.filter(s => s.type === 8).reduce((n, s) => n + s.size, 0)),
+  facts($('machine-facts'), {'Code and data': kib(own.filter(s => s.type !== 8).reduce((n, s) => n + s.size, 0)),
+    'Working memory': kib(own.filter(s => s.type === 8).reduce((n, s) => n + s.size, 0)),
     [m.kind === 'effect' ? 'Effect ID' : 'Engine ID']: m.identity.effect ?? m.identity.engine, 'Page': m.identity.page});
   document.querySelectorAll('.machine button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
   if (m.preview) {
@@ -192,7 +192,7 @@ function renderMachines(filter = 'all') {
     const ownBytes = kit.objects.filter(o => o.owner === m.id)
       .flatMap(o => o.sections.filter(s => s.group)).reduce((total, s) => total + s.size, 0);
     const memory = node('span', kib(ownBytes), 'machine-memory');
-    memory.title = 'Code, data and reserved state. Shared code and alignment are counted separately below.';
+    memory.title = 'Code, data and working memory. Shared code is counted separately below.';
     meta.append(memory);
     button.append(meta); button.onclick = () => inspect(m.id);
     input.onchange = () => {
@@ -213,18 +213,18 @@ function recalculate() {
     const allocations = kit.machines.filter(m => selected.includes(m.id)).map(m => ({name: m.name,
       size: linked.segments.filter(s => s.owner === m.id).reduce((n, s) => n + s.size, 0),
       color: colors[kit.machines.indexOf(m) % colors.length]}));
-    allocations.push({name: 'Shared & alignment', size: linked.sizes.allocated - allocations.reduce((n, a) => n + a.size, 0), color: 'var(--shared)'},
-      {name: 'Available', size: linked.sizes.available, color: 'var(--paper)'}, {name: 'Tables', size: kit.profile.table_bytes, color: 'var(--tables)'});
+    allocations.push({name: 'Shared', size: linked.sizes.allocated - allocations.reduce((n, a) => n + a.size, 0), color: 'var(--shared)'},
+      {name: 'Available', size: linked.sizes.available, color: 'var(--paper)'}, {name: 'System', size: kit.profile.table_bytes, color: 'var(--tables)'});
     for (const a of allocations) {
       const segment = node('div', undefined, 'memory-segment'); segment.style.width = a.size / kit.profile.reserved_bytes * 100 + '%';
       segment.style.background = a.color; segment.title = a.name + ': ' + kib(a.size); $('memory-map').append(segment);
       const legend = node('span', a.name + ' ' + kib(a.size)); legend.style.setProperty('--swatch', a.color); $('memory-legend').append(legend);
     }
-    $('room-value').textContent = kib(linked.sizes.available) + ' available';
+    $('room-value').textContent = kib(linked.sizes.allocated) + ' of ' + kib(Core.moduleBytes(kit.profile)) + ' used';
     $('memory-map').setAttribute('aria-label', allocations.map(a => a.name + ': ' + kib(a.size)).join(', '));
-    facts($('capacity-details'), {'Code & data': kib(linked.sizes.initialized),
-      'Zero-initialized state': kib(linked.sizes.bss),
-      'Module memory': kib(linked.sizes.allocated) + ' / ' + kib(Core.moduleBytes(kit.profile))});
+    facts($('capacity-details'), {'Code and data': kib(linked.sizes.initialized),
+      'Working memory': kib(linked.sizes.bss),
+      'Available': kib(linked.sizes.available)});
     status();
   } catch (error) { $('room-value').textContent = 'Selection cannot be built'; fail(error); }
   ready();
@@ -270,17 +270,17 @@ $('restore').onchange = async e => {
   try {
     const saved = JSON.parse(new TextDecoder().decode(await readBounded(e.target.files[0], 65536)));
     Core.identities(kit, saved); selected = [...saved.selected]; invalidate(); renderMachines(); recalculate();
-    status('Layout loaded.');
+    status('Selection loaded.');
   } catch (error) { fail(error); }
 };
 $('save-layout').onclick = () => {
   if (!layout) return;
   const url = URL.createObjectURL(new Blob([JSON.stringify(layout, null, 2)], {type: 'application/json'}));
-  const a = node('a'); a.href = url; a.download = 'opxy-layout.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const a = node('a'); a.href = url; a.download = 'open-xy-selection.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 try {
   const data = $('kit-data').textContent.trim();
-  Core.requireThat(data, 'The machine collection is unavailable. Please reload this page.');
+  Core.requireThat(data, 'The machines couldn’t load. Reload this page.');
   kit = await Core.openKit(JSON.parse(data));
   selected = kit.machines.map(machine => machine.id);
   catalog = Core.decode64(kit.stockCatalog);

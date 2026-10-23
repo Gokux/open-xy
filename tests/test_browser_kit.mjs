@@ -60,16 +60,16 @@ test('declared callbacks of unselected machines resolve to fallbacks only for SD
   assert.throws(()=>linkKit(k,['a']),/absent-machine callback/);
 });
 test('empty, unknown, repeated selections, duplicate globals and memory exhaustion are rejected', () => {
-  const k=fixture(); for(const s of [[],['missing'],['a','a']]) assert.throws(()=>linkKit(k,s),/Choose distinct/);
+  const k=fixture(); for(const s of [[],['missing'],['a','a']]) assert.throws(()=>linkKit(k,s),/Choose each machine once/);
   k.definitions.entry=42; assert.throws(()=>linkKit(k,['a']),/Duplicate global/); delete k.definitions.entry;
-  k.objects[0].sections[1].size=0x80000; assert.throws(()=>linkKit(k,['a']),/module memory/);
+  k.objects[0].sections[1].size=0x80000; assert.throws(()=>linkKit(k,['a']),/need more than the/);
 });
 test('code, data and state share one module limit that names each machine', () => {
   const k=fixture(), tables=k.profile.table_bytes;
-  k.profile.table_bytes=k.profile.reserved_bytes-3; assert.throws(()=>linkKit(k,['a']),/module memory: a /);
+  k.profile.table_bytes=k.profile.reserved_bytes-3; assert.throws(()=>linkKit(k,['a']),/KiB available: a /);
   k.profile.table_bytes=tables;
   k.objects[0].sections.push({index:5,name:'.bss',group:'bss',type:8,size:0x7f000,alignment:4});
-  assert.throws(()=>linkKit(k,['a']),/module memory/);
+  assert.throws(()=>linkKit(k,['a']),/need more than the/);
 });
 // tests/test_profile_parity.py checks validIdentity against the Python rules.
 test('page and engine collisions and incompatible restored layouts fail', () => {
@@ -80,7 +80,7 @@ test('page and engine collisions and incompatible restored layouts fail', () => 
   k.machines.push(machine('b',34,83)); assert.throws(()=>identities(k),/Conflicting engine/); k.machines.pop();
   const sample=page=>({id:'s'+page,kind:'sample',identity:{engine:40+page,page},absent:{}});
   k.machines.push(sample(7),sample(2),{...sample(7),id:'t',identity:{engine:50,page:7}}); identities(k); k.machines.length=1;
-  assert.throws(()=>identities(k,{format:'opxy-kit/1',profile:'wrong',selected:[]}),/different firmware/);
+  assert.throws(()=>identities(k,{format:'opxy-kit/1',profile:'wrong',selected:[]}),/different OS version/);
   assert.throws(()=>identities(k,{format:'opxy-kit/1',profile:id,selected:['a'],identities:{a:{engine:35,page:82}}}),/changed/);
   assert.deepEqual(identities(k,{format:'opxy-kit/1',profile:id,selected:['a'],identities:{a:{page:82,engine:34}}}),{a:{engine:34,page:82}});
 });
@@ -144,5 +144,5 @@ test('firmware recovery rejects malformed and foreign loader layouts without pri
   final[2] = final.reduce((a,b) => a ^ b, 0);
   await assert.rejects(recoverFirmware(kit, final), /Only OP–XY OS 1\.2\.0 is supported/);
   kit.machines = Array.from({length:5},(_,i) => machine('m'+i,34+i,82+i));
-  await assert.rejects(recoverFirmware(kit, final), /four-machine/);
+  await assert.rejects(recoverFirmware(kit, final), /can.t be recognized/);
 });

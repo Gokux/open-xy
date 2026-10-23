@@ -5,14 +5,14 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#111111">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' data: 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
-<title>open-xy · Firmware builder</title>
+<title>open-xy · OS builder</title>
 <!-- styles -->
 <body>
 <main>
   <aside class="sidebar">
-  <header class="masthead"><div class="brand">open-xy <span>Firmware builder</span></div></header>
+  <header class="masthead"><div class="brand">open-xy <span>OS builder</span></div></header>
   <nav class="steps" id="phase-nav" hidden aria-label="Build progress">
-    <button data-step="1" aria-current="step"><span class="nav-icon" data-icon="firmware"></span><span><b>01</b>Firmware</span></button>
+    <button data-step="1" aria-current="step"><span class="nav-icon" data-icon="firmware"></span><span><b>01</b>OS</span></button>
     <button data-step="2" disabled><span class="nav-icon" data-icon="machines"></span><span><b>02</b>Machines</span></button>
     <button data-step="3" disabled><span class="nav-icon" data-icon="install"></span><span><b>03</b>Install</span></button>
   </nav>
@@ -20,10 +20,10 @@
   <div class="main-stage">
   <section id="risk-gate" class="panel risk-notice" aria-labelledby="risk-title">
     <span class="eyebrow">Before you start</span>
-    <h1 id="risk-title">Before you modify your OP-XY</h1>
+    <h1 id="risk-title">Before you modify your OP–XY</h1>
     <p>This is experimental, unofficial software for modifying your device's firmware.</p>
     <p>Modified firmware can cause data loss, permanent hardware damage, or make your device unusable ("bricking"). Recovery is not guaranteed.</p>
-    <p>This site and its software are independent of Teenage Engineering and are not affiliated with, endorsed, sponsored, or supported by Teenage Engineering.</p>
+    <p>This site and its software are independent of teenage engineering and are not affiliated with, endorsed, sponsored, or supported by teenage engineering.</p>
     <p>The software is provided as is, without warranty. Proceed only if you understand and accept these risks. Back up any device content you want to keep before installing modified firmware.</p>
     <form id="risk-form">
       <label class="risk-accept"><input id="risk-acknowledgement" type="checkbox" required><span>I have read this notice, understand the risks, and accept responsibility for proceeding and for any resulting damage or data loss.</span></label>
@@ -32,9 +32,9 @@
     <noscript><p>JavaScript is required to acknowledge this notice and use the builder.</p></noscript>
   </section>
   <div id="builder-workspace" hidden inert>
-  <p id="status" role="status" aria-live="polite">Opening the curated machine collection…</p>
+  <p id="status" role="status" aria-live="polite">Loading machines…</p>
   <section data-page="1" class="input-page" aria-labelledby="input-title">
-    <div class="page-header"><div><span class="eyebrow">Step 1 of 3 · Firmware</span><h1 id="input-title" tabindex="-1">Choose OS</h1><p>open-xy supports only OP–XY OS 1.2.0. Update your OP–XY to 1.2.0 before you start.</p></div></div>
+    <div class="page-header"><div><span class="eyebrow">Step 1 of 3 · OS</span><h1 id="input-title" tabindex="-1">Choose OS</h1><p>open-xy supports only OP–XY OS 1.2.0. Update your OP–XY to 1.2.0 before you start.</p></div></div>
     <section id="source-start" class="panel flow-shell" aria-labelledby="source-title">
       <h2 id="source-title" class="sr-only" tabindex="-1">Choose an OS source</h2>
       <div id="source-device-art" class="device-art"></div>
@@ -45,35 +45,35 @@
     <section id="file-panel" class="file-panel panel flow-shell" aria-labelledby="files-title" hidden>
     <h2 id="files-title" class="sr-only">Choose files</h2>
     <label class="drop" id="firmware-drop"><span class="file-icon" data-icon="firmware" aria-hidden="true"></span><strong>Choose OS</strong><span>or drop os.ldr here</span><input id="firmware" type="file" accept=".ldr" aria-label="Choose OS"></label>
-    <p id="firmware-result" class="file-result">OP–XY OS 1.2.0 · stock or an open-xy build</p>
+    <p id="firmware-result" class="file-result">OP–XY OS 1.2.0 · original or open-xy</p>
     <p class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
-    <details><summary>Load a saved layout</summary><input id="restore" type="file" accept=".json" aria-label="Restore OP–XY build layout"></details>
+    <details><summary>Load a saved selection</summary><input id="restore" type="file" accept=".json" aria-label="Load a saved selection"></details>
     </section>
     <div id="file-actions" class="actions flow-shell" hidden><button id="files-back" class="secondary">← Back</button><button id="choose" class="primary" disabled>Choose machines <span aria-hidden="true">→</span></button></div>
   </section>
   <section data-page="2" hidden aria-labelledby="machines-title">
     <div class="page-header"><div><span class="eyebrow">Step 2 of 3 · Choose machines</span><h1 id="machines-title" tabindex="-1">Choose machines</h1><p>Select the instruments and effects to install.</p></div><span id="selection-count" class="counter">0 selected</span></div>
     <div class="workspace">
-      <div><div class="filters" role="group" aria-label="Filter machines"><button data-filter="all" aria-pressed="true">All</button><button data-filter="synth" aria-pressed="false">Synths</button><button data-filter="effect" aria-pressed="false">Effects</button><button data-filter="sample" aria-pressed="false">Sample</button></div><div id="machines" class="machine-list"></div><section class="capacity" aria-label="Build capacity"><div class="capacity-heading"><h2>Memory usage</h2><strong id="room-value">Choose a machine</strong></div><div id="memory-map" class="memory-map" role="img" aria-label="Extension memory allocation"></div><div id="memory-legend" class="memory-legend"></div><details class="memory-more"><summary>Memory details</summary><div class="capacity-foot"><span>508 KiB module space + 4 KiB system tables</span><span>CPU headroom: not measured</span></div><dl id="capacity-details" class="machine-facts"></dl></details></section></div>
+      <div><div class="filters" role="group" aria-label="Filter machines"><button data-filter="all" aria-pressed="true">All</button><button data-filter="synth" aria-pressed="false">Synths</button><button data-filter="effect" aria-pressed="false">Effects</button><button data-filter="sample" aria-pressed="false">Samplers</button></div><div id="machines" class="machine-list"></div><section class="capacity" aria-label="Memory"><div class="capacity-heading"><h2>Memory usage</h2><strong id="room-value">Choose a machine</strong></div><div id="memory-map" class="memory-map" role="img" aria-label="Memory used by each machine"></div><div id="memory-legend" class="memory-legend"></div><details class="memory-more"><summary>Memory details</summary><div class="capacity-foot"><span>508 KiB for machines; CPU load is not measured</span></div><dl id="capacity-details" class="machine-facts"></dl></details></section></div>
       <aside class="inspector" aria-label="Machine details"><div class="inspector-top"><span id="detail-kind" class="eyebrow">Synth</span><span class="tag">Experimental</span></div><h2 id="detail-name"></h2><p id="detail-description"></p><div id="art-preview" class="art-preview"></div><p id="art-caption" class="caption"></p><div id="controls" class="controls"></div><div id="audition-controls" class="audition-controls" aria-label="Sound preview"></div><details><summary>Machine details</summary><dl class="machine-facts" id="machine-facts"></dl></details></aside>
     </div>
 
-    <div class="actions"><button data-step="1" class="secondary">← Firmware</button><button id="build" class="primary" disabled>Build bundle <span aria-hidden="true">→</span></button></div>
+    <div class="actions"><button data-step="1" class="secondary">← OS</button><button id="build" class="primary" disabled>Build ZIP <span aria-hidden="true">→</span></button></div>
   </section>
   <section data-page="3" class="download-page" hidden aria-labelledby="download-title">
     <div class="page-header"><div><span class="eyebrow">Step 3 of 3 · Download & install</span><h1 id="download-title" tabindex="-1">Download and install</h1><p id="download-summary"></p></div></div>
     <div id="download-overview" class="download-overview flow-shell">
-    <div class="download-card"><div id="bundle-art"></div><h2>Download bundle</h2><a id="download" class="primary" download="opxy-kit.zip">Download ZIP <span aria-hidden="true">↓</span></a></div>
-    <p class="qualification">Static checks passed. This combination has not been qualified on hardware; they do not establish CPU headroom or guarantee recovery.</p>
-    <details><summary>What was checked</summary><ul><li>Exact stock firmware and content hashes</li><li>Module bounds, imports, identities, and relocations</li><li>Original loader entry and FINAL record preserved</li><li>Only the 21 reviewed OS edit intervals and new module record changed</li><li>Complete reconstruction of the original stock image</li></ul><p id="output-hash" class="hash"></p></details>
+    <div class="download-card"><div id="bundle-art"></div><h2>Your open-xy ZIP</h2><a id="download" class="primary" download="open-xy.zip">Download ZIP <span aria-hidden="true">↓</span></a></div>
+    <p class="qualification">Checks passed. This combination hasn’t been tested on a device, so CPU load and recovery aren’t guaranteed.</p>
+    <details><summary>What was checked</summary><ul><li>Your OS file matched OP–XY OS 1.2.0 exactly</li><li>Only the reviewed changes were made, and the machines fit their memory</li><li>The original OS can be rebuilt from the new one</li></ul><p id="output-hash" class="hash"></p></details>
     </div>
     <div id="install-flow-host" class="flow-shell"></div>
-    <div id="download-actions" class="actions flow-shell"><button data-step="2" class="secondary">← Change machines</button><button id="save-layout" class="secondary">Save layout</button></div>
+    <div id="download-actions" class="actions flow-shell"><button data-step="2" class="secondary">← Change machines</button><button id="save-layout" class="secondary">Save selection</button></div>
   </section>
   </div>
   <footer>
       <div class="footer-copy">
-        <p>This is an independent community project. It is not affiliated with, endorsed, sponsored, or supported by Teenage Engineering. Product and company names are used solely to identify the hardware this project works with.</p>
+        <p>This is an independent community project. It is not affiliated with, endorsed, sponsored, or supported by teenage engineering. Product and company names are used solely to identify the hardware this project works with.</p>
         <p>Provided as is, without warranty. Modified firmware can cause data loss, permanent damage, or an unusable device. Hardware testing and automated checks do not guarantee safe operation or recovery.</p>
       </div>
     <details class="notices" hidden><summary>Software notices</summary><pre id="notices"></pre></details>
@@ -93,7 +93,7 @@
   <p id="dev-status" role="status" aria-live="polite"></p>
   <button type="button" id="dev-cancel" hidden>Cancel connection</button>
   <details id="connection-help" hidden><summary>Connection help</summary><p>Use desktop Chrome or Edge. Close other MIDI apps. If this page cannot get MIDI permission, use the <a href="https://bagofwaffles.github.io/ferret/op-xy/" target="_blank" rel="noopener noreferrer">hosted Ferret tool</a>, then check the menu here again.</p><p class="attribution"><a href="https://github.com/bagofwaffles/ferret" target="_blank" rel="noopener noreferrer">Ferret by Bag of Waffles</a> · MIT license</p></details>
-  <div class="flow-navigation"><button id="flow-back" class="secondary">← Back</button><button id="flow-exit" class="text-button">Back to file choice</button><a id="flow-download" class="file-button" download="opxy-kit.zip" hidden>Download ZIP</a></div>
+  <div class="flow-navigation"><button id="flow-back" class="secondary">← Back</button><button id="flow-exit" class="text-button">Back to file choice</button><a id="flow-download" class="file-button" download="open-xy.zip" hidden>Download ZIP</a></div>
   </div>
   </div>
 </section>
