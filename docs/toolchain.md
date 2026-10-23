@@ -55,8 +55,26 @@ and output paths and host tools its pins were built with; `build-macos.sh`
 refuses other Homebrew versions. A rebuilt tool gets a new reviewed entry and
 a new `TOOLCHAINS_SHA256`; never relax a hash to admit it.
 
+## Release downloads
+
+Each pinned host's tools are published as assets of this repository's
+`toolchain-1` GitHub release:
+
+| Asset | Contents |
+| --- | --- |
+| `open-xy-toolchain-<host>.zip` | One folder: the pinned binutils and compiler files, the runtime libraries they load, license texts and `SOURCES.md`. Pass it as `--compiler` and its `bin` as `--toolchain`. |
+| `open-xy-toolchain-source-<host>.tar` | The corresponding source: the fork at the pinned commit, `tools/gcc` and the source package of every bundled runtime library. |
+| `SHA256SUMS` | Hashes of both assets. |
+
+The SDK hash-checks every pinned file wherever the folder is unpacked; the
+zip needs no other software on the host. A maintainer on the pinned host
+builds the assets with
+[`tools/gcc/package_release.py`](../tools/gcc/package_release.py), which takes
+the reviewed bundle, a checkout of the fork and the runtime source packages
+listed with their hashes in
+[`tools/gcc/release-sources.json`](../tools/gcc/release-sources.json). Both
+assets are reproducible from the same inputs.
+
 ## Known gaps
 
 - Linux has no pins.
-- The tools are not distributed with the SDK. Distributing GNU binaries
-  carries their license and corresponding-source obligations.
