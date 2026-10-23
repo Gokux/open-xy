@@ -11,7 +11,7 @@ class PlatformScreenTests(unittest.TestCase):
     def test_sdk_header_and_machine_geometry_compose_without_stock_artwork(self):
         fragment = b'<g id="machine"><rect x="0" y="25" width="480" height="195" fill="#000000"/></g>'
         root = ET.fromstring(screen.compose(fragment))
-        self.assertEqual([n.get('id') for n in root], ['bg', 'values', 'titles', 'machine'])
+        self.assertEqual([n.get('id') for n in root], ['bg', 'bar', 'values', 'titles', 'machine'])
         for name in ('titles', 'values'):
             group = next(n for n in root if n.get('id') == name)
             self.assertEqual(len(group), 4)
@@ -20,8 +20,14 @@ class PlatformScreenTests(unittest.TestCase):
     def test_missing_control_and_wrong_dimensions_fail_closed(self):
         original = screen.template()
         root = ET.fromstring(original)
-        root[1].remove(root[1][0])
+        values = next(n for n in root if n.get('id') == 'values')
+        values.remove(values[0])
         with self.assertRaisesRegex(ValueError, 'four values'):
+            screen.validate_template(ET.tostring(root))
+        root = ET.fromstring(original)
+        bar = next(n for n in root if n.get('id') == 'bar')
+        bar.remove(bar[0])
+        with self.assertRaisesRegex(ValueError, 'header bar'):
             screen.validate_template(ET.tostring(root))
         with self.assertRaisesRegex(ValueError, 'dimensions'):
             screen.validate_template(original.replace(b'0 0 480 220', b'0 0 480 224'))

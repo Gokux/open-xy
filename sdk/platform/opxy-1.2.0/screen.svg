@@ -1,16 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="480" height="220" viewBox="0 0 480 220">
-  <!-- SDK-owned four-control header; the machine supplies the drawing below y=25. -->
+  <!-- SDK-owned four-control header in the stock synth layout: a stepped grey
+       bar 20 px tall, titles above values, light text on the dark half and
+       dark text on the light half. The machine supplies the drawing below y=20. -->
   <rect id="bg" width="480" height="220" fill="#000000"/>
+  <g id="bar">
+    <rect x="0" width="60" height="20" fill="#000000"/>
+    <rect x="60" width="60" height="20" fill="#323232"/>
+    <rect x="120" width="60" height="20" fill="#4B4B4B"/>
+    <rect x="180" width="60" height="20" fill="#646464"/>
+    <rect x="240" width="60" height="20" fill="#7D7D7D"/>
+    <rect x="300" width="60" height="20" fill="#969696"/>
+    <rect x="360" width="60" height="20" fill="#AFAFAF"/>
+    <rect x="420" width="60" height="20" fill="#CDCDCD"/>
+  </g>
   <g id="values">
-    <g><text transform="matrix(1 0 0 1 65 18)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="20px">0</text></g>
-    <g><text transform="matrix(1 0 0 1 185 18)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="20px">0</text></g>
-    <g><text transform="matrix(1 0 0 1 305 18)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="20px">0</text></g>
-    <g><text transform="matrix(1 0 0 1 425 18)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="20px">0</text></g>
+    <g><text transform="matrix(1 0 0 1 65 17.44)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="20px">0</text></g>
+    <g><text transform="matrix(1 0 0 1 185 17.44)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="20px">0</text></g>
+    <g><text transform="matrix(1 0 0 1 305 17.44)" fill="#000000" font-family="UniversNextPro-Light" font-size="20px">0</text></g>
+    <g><text transform="matrix(1 0 0 1 425 17.44)" fill="#000000" font-family="UniversNextPro-Light" font-size="20px">0</text></g>
   </g>
   <g id="titles">
     <g><text transform="matrix(1 0 0 1 5 10)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="10px">p1</text></g>
     <g><text transform="matrix(1 0 0 1 125 10)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="10px">p2</text></g>
-    <g><text transform="matrix(1 0 0 1 245 10)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="10px">p3</text></g>
-    <g><text transform="matrix(1 0 0 1 365 10)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="10px">p4</text></g>
+    <g><text transform="matrix(1 0 0 1 245 10)" fill="#000000" font-family="UniversNextPro-Light" font-size="10px">p3</text></g>
+    <g><text transform="matrix(1 0 0 1 365 10)" fill="#000000" font-family="UniversNextPro-Light" font-size="10px">p4</text></g>
   </g>
 </svg>
