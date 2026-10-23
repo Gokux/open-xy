@@ -32,11 +32,13 @@ template <class Machine> struct Segments {
         o->last = ~0u;
         if (!o->base.svg) return;
         bind_controls(&o->base);
-        // Text controls show the frame's text at 3/4 size, 15 px left of the template's value.
+        // All header values use approximately 12 px (60% of the template's
+        // 20 px), including stock-backed percentages. Decimal captions such
+        // as 100.0% must fit the same column as model codes and FM ratios.
         for (u32 i = 0; i < 4; ++i) {
-            Leaf* value = Machine::text_controls >> i & 1 ? text_node(o->base.values[i]) : 0;
+            Leaf* value = text_node(o->base.values[i]);
             if (!value) continue;
-            const i32 matrix[9] = {768, 0, 0, 0, 768, 0, static_cast<i32>(50 + 120 * i) * 1024, 18 * 1024, 1024};
+            const i32 matrix[9] = {614, 0, 0, 0, 614, 0, static_cast<i32>(50 + 120 * i) * 1024, 18 * 1024, 1024};
             set_matrix(value, matrix);
         }
         for (u32 i = 0; i < bound; ++i) o->nodes[i] = path_node(find(&o->base, Machine::ids[i]));

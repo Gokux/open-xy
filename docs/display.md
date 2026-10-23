@@ -90,9 +90,11 @@ can follow a parameter whichever one its position shows.
 14-segment mask per character (bits 15..2, segments `abcdefghjklmnp`),
 `label[16]`, `values[4][8]`, a nonzero key and four dials. Segments, glow and
 label repaint when the key changes. For each position listed in `textControls`,
-the screen shows `values[i]` in place of the stock value, at three-quarter size,
+the screen shows `values[i]` in place of the stock value,
 for whichever parameter the position shows; other positions keep the stock
-percentage of their shown parameter. Text must terminate within its buffer.
+percentage of their shown parameter. Native segment screens size all four
+header values to approximately 12 px so decimal captions fit their columns.
+Text must terminate within its buffer.
 
 Dials apply every frame. Each is a clockwise rotation from the authored pose as
 a Q10 unit vector; `{0, 0}` is the authored pose. `rotation(tenths)` turns by
