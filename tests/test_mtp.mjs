@@ -84,6 +84,11 @@ function fakeDevice({files = {}, busy = false, refuse = null, split = false, han
     async open() { state.opened = true; },
     async close() { state.opened = false; state.claimed = null; state.abort?.(new DOMException('The transfer was cancelled.', 'AbortError')); },
     async controlTransferOut(setup, data) { state.control = {...setup, data: [...new Uint8Array(data)]}; return {status: 'ok'}; },
+    // Get Device Status: busy once after a cancel, then OK.
+    async controlTransferIn(setup) {
+      assert.equal(setup.request, 0x67); state.statusPolls = (state.statusPolls ?? 0) + 1;
+      return {status: 'ok', data: new DataView(Uint8Array.of(4, 0, ...(state.statusPolls === 1 ? [0x19, 0x20] : [0x01, 0x20])).buffer)};
+    },
     async clearHalt(direction, endpoint) { (state.halts ??= []).push(direction + ' ' + endpoint); },
     async selectConfiguration() {
       device.configuration = {interfaces: [{interfaceNumber: 0, alternate: {interfaceClass: 255, endpoints: [
@@ -226,7 +231,8 @@ test('stopping mid-file cancels the transfer instead of leaving the device waiti
   assert.deepEqual([state.control.requestType, state.control.recipient, state.control.request, state.control.index], ['class', 'interface', 0x64, 0]);
   const transaction = state.ops.length - 1;
   assert.deepEqual(state.control.data, [0x01, 0x40, transaction, 0, 0, 0]);
-  assert.deepEqual(state.halts, ['out 10', 'in 9']);
+  assert.equal(state.statusPolls, 2, 'waits for the device to finish cancelling');
+  assert.deepEqual(state.halts.slice(-2), ['out 10', 'in 9']);
   assert.ok(!state.ops.includes('1003'), 'no CloseSession while a transfer is pending');
   assert.equal(state.opened, false);
 });

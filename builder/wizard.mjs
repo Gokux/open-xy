@@ -12,7 +12,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   let purpose = null, stage = null, history = [], revision = 0;
   // Set when the OS-copy guide ends in file transfer mode, so the install guide
   // can continue there; `resumed` marks an install guide that started there.
-  let inTransfer = false, resumed = false;
+  let inTransfer = false, resumed = false, transferComputer = null;
   let computer = null, busy = false, connected = false;
   let hostPage = 1;
   // Installing from this page: the chosen device, progress through the build,
@@ -37,8 +37,9 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   function content() {
     const install = purpose === 'install', disabling = purpose === 'disable', kit = getKit();
     const transfer = computer ? 'open-dev-menu' : 'computer';
+    const stillInTransfer = 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.';
     const transferSteps = [
-      computer === 'mac' ? 'Open your MTP file-transfer app.' : 'Open your OP–XY in File Explorer.',
+      computer === 'mac' ? 'Open Field Kit or OpenMTP.' : 'Open your OP–XY in File Explorer.',
     ];
     if (install) {
       transferSteps.push(downloaded ? 'Extract the ZIP you just downloaded.' : 'Select Download ZIP below, then extract the ZIP.',
@@ -73,14 +74,14 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       disabled: ['Dev menu hidden.', 'You can enable it again from “I don’t have the OS file” when you need it.', [action('Done', 'exit')]],
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". The next screen is titled "factory menu".', [action('Factory menu is open', 'start-transfer')]],
-      'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', install ? 'close-field-kit' : 'transfer')]],
+      'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', install && sendsDirectly() ? 'close-field-kit' : 'transfer')]],
       'close-field-kit': ['Make sure Field Kit isn’t running for this next step!', 'Field Kit holds your OP–XY’s USB connection while it’s open, so copying can’t start. Quit it, then continue.', [action('I closed Field Kit', 'transfer', 'field-kit-closed')]],
       transfer: install && sendsDirectly() ? ['Send the files to your OP–XY.',
-        resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Quit OpenMTP or Android File Transfer if either is open. Your device’s other content stays in place.',
+        resumed ? stillInTransfer : 'Quit OpenMTP or Android File Transfer if either is open. Your device’s other content stays in place.',
         delivered ? [action('Files sent · Continue', 'exit-transfer')]
           : [action(busy ? 'Sending…' : log.length ? 'Try again' : 'Send to OP–XY', null, 'mtp-send'),
             ...(busy ? [] : [action('Copy them myself instead', null, 'mtp-manual')]), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])]] :
-      [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
+      [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? stillInTransfer : 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
       'exit-transfer': ['Exit file transfer.', 'Once every file has finished copying, press track 2 for "2. exit".', [action('I’m back at the factory menu', 'write-os')]],
       'write-os': ['Write the OS.', 'Press track 5 for "5. write os to boot partition". Keep your OP–XY connected to power.', [action('I pressed track 5', 'write-result')]],
       'write-result': ['Wait for the write result.', 'Do not restart while writing. Wait for "firmware written ok" on your OP–XY.', [action('I see "firmware written ok"', 'restart'), action('I see an error', 'write-help')]],
@@ -144,7 +145,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   }
   function advance(next) {
     if (busy) return;
-    if (next === 'files') { inTransfer = purpose === 'source' && stage === 'transfer'; return showFiles(); }
+    if (next === 'files') { inTransfer = purpose === 'source' && stage === 'transfer'; transferComputer = computer; return showFiles(); }
     if (next === 'write-os') inTransfer = resumed = false;
     if (next === 'exit') return exit();
     if (['computer', 'open-dev-menu', 'transfer', 'disabled'].includes(next)) { connected = false; session.close(); }
@@ -158,8 +159,9 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
     else $('download-overview').hidden = $('download-actions').hidden = true;
     $(hostPage === 1 ? 'source-flow-host' : 'install-flow-host').append($('device-flow'));
     $('device-flow').hidden = false;
-    resumed = purpose === 'install' && inTransfer && !!computer;
-    advance(purpose === 'source' ? 'version' : resumed ? 'close-field-kit' : 'boot');
+    // Resume only in the transfer mode the device is already in.
+    resumed = purpose === 'install' && inTransfer && !!computer && computer === transferComputer;
+    advance(purpose === 'source' ? 'version' : !resumed ? 'boot' : sendsDirectly() ? 'close-field-kit' : 'transfer');
   }
   function exit(focus = true) {
     const previous = purpose;
@@ -223,9 +225,10 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   // The device is open only while sending, so other apps can use it in between.
   async function sendBuild() {
     if (busy || !direct()) return;
-    const ticket = revision, request = mtp ? Promise.resolve(mtp) : Mtp.Device.request();
     const files = Object.entries(getFiles() ?? {}).sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b));
     const total = files.reduce((n, [, bytes]) => n + bytes.length, 0);
+    if (!files.length) return status('This build is no longer available. Build it again, then send it.', true);
+    const ticket = revision, request = mtp ? Promise.resolve(mtp) : Mtp.Device.request();
     busy = true; log = []; render(); status(mtp ? '' : 'Choose your OP–XY when your browser asks…');
     let device;
     try {
@@ -234,13 +237,14 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       status(); note('Connecting to your OP–XY…');
       await closing;
       await device.open();
-      if (ticket !== revision) return;
+      // Stopped while connecting: Stop sending couldn't close a device that wasn't open yet.
+      if (ticket !== revision) { await device.close(); return; }
       note('Connected. Sending ' + files.length + ' files, ' + size(total) + '.');
       const started = performance.now();
       let before = 0;
       for (const [index, [path, bytes]] of files.entries()) {
         let replaced = false;
-        sending = {path, index, count: files.length, done: before, total, fileDone: 0, fileSize: bytes.length, started}; render();
+        sending = {path, index, count: files.length, done: before, total, fileDone: 0, fileSize: bytes.length, started}; renderDirect();
         await device.send(path, bytes, {
           replace: async () => true,
           onStep: (kind, at) => { if (ticket !== revision) return; if (kind === 'folder') note('Created ' + at + '/'); else replaced = true; },
@@ -257,7 +261,8 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       note(`Done · ${files.length} files, ${size(total)} in ${((performance.now() - started) / 1000).toFixed(1)} s`, 'done');
     } catch (error) {
       if (ticket !== revision) return;
-      const message = error.name === 'NotFoundError' ? 'No OP–XY chosen.' : error.message || String(error);
+      // The chooser rejects with NotFoundError when it's dismissed.
+      const message = !device && error.name === 'NotFoundError' ? 'No OP–XY chosen.' : error.message || String(error);
       if (log.length) note('Stopped: ' + message + (sending ? ' Select Try again to send every file again.' : ''), 'error');
       status(message, true);
       // The device may have been unplugged; Try again asks the browser for it afresh.

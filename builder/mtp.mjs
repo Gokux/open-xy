@@ -12,6 +12,8 @@ const OPEN_SESSION = 0x1002, CLOSE_SESSION = 0x1003, STORAGE_IDS = 0x1004, OBJEC
 const UNDEFINED_FORMAT = 0x3000, FOLDER_FORMAT = 0x3001;
 // A multiple of every bulk packet size, so only the final transfer can be short.
 const CHUNK = 1 << 20;
+// WebUSB transfers never time out on their own; a silent device fails instead.
+const TIMEOUT = 20000;
 const refusals = {
   0x200c: 'Your OP–XY is full. Free some space, then try again.',
   0x200d: 'Your OP–XY’s storage is read-only.',
@@ -20,6 +22,14 @@ const refusals = {
 
 // The browser can't name the app holding the device; these are the ones that do.
 export const BUSY = 'Another app is using your OP–XY. Quit Field Kit, OpenMTP or Android File Transfer, then try again.';
+const STOPPED = 'Your OP–XY stopped responding. Reconnect it, then try again.';
+const DISCONNECTED = 'Your OP–XY disconnected. Reconnect it, then try again.';
+const timed = (promise, ms = TIMEOUT) => {
+  let timer;
+  return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(STOPPED)), ms); })])
+    .finally(() => clearTimeout(timer));
+};
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 export const supported = () => globalThis.isSecureContext && !!globalThis.navigator?.usb;
 
 function concat(...parts) {
@@ -63,6 +73,7 @@ export function objectInfo(storage, name, size, parent = ROOT, folder = false) {
 }
 const readParams = bytes => Array.from({length: Math.floor(bytes.length / 4)}, (_, i) => view(bytes).getUint32(i * 4, true));
 function readWords(bytes) {
+  if (!bytes || bytes.length < 4) throw new Error('Unexpected reply from your OP–XY.');
   const v = view(bytes), count = v.getUint32(0, true);
   if (bytes.length < 4 + count * 4) throw new Error('Unexpected reply from your OP–XY.');
   return Array.from({length: count}, (_, i) => v.getUint32(4 + i * 4, true));
@@ -78,14 +89,15 @@ function segments(path) {
 }
 
 export class Device {
-  #device; #number; #in; #out; #packet; #transaction = 0; #current; #storage; #running = false; #folders; #listings;
+  #device; #number; #in; #out; #packet; #transaction = 0; #current; #storage; #running = false; #broken = false; #folders; #listings;
   static async request(usb = navigator.usb) {
     return new Device(await usb.requestDevice({filters: [{vendorId: VENDOR, classCode: VENDOR_CLASS}]}));
   }
   constructor(device) { this.#device = device; }
   async open() {
     const device = this.#device;
-    await device.open();
+    try { await device.open(); }
+    catch (error) { throw new Error(error.name === 'NotFoundError' ? DISCONNECTED : BUSY); }
     if (!device.configuration) await device.selectConfiguration(1);
     const found = device.configuration.interfaces.find(i => {
       const a = i.alternate;
@@ -101,7 +113,9 @@ export class Device {
     const endpoint = d => found.alternate.endpoints.find(e => e.type === 'bulk' && e.direction === d);
     this.#in = endpoint('in').endpointNumber; this.#out = endpoint('out').endpointNumber;
     this.#packet = endpoint('out').packetSize;
-    this.#transaction = 0;
+    // A stall left by an earlier failure would block the first command.
+    await this.#clearHalts();
+    this.#transaction = 0; this.#broken = false;
     const opened = await this.#run(OPEN_SESSION, [1]);
     if (opened.code !== SESSION_ALREADY_OPEN) this.#expect(opened, 'open file transfer');
     const [storage] = readWords(this.#expect(await this.#run(STORAGE_IDS), 'find its storage').payload);
@@ -165,21 +179,35 @@ export class Device {
     return true;
   }
   // Safe to call at any time. A pending transfer is cancelled with the MTP class
-  // Cancel Request so the device isn't left waiting for the rest of a file.
+  // Cancel Request so the device isn't left waiting for the rest of a file;
+  // after any failure the session is abandoned rather than closed normally.
   async close() {
     const device = this.#device;
     if (!device.opened) return;
-    if (this.#running) await this.#cancel();
-    else if (this.#storage !== undefined) await this.#run(CLOSE_SESSION).catch(() => {});
+    if (this.#running || this.#broken) await this.#cancel(this.#running);
+    else if (this.#storage !== undefined) await timed(this.#run(CLOSE_SESSION), 2000).catch(() => {});
     this.#storage = undefined;
     if (this.#number !== undefined) await device.releaseInterface(this.#number).catch(() => {});
     await device.close().catch(() => {});
   }
-  async #cancel() {
-    const request = new Uint8Array(6);
-    view(request).setUint16(0, 0x4001, true); view(request).setUint32(2, this.#current, true);
-    await this.#device.controlTransferOut({requestType: 'class', recipient: 'interface', request: 0x64, value: 0,
-      index: this.#number}, request).catch(() => {});
+  // Cancel Request (0x64) for a pending transaction, then Get Device Status
+  // (0x67) until the device reports OK, as the still-image class requires
+  // before the next command.
+  async #cancel(pending) {
+    const setup = request => ({requestType: 'class', recipient: 'interface', request, value: 0, index: this.#number});
+    if (pending) {
+      const request = new Uint8Array(6);
+      view(request).setUint16(0, 0x4001, true); view(request).setUint32(2, this.#current, true);
+      await timed(this.#device.controlTransferOut(setup(0x64), request), 2000).catch(() => {});
+    }
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const status = await timed(this.#device.controlTransferIn(setup(0x67), 64), 2000).catch(() => null);
+      if (!status || status.status !== 'ok' || status.data.byteLength < 4 || status.data.getUint16(2, true) === OK) break;
+      await pause(100);
+    }
+    await this.#clearHalts();
+  }
+  async #clearHalts() {
     for (const [direction, endpoint] of [['out', this.#out], ['in', this.#in]]) {
       await this.#device.clearHalt(direction, endpoint).catch(() => {});
     }
@@ -200,20 +228,23 @@ export class Device {
       if (reply.type === DATA) { payload = reply.payload; reply = await this.#receive(); }
       if (reply.type !== RESPONSE || reply.id !== id) throw new Error('Unexpected reply from your OP–XY.');
       return {code: reply.code, payload, params: readParams(reply.payload)};
+    } catch (error) {
+      this.#broken = true;
+      throw error.name === 'NotFoundError' ? new Error(DISCONNECTED) : error;
     } finally { this.#running = false; }
   }
   async #send(bytes, onProgress = () => {}) {
     for (let at = 0; at < bytes.length; at += CHUNK) {
-      const result = await this.#device.transferOut(this.#out, bytes.subarray(at, at + CHUNK));
-      if (result.status !== 'ok') throw new Error('Your OP–XY stopped responding. Reconnect it, then try again.');
+      const result = await timed(this.#device.transferOut(this.#out, bytes.subarray(at, at + CHUNK)));
+      if (result.status !== 'ok') throw new Error(STOPPED);
       onProgress(Math.min(1, (at + CHUNK) / bytes.length));
     }
     // A transfer ending exactly on a packet boundary needs a zero-length packet.
-    if (bytes.length % this.#packet === 0) await this.#device.transferOut(this.#out, new Uint8Array(0));
+    if (bytes.length % this.#packet === 0) await timed(this.#device.transferOut(this.#out, new Uint8Array(0)));
   }
   async #read() {
-    const result = await this.#device.transferIn(this.#in, CHUNK);
-    if (result.status !== 'ok') throw new Error('Your OP–XY stopped responding. Reconnect it, then try again.');
+    const result = await timed(this.#device.transferIn(this.#in, CHUNK));
+    if (result.status !== 'ok') throw new Error(STOPPED);
     return new Uint8Array(result.data.buffer, result.data.byteOffset, result.data.byteLength);
   }
   async #receive() {
