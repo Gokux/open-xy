@@ -55,7 +55,7 @@ previews, firmware builds and packaging.
 - [Engine API](docs/api.md): platform rules, schemas, callbacks for each kind, buffers and ownership.
 - [Display API](docs/display.md): retained drawing frames and asset constraints.
 - [Contributing](CONTRIBUTING.md): code ownership and checks.
-- [Native builds](docs/build.md): toolchains, integration and package validation.
+- [Build your own firmware](docs/build.md): toolchain, stock files, adding a machine, build, install and release verification.
 
 ## Repository layout
 
