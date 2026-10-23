@@ -7,10 +7,12 @@ leaves the browser.
 ## Using the builder
 
 1. Acknowledge the risk notice (asked again on every load).
-2. Choose decrypted stock 1.2.0 `os.ldr`, or an Open-XY build to change. The
-   stock file is in a device capture at `/upgrade/firmware/blackfin/bin/os.ldr`;
-   a previously installed Open-XY build is at `/os.ldr`. A guide walks through
-   enabling the dev menu and capturing the file if you don't have it.
+2. Choose the OS: the decrypted OP-XY OS 1.2.0 file `os.ldr`, or an Open-XY
+   build to change. Only OS 1.2.0 is supported; the `.tfw` update files teenage
+   engineering hosts are a different, encrypted format. The stock file is in a
+   device capture at `/upgrade/firmware/blackfin/bin/os.ldr`; a previously
+   installed Open-XY build is at `/os.ldr`. A guide first confirms the device
+   runs OS 1.2.0, then walks through enabling the dev menu and copying the file.
 3. Select machines. Synth rows have a playable preview of their C++ sound and
    display code; each row shows its code, data and state size against the
    memory meter.

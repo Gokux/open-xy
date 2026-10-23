@@ -81,11 +81,11 @@ async function acceptFirmware(file) {
       selected = recovered.selected; renderMachines(); recalculate();
       $('firmware-result').textContent = '✓ Selection recovered: ' +
         kit.machines.filter(m => selected.includes(m.id)).map(m => m.name).join(' + ');
-    } else $('firmware-result').textContent = '✓ Original 1.2.0 verified · ' + file.name;
+    } else $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 verified · ' + file.name;
     status(); ready();
   } catch (error) {
     if (current !== ticket) return;
-    $('firmware-result').textContent = 'Firmware not loaded';
+    $('firmware-result').textContent = 'OS not loaded';
     fail(error); ready();
   }
 }
@@ -248,7 +248,7 @@ async function build() {
     $('download').href = $('flow-download').href = downloadUrl;
     $('download-summary').textContent = kit.machines.filter(m => selection.includes(m.id)).map(m => m.name).join(' + ');
     $('bundle-art').replaceChildren(Visuals.bundle(Object.keys(files)));
-    $('output-hash').textContent = 'os.ldr SHA-256: ' + hashes['os.ldr'];
+    $('output-hash').textContent = 'OS (os.ldr) SHA-256: ' + hashes['os.ldr'];
     document.querySelector('.steps [data-step="3"]').disabled = false;
     status(); navigate(3);
   } catch (error) { if (ticket === revision) fail(error); } finally { ready(); }
