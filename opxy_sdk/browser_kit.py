@@ -119,7 +119,10 @@ def write_builder(kit, output):
     bundled += 'const Visuals = (() => {\n' + read(ROOT / 'builder/visuals.mjs').decode('utf-8').replace(
         'export ', '') + '\nreturn {icon,device,fileMap,bundle,guide,reveal};\n})();\n'
     wizard = read(ROOT / 'builder/wizard.mjs').decode('utf-8')
+    bundled += 'const Mtp = (() => {\n' + read(ROOT / 'builder/mtp.mjs').decode('utf-8').replace(
+        'export ', '') + '\nreturn {Device,supported};\n})();\n'
     wizard_import = ("import * as Ferret from './ferret.mjs';\n"
+                     "import * as Mtp from './mtp.mjs';\n"
                      "import * as Visuals from './visuals.mjs';\n"
                      "import {presetPath} from './core.mjs';\n")
     require(wizard.startswith(wizard_import), 'Unexpected wizard imports')

@@ -89,6 +89,15 @@
   <p id="flow-detail"></p>
   <ol id="flow-instructions" class="instruction-list" hidden></ol>
   <details id="flow-file-details" hidden><summary>File locations</summary><div id="flow-files"></div></details>
+  <section id="mtp-panel" class="direct-copy" aria-labelledby="mtp-title" hidden>
+    <h3 id="mtp-title">Or send files from this page</h3>
+    <p>Sends to your OP–XY’s top level, where os.ldr goes. Copy folders with your file-transfer app, and quit it first.</p>
+    <div id="mtp-connect-row" class="flow-actions"><button type="button" id="mtp-connect" class="secondary">Connect to OP–XY</button></div>
+    <label id="mtp-drop" class="drop" hidden><span class="file-icon" data-icon="install" aria-hidden="true"></span><strong>Choose files</strong><span>or drop them here</span><input id="mtp-file" type="file" multiple aria-label="Choose files to send to your OP–XY"></label>
+    <div id="mtp-sending" hidden><div class="transfer-bar"><span id="mtp-bar"></span></div><p id="mtp-progress" class="file-result" aria-live="polite"></p></div>
+    <div id="mtp-replace" hidden><p id="mtp-replace-text" class="file-result"></p><div class="flow-actions"><button type="button" id="mtp-replace-yes" class="secondary">Replace</button><button type="button" id="mtp-replace-no" class="secondary">Keep existing</button></div></div>
+    <ul id="mtp-sent" class="sent-list" aria-label="Sent to your OP–XY" hidden></ul>
+  </section>
   <div id="flow-actions" class="flow-actions"></div>
   <p id="dev-status" role="status" aria-live="polite"></p>
   <button type="button" id="dev-cancel" hidden>Cancel connection</button>

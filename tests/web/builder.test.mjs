@@ -22,7 +22,7 @@ test('dev server serves browser sources and rejects private paths and writes', a
     const html = await page.text();
     assert.match(html,/@vite\/client/);
     assert.match(html,/src="\/entry.mjs"/);
-    for (const path of ['/entry.mjs','/style.css','/app.mjs','/wizard.mjs','/ferret.mjs','/visuals.mjs','/audition.mjs']) {
+    for (const path of ['/entry.mjs','/style.css','/app.mjs','/wizard.mjs','/ferret.mjs','/mtp.mjs','/visuals.mjs','/audition.mjs']) {
       const response = await fetch(url+path); assert.equal(response.status,200,path);
     }
     for (const path of ['/kit.json','/.env.local','/local/inputs/os.ldr','/builder/../local/inputs/os.ldr',
@@ -40,7 +40,7 @@ test('public UI build works without a collection; release build requires one', a
     assert.doesNotMatch(html,/@vite\/client|ws:\/\//);
     assert.match(html,/assets\//);
     const headers = await readFile(join(directory,'_headers'),'utf8');
-    assert.match(headers,/Permissions-Policy: midi=\(self\)/);
+    assert.match(headers,/Permissions-Policy: midi=\(self\), usb=\(self\)/);
     assert.match(headers,/\/kit\.json\n  Cache-Control: no-cache/);
     await assert.rejects(readFile(join(directory,'kit.json')),/ENOENT/);
     await assert.rejects(build({configFile,mode:'release',logLevel:'silent',build:{outDir:directory}}),/OPEN_XY_KIT/);

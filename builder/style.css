@@ -192,6 +192,19 @@ details input { max-width:100%; }
 .flow-navigation { display:flex; align-items:center; flex-wrap:wrap; gap:8px 4px; margin:12px 0 0 -18px; }
 .flow-navigation button { min-height:44px; padding:8px 18px; }
 .flow-navigation .file-button { font-size:12px; text-decoration:none; }
+.direct-copy { margin:22px 0 0; padding-top:18px; border-top:1px solid var(--line); }
+.direct-copy h3 { margin-bottom:6px; }
+.direct-copy p { font-size:13px; margin:0; }
+.direct-copy .flow-actions { margin-top:14px; }
+.direct-copy .flow-actions>button { flex:0 1 auto; }
+.direct-copy .drop { min-height:112px; margin-top:14px; padding:16px; gap:4px; }
+.direct-copy .file-icon { width:28px; margin-bottom:4px; }
+.direct-copy .file-result { margin:10px 0 0; color:var(--ink); }
+.transfer-bar { height:12px; margin-top:16px; background:#333; border-radius:3px; overflow:hidden; }
+.transfer-bar span { display:block; width:0; height:100%; background:var(--machine-1); }
+.sent-list { list-style:none; margin:14px 0 0; padding:10px 12px; border:1px solid #555; border-radius:6px; }
+.sent-list li { font:11px/1.7 Consolas,monospace; overflow-wrap:anywhere; }
+.sent-list [data-kept=true] { color:var(--muted); }
 #dev-status { max-width:600px; margin:22px auto 0; font-size:13px; }
 #dev-status:empty { display:none; }
 #connection-help { max-width:600px; text-align:left; margin:24px auto; }
@@ -270,7 +283,7 @@ details input { max-width:100%; }
 .step-enter .lcd-closeup { animation:screen-arrive 380ms cubic-bezier(.2,.7,.2,1); transform-origin:50% 0; }
 @keyframes step-arrive { from { opacity:.65; transform:translateY(5px); } to { opacity:1; transform:none; } }
 @keyframes screen-arrive { from { opacity:.5; transform:translateY(-6px) scale(.97); } to { opacity:1; transform:none; } }
-@media(prefers-reduced-motion:no-preference) { button,a.file-button { transition:background-color 160ms ease,color 160ms ease,border-color 160ms ease; } }
+@media(prefers-reduced-motion:no-preference) { button,a.file-button { transition:background-color 160ms ease,color 160ms ease,border-color 160ms ease; } .transfer-bar span { transition:width 160ms ease; } }
 @media(prefers-reduced-motion:reduce) { .instruction-pulse { animation:none; opacity:.7; } .step-enter,.step-enter .lcd-closeup,.instruction-cue,.device-key.is-lit .key-face { animation:none; } }
 @media(max-width:560px) {
   .boot-guide { gap:14px; }

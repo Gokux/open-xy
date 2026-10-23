@@ -1,9 +1,12 @@
 import * as Ferret from './ferret.mjs';
+import * as Mtp from './mtp.mjs';
 import * as Visuals from './visuals.mjs';
 import {presetPath} from './core.mjs';
 
 // Screen state is supplied by the user at the relevant step. Only the explicit
-// Find / Enable / Disable actions access MIDI; copying and flashing remain manual.
+// Find / Enable / Disable actions access MIDI. On a Mac, the transfer step can
+// also send chosen files to the top level over USB, opening the device only
+// while sending. Flashing remains manual.
 export function createWizard({getKit, getSelected, hasDownload}) {
   const $ = id => document.getElementById(id);
   let purpose = null, stage = null, history = [], revision = 0;
@@ -12,6 +15,12 @@ export function createWizard({getKit, getSelected, hasDownload}) {
   let inTransfer = false, resumed = false;
   let computer = null, busy = false, connected = false;
   let hostPage = 1;
+  // Sending from this page: the chosen device, the file being sent, a pending
+  // replace question and what this step has sent so far.
+  let mtp = null, sending = null, asking = null, sent = [];
+  const stopSending = () => { asking?.resolve(false); asking = sending = null; mtp?.close(); };
+  const release = () => { stopSending(); mtp = null; sent = []; };
+  const direct = () => stage === 'transfer' && purpose === 'install' && computer === 'mac' && Mtp.supported();
   const supported = () => globalThis.isSecureContext && !!navigator.requestMIDIAccess;
   const status = (message = '', error = false) => {
     $('dev-status').textContent = message; $('dev-status').dataset.error = String(error);
@@ -20,7 +29,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     connected = false;
     if (['enable', 'disable'].includes(stage) && !busy) { advance('connect'); status('Connection lost. Find your OP–XY again.', true); }
   }, 2500, {onProgress: message => { if (stage) status(message); }});
-  window.addEventListener('pagehide', () => session.close());
+  window.addEventListener('pagehide', () => { session.close(); release(); });
   const action = (label, next, id) => ({label, next, id});
   function content() {
     const install = purpose === 'install', disabling = purpose === 'disable', kit = getKit();
@@ -112,7 +121,9 @@ export function createWizard({getKit, getSelected, hasDownload}) {
       };
       return button;
     }));
+    renderDirect();
     $('dev-cancel').hidden = !busy;
+    $('dev-cancel').textContent = sending ? 'Stop sending' : 'Cancel connection';
     $('flow-back').hidden = !history.length || ['write-os', 'write-result', 'write-help'].includes(stage);
     $('flow-back').disabled = $('flow-exit').disabled = busy;
     $('flow-exit').textContent = hostPage === 1 ? 'Back to file choice' : 'Back to download';
@@ -127,6 +138,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     if (next === 'write-os') inTransfer = resumed = false;
     if (next === 'exit') return exit();
     if (['computer', 'open-dev-menu', 'transfer', 'disabled'].includes(next)) { connected = false; session.close(); }
+    release();
     if (stage) history.push(stage);
     stage = next; status(); render(true);
   }
@@ -142,7 +154,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
   function exit(focus = true) {
     const previous = purpose;
     revision++; stage = purpose = null; history = [];
-    busy = connected = false; session.close(); status();
+    busy = connected = false; session.close(); release(); status();
     $('device-flow').hidden = true;
     $('download-overview').hidden = $('download-actions').hidden = false;
     if (previous && hostPage === 1) $('source-start').hidden = false;
@@ -174,14 +186,85 @@ export function createWizard({getKit, getSelected, hasDownload}) {
       status(error.message || String(error), true);
     }
   }
+  const size = n => n < 1024 ? n + ' bytes' : n < 1024 ** 2 ? (n / 1024).toFixed(1) + ' KiB' : (n / 1024 ** 2).toFixed(1) + ' MiB';
+  function showProgress() {
+    if (!sending) return;
+    $('mtp-bar').style.width = sending.done * 100 + '%';
+    $('mtp-progress').textContent = `${sending.name} · ${size(Math.round(sending.done * sending.size))} of ${size(sending.size)}`;
+  }
+  function renderDirect() {
+    $('mtp-panel').hidden = !direct();
+    $('mtp-connect-row').hidden = !!mtp;
+    $('mtp-connect').disabled = busy;
+    $('mtp-drop').hidden = !mtp || busy;
+    $('mtp-sending').hidden = !sending || !!asking;
+    $('mtp-replace').hidden = !asking;
+    if (asking) $('mtp-replace-text').textContent = asking.name + ' is already on your OP–XY.';
+    $('mtp-sent').hidden = !sent.length;
+    $('mtp-sent').replaceChildren(...sent.map(({name, kept}) => {
+      const li = document.createElement('li');
+      li.textContent = kept ? 'Kept the existing ' + name : '✓ ' + name;
+      li.dataset.kept = String(kept); return li;
+    }));
+    showProgress();
+  }
+  // The chooser needs the click's user activation, so request before any await.
+  async function connectTransfer() {
+    if (busy || !direct()) return;
+    const ticket = revision, request = Mtp.Device.request();
+    busy = true; render(); status('Choose your OP–XY when your browser asks…');
+    try {
+      const device = await request;
+      if (ticket !== revision) return;
+      mtp = device; busy = false; render(); status();
+    } catch (error) {
+      if (ticket !== revision) return;
+      busy = false; render();
+      status(error.name === 'NotFoundError' ? 'No OP–XY chosen.' : error.message || String(error), true);
+    }
+  }
+  // Opens the device only while sending, so other apps can use it in between.
+  async function sendFiles(files) {
+    if (busy || !direct() || !mtp || !files.length) return;
+    const ticket = revision, device = mtp;
+    busy = true; status();
+    try {
+      await device.open();
+      for (const file of files) {
+        sending = {name: file.name, size: file.size, done: 0}; render();
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const replaced = await device.sendToRoot(file.name, bytes, {
+          replace: name => new Promise(resolve => { asking = {name, resolve}; render(); $('mtp-replace-yes').focus(); }),
+          onProgress: done => { if (ticket === revision && sending) { sending.done = done; showProgress(); } },
+        });
+        if (ticket !== revision) return;
+        sent.push({name: file.name, kept: !replaced});
+      }
+    } catch (error) {
+      if (ticket === revision) status(error.message || String(error), true);
+    } finally {
+      await device.close();
+      if (ticket === revision) { busy = false; sending = asking = null; render(); }
+    }
+  }
+  const answer = value => { const question = asking; asking = null; question?.resolve(value); render(); };
+  $('mtp-replace-yes').onclick = () => answer(true);
+  $('mtp-replace-no').onclick = () => answer(false);
+  $('mtp-connect').onclick = connectTransfer;
+  $('mtp-file').onchange = event => { const files = [...event.target.files]; event.target.value = ''; sendFiles(files); };
+  const drop = $('mtp-drop');
+  for (const type of ['dragover', 'dragleave', 'drop']) drop.addEventListener(type, event => {
+    event.preventDefault(); drop.dataset.drag = String(type === 'dragover');
+    if (type === 'drop') sendFiles([...event.dataTransfer.files]);
+  });
   $('dev-cancel').onclick = () => {
-    const enabling = ['enable', 'disable'].includes(stage);
-    revision++; busy = connected = false; session.close();
-    if (enabling) advance('menu'); else { render(); status('Connection cancelled.'); }
+    const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending;
+    revision++; busy = connected = false; session.close(); stopSending();
+    if (enabling) advance('menu'); else { render(); status(stopped ? 'Sending stopped. Check the last file on your OP–XY.' : 'Connection cancelled.'); }
   };
   $('flow-back').onclick = () => {
     if (busy || !history.length) return;
-    revision++; session.close(); connected = false;
+    revision++; session.close(); release(); connected = false;
     stage = history.pop(); if (['enable', 'disable'].includes(stage)) stage = 'connect';
     status(); render(true);
   };

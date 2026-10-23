@@ -1,0 +1,180 @@
+// MTP over WebUSB for an OP–XY in "mtp file transfer (mac)" mode. Writes only
+// to the device's top level. The only deletion is a same-named top-level file
+// the user agreed to replace. Windows binds its own MTP driver, so WebUSB
+// cannot open the device there; Windows keeps the File Explorer steps.
+
+const VENDOR = 0x2367, VENDOR_CLASS = 0xff, ROOT = 0xffffffff;
+const COMMAND = 1, DATA = 2, RESPONSE = 3;
+const OK = 0x2001, SESSION_ALREADY_OPEN = 0x201e;
+const OPEN_SESSION = 0x1002, CLOSE_SESSION = 0x1003, STORAGE_IDS = 0x1004, OBJECT_HANDLES = 0x1007,
+  OBJECT_INFO = 0x1008, DELETE_OBJECT = 0x100b, SEND_OBJECT_INFO = 0x100c, SEND_OBJECT = 0x100d;
+const UNDEFINED_FORMAT = 0x3000, FOLDER_FORMAT = 0x3001;
+// A multiple of every bulk packet size, so only the final transfer can be short.
+const CHUNK = 1 << 20;
+const refusals = {
+  0x200c: 'Your OP–XY is full. Free some space, then try again.',
+  0x200d: 'Your OP–XY’s storage is read-only.',
+  0x200f: 'Your OP–XY refused access to that file.',
+};
+
+// The browser can't name the app holding the device; these are the ones that do.
+export const BUSY = 'Another app is using your OP–XY. Quit Field Kit, OpenMTP or Android File Transfer, then try again.';
+export const supported = () => globalThis.isSecureContext && !!globalThis.navigator?.usb;
+
+function concat(...parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0; for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+}
+const words = values => {
+  const out = new Uint8Array(values.length * 4), view = new DataView(out.buffer);
+  values.forEach((value, i) => view.setUint32(i * 4, value, true)); return out;
+};
+const view = bytes => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+export function container(type, code, transaction, payload = new Uint8Array(0)) {
+  const header = new Uint8Array(12), v = view(header);
+  v.setUint32(0, 12 + payload.length, true); v.setUint16(4, type, true);
+  v.setUint16(6, code, true); v.setUint32(8, transaction, true);
+  return concat(header, payload);
+}
+// PTP strings: a UTF-16 code-unit count including the terminator, then UTF-16LE.
+export function ptpString(value) {
+  const units = value ? value + '\0' : '';
+  if (units.length > 255) throw new Error('That file name is too long for your OP–XY.');
+  const out = new Uint8Array(1 + units.length * 2), v = view(out);
+  out[0] = units.length;
+  for (let i = 0; i < units.length; i++) v.setUint16(1 + i * 2, units.charCodeAt(i), true);
+  return out;
+}
+export function readString(bytes, at) {
+  const v = view(bytes); let text = '';
+  for (let i = 0; i < bytes[at]; i++) text += String.fromCharCode(v.getUint16(at + 1 + i * 2, true));
+  return text.replace(/\0$/, '');
+}
+// ObjectInfo dataset for a top-level file; the filename follows the fixed fields.
+export function objectInfo(storage, name, size) {
+  const fixed = new Uint8Array(52), v = view(fixed);
+  v.setUint32(0, storage, true); v.setUint16(4, UNDEFINED_FORMAT, true);
+  v.setUint32(8, size, true); v.setUint32(38, ROOT, true);
+  return concat(fixed, ptpString(name), ptpString(''), ptpString(''), ptpString(''));
+}
+function readWords(bytes) {
+  const v = view(bytes), count = v.getUint32(0, true);
+  if (bytes.length < 4 + count * 4) throw new Error('Unexpected reply from your OP–XY.');
+  return Array.from({length: count}, (_, i) => v.getUint32(4 + i * 4, true));
+}
+function checkName(name) {
+  if (!name || name === '.' || name === '..' || /[/\\\0]/.test(name)) throw new Error('Choose a file with a plain file name.');
+  ptpString(name);
+}
+
+export class Device {
+  #device; #number; #in; #out; #packet; #transaction = 0; #storage; #running = false;
+  static async request(usb = navigator.usb) {
+    return new Device(await usb.requestDevice({filters: [{vendorId: VENDOR, classCode: VENDOR_CLASS}]}));
+  }
+  constructor(device) { this.#device = device; }
+  async open() {
+    const device = this.#device;
+    await device.open();
+    if (!device.configuration) await device.selectConfiguration(1);
+    const found = device.configuration.interfaces.find(i => {
+      const a = i.alternate;
+      return a.interfaceClass === VENDOR_CLASS && ['in', 'out'].every(d => a.endpoints.some(e => e.type === 'bulk' && e.direction === d));
+    });
+    if (!found) {
+      await device.close().catch(() => {});
+      throw new Error('Your OP–XY isn’t in Mac file transfer mode. On the factory menu, press track 2.');
+    }
+    try { await device.claimInterface(found.interfaceNumber); }
+    catch { await device.close().catch(() => {}); throw new Error(BUSY); }
+    this.#number = found.interfaceNumber;
+    const endpoint = d => found.alternate.endpoints.find(e => e.type === 'bulk' && e.direction === d);
+    this.#in = endpoint('in').endpointNumber; this.#out = endpoint('out').endpointNumber;
+    this.#packet = endpoint('out').packetSize;
+    this.#transaction = 0;
+    const opened = await this.#run(OPEN_SESSION, [1]);
+    if (opened.code !== SESSION_ALREADY_OPEN) this.#expect(opened, 'open file transfer');
+    const [storage] = readWords(this.#expect(await this.#run(STORAGE_IDS), 'find its storage').payload);
+    if (storage === undefined) throw new Error('Your OP–XY has no storage available.');
+    this.#storage = storage;
+  }
+  // Top-level names, mapped to their object handles.
+  async rootFiles() {
+    const {payload} = this.#expect(await this.#run(OBJECT_HANDLES, [this.#storage, 0, ROOT]), 'list its files');
+    const files = new Map();
+    for (const handle of readWords(payload)) {
+      const info = this.#expect(await this.#run(OBJECT_INFO, [handle]), 'list its files').payload;
+      files.set(readString(info, 52), {handle, folder: view(info).getUint16(4, true) === FOLDER_FORMAT});
+    }
+    return files;
+  }
+  // Returns false when a same-named file exists and replace() declines.
+  async sendToRoot(name, bytes, {replace = async () => false, onProgress = () => {}} = {}) {
+    checkName(name);
+    if (bytes.length > 0xffffffff - 12) throw new Error('That file is too large for your OP–XY.');
+    const existing = (await this.rootFiles()).get(name);
+    if (existing?.folder) throw new Error(`Your OP–XY already has a folder named ${name}.`);
+    if (existing) {
+      if (!await replace(name)) return false;
+      this.#expect(await this.#run(DELETE_OBJECT, [existing.handle, 0]), 'replace ' + name);
+    }
+    this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, ROOT], objectInfo(this.#storage, name, bytes.length)), 'accept ' + name);
+    this.#expect(await this.#run(SEND_OBJECT, [], bytes, onProgress), 'save ' + name);
+    return true;
+  }
+  // Safe to call at any time. A pending transfer fails rather than ending the session.
+  async close() {
+    const device = this.#device;
+    if (!device.opened) return;
+    if (this.#storage !== undefined && !this.#running) await this.#run(CLOSE_SESSION).catch(() => {});
+    this.#storage = undefined;
+    if (this.#number !== undefined) await device.releaseInterface(this.#number).catch(() => {});
+    await device.close().catch(() => {});
+  }
+  #expect(result, action) {
+    if (result.code !== OK) {
+      throw new Error(refusals[result.code] ?? `Your OP–XY couldn’t ${action} (MTP error 0x${result.code.toString(16)}).`);
+    }
+    return result;
+  }
+  async #run(code, params = [], data = null, onProgress = () => {}) {
+    const id = this.#transaction++;
+    this.#running = true;
+    try {
+      await this.#send(container(COMMAND, code, id, words(params)));
+      if (data) await this.#send(container(DATA, code, id, data), onProgress);
+      let reply = await this.#receive(), payload = null;
+      if (reply.type === DATA) { payload = reply.payload; reply = await this.#receive(); }
+      if (reply.type !== RESPONSE || reply.id !== id) throw new Error('Unexpected reply from your OP–XY.');
+      return {code: reply.code, payload};
+    } finally { this.#running = false; }
+  }
+  async #send(bytes, onProgress = () => {}) {
+    for (let at = 0; at < bytes.length; at += CHUNK) {
+      const result = await this.#device.transferOut(this.#out, bytes.subarray(at, at + CHUNK));
+      if (result.status !== 'ok') throw new Error('Your OP–XY stopped responding. Reconnect it, then try again.');
+      onProgress(Math.min(1, (at + CHUNK) / bytes.length));
+    }
+    // A transfer ending exactly on a packet boundary needs a zero-length packet.
+    if (bytes.length % this.#packet === 0) await this.#device.transferOut(this.#out, new Uint8Array(0));
+  }
+  async #read() {
+    const result = await this.#device.transferIn(this.#in, CHUNK);
+    if (result.status !== 'ok') throw new Error('Your OP–XY stopped responding. Reconnect it, then try again.');
+    return new Uint8Array(result.data.buffer, result.data.byteOffset, result.data.byteLength);
+  }
+  async #receive() {
+    let first;
+    do first = await this.#read(); while (!first.length);  // skip a trailing zero-length packet
+    if (first.length < 12) throw new Error('Unexpected reply from your OP–XY.');
+    const v = view(first), length = v.getUint32(0, true), parts = [first];
+    for (let have = first.length; have < length;) {
+      const more = await this.#read();
+      if (!more.length) throw new Error('Unexpected reply from your OP–XY.');
+      parts.push(more); have += more.length;
+    }
+    const whole = concat(...parts).subarray(0, length);
+    return {type: v.getUint16(4, true), code: v.getUint16(6, true), id: v.getUint32(8, true), payload: whole.subarray(12)};
+  }
+}
