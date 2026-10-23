@@ -20,12 +20,12 @@
       "upstream_path": "braids/analog_oscillator.h"
     },
     "braids/digital_oscillator.cc": {
-      "sha256": "8e45124532329c24d9fd64b7ae2346a480544ea42f0481b039c2e42ffcdb068a",
+      "sha256": "6ca164788680d939ade7d1fe91e44a1d1fac9b00cee6a2b34a3e4a25c8bf9ada",
       "status": "patched",
       "upstream_path": "braids/digital_oscillator.cc"
     },
     "braids/digital_oscillator.h": {
-      "sha256": "2cd97cfd28897e0553a4e3795a8024461ea3c384d6846502d60fad2246b104f2",
+      "sha256": "e348500313b5d5bdd534aca68f021a4f283dfe6cc5d2dc9a4daf300ab1c17492",
       "status": "patched",
       "upstream_path": "braids/digital_oscillator.h"
     },

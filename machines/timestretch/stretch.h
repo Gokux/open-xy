@@ -27,7 +27,19 @@ struct Source {
     const Analysis* analysis;
     u32 base_rank;
     u32 key_count;
+    // PCM addressing, fixed for the block: frame n of the region (in playback
+    // order) starts at origin + n * stride.
+    const opxy::i16* origin;
+    i32 stride;
+    u32 fraction_right, fraction_left;
 
+    void bind_pcm() {
+        const u32 channels = sample.channels;
+        origin = sample.data + (reverse ? begin + frames - 1 : begin) * channels;
+        stride = reverse ? -static_cast<i32>(channels) : static_cast<i32>(channels);
+        fraction_right = shift >= 14 ? shift - 14 : 0;
+        fraction_left = shift >= 14 ? 0 : 14 - shift;
+    }
     void configure() {
         base_rank = rank(*analysis, begin + 1);
         key_count = rank(*analysis, begin + frames) - base_rank + 1;
@@ -142,14 +154,14 @@ static inline void read_pcm(const Source& s, u32 position, i32& left, i32& right
     const u32 whole = position >> s.shift;
     const u32 next = whole + 1 < s.frames ? whole + 1 : 0;
     const u32 part = position & ((1u << s.shift) - 1);
-    const i32 fraction = static_cast<i32>(s.shift >= 14 ? part >> (s.shift - 14) : part << (14 - s.shift));
-    const u32 at = (s.begin + (s.reverse ? s.frames - 1 - whole : whole)) * s.sample.channels;
-    const u32 after = (s.begin + (s.reverse ? s.frames - 1 - next : next)) * s.sample.channels;
-    const i32 a = s.sample.data[at], b = s.sample.data[after];
+    const i32 fraction = static_cast<i32>((part >> s.fraction_right) << s.fraction_left);
+    const opxy::i16* at = s.origin + static_cast<i32>(whole) * s.stride;
+    const opxy::i16* after = s.origin + static_cast<i32>(next) * s.stride;
+    const i32 a = at[0], b = after[0];
     left = a + ((b - a) * fraction >> 14);
     right = left;
     if (s.sample.channels == 2) {
-        const i32 c = s.sample.data[at + 1], d = s.sample.data[after + 1];
+        const i32 c = at[1], d = after[1];
         right = c + ((d - c) * fraction >> 14);
     }
 }
@@ -159,6 +171,7 @@ struct Granule {
     Reference temp;
     u32 fade;
     u32 fade_step;
+    u32 fade_increment;  // fade_step at the current tuning
     bool splicing;
 };
 static inline void spawn(Granule& g, const Source& s, u32 position) {
@@ -167,6 +180,7 @@ static inline void spawn(Granule& g, const Source& s, u32 position) {
     g.temp = g.actual;
     g.fade = 0;
     g.fade_step = 0;
+    g.fade_increment = 0;
     g.splicing = false;
 }
 static inline void render(Granule& g, const Source& s, u32 time_step, u32 pitch_step,
@@ -186,9 +200,9 @@ static inline void render(Granule& g, const Source& s, u32 time_step, u32 pitch_
         g.fade_step = 0x40000000u / (outputs ? outputs : 1);
         // Seat an incoming grain behind the clock by 75% of its predicted
         // forward drift during the fade. Leave the ideal clock unchanged.
-        const u32 effective_fade = scale_pitch(g.fade_step, tuning);
-        if (pitch_step > time_step && effective_fade) {
-            const u32 fade_ticks = (0x40000000u - 1u) / effective_fade + 1u;
+        g.fade_increment = scale_pitch(g.fade_step, tuning);
+        if (pitch_step > time_step && g.fade_increment) {
+            const u32 fade_ticks = (0x40000000u - 1u) / g.fade_increment + 1u;
             const u32 ticks = (fade_ticks / 4u) * 3u + ((fade_ticks % 4u) * 3u) / 4u;
             const u32 drift = pitch_step - time_step;
             // Bound before multiplying; at most a quarter-loop rewind.
@@ -217,7 +231,7 @@ static inline void render(Granule& g, const Source& s, u32 time_step, u32 pitch_
         advance(g.temp, s, pitch_step);
         // Upstream measures fades in source samples and multiplies their
         // phase increment by |pitch|. Keep live tuning during an active fade.
-        g.fade += scale_pitch(g.fade_step, tuning);
+        g.fade += g.fade_increment;
         if (g.fade >= 0x40000000u) {
             g.actual = g.temp;
             g.splicing = false;
