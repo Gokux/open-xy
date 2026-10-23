@@ -158,7 +158,25 @@ test('stopping mid-file cancels the transfer instead of leaving the device waiti
   const transaction = state.ops.length - 1;
   assert.deepEqual(state.control.data, [0x01, 0x40, transaction, 0, 0, 0]);
   assert.equal(state.statusPolls, 2, 'waits for the device to finish cancelling');
-  assert.deepEqual(state.halts.slice(-2), ['out 10', 'in 9']);
+  assert.equal(state.halts, undefined, 'healthy endpoints are left alone');
   assert.ok(!state.ops.includes('1003'), 'no CloseSession while a transfer is pending');
   assert.equal(state.opened, false);
+});
+
+test('a second session after a clean close still gets going', async () => {
+  // The OS read closes, then installation opens again on the same device.
+  const {device, state} = fakeDevice({files: {'os.ldr': Uint8Array.of(1)}, strictToggle: true});
+  const first = new Device(device);
+  await first.open(); assert.deepEqual(await first.read('os.ldr'), Uint8Array.of(1)); await first.close();
+  const second = new Device(device);
+  await second.open(); assert.equal(await second.send('layout.json', Uint8Array.of(2)), true); await second.close();
+  assert.equal(state.dropped, undefined, 'no packet lost to a reset data toggle');
+  assert.equal(state.halts, undefined);
+});
+
+test('a stalled endpoint is cleared and the transfer retried once', async () => {
+  const {device, state} = fakeDevice({stallOnce: 'out'}), mtp = new Device(device);
+  await mtp.open(); assert.equal(await mtp.send('os.ldr', Uint8Array.of(3)), true); await mtp.close();
+  assert.deepEqual(state.halts, ['out 10']);
+  assert.deepEqual(state.read('os.ldr'), Uint8Array.of(3));
 });

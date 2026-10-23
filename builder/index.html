@@ -34,27 +34,33 @@
   <div id="builder-workspace" hidden inert>
   <p id="status" role="status" aria-live="polite">Loading machines…</p>
   <section data-page="1" class="input-page" aria-labelledby="input-title">
-    <div class="page-header"><div><span class="eyebrow">Step 1 of 3 · OS</span><h1 id="input-title" tabindex="-1">Choose OS</h1><p>open-xy supports only OP–XY OS 1.2.0. Update your OP–XY to 1.2.0 before you start.</p></div></div>
-    <section id="computer-choice" class="panel flow-shell" aria-labelledby="computer-title">
-      <h2 id="computer-title" tabindex="-1">Which computer are you using?</h2>
-      <p>Choose your computer so we can show the right file transfer steps.</p>
-      <div class="flow-actions"><button id="source-mac" class="primary">Mac</button><button id="source-windows">Windows</button></div>
+    <div class="page-header"><div><span class="eyebrow">Step 1 of 3 · OS</span><h1 id="input-title" class="sr-only" tabindex="-1">Choose OS</h1></div></div>
+    <!-- Step 1 screens share the guide's layout: the OP–XY on the left, the step on the right. -->
+    <section id="computer-choice" class="panel flow-shell step-screen" aria-labelledby="computer-title">
+      <div class="flow-body"><div class="flow-visual" data-device-art></div><div class="flow-copy">
+        <h2 id="computer-title" tabindex="-1">Which computer are you using?</h2>
+        <p>open-xy supports only OP–XY OS 1.2.0. Update your OP–XY to 1.2.0 before you start, then choose your computer so we can show the right file transfer steps.</p>
+        <div class="flow-actions"><button id="source-mac" class="primary">Mac</button><button id="source-windows" class="secondary">Windows</button></div>
+      </div></div>
     </section>
-    <section id="source-start" class="panel flow-shell" aria-labelledby="source-title" hidden>
-      <h2 id="source-title" class="sr-only" tabindex="-1">Choose an OS source</h2>
-      <div id="source-device-art" class="device-art"></div>
-      <div class="flow-actions"><button id="source-local" class="primary">Choose OS</button><button id="source-device">I don’t have the OS file</button></div>
-      <button id="source-computer-change" class="text-button">Change computer</button>
-      <p class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
+    <section id="source-start" class="panel flow-shell step-screen" aria-labelledby="source-title" hidden>
+      <div class="flow-body"><div id="source-device-art" class="flow-visual" data-device-art></div><div class="flow-copy">
+        <h2 id="source-title" tabindex="-1">Start with your OP–XY’s OS file.</h2>
+        <p class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
+        <div class="flow-actions"><button id="source-local" class="primary">Choose OS</button><button id="source-device" class="secondary">I don’t have the OS file</button></div>
+        <div class="flow-navigation"><button id="source-computer-change" class="text-button">Change computer</button></div>
+      </div></div>
     </section>
     <div id="source-flow-host" class="flow-shell"></div>
-    <section id="file-panel" class="file-panel panel flow-shell" aria-labelledby="files-title" hidden>
-    <h2 id="files-title" class="sr-only">Choose files</h2>
+    <section id="file-panel" class="panel flow-shell step-screen" aria-labelledby="files-title" hidden>
+    <div class="flow-body"><div class="flow-visual" data-device-art></div><div class="flow-copy file-panel">
+    <h2 id="files-title" tabindex="-1">Choose your OS file.</h2>
     <label class="drop" id="firmware-drop"><span class="file-icon" data-icon="firmware" aria-hidden="true"></span><strong>Choose OS</strong><span>or drop os.ldr here</span><input id="firmware" type="file" accept=".ldr" aria-label="Choose OS"></label>
     <p id="firmware-result" class="file-result">OP–XY OS 1.2.0 · original or open-xy</p>
     <a id="source-backup" class="file-button" download="os.ldr" hidden>Save a backup of the original OS</a>
-    <p class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
+    <p id="files-note" class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
     <details><summary>Load a saved selection</summary><input id="restore" type="file" accept=".json" aria-label="Load a saved selection"></details>
+    </div></div>
     </section>
     <div id="file-actions" class="actions flow-shell" hidden><button id="files-back" class="secondary">← Back</button><button id="choose" class="primary" disabled>Choose machines <span aria-hidden="true">→</span></button></div>
   </section>

@@ -201,9 +201,14 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       Visuals.reveal($(hostPage === 1 ? 'source-start' : 'download-overview'));
     }
   }
-  function showFiles() {
+  // After an OS read from the device there is nothing to choose: show the result
+  // and the backup link instead of the drop zone.
+  function showFiles(fromDevice = false) {
     exit(false); $('source-start').hidden = true;
-    $('file-panel').hidden = $('file-actions').hidden = false; $('firmware').focus();
+    $('file-panel').hidden = $('file-actions').hidden = false;
+    $('firmware-drop').hidden = $('files-note').hidden = fromDevice;
+    $('files-title').textContent = fromDevice ? 'Original OS loaded from your OP–XY.' : 'Choose your OS file.';
+    (fromDevice ? $('files-title') : $('firmware')).focus();
     Visuals.reveal($('file-panel'));
   }
   async function deviceAction(id) {
@@ -343,7 +348,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
         clearSourceBackup(); sourceBackupUrl = URL.createObjectURL(file);
         $('source-backup').href = sourceBackupUrl; $('source-backup').hidden = false;
         inTransfer = true; transferComputer = computer;
-        busy = false; sending = null; showFiles();
+        busy = false; sending = null; showFiles(true);
         return;
       } catch (error) { if (ticket === revision) { note(error.message, 'error'); status(error.message, true); } }
     }
@@ -371,7 +376,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     status(); render(true);
   };
   $('flow-exit').onclick = () => exit();
-  $('source-local').onclick = showFiles;
+  $('source-local').onclick = () => showFiles();
   $('source-device').onclick = () => begin('source');
   for (const name of ['mac', 'windows']) $('source-' + name).onclick = () => {
     computer = name; manual = false;

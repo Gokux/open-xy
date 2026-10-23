@@ -63,6 +63,8 @@ test('Mac reads and verifies the original OS, then remembers transfer mode for i
   assert.deepEqual(f.accepted, [bytes]); assert.equal(fake.state.opened, false);
   assert.equal($('file-panel').hidden, false); assert.equal($('device-flow').hidden, true);
   assert.equal($('source-backup').hidden, false); assert.match($('source-backup').href, /^blob:/);
+  // Nothing left to choose after a device read: no drop zone, just the result.
+  assert.equal($('firmware-drop').hidden, true); assert.equal($('files-title').textContent, 'Original OS loaded from your OP–XY.');
   assert.deepEqual(new Uint8Array(await (await fetch($('source-backup').href)).arrayBuffer()), bytes);
   f.wizard.clearSourceBackup(); assert.equal($('source-backup').hidden, true);
   assert.ok(!fake.state.ops.some(op => ['100b', '100c', '100d'].includes(op)));
