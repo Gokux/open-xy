@@ -184,6 +184,24 @@ static inline void render(Granule& g, const Source& s, u32 time_step, u32 pitch_
         const u32 rate = s.sample.rate >= 8000 && s.sample.rate <= 192000 ? s.sample.rate : 44100;
         const u32 outputs = duration * 44100u / rate;
         g.fade_step = 0x40000000u / (outputs ? outputs : 1);
+        // Seat an incoming grain behind the clock by 75% of its predicted
+        // forward drift during the fade. Leave the ideal clock unchanged.
+        const u32 effective_fade = scale_pitch(g.fade_step, tuning);
+        if (pitch_step > time_step && effective_fade) {
+            const u32 fade_ticks = (0x40000000u - 1u) / effective_fade + 1u;
+            const u32 ticks = (fade_ticks / 4u) * 3u + ((fade_ticks % 4u) * 3u) / 4u;
+            const u32 drift = pitch_step - time_step;
+            // Bound before multiplying; at most a quarter-loop rewind.
+            const u32 limit = s.loop / 4u;
+            u32 offset = ticks && drift > limit / ticks ? limit : drift * ticks;
+            // Never read a previous lap before playback has reached one.
+            if (!g.temp.lap && offset > g.temp.position) offset = g.temp.position;
+            if (offset > g.temp.position) {
+                g.temp.position = s.loop - (offset - g.temp.position);
+                --g.temp.lap;
+            } else g.temp.position -= offset;
+            g.temp.window = cursor(s, g.temp.position, g.temp.lap);
+        }
         g.fade = 0;
         g.splicing = true;
     }

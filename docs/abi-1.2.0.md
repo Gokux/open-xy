@@ -110,24 +110,43 @@ asset is limited to at most four decimal places and no exponents.
 
 ### Alternate controls
 
-One stock controller serves a track's four parameter pages; its bank getter
-`0x8c08ff3c` returns the page (0 is the engine page). A turn of encoder `e`
-edits parameter `e + 8 × bank` of the selected track through `0x8d5ab8ec`,
-which owns stepping, parameter locks and publication; the engine page's
-parameters are the first eight words of the vector the voice renders. The GUI
-key dispatcher `0x8c0b6670` passes a press of encoder `e` (key `10 + e`,
-without shift) to `0x8d51e634(e)` before the top controller, whose engine page
-ignores it; the track page controller's vtable is `0x0803fa28`.
+Tracks 0..7 show the instrument track controller (GUI screen 0, vtable
+`0x8400b208`); tracks 8 and up use another controller. Its page word
+`0x08023c74` is 0 on the engine page. An unshifted turn of encoder `e` there
+edits parameter `e` of the selected track through `0x8d5ab8ec` (call site
+`0x8c0b210a`), which owns stepping, parameter locks and publication; shifted
+turns edit `4 + e`, and other pages edit 8 and up. The engine page's
+parameters are the first eight words of the vector the voice renders. The
+GUI key dispatcher `0x8c0b6670` passes the click of encoder `e` (key `10 + e`,
+released without a turn and without shift) to `0x8d51e634(e)` before the top
+controller, whose engine page ignores it.
 [`synth_controls.cpp`](../sdk/platform/opxy-1.2.0/synth_controls.cpp) replaces
-both calls: while the track page shows an owned synth with
+both calls: while the engine page shows an owned synth with
 [alternates](api.md#alternate-controls), a press moves the position to its next
-parameter slot and a turn edits that slot; everything else reaches stock unchanged. The selection is GUI state per
-track, reset when the track's engine changes.
+parameter slot and a turn edits that slot. For owned synths, Shift's indices
+4..7 map back to the same shown positions; continuous controls receive a copy
+of the three-word event with signed word 0 divided by ten. Words 1 (detents)
+and 2 (acceleration) stay intact. Stock consumes the event synchronously and
+still owns lock editing and publication. The selection is GUI state per track,
+reset when the track's engine changes. Other pages and unowned engines retain
+stock routing.
+
+The auxiliary-track controller already folds Shift into positions 0..3.
+Its call at `0x8c090636` uses the same fine scaling only for owned FX on tracks
+14/15, checked against the FX registry rather than the synth registry.
+The stock held-key getter `0x8d5b5ef4(10 + encoder)` supplies the sample
+callback's held-turn flag. Encoder turns clear the separate pending-click
+flag, so a press-and-turn does not also click on release.
 
 Stock draws each position's title from the engine record's parameter-name
-callback and its value as a percentage of the vector word. The adapter's
-callback names the shown parameter, and the screen shell passes stock a copy
-of the vector with each position's shown word in place.
+callback and its value as a percentage of the vector word. The screen's
+parameter-vector getter (`0x8d4d7c60`) takes the selected track in R0; the
+adapter passes it explicitly after refreshing alternate-control selection.
+The adapter's callback names the shown parameter, and the screen shell passes stock a copy
+of the vector with each position's shown word in place. Generated metadata
+then supplies one-decimal amounts (0.0–100.0 without a suffix) and bounded positive
+anchor-ratio captions on custom synth screens; enums and machine text overrides remain
+discrete. FX pages retain their stock captions.
 
 ## Sample engines
 

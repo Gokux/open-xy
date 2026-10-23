@@ -14,7 +14,9 @@ stock drum page (page 7): each pad has its own sample and settings.
 | 4 | Loop or play once; press toggles | Stock volume |
 
 - **Length and tempo.** Lengths are 1/4, 1/2, 1, 2, 4 and 8 bars of 4/4.
-  Source BPM is an integer from 20 to 300. Switching from bars to BPM starts
+  Source BPM runs from 20.0 to 300.0. Shift + turn encoder 2 changes it by
+  0.1 BPM; hold that encoder down while turning for 1 BPM. A turn suppresses
+  the release's mode-switch click. Switching from bars to BPM starts
   at 120; switching back starts at one bar. Set the length or source BPM
   correctly before judging stretch quality.
 - **Automatic source BPM.** Put exactly three digits at the start or end of
@@ -28,7 +30,7 @@ stock drum page (page 7): each pad has its own sample and settings.
   pitch and the suggested length; a pad without saved settings plays one bar.
 - **Recording.** A recording made with the stock recorder is assigned to the
   selected pad like a file, keeping a replaced pad's settings. Its source BPM
-  is the project tempo at assignment, rounded to a whole BPM.
+  is the project tempo at assignment, including its decimal digit.
 - **Trim.** Playback follows the outer start/end markers, which new
   assignments set to the whole sample; the sampler's hidden loop markers do
   not apply.
@@ -38,8 +40,9 @@ stock drum page (page 7): each pad has its own sample and settings.
   also changes speed. Retriggering a pad, at any octave, chokes its previous
   voice; other pads and tracks keep playing.
 - **Live controls** start from the pad's settings. Start and end move the
-  markers toward the sample's ends; play and mode have a middle `pad`
-  position that keeps the saved choice; reverse flips the saved direction;
+  markers toward the sample's ends; play, mode and reverse have a middle `pad`
+  position that keeps the saved choice. Reverse's outer positions force
+  forward (`off`) or backward (`on`) playback;
   volume scales the saved volume. Tempo offsets the source BPM by up to ±140
   BPM, or the length by up to ±5 steps. The bundled preset centers them.
 - **Analysis.** Timestretch mode needs an analysis of the sample, prepared on
@@ -64,6 +67,10 @@ declares stereo output, same-key choke, pad settings with drum controls, and a
   where the derivative changes sign, at most 256 frames apart. Playback reads
   the original PCM; keyframes only time grain splices.
   [`stretch.h`](stretch.h) plays grains with linear interpolation and shares
-  playheads and crossfades between channels.
+  playheads and crossfades between channels. Incoming grains that advance
+  faster than the tempo clock start behind it by 75% of their predicted
+  drift during the fade, reducing early attacks without shifting the loop
+  clock. This offset is bounded to a quarter of the trimmed loop and cannot
+  precede initial playback.
 
 See the [upstream revision and AGPL notices](vendor/README.md).

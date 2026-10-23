@@ -77,7 +77,7 @@ Controls are finite numbers in [0, 1]. Mappings support `linear`
 (`minimum + (maximum - minimum) * value`), three or more increasing `anchors`
 interpolated evenly, `power` (`maximum * value^exponent`, exponent other than 1),
 `exponential` (`minimum * (maximum/minimum)^value`) and `enum`. Display formats
-are `ratio`, `percent` (of the normalized value), `bipolar` (a -1..1 value as a signed
+are `ratio`, `percent` (the normalized value scaled to 0.0–100.0, without a suffix), `bipolar` (a -1..1 value as a signed
 percentage), `duration`, `semitones` and `enum`. Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
 Parameter order and mapping changes affect saved sounds. The stock parameter
@@ -93,11 +93,18 @@ shown, whose title and stock percentage the page shows. Every parameter keeps
 its own slot in the eight-word vector, so `render` receives all of them and
 presets, projects and the catalog's defaults store each one. The selection is
 per track, starts on the position's own parameter and is not saved. Display
-inputs carry each position's shown value and its parameter index (`shown`), so
-a [text control](display.md#segment-display) can format whichever is shown.
+inputs carry each position's shown value, its parameter index (`shown`) and
+every parameter's value (`slots`), so a [text control](display.md#segment-display)
+can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position. See
 [Macro Osc](../machines/macroosc/definition.json), whose fourth encoder
 switches between FM ratio and depth.
+
+On custom synth engine pages, Shift + turn edits the same visible parameter
+at one tenth of the normal rate. Enum choices keep their ordinary stepping.
+Synth amounts and bounded positive anchor-ratio captions show one decimal
+place; amounts omit the percent suffix. A machine's text controls can override them. Custom send effects also
+use the slower Shift rate for continuous controls, with stock FX captions.
 
 A sample engine declares `voiceCapacity` (1..256) and the optional
 [sample services](#sample-engines) it uses. An effect declares no resources (`{}`).
@@ -245,7 +252,9 @@ void drum_panel(opxy::PadSettings, opxy::Parameters live, opxy::DrumPanel&);
 | 4 | Machine, knob 3 | Stock volume |
 
 `drum_control` receives each turn (signed direction) or press of a machine
-encoder, with `shifted` set on the Shift row, and edits the settings.
+encoder, with `shifted` set on the Shift row, and edits the settings. `held`
+marks a turn while the encoder is held down; turning suppresses the click on
+release. Machines decide how that gesture changes their stepping.
 `drum_panel` receives the settings and the eight live parameters audio uses.
 It returns the live pitch offset in cents (the page adds the pad's pitch), loop
 or play once, and two Shift captions of at most 15 characters, which replace

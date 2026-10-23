@@ -38,6 +38,15 @@ class SampleServices(unittest.TestCase):
             if name == 'sample_callbacks':
                 probe = replace(machine('timestretch'), id='probe', identity=dict(engine=46, page=7))
                 generate_sample_callbacks(folder, [probe])
+                # Exercise the real tempo readers and assignment bridge with
+                # host addresses standing in for stock functions and globals.
+                stock = (ROOT / 'sdk/platform/opxy-1.2.0/stock.hpp').read_text()
+                stock = stock.replace('typedef __UINTPTR_TYPE__ Address;',
+                                      'typedef __UINTPTR_TYPE__ Address;\nAddress host_stock_address(Address);')
+                for pointer in ('T*', 'const volatile u32*', 'const volatile unsigned char*'):
+                    stock = stock.replace('reinterpret_cast<' + pointer + '>(address)',
+                                          'reinterpret_cast<' + pointer + '>(host_stock_address(address))')
+                (Path(folder) / 'stock.hpp').write_text(stock)
             if name == 'screen_order':
                 generate_screen_order(folder)
             if name == 'startup':
