@@ -34,6 +34,9 @@ from opxy_sdk.pipeline import child, host_platform, toolchains  # noqa: E402
 MANIFEST = Path(__file__).with_name('release-sources.json')
 # Imports satisfied by every supported Windows installation.
 WINDOWS_SYSTEM = {'advapi32.dll', 'kernel32.dll', 'msvcrt.dll', 'user32.dll'}
+MACOS_SYSTEM = ('/usr/lib/', '/System/Library/')
+MACHO_64 = b'\xcf\xfa\xed\xfe'
+MACHO_LOADS = {0xc, 0x80000018, 0x8000001f}  # LC_LOAD_DYLIB, LC_LOAD_WEAK_DYLIB, LC_REEXPORT_DYLIB
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 
 
@@ -67,8 +70,34 @@ def pe_imports(data):
     return names
 
 
-def runtime_closure(root, executables):
+def macho_imports(data):
+    """Install names of the libraries a 64-bit Mach-O image loads."""
+    require(data[:4] == MACHO_64, 'Not a 64-bit Mach-O image')
+    names, at = [], 32
+    for _ in range(struct.unpack_from('<I', data, 16)[0]):
+        command, size = struct.unpack_from('<II', data, at)
+        if command in MACHO_LOADS:
+            start = at + struct.unpack_from('<I', data, at + 8)[0]
+            names.append(data[start:data.index(b'\0', start)].decode('utf-8'))
+        at += size
+    return names
+
+
+def is_image(path):
+    with path.open('rb') as handle:
+        magic = handle.read(4)
+    return magic[:2] == b'MZ' or magic == MACHO_64
+
+
+def runtime_closure(root, executables, host):
     """Libraries the executables load from their own directories, recursively."""
+    if host.startswith('darwin-'):
+        # The macOS build links gmp, mpfr and mpc statically; only system libraries remain.
+        for path in executables:
+            for name in macho_imports(path.read_bytes()):
+                require(name.startswith(MACOS_SYSTEM), f'{path.name} loads {name} from outside macOS')
+        return {}
+    require(host.startswith('windows-'), f'Runtime discovery for {host} is not implemented')
     found, pending = {}, list(executables)
     while pending:
         path = pending.pop()
@@ -96,9 +125,8 @@ def bundle_files(compiler, host, pins):
         path = child(compiler, relative)
         require(path.is_file() and file_hash(path) == expected, f'Tool hash mismatch: {relative}')
         files[relative] = path
-    require(host.startswith('windows-'), f'Runtime discovery for {host} is not implemented')
-    executables = [path for relative, path in files.items() if relative.endswith(('.exe', '.dll'))]
-    for relative, path in runtime_closure(compiler, executables).items():
+    executables = [path for path in files.values() if is_image(path)]
+    for relative, path in runtime_closure(compiler, executables, host).items():
         files.setdefault(relative, path)
     return files
 
@@ -137,10 +165,10 @@ def write_fork_archive(fork, commit, path):
     require(process.returncode == 0, 'git archive failed')
 
 
-def licenses(manifest, fork, commit):
+def licenses(manifest, host, fork, commit):
     texts = {target: git(fork, 'show', f'{commit}:{source}') for target, source in manifest['fork']['licenses'].items()}
-    for path in sorted((Path(__file__).parent / 'licenses').glob('*.txt')):
-        texts[path.name] = path.read_bytes()
+    for name in manifest['hosts'][host]['notices']:
+        texts[name] = (Path(__file__).parent / 'licenses' / name).read_bytes()
     return texts
 
 
@@ -148,7 +176,7 @@ def sources_text(manifest, host, packages, source_name):
     fork = manifest['fork']
     lines = [
         '# Open-XY Blackfin toolchain', '',
-        f'Host: {host}. Built by tools/gcc/build-gcc.sh from the Open-XY repository.', '',
+        f'Host: {host}. Built by {manifest["hosts"][host]["build"]} from the Open-XY repository.', '',
         'Every file in this archive is free software. The corresponding source is the',
         f'release asset `{source_name}`, published alongside this archive. It contains:', '',
         f'- `blackfin-plus-gnu.tar.gz`: {fork["url"]} at `{fork["commit"]}` (GCC and binutils,',
@@ -204,9 +232,9 @@ def main(argv=None):
 
     name = f'open-xy-toolchain-{host}'
     source_name = f'open-xy-toolchain-source-{host}.tar'
-    entries = {relative: (path.read_bytes(), relative.endswith(('.exe', '.dll')) or relative.startswith('bin/'))
-               for relative, path in files.items()}
-    entries.update({f'licenses/{target}': (data, False) for target, data in licenses(manifest, args.fork, commit).items()})
+    entries = {relative: (path.read_bytes(), is_image(path)) for relative, path in files.items()}
+    entries.update({f'licenses/{target}': (data, False)
+                    for target, data in licenses(manifest, host, args.fork, commit).items()})
     entries['SOURCES.md'] = (sources_text(manifest, host, packages, source_name), False)
 
     tracked = subprocess.check_output(['git', '-C', str(ROOT), 'ls-files', '-z', 'tools/gcc'], text=True).split('\0')
