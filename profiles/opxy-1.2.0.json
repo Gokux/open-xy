@@ -545,8 +545,8 @@
     },
     {
       "kind": "hook",
-      "address": "0x8c090636",
-      "file_offset": "0xc79f6",
+      "address": "0x8c0b210a",
+      "file_offset": "0xe94ca",
       "length": 8,
       "before": "00de5a8decb80000",
       "symbol": "sdk_synth_turn",

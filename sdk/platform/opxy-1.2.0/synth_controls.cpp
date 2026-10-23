@@ -1,7 +1,7 @@
-// Stock OS 1.2.0 track-page encoders for synths with alternate controls. Both
-// hooks replace a CALL.A of a C function, so stock calls them with the C ABI.
-// A press of an owned synth's encoder selects the position's next parameter; a
-// turn edits the selected one. Everything else reaches stock as before.
+// Stock OS 1.2.0 instrument-track encoders for synths with alternate controls.
+// Both hooks replace a CALL.A of a C function, so stock calls them with the C
+// ABI. A press of an owned synth's encoder selects the position's next
+// parameter; a turn edits the selected one. Everything else reaches stock as before.
 #include "synth_controls.hpp"
 #include "stock.hpp"
 
@@ -16,11 +16,11 @@ using opxy::u8;
 using opxy::platform::SynthControls;
 using namespace opxy::platform;
 
-// Track page bank: 0 for the engine page, 1..3 for the other three pages.
-u32 page_bank() { return stock<u32()>(0x8c08ff3c)(); }
-// The controller on top of the GUI stack, which receives key events, and the
-// track page controller's vtable.
-const u32 kTrackPageVtable = 0x0803fa28;
+// Tracks 0..7 show the instrument track controller (GUI screen 0); its page
+// word is 0 on the engine page and 1..3 on the other three pages.
+const u32 kInstrumentController = 0x8400b208;  // its vtable
+const u32 kInstrumentPage = 0x08023c74;
+// The controller on top of the GUI stack, which receives key events.
 u32 top_controller_vtable() { return *stock<const u32*()>(0x8c095008)(); }
 
 const SynthControls* owned(u32 engine) {
@@ -74,25 +74,26 @@ u32 sdk_synth_title_slot(u32 engine, u32 index) {
     return tracks[track].slots[index];
 }
 
-// 8c0b66d2: the GUI's key dispatcher records a press of encoder 0..3 (key
-// codes 10..13, without shift) before passing it to the top controller, whose
-// engine page does nothing with it. On the track page of an owned synth the
-// press also selects the position's next parameter.
+// 8c0b66d2: the GUI's key dispatcher records the click of encoder 0..3 (key
+// codes 10..13, released without a turn and without shift) before passing it
+// to the top controller; the instrument controller's engine page ignores it
+// for every engine with alternates. On that page of an owned synth the click
+// also selects the position's next parameter.
 void sdk_synth_press(u32 encoder) {
     stock<void(u32)>(0x8d51e634)(encoder);
     Track* t;
     const SynthControls* m;
-    if (encoder < opxy::page_controls && top_controller_vtable() == kTrackPageVtable && page_bank() == 0 &&
-        (m = machine(byte(kSelectedTrack), t))) {
+    if (encoder < opxy::page_controls && top_controller_vtable() == kInstrumentController &&
+        word(kInstrumentPage) == 0 && (m = machine(byte(kSelectedTrack), t))) {
         const u32 next = m->next[t->slots[encoder]];
         if (next < opxy::parameter_slots) t->slots[encoder] = static_cast<u8>(next);
     }
 }
 
-// 8c090636: an encoder turn on a track page edits parameter `index` (encoder
-// plus eight per page bank) of the selected track through stock, which owns
-// stepping, parameter locks and publication. An owned synth's engine-page
-// encoder edits the parameter its position shows.
+// 8c0b210a: the instrument controller's encoder turn edits parameter `index`
+// of the selected track through stock, which owns stepping, parameter locks
+// and publication. Indices 0..3 come only from the engine page's unshifted
+// encoders, so an owned synth's position edits the parameter it shows.
 u32 sdk_synth_turn(u32 project, u32 track, u32 index, u32 event) {
     if (index < opxy::page_controls) index = shown(track, index);
     return stock<u32(u32, u32, u32, u32)>(0x8d5ab8ec)(project, track, index, event);
