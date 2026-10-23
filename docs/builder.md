@@ -27,12 +27,13 @@ leaves the browser.
    the patched root OS. Keep file transfer open to resume installation later.
    Windows uses the manual copy guide; Mac users
    can also choose **Copy it myself instead**.
-   Both transfer guides show a yellow notice for the rare case where a factory
+   Both transfer guides show a notice for the rare case where a factory
    reset or initialization leaves `OPXY/upgrade/firmware/blackfin/bin/os.ldr`
-   missing. **The OS file is missing · Help me recover it** leads through leaving
-   file transfer, disabling the dev menu and confirming it is hidden, then
-   reinstalling official OS 1.2.0 with the dev menu disabled. After reinstalling,
-   **Try again** restarts the source guide for the same computer.
+   missing. **The OS file is missing · Help me recover it** shows how to exit
+   file transfer, then **Disable dev menu** connects and sends the disable command
+   in one click. The next page links to the official OS 1.2.0 download and explains
+   how to power cycle, check that the menu is gone, and reinstall. After reinstalling,
+   **Try again** goes straight to enabling the dev menu for the same computer.
 3. Select machines. Synth rows have a playable preview of their C++ sound and
    display code; each row shows its code, data and state size against the
    memory meter.
@@ -64,8 +65,13 @@ touched.
 The MIDI helper, adapted from [Ferret](https://github.com/bagofwaffles/ferret)
 (MIT, Bag of Waffles; see `builder/ferret.mjs` and `builder/ferret.LICENSE`),
 enables or disables the dev menu after an explicit click and browser MIDI
-permission. It sets or removes only the `bootloader.dev` flag; it never
-transfers firmware. Refresh the menu with track 8 twice to see the result. MIDI
+permission. Each enable or disable button connects and sends the requested
+command in one action; failures and cancellation leave the action available
+on the same page. It sets or removes only the `bootloader.dev` flag; it never
+transfers firmware. After enabling, separate illustrated steps guide you through
+pressing track 8 to open the system menu, then track 8 to return, before asking
+whether the dev menu appears. After installation, **Disable dev menu** sends the command directly
+before restarting; if already restarted, return to te-boot first. MIDI
 needs a desktop browser and a secure context; otherwise the helper links to
 hosted Ferret. The separate WebUSB MTP client reads or sends files only after
 an explicit click and USB permission, and releases the connection afterwards.

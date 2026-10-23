@@ -63,7 +63,8 @@
     <div class="flow-body"><div class="flow-visual" data-device-art></div><div class="flow-copy file-panel">
     <h2 id="files-title" tabindex="-1">Choose your OS file.</h2>
     <label class="drop" id="firmware-drop"><span class="file-icon" data-icon="firmware" aria-hidden="true"></span><strong>Choose OS</strong><span>or drop os.ldr here</span><input id="firmware" type="file" accept=".ldr" aria-label="Choose OS"></label>
-    <p id="firmware-result" class="file-result">OP–XY OS 1.2.0 · original or open-xy</p>
+    <p id="firmware-result" class="file-result" role="status" aria-live="polite">OP–XY OS 1.2.0 · original or open-xy</p>
+    <button id="firmware-replace" class="file-button" hidden>Choose a different OS file</button>
     <a id="source-backup" class="file-button" download="os.ldr" hidden>Save a backup of the original OS</a>
     <p id="files-note" class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
     <details><summary>Load a saved selection</summary><input id="restore" type="file" accept=".json" aria-label="Load a saved selection"></details>
@@ -113,14 +114,23 @@
   <p id="flow-preview-note" hidden>Preview only. Build firmware in the builder to send files to your OP–XY.</p>
   <p id="flow-detail"></p>
   <ol id="flow-instructions" class="instruction-list" hidden></ol>
+  <div id="recovery-downloads" hidden>
+    <p><a href="https://teenage.engineering/_software/op-xy/opxy_firmware_1_2_0.tfw" target="_blank" rel="noopener noreferrer">Download official OS 1.2.0 (.tfw)</a> · <a href="https://teenage.engineering/guides/op-xy/te-boot" target="_blank" rel="noopener noreferrer">Official installation guide</a></p>
+    <button id="recovery-disable-again" class="secondary">Dev menu still visible · Disable again</button>
+  </div>
   <aside id="flow-missing-os" class="install-reminder" aria-labelledby="missing-os-title" hidden>
-    <h3 id="missing-os-title">Can’t find os.ldr?</h3>
+    <h3 id="missing-os-title">Can't connect to MTP, or can't find os.ldr?</h3>
     <p>On rare occasions, a factory reset or initialization can leave your OP–XY without the original os.ldr file. Disable the dev menu, reinstall OS 1.2.0 with the dev menu disabled, then try again.</p>
-    <button id="missing-os-help" class="secondary">The OS file is missing · Help me recover it</button>
+    <button id="missing-os-help" class="primary">The OS file is missing · Help me recover it</button>
+  </aside>
+  <aside id="flow-copy-reminder" class="install-reminder" aria-labelledby="copy-reminder-title" hidden>
+    <h3 id="copy-reminder-title">Yes, copy to the ROOT folder.</h3>
+    <p>Copy the extracted ZIP’s contents to the top level of your OP–XY. Do not put these files back in <code>upgrade/firmware/blackfin/bin</code>.</p>
+    <p><strong>Replace existing files if prompted.</strong></p>
   </aside>
   <aside id="flow-install-reminder" class="install-reminder" aria-labelledby="install-reminder-title" hidden>
-    <h3 id="install-reminder-title">You are not done yet, please don't stop the process here.</h3>
-    <p>There are more installation steps after transferring the files. Please continue to the end of the guide.</p>
+    <h3 id="install-reminder-title">You are not done yet!</h3>
+    <p>Copying the files does not finish installation. Continue through the next steps to install the OS before restarting.</p>
   </aside>
   <details id="flow-file-details" hidden><summary>File locations</summary><div id="flow-files"></div></details>
   <section id="mtp-panel" class="direct-copy" aria-labelledby="mtp-title" hidden>
@@ -131,7 +141,7 @@
   <div id="flow-actions" class="flow-actions"></div>
   <p id="dev-status" role="status" aria-live="polite"></p>
   <button type="button" id="dev-cancel" hidden>Cancel connection</button>
-  <details id="connection-help" hidden><summary>Connection help</summary><p>Use a compatible desktop browser, such as Chrome or Edge. Close other MIDI apps. If this page cannot get MIDI permission, use the <a href="https://bagofwaffles.github.io/ferret/op-xy/" target="_blank" rel="noopener noreferrer">hosted Ferret tool</a>, then check the menu here again.</p><p class="attribution"><a href="https://github.com/bagofwaffles/ferret" target="_blank" rel="noopener noreferrer">Ferret by Bag of Waffles</a> · MIT license</p></details>
+  <details id="connection-help" hidden><summary>Connection help</summary><p>Use a compatible desktop browser, such as Chrome or Edge. Close other MIDI apps. If this page cannot get MIDI permission, use the <a href="https://bagofwaffles.github.io/ferret/op-xy/" target="_blank" rel="noopener noreferrer">hosted Ferret tool</a>, then check the menu here again.</p><div id="midi-diagnostics" hidden><p>MIDI ports reported by this browser at the last connection attempt:</p><pre id="midi-ports"></pre></div><p class="attribution"><a href="https://github.com/bagofwaffles/ferret" target="_blank" rel="noopener noreferrer">Ferret by Bag of Waffles</a> · MIT license</p></details>
   <div class="flow-navigation"><button id="flow-back" class="secondary">← Back</button><button id="flow-exit" class="text-button">Back to file choice</button><a id="flow-download" class="file-button" download="open-xy.zip" hidden>Download ZIP</a></div>
   </div>
   </div>

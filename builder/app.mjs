@@ -108,6 +108,8 @@ async function acceptFirmware(file, isCurrent = () => true) {
   wizard.clearSourceBackup();
   const current = ++ticket; invalidate();
   stock = null; ready();
+  wizard.setFirmwareState('checking');
+  $('firmware-result').textContent = 'Verifying ' + file.name + '…';
   try {
     const recovered = await Core.recoverFirmware(kit, await readBounded(file, 16 * 1024 ** 2));
     if (current !== ticket || !isCurrent()) return false;
@@ -117,6 +119,8 @@ async function acceptFirmware(file, isCurrent = () => true) {
       $('firmware-result').textContent = '✓ open-xy OS with ' +
         kit.machines.filter(m => selected.includes(m.id)).map(m => m.name).join(' + ');
     } else $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 verified · ' + file.name;
+    wizard.setFirmwareState('loaded');
+    $('files-title').focus();
     status(); ready();
     return true;
   } catch (error) {
@@ -124,6 +128,11 @@ async function acceptFirmware(file, isCurrent = () => true) {
     $('firmware-result').textContent = 'OS not loaded';
     fail(error); ready();
     return false;
+  } finally {
+    if (current === ticket && !stock) {
+      wizard.setFirmwareState('empty');
+      $('firmware-result').textContent = 'OS not loaded';
+    }
   }
 }
 function node(tag, text, className) {

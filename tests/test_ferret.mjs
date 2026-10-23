@@ -120,6 +120,83 @@ test('ambiguous devices and input pairs send no commands', async () => {
   }
 });
 
+test('Windows composite port names connect and diagnostics describe only reported ports', async () => {
+  const d = device(), snapshots = [];
+  d.input.name = d.output.name = 'OP-XY (Composite)';
+  d.input.manufacturer = d.output.manufacturer = 'Teenage Engineering';
+  d.input.connection = d.output.connection = 'closed';
+  const session = new Session(async () => d.access, () => {}, 30, {onPorts: ports => snapshots.push(ports)});
+  await session.connect();
+  assert.deepEqual(commands(d), [9]);
+  assert.equal(d.other.sent.length, 0);
+  assert.equal(snapshots.length, 1);
+  assert.deepEqual(snapshots[0].inputs, [{name:'OP-XY (Composite)', manufacturer:'Teenage Engineering', state:'connected', connection:'closed'}]);
+  assert.equal(snapshots[0].outputs.length, 2);
+  session.close();
+});
+
+test('directional and composite OP-XY names pair without relying on driver manufacturer labels', async () => {
+  for (const [inputName, outputName] of [
+    ['OP-XY MIDI IN', 'OP-XY MIDI OUT'],
+    ['OP-XY (Composite)', 'OP-XY MIDI OUT'],
+    ['OP–XY MIDI IN', 'OP XY MIDI OUT'],
+    ['OPXY MIDI IN', 'OPXY MIDI OUT'],
+  ]) {
+    for (const method of ['enable', 'disable']) {
+      const d = device(); d.input.name = inputName; d.output.name = outputName;
+      d.input.manufacturer = 'Microsoft Corporation'; d.output.manufacturer = 'Teenage Engineering';
+      const otherInput = new Port('other-in', 'Impact GXP88');
+      otherInput.open = d.other.open = () => { throw new Error('Must not open an unrelated port'); };
+      d.access.inputs.set(otherInput.id, otherInput);
+      const disconnected = new Port('old-in', 'OP-XY (Composite)'); disconnected.state = 'disconnected';
+      d.access.inputs.set(disconnected.id, disconnected);
+      await d.session.connect(); await d.session[method]();
+      assert.deepEqual(commands(d), [9, 9, 0x1f, 0xac]);
+      assert.equal(d.other.sent.length, 0);
+      d.session.close();
+    }
+  }
+});
+
+test('differently named duplicate OP-XY inputs remain ambiguous even with one exact match', async () => {
+  const d = device();
+  const duplicate = new Port('duplicate', 'OP-XY MIDI IN'); duplicate.manufacturer = 'Microsoft Corporation';
+  d.access.inputs.set(duplicate.id, duplicate);
+  await assert.rejects(d.session.connect(), /more than one/);
+  assert.deepEqual(commands(d), []);
+});
+
+test('missing OP-XY input never falls back to an unrelated input', async () => {
+  const d = device(); d.input.name = 'NotOP-XY';
+  d.input.open = () => { throw new Error('Must not open an unrelated port'); };
+  await assert.rejects(d.session.connect(), /no connected OP–XY MIDI input/);
+  assert.deepEqual(commands(d), []);
+});
+
+test('directional names still require the expected product and boot mode before writing', async () => {
+  for (const metadata of [() => meta('TX-6'), () => meta('OP-XY', 'test-unit', 'normal')]) {
+    const d = device({metadata}); d.input.name = 'OP-XY MIDI IN'; d.output.name = 'OP-XY MIDI OUT';
+    await assert.rejects(async () => { await d.session.connect(); await d.session.disable(); });
+    assert.deepEqual(commands(d), [9]);
+    d.session.close();
+  }
+});
+
+test('missing OP-XY reports visible ports without opening or probing other devices', async () => {
+  for (const empty of [false, true]) {
+    const d = device(); let snapshot;
+    d.access.inputs.clear(); d.access.outputs.delete(d.output.id);
+    if (empty) d.access.outputs.clear();
+    d.other.open = () => { throw new Error('Must not open another device'); };
+    const session = new Session(async () => d.access, () => {}, 30, {onPorts: ports => { snapshot = ports; }});
+    await assert.rejects(session.connect(), /no connected OP–XY MIDI output/);
+    assert.deepEqual(snapshot.inputs, []);
+    assert.deepEqual(snapshot.outputs.map(port => port.name), empty ? [] : ['Another synth']);
+    assert.deepEqual(commands(d), []);
+    assert.equal(d.other.sent.length, 0);
+  }
+});
+
 test('wrong product, normal OS, changed unit, and invalid challenge never write a flag', async () => {
   for (const options of [
     {metadata:()=>meta('TX-6')}, {metadata:()=>meta('OP-XY','test-unit','normal')},

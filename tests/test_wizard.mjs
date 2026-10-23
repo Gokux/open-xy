@@ -68,14 +68,19 @@ test('Mac reads and verifies the original OS, then remembers transfer mode for i
   assert.equal($('source-backup').hidden, false); assert.match($('source-backup').href, /^blob:/);
   // Nothing left to choose after a device read: no drop zone, just the result.
   assert.equal($('firmware-drop').hidden, true); assert.equal($('files-title').textContent, 'Original OS loaded from your OP–XY.');
+  assert.equal($('firmware-replace').hidden, false);
+  assert.equal($('firmware-result').dataset.state, 'loaded');
+  $('files-back').onclick(); $('source-local').onclick();
+  assert.equal($('firmware-drop').hidden, true);
+  assert.equal($('files-title').textContent, 'OS file loaded.');
   assert.deepEqual(new Uint8Array(await (await fetch($('source-backup').href)).arrayBuffer()), bytes);
   f.wizard.clearSourceBackup(); assert.equal($('source-backup').hidden, true);
   assert.ok(!fake.state.ops.some(op => ['100b', '100c', '100d'].includes(op)));
   f.wizard.navigate(3);
   assert.equal($('download').hidden, true); assert.equal($('route-mac').hidden, false);
   $('route-mac').onclick({preventDefault() {}});
-  assert.equal($('device-flow').dataset.stage, 'close-field-kit');
-  click('field-kit-closed'); assert.equal($('flow-title').textContent, 'Send the files to your OP–XY.');
+  assert.equal($('device-flow').dataset.stage, 'transfer');
+  assert.equal($('flow-title').textContent, 'Send the files to your OP–XY.');
   assert.equal($('flow-install-reminder').hidden, false);
 });
 
@@ -101,11 +106,103 @@ test('Windows and browsers without WebUSB keep the manual source path', async t 
   });
 });
 
+test('a manual Mac copy still closes transfer apps before sending a build', t => {
+  const f = sourceFlow(t, {fake: fakeDevice(), bytes: new Uint8Array(1), hash: ''});
+  f.reachTransfer('mac'); f.click('field-kit-closed'); f.click('mtp-manual');
+  f.click('Files copied · Choose files');
+  f.wizard.navigate(3); f.$('route-mac').onclick({preventDefault() {}});
+  assert.equal(f.$('device-flow').dataset.stage, 'close-field-kit');
+  assert.equal(f.requests(), 0);
+});
+
+test('enabling connects and sends in one click; failures and menu retries keep the intended action', async t => {
+  let fail = true; const calls = [];
+  for (const [name, replacement] of Object.entries({
+    connect: async () => { calls.push('connect'); if (fail) throw new Error('Not connected'); },
+    enable: async () => calls.push('enable'),
+    disable: async () => { throw new Error('Must not disable'); },
+  })) {
+    const original = Session.prototype[name]; Session.prototype[name] = replacement;
+    t.after(() => { Session.prototype[name] = original; });
+  }
+  const f = sourceFlow(t, {fake: fakeDevice(), bytes: new Uint8Array(1), hash: ''});
+  f.$('source-windows').onclick(); f.$('source-device').onclick();
+  f.click('version-yes'); f.click('Connected and at te-boot'); f.click('menu-no');
+  assert.deepEqual(calls, []);
+  await f.click('dev-enable');
+  assert.equal(f.$('device-flow').dataset.stage, 'enable');
+  assert.equal(f.$('connection-help').open, true);
+  assert.deepEqual(calls, ['connect']);
+  fail = false; await f.click('dev-enable');
+  assert.equal(f.$('device-flow').dataset.stage, 'refresh-open');
+  assert.match(f.$('flow-detail').textContent, /track 8.*system menu/);
+  f.click('System menu is open');
+  assert.equal(f.$('device-flow').dataset.stage, 'refresh-return');
+  assert.match(f.$('flow-detail').textContent, /track 8.*back/);
+  f.click('I’m back at te-boot');
+  assert.equal(f.$('device-flow').dataset.stage, 'confirm');
+  assert.deepEqual(calls, ['connect', 'connect', 'enable']);
+  f.click('No, it’s still missing');
+  f.click('Refresh the screen again');
+  assert.equal(f.$('device-flow').dataset.stage, 'refresh-open');
+  f.click('System menu is open'); f.click('I’m back at te-boot');
+  f.click('No, it’s still missing');
+  await f.click('dev-enable');
+  assert.equal(f.$('device-flow').dataset.stage, 'refresh-open');
+  f.click('System menu is open'); f.click('I’m back at te-boot');
+  assert.equal(f.$('device-flow').dataset.stage, 'confirm');
+  assert.deepEqual(calls.slice(-2), ['connect', 'enable']);
+  f.click('dev-confirm');
+  assert.equal(f.$('device-flow').dataset.stage, 'open-dev-menu');
+});
+
+test('post-install disable runs directly and retries without restarting setup', async t => {
+  let fail = true; const calls = [];
+  for (const [name, replacement] of Object.entries({
+    connect: async () => calls.push('connect'),
+    disable: async () => { calls.push('disable'); if (fail) throw new Error('Disable failed'); },
+    enable: async () => { throw new Error('Must not enable'); },
+  })) {
+    const original = Session.prototype[name]; Session.prototype[name] = replacement;
+    t.after(() => { Session.prototype[name] = original; });
+  }
+  const f = sourceFlow(t, {fake: fakeDevice(), bytes: new Uint8Array(1), hash: ''});
+  f.$('source-mac').onclick(); f.wizard.navigate(3);
+  f.$('route-mac').onclick({preventDefault() {}});
+  f.click('Connected and at te-boot'); f.click('menu-yes'); f.click('Dev menu is open');
+  f.click('I see "mtp mode active"'); f.click('field-kit-closed'); f.click('mtp-manual');
+  f.click('All files copied · Continue');
+  assert.equal(f.$('device-flow').dataset.stage, 'exit-transfer');
+  assert.match(f.$('flow-detail').textContent, /track 2/);
+  f.click('I’m back at the dev menu');
+  assert.equal(f.$('device-flow').dataset.stage, 'write-os');
+  assert.match(f.$('flow-detail').textContent, /track 5/);
+  f.click('I pressed track 5');
+  assert.equal(f.$('device-flow').dataset.stage, 'write-result');
+  f.click('I see "firmware written ok!"');
+  assert.equal(f.$('device-flow').dataset.stage, 'restart');
+  assert.deepEqual(calls, []);
+  await f.click('dev-disable');
+  assert.equal(f.$('device-flow').dataset.stage, 'restart');
+  assert.equal(f.$('connection-help').open, true);
+  assert.deepEqual(calls, ['connect', 'disable']);
+  fail = false; await f.click('dev-disable');
+  assert.equal(f.$('device-flow').dataset.stage, 'disabled');
+  assert.equal(f.$('flow-title').textContent, 'Power cycle to finish.');
+  assert.equal(f.$('flow-back').hidden, true);
+  assert.equal(f.$('recovery-downloads').hidden, true);
+  await f.click('dev-disable');
+  assert.deepEqual(calls, ['connect', 'disable', 'connect', 'disable', 'connect', 'disable']);
+  f.click('Dev menu is gone · Done');
+  assert.equal(f.$('device-flow').hidden, true);
+  assert.equal(f.requests(), 0);
+});
+
 test('missing OS recovery disables the menu before reinstalling, then restarts the correct source route', async t => {
   for (const computer of ['mac', 'windows']) await t.test(computer, async t => {
-    let connects = 0, disables = 0;
+    let connects = 0, disables = 0, enables = 0;
     for (const [name, replacement] of Object.entries({connect: async () => connects++, disable: async () => disables++,
-      enable: async () => { throw new Error('Recovery must not enable the dev menu'); }})) {
+      enable: async () => enables++})) {
       const original = Session.prototype[name]; Session.prototype[name] = replacement;
       t.after(() => { Session.prototype[name] = original; });
     }
@@ -120,40 +217,85 @@ test('missing OS recovery disables the menu before reinstalling, then restarts t
     assert.ok($('flow-instructions').children.some(li => li.children[0].textContent.includes('OPXY/upgrade/firmware/blackfin/bin/os.ldr')));
     $('missing-os-help').onclick();
     assert.equal($('device-flow').dataset.stage, 'missing-os');
-    click('recovery-begin');
-    assert.equal($('device-flow').dataset.stage, 'recovery-exit');
     assert.equal(f.requests(), 0); assert.equal(connects, 0); assert.equal(disables, 0);
     assert.equal($('flow-missing-os').hidden, true);
-    click('I’m back at the dev menu'); click('Connected and at te-boot'); click('menu-yes');
-    await click('dev-connect');
-    assert.equal($('device-flow').dataset.stage, 'disable');
-    await click('dev-disable');
-    assert.equal(disables, 1);
-    click('System menu is open'); click('I’m back at te-boot');
-    assert.equal($('flow-title').textContent, 'Has "3. dev menu" disappeared?');
-    click('It’s still there');
-    assert.equal($('device-flow').dataset.stage, 'disable-help');
-    assert.ok(!$('flow-actions').children.some(b => b.id === 'recovery-retry'));
-    click('Refresh the screen again'); click('System menu is open'); click('I’m back at te-boot'); click('dev-confirm');
-    assert.equal($('flow-title').textContent, 'Reinstall OS 1.2.0 with the dev menu disabled.');
+    assert.equal($('recovery-downloads').hidden, true);
+    await click('recovery-disable');
+    assert.equal(connects, 1); assert.equal(disables, 1);
+    assert.equal($('flow-title').textContent, 'Power cycle and reinstall OS 1.2.0.');
+    assert.equal($('recovery-downloads').hidden, false);
+    assert.equal($('flow-back').hidden, true);
+    assert.ok($('flow-instructions').children.some(li => li.children[0].textContent.includes('hold COM')));
+    $('recovery-disable-again').onclick();
+    assert.equal($('device-flow').dataset.stage, 'missing-os');
+    assert.equal($('recovery-downloads').hidden, true);
+    await click('recovery-disable');
+    assert.equal(connects, 2); assert.equal(disables, 2);
+    assert.equal(enables, 0);
     click('recovery-retry');
-    assert.equal($('device-flow').dataset.stage, 'boot');
-    click('Connected and at te-boot'); click('menu-no'); await click('dev-connect');
     assert.equal($('device-flow').dataset.stage, 'enable');
-    // Retry is a fresh source guide, with the computer preserved and manual fallback reset.
-    $('flow-back').onclick(); $('flow-back').onclick(); click('menu-yes'); click('Dev menu is open');
+    assert.equal(enables, 0); // A new explicit click is still required after reinstalling.
+    await click('dev-enable');
+    assert.equal(enables, 1); assert.equal(connects, 3);
+    assert.equal($('device-flow').dataset.stage, 'refresh-open');
+    click('System menu is open'); click('I’m back at te-boot');
+    assert.equal($('device-flow').dataset.stage, 'confirm');
+    // Retry retains the computer and goes straight to enabling, without repeating setup questions.
+    click('dev-confirm'); click('Dev menu is open');
     assert.match($('flow-detail').textContent, computer === 'mac' ? /track 2/ : /track 3/);
     click('I see "mtp mode active"');
     assert.equal($('device-flow').dataset.stage, computer === 'mac' ? 'close-field-kit' : 'transfer');
   });
 });
 
-test('recovery skips disabling only when the user confirms the dev menu is already absent', t => {
-  const f = sourceFlow(t, {fake: fakeDevice(), bytes: new Uint8Array(1), hash: ''});
-  f.reachTransfer('windows'); f.$('missing-os-help').onclick(); f.click('recovery-begin');
-  f.click('I’m back at the dev menu'); f.click('Connected and at te-boot'); f.click('menu-no');
-  assert.equal(f.$('flow-title').textContent, 'Reinstall OS 1.2.0 with the dev menu disabled.');
-  assert.equal(f.requests(), 0);
+test('recovery connection and disable failures stay on the same step for retry', async t => {
+  for (const failure of ['connect', 'disable']) await t.test(failure, async t => {
+    let fails = true, disables = 0;
+    for (const [name, replacement] of Object.entries({
+      connect: async () => { if (fails && failure === 'connect') throw new Error('Connection failed'); },
+      disable: async () => { disables++; if (fails && failure === 'disable') throw new Error('Disable failed'); },
+    })) {
+      const original = Session.prototype[name]; Session.prototype[name] = replacement;
+      t.after(() => { Session.prototype[name] = original; });
+    }
+    const f = sourceFlow(t, {fake: fakeDevice(), bytes: new Uint8Array(1), hash: ''});
+    f.reachTransfer('windows'); f.$('missing-os-help').onclick();
+    await f.click('recovery-disable');
+    assert.equal(f.$('device-flow').dataset.stage, 'missing-os');
+    assert.equal(f.$('recovery-downloads').hidden, true);
+    assert.equal(f.$('connection-help').open, true);
+    assert.match(f.$('dev-status').textContent, /failed/);
+    assert.equal(disables, failure === 'connect' ? 0 : 1);
+    fails = false;
+    await f.click('recovery-disable');
+    assert.equal(f.$('device-flow').dataset.stage, 'disabled');
+  });
+});
+
+test('cancelling recovery during connection or disabling cannot advance or send a later command', async t => {
+  for (const pending of ['connect', 'disable']) await t.test(pending, async t => {
+    let finish, started, disables = 0;
+    const reached = new Promise(resolve => { started = resolve; });
+    const blocked = () => { started(); return new Promise(resolve => { finish = resolve; }); };
+    for (const [name, replacement] of Object.entries({
+      connect: async () => { if (pending === 'connect') await blocked(); },
+      disable: async () => { disables++; if (pending === 'disable') await blocked(); },
+    })) {
+      const original = Session.prototype[name]; Session.prototype[name] = replacement;
+      t.after(() => { Session.prototype[name] = original; });
+    }
+    const f = sourceFlow(t, {fake: fakeDevice(), bytes: new Uint8Array(1), hash: ''});
+    f.reachTransfer('windows'); f.$('missing-os-help').onclick();
+    const action = f.$('flow-actions').children.find(b => b.id === 'recovery-disable');
+    const running = action.onclick(); await reached;
+    assert.equal(f.$('flow-actions').children[0].disabled, true);
+    await action.onclick(); // Even a stale handler cannot start a second operation.
+    f.$('dev-cancel').onclick(); finish(); await running;
+    assert.equal(disables, pending === 'connect' ? 0 : 1);
+    assert.equal(f.$('device-flow').dataset.stage, 'missing-os');
+    assert.equal(f.$('recovery-downloads').hidden, true);
+    assert.equal(f.$('flow-actions').children[0].disabled, false);
+  });
 });
 
 test('stopping a Mac read discards it and releases USB before a retry', async t => {
@@ -244,20 +386,25 @@ test('installation links preview the edited steps without a build or device acce
   await action('mtp-read').onclick();
   assert.equal(deviceRequests, 0);
   assert.equal(wizard.previewLink('#preview/source/windows/missing-os'), true);
-  action('recovery-begin').onclick(); action('I’m back at the dev menu').onclick();
-  action('Connected and at te-boot').onclick(); action('menu-yes').onclick();
-  assert.equal(action('dev-connect').disabled, true);
-  await action('dev-connect').onclick();
+  assert.equal(action('recovery-disable').disabled, true);
+  await action('recovery-disable').onclick();
+  assert.equal($('device-flow').dataset.stage, 'missing-os');
+  assert.equal($('recovery-downloads').hidden, true);
   assert.equal(deviceRequests, 0);
   wizard.previewLink('#preview/mac/menu');
   action('menu-no').onclick();
-  assert.equal(action('dev-connect').disabled, true);
-  await action('dev-connect').onclick();
+  assert.equal(action('dev-enable').disabled, true);
+  await action('dev-enable').onclick();
   assert.equal(deviceRequests, 0);
   for (const hash of ['#preview/mac/enable', '#preview/linux/transfer', '#preview/mac/transfer/extra']) {
     assert.equal(wizard.previewLink(hash), false);
-    assert.equal($('device-flow').dataset.stage, 'connect');
+    assert.equal($('device-flow').dataset.stage, 'enable');
   }
+  wizard.previewLink('#preview/mac/restart');
+  assert.equal(action('dev-disable').disabled, true);
+  await action('dev-disable').onclick();
+  assert.equal($('device-flow').dataset.stage, 'restart');
+  assert.equal(deviceRequests, 0);
   $('flow-exit').onclick();
   assert.equal(exits, 1);
   assert.equal($('device-flow').hidden, true);

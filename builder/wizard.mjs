@@ -4,7 +4,7 @@ import * as Visuals from './visuals.mjs';
 import {presetPath, sha256} from './core.mjs';
 
 // Screen state is supplied by the user at the relevant step. Only the explicit
-// Find / Enable / Disable actions access MIDI. On a Mac with WebUSB, explicit
+// Enable / Disable actions access MIDI. On a Mac with WebUSB, explicit
 // read/send actions copy files over USB and release the device afterwards.
 // Otherwise copying is manual. Flashing remains manual.
 export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirmware = async () => false, onPreviewExit = () => {}}) {
@@ -12,8 +12,8 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
   let purpose = null, stage = null, history = [], revision = 0;
   // Set when the OS-copy guide ends in file transfer mode, so the install guide
   // can continue there; `resumed` marks an install guide that started there.
-  let inTransfer = false, resumed = false, transferComputer = null;
-  let computer = null, busy = false, connected = false;
+  let inTransfer = false, resumed = false, transferComputer = null, sourceReadDirectly = false;
+  let computer = null, busy = false;
   let hostPage = 1;
   let previewMode = false, previousComputer = null;
   const previewStages = new Set(['boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit',
@@ -25,6 +25,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
   // Closing finishes before the device is opened again.
   let closing = Promise.resolve();
   let sourceBackupUrl = null;
+  let firmwareState = 'empty';
   function clearSourceBackup() {
     if (sourceBackupUrl) URL.revokeObjectURL(sourceBackupUrl);
     sourceBackupUrl = null; $('source-backup').hidden = true; $('source-backup').removeAttribute('href');
@@ -39,9 +40,16 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     $('dev-status').textContent = message; $('dev-status').dataset.error = String(error);
   };
   const session = new Ferret.Session(options => navigator.requestMIDIAccess(options), () => {
-    connected = false;
-    if (['enable', 'disable'].includes(stage) && !busy) { advance('connect'); status('Connection lost. Find your OP–XY again.', true); }
-  }, 2500, {onProgress: message => { if (stage) status(message); }});
+    if (stage && !busy) status('Connection lost. Select the action again to reconnect.', true);
+  }, 2500, {
+    onProgress: message => { if (stage) status(message); },
+    onPorts: ports => {
+      $('midi-ports').textContent = Object.entries(ports).map(([direction, list]) =>
+        direction.toUpperCase() + '\n' + (list.length ? list.map(port =>
+          `${port.name} · ${port.manufacturer} · ${port.state} / ${port.connection}`).join('\n') : '(none)')).join('\n\n');
+      $('midi-diagnostics').hidden = false;
+    },
+  });
   window.addEventListener('pagehide', () => { session.close(); release(); clearSourceBackup(); });
   const action = (label, next, id) => ({label, next, id});
   function content() {
@@ -68,33 +76,31 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
         'Power off your OP–XY.', 'Hold COM while switching it on.',
         'Release COM when the te-boot menu appears.', 'Connect it to this computer with USB.',
       ]],
-      menu: ['Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', [action('No, it’s missing', disabling ? 'disabled' : 'connect', 'menu-no'), action('Yes, I see it', disabling ? 'connect' : transfer, 'menu-yes')]],
-      connect: ['Connect your OP–XY.', 'When you select Find OP–XY, allow MIDI access if prompted.', [action('Find OP–XY', null, 'dev-connect')], [
-        'Connect your OP–XY to this computer with a USB-C data cable.',
-        'Open this site in a desktop browser with Web MIDI and WebUSB, such as Chrome or Edge.',
-        'Keep your OP–XY on the te-boot menu.',
+      menu: ['Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', [action('No, it’s missing', 'enable', 'menu-no'), action('Yes, I see it', transfer, 'menu-yes')]],
+      enable: ['Enable the dev menu.', 'Connect and enable in one step. Allow MIDI access if prompted; this does not change the OS.', [action(busy ? 'Enabling…' : 'Connect and enable dev menu', null, 'dev-enable')], [
+        'Keep USB connected and your OP–XY at te-boot. If you restarted after an update, hold COM while switching it on to return there.',
       ]],
-      enable: ['Enable the dev menu.', 'Your OP–XY is connected. This enables the menu; it does not change the OS.', [action('Enable dev menu', null, 'dev-enable')]],
-      disable: ['Disable the dev menu.', 'This hides the dev menu. It does not uninstall your machines or restore the original OS.', [action('Disable dev menu', null, 'dev-disable')]],
       'refresh-open': ['Open the system menu.', 'On your OP–XY, press track 8 for "8. system menu".', [action('System menu is open', 'refresh-return')]],
       'refresh-return': ['Return to te-boot.', 'Press track 8 for "8. back" to refresh the te-boot menu.', [action('I’m back at te-boot', 'confirm')]],
-      confirm: [disabling ? 'Has "3. dev menu" disappeared?' : 'Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', disabling ? [action('It’s gone', 'disabled', 'dev-confirm'), action('It’s still there', 'disable-help')] : [action('Yes, I see it', transfer, 'dev-confirm'), action('No, it’s still missing', 'menu-help')]],
-      'menu-help': ['The dev menu is still missing.', 'Stay on te-boot. Retry the connection or use Connection help below.', [action('Try connecting again', 'connect'), action('Refresh the screen again', 'refresh-open')]],
-      'disable-help': ['The dev menu is still visible.', 'Stay on te-boot. Reconnect to try again, or refresh the screen once more.', [action('Try connecting again', 'connect'), action('Refresh the screen again', 'refresh-open')]],
-      disabled: recovering ? ['Reinstall OS 1.2.0 with the dev menu disabled.',
-        'Keep the dev menu disabled until the official OS 1.2.0 installation has finished. Reinstall 1.2.0 even if your OP–XY already reports that version.',
+      confirm: ['Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', [action('Yes, I see it', transfer, 'dev-confirm'), action('No, it’s still missing', 'menu-help')]],
+      'menu-help': ['The dev menu is still missing.', 'Keep your OP–XY at te-boot and retry enabling it, or use Connection help below.', [action(busy ? 'Enabling…' : 'Retry enabling dev menu', null, 'dev-enable'), action('Refresh the screen again', 'refresh-open')]],
+      disabled: recovering ? ['Power cycle and reinstall OS 1.2.0.',
+        'The disable command was sent. Reinstall the official OS 1.2.0, even if your OP–XY already reports that version.',
         [action('1.2.0 reinstalled · Try again', null, 'recovery-retry')],
-        ['Use teenage engineering’s official OP–XY OS 1.2.0 update file and normal firmware update procedure.',
+        ['Switch your OP–XY off, then hold COM while switching it back on.',
+          'Check that “3. dev menu” is gone. If it is still visible, use Disable dev menu again below before installing.',
+          'Download OS 1.2.0 below. Press track 1 for “upload firmware”, then copy the .tfw file to the removable disk and safely eject it.',
           'Wait for the update to finish before returning here. We’ll guide you through enabling the dev menu again to retrieve os.ldr.']]
-        : ['Dev menu hidden.', 'Use the OS file guide to enable it again when you need it.', [action('Done', 'exit')]],
+        : ['Power cycle to finish.', 'The disable command was sent. It does not uninstall your machines or restore the original OS.',
+          [action('Dev menu is gone · Done', 'exit'), action(busy ? 'Disabling…' : 'Still visible · Disable again', null, 'dev-disable')],
+          ['Switch off, then hold COM while switching on to check that “3. dev menu” is gone.',
+            'Once it is gone, restart without holding COM to use your OP–XY.']],
       'missing-os': ['Restore the missing OS file.',
         'A factory reset or initialization can occasionally remove the original os.ldr. Reinstalling OS 1.2.0 with the dev menu disabled restores the file.',
-        [action('Help me disable the dev menu', null, 'recovery-begin')],
-        ['Leave file transfer mode.', 'Disable the dev menu and confirm it is no longer visible.',
-          'Reinstall the official OS 1.2.0, then return here to try again.']],
-      'recovery-exit': ['Leave file transfer mode.',
-        'Wait for any transfer to finish. Close ' + (computer === 'mac' ? 'Field Kit, OpenMTP and Android File Transfer' : 'any File Explorer windows showing your OP–XY') + ', then press track 2 for "2. exit" on your OP–XY.',
-        [action('I’m back at the dev menu', 'boot')]],
+        [action(busy ? 'Disabling…' : 'Disable dev menu', null, 'recovery-disable')],
+        ['Wait for any transfer to finish. Close ' + (computer === 'mac' ? 'Field Kit, OpenMTP and Android File Transfer.' : 'any File Explorer windows showing your OP–XY.'),
+          'Press track 2 for “2. exit” to leave file transfer mode. Keep USB connected.',
+          'Select Disable dev menu and allow MIDI access if prompted. Then we’ll show you how to power cycle and reinstall OS 1.2.0.']],
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". Your OP–XY calls this screen "factory menu".', [action('Dev menu is open', 'start-transfer')]],
       'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', sendsDirectly() ? 'close-field-kit' : 'transfer')]],
@@ -107,12 +113,14 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
         delivered ? [action('Files sent · Continue', 'exit-transfer')]
           : [action(busy ? 'Sending…' : log.length ? 'Try again' : 'Send to OP–XY', null, 'mtp-send'),
             ...(busy ? [] : [action('Copy them myself instead', null, 'mtp-manual')]), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])]] :
-      [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? stillInTransfer : 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
+      [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? stillInTransfer : 'Keep your device’s other content in place.', [action(install ? 'All files copied · Continue' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
       'exit-transfer': ['Exit file transfer.', 'Once every file has finished copying, press track 2 for "2. exit" to return to the dev menu (titled "factory menu" on your OP–XY).', [action('I’m back at the dev menu', 'write-os')]],
       'write-os': ['Write the OS.', 'Press track 5 for "5. write os to boot partition". Keep your OP–XY connected to power.', [action('I pressed track 5', 'write-result')]],
       'write-result': ['Wait for the write result.', 'Don’t power off while writing. When "firmware written ok!" appears under "looking for /os.ldr", it’s safe to power cycle your OP–XY.', [action('I see "firmware written ok!"', 'restart'), action('I see something else', 'write-help')]],
       'write-help': ['Check the message on your OP–XY.', 'If it stops at "looking for /os.ldr" without "firmware written ok!", os.ldr isn’t at the device’s top level. For any other message, stop here and investigate it before power cycling.', [action('Return to the write status', 'write-result')]],
-      restart: ['Power cycle your OP–XY.', 'It’s safe now. Switch it off, then on again without holding COM. Then check your selected machines on the device.', [action('Device restarted · Done', 'exit'), action('Disable dev menu', null, 'disable-menu-after-install')]],
+      restart: ['Power cycle your OP–XY.', 'It’s safe now. Switch it off, then on again without holding COM. Then check your selected machines on the device.',
+        [action('Device restarted · Done', 'exit'), action(busy ? 'Disabling…' : 'Disable dev menu', null, 'dev-disable')],
+        ['Optional: to hide the dev menu, select Disable dev menu before restarting. If you already restarted, hold COM while switching on to return to te-boot first.']],
     }[stage];
   }
   function render(focus = false) {
@@ -134,7 +142,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       const path = presetPath(m);
       if (path) files.push(path);
     });
-    const visual = Visuals.guide(stage === 'recovery-exit' ? 'exit-transfer' : stage, {install, computer, files, disabling: isDisabling()});
+    const visual = Visuals.guide(stage, {install, computer, files, disabling: isDisabling()});
     $('flow-visual').replaceChildren(visual);
     $('flow-file-details').hidden = stage !== 'transfer';
     if (focus) $('flow-file-details').open = false;
@@ -145,7 +153,9 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       span.textContent = text; li.append(span); return li;
     }));
     $('flow-instructions').hidden = !instructions.length;
+    $('flow-copy-reminder').hidden = !install || stage !== 'transfer' || sendsDirectly();
     $('flow-install-reminder').hidden = !install || !['transfer', 'exit-transfer', 'write-os'].includes(stage);
+    $('recovery-downloads').hidden = purpose !== 'recover' || stage !== 'disabled';
     $('flow-missing-os').hidden = purpose !== 'source' || stage !== 'transfer';
     $('missing-os-help').disabled = busy;
     const visibleActions = previewMode && purpose === 'install' && stage === 'transfer'
@@ -154,27 +164,19 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       const button = document.createElement('button');
       button.type = 'button'; button.textContent = a.label; button.className = i === 0 ? 'primary' : 'secondary';
       if (a.id) button.id = a.id;
-      button.disabled = busy || (a.id === 'dev-connect' && !supported()) ||
-        (previewMode && ['mtp-send', 'mtp-read', 'dev-connect', 'dev-enable', 'dev-disable', 'disable-menu-after-install'].includes(a.id));
+      button.disabled = busy || (['dev-enable', 'dev-disable', 'recovery-disable'].includes(a.id) && !supported()) ||
+        (previewMode && ['mtp-send', 'mtp-read', 'dev-enable', 'dev-disable', 'recovery-disable'].includes(a.id));
       button.onclick = () => {
-        if (['dev-connect', 'dev-enable', 'dev-disable'].includes(a.id)) return deviceAction(a.id);
-        if (a.id === 'disable-menu-after-install') return begin('disable', 3);
-        if (a.id === 'recovery-begin') {
-          if (busy) return;
-          revision++; session.close(); release(); connected = false;
-          purpose = 'recover'; inTransfer = resumed = false; transferComputer = null;
-          history = []; stage = null; clearSourceBackup();
-          return advance('recovery-exit');
-        }
+        if (['dev-enable', 'dev-disable', 'recovery-disable'].includes(a.id)) return deviceAction(a.id);
         if (a.id === 'recovery-retry') {
           if (busy || purpose !== 'recover' || stage !== 'disabled') return;
           purpose = 'source'; manual = false; history = []; stage = null;
-          return advance('boot');
+          return advance('enable');
         }
         if (a.id === 'mtp-send') return sendBuild();
         if (a.id === 'mtp-read') return readOriginal();
-        if (a.id === 'mtp-manual') { manual = true; release(); status(); return render(true); }
-        if (a.id === 'flow-restart') { inTransfer = resumed = false; history = []; stage = null; }
+        if (a.id === 'mtp-manual') { manual = true; sourceReadDirectly = false; release(); status(); return render(true); }
+        if (a.id === 'flow-restart') { inTransfer = resumed = sourceReadDirectly = false; history = []; stage = null; }
         if (a.id?.startsWith('computer-')) computer = a.id.slice(9);
         advance(a.next);
       };
@@ -183,20 +185,20 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     renderDirect();
     $('dev-cancel').hidden = !busy;
     $('dev-cancel').textContent = purpose === 'source' && direct() ? 'Stop reading' : sending ? 'Stop sending' : 'Cancel connection';
-    $('flow-back').hidden = !history.length || ['write-os', 'write-result', 'write-help'].includes(stage);
+    $('flow-back').hidden = !history.length || ['write-os', 'write-result', 'write-help', 'disabled'].includes(stage);
     $('flow-back').disabled = $('flow-exit').disabled = busy;
     $('flow-exit').textContent = previewMode ? 'Back to builder' : hostPage === 1 ? 'Back to file choice' : 'Back to install choice';
     $('flow-download').hidden = previewMode || hostPage !== 3 || !hasDownload() || sendsDirectly();
-    $('connection-help').hidden = !['connect', 'menu-help', 'disable-help'].includes(stage);
-    if (stage === 'connect' && !supported()) status('MIDI access is unavailable in this browser. Use Connection help below.', true);
+    $('connection-help').hidden = !['enable', 'menu-help', 'missing-os', 'restart', 'disabled'].includes(stage);
+    if (['enable', 'menu-help', 'missing-os', 'restart', 'disabled'].includes(stage) && !supported()) status('MIDI access is unavailable in this browser. Use Connection help below.', true);
     if (focus) { $('flow-title').focus(); Visuals.reveal($('device-flow')); }
   }
   function advance(next) {
     if (busy) return;
-    if (next === 'files') { inTransfer = purpose === 'source' && stage === 'transfer'; transferComputer = computer; return showFiles(); }
-    if (next === 'write-os') inTransfer = resumed = false;
+    if (next === 'files') { inTransfer = purpose === 'source' && stage === 'transfer'; sourceReadDirectly = false; transferComputer = computer; return showFiles(); }
+    if (next === 'write-os') inTransfer = resumed = sourceReadDirectly = false;
     if (next === 'exit') return exit();
-    if (['computer', 'open-dev-menu', 'transfer', 'disabled'].includes(next)) { connected = false; session.close(); }
+    session.close();
     release();
     if (stage) history.push(stage);
     stage = next; status(); render(true);
@@ -213,14 +215,14 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     $('device-flow').hidden = false;
     // Resume only in the transfer mode the device is already in.
     resumed = !previewMode && purpose === 'install' && inTransfer && !!computer && computer === transferComputer;
-    advance(preview?.stage ?? (purpose === 'source' ? 'version' : !resumed ? 'boot' : sendsDirectly() ? 'close-field-kit' : 'transfer'));
+    advance(preview?.stage ?? (purpose === 'source' ? 'version' : !resumed ? 'boot' : sendsDirectly() && !sourceReadDirectly ? 'close-field-kit' : 'transfer'));
   }
   function exit(focus = true) {
     const previous = purpose, wasPreview = previewMode;
     previewMode = false;
     if (wasPreview) computer = previousComputer;
     revision++; stage = purpose = null; history = [];
-    busy = connected = false; session.close(); release(); status();
+    busy = false; session.close(); release(); status();
     $('device-flow').hidden = true;
     $('download-overview').hidden = $('download-actions').hidden = false;
     if (previous && (hostPage === 1 || wasPreview)) { $('source-start').hidden = !computer; $('computer-choice').hidden = !!computer; }
@@ -230,33 +232,54 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       Visuals.reveal($(hostPage === 1 ? 'source-start' : 'download-overview'));
     }
   }
-  // After an OS read from the device there is nothing to choose: show the result
-  // and the backup link instead of the drop zone.
+  function setFirmwareState(state) {
+    firmwareState = state;
+    const loaded = state === 'loaded', checking = state === 'checking';
+    $('firmware-result').dataset.state = state;
+    $('firmware-drop').hidden = $('files-note').hidden = loaded || checking;
+    $('firmware-replace').hidden = !loaded;
+    $('files-title').textContent = loaded ? 'OS file loaded.' : checking ? 'Checking your OS file…' : 'Choose your OS file.';
+  }
+  // Verified uploads and device reads share a completed state, including on return.
   function showFiles(fromDevice = false) {
     exit(false); $('source-start').hidden = true;
     $('file-panel').hidden = $('file-actions').hidden = false;
-    $('firmware-drop').hidden = $('files-note').hidden = fromDevice;
-    $('files-title').textContent = fromDevice ? 'Original OS loaded from your OP–XY.' : 'Choose your OS file.';
-    (fromDevice ? $('files-title') : $('firmware')).focus();
+    setFirmwareState(fromDevice ? 'loaded' : firmwareState);
+    if (fromDevice) $('files-title').textContent = 'Original OS loaded from your OP–XY.';
+    (firmwareState === 'empty' ? $('firmware') : $('files-title')).focus();
     Visuals.reveal($('file-panel'));
   }
   async function deviceAction(id) {
-    if (previewMode) return;
-    const targetStage = id === 'dev-disable' ? 'disable' : 'enable';
-    if (busy || (id === 'dev-connect' ? stage !== 'connect' : stage !== targetStage || !connected)) return;
-    const ticket = revision;
-    busy = true; render(); status(id === 'dev-connect' ? 'Finding OP–XY…' : id === 'dev-disable' ? 'Disabling dev menu…' : 'Enabling dev menu…');
+    if (previewMode || busy || !supported()) return;
+    const enabling = id === 'dev-enable', recovering = id === 'recovery-disable';
+    const allowed = enabling ? ['source', 'install'].includes(purpose) && ['enable', 'menu-help'].includes(stage)
+      : recovering ? ['source', 'recover'].includes(purpose) && stage === 'missing-os'
+      : id === 'dev-disable' && ((purpose === 'install' && stage === 'restart') || (purpose === 'disable' && stage === 'disabled'));
+    if (!allowed) return;
+    const ticket = ++revision;
+    session.close(); release();
+    if (recovering) {
+      clearSourceBackup(); purpose = 'recover';
+      inTransfer = resumed = sourceReadDirectly = false; transferComputer = null; history = [];
+    }
+    busy = true;
+    $('midi-diagnostics').hidden = true; $('midi-ports').textContent = '';
+    render(); status(enabling ? 'Connecting to enable the dev menu…' : 'Connecting to disable the dev menu…');
     try {
-      if (id === 'dev-connect') await session.connect();
-      else if (id === 'dev-disable') await session.disable();
-      else await session.enable();
+      await closing;
       if (ticket !== revision) return;
-      connected = true; busy = false; advance(id === 'dev-connect' ? (isDisabling() ? 'disable' : 'enable') : 'refresh-open');
+      await session.connect();
+      if (ticket !== revision) return;
+      status(enabling ? 'Enabling dev menu…' : 'Disabling dev menu…');
+      if (enabling) await session.enable(); else await session.disable();
+      if (ticket !== revision) return;
+      if (!enabling && !recovering) purpose = 'disable';
+      busy = false; advance(enabling ? 'refresh-open' : 'disabled');
     } catch (error) {
       if (ticket !== revision) return;
-      busy = connected = false;
-      if (stage !== 'connect') advance('connect'); else render();
+      busy = false; session.close(); render();
       status(error.message || String(error), true);
+      $('connection-help').open = true;
     }
   }
   const size = n => n < 1024 ? n + ' bytes' : n < 1024 ** 2 ? (n / 1024).toFixed(1) + ' KiB' : (n / 1024 ** 2).toFixed(1) + ' MiB';
@@ -376,7 +399,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
         if (ticket !== revision) return;
         clearSourceBackup(); sourceBackupUrl = URL.createObjectURL(file);
         $('source-backup').href = sourceBackupUrl; $('source-backup').hidden = false;
-        inTransfer = true; transferComputer = computer;
+        inTransfer = sourceReadDirectly = true; transferComputer = computer;
         busy = false; sending = null; showFiles(true);
         return;
       } catch (error) { if (ticket === revision) { note(error.message, 'error'); status(error.message, true); } }
@@ -392,23 +415,30 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       : 'Direct USB access is unavailable. Download the ZIP and copy it manually.';
   }
   $('dev-cancel').onclick = () => {
-    const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending, reading = purpose === 'source' && direct();
-    revision++; busy = connected = false; session.close(); stopSending();
+    const stopped = !!sending, reading = purpose === 'source' && direct();
+    revision++; busy = false; session.close(); stopSending();
     if (reading) { log.push({text: 'Reading stopped. No device files were changed.', kind: 'error'}); render(); status('Select Try again to read the OS again.'); return; }
     if (stopped) log.push({text: 'Stopped by you. Files already sent stay on your OP–XY.', kind: 'error'});
-    if (enabling) advance('menu'); else { render(); status(stopped ? 'Sending stopped. Select Try again to send every file again.' : 'Connection cancelled.'); }
+    render(); status(stopped ? 'Sending stopped. Select Try again to send every file again.' : 'Connection cancelled.');
   };
   $('flow-back').onclick = () => {
     if (busy || !history.length) return;
-    revision++; session.close(); release(); connected = false;
-    stage = history.pop(); if (['enable', 'disable'].includes(stage)) stage = 'connect';
+    revision++; session.close(); release();
+    stage = history.pop();
     status(); render(true);
   };
   $('flow-exit').onclick = () => exit();
   $('source-local').onclick = () => showFiles();
+  $('firmware-replace').onclick = () => {
+    if (firmwareState !== 'loaded') return;
+    $('firmware').value = ''; $('firmware').click();
+  };
   $('source-device').onclick = () => begin('source');
   $('missing-os-help').onclick = () => {
     if (!busy && purpose === 'source' && stage === 'transfer') advance('missing-os');
+  };
+  $('recovery-disable-again').onclick = () => {
+    if (!busy && purpose === 'recover' && stage === 'disabled') advance('missing-os');
   };
   for (const name of ['mac', 'windows']) $('source-' + name).onclick = () => {
     computer = name; manual = false;
@@ -448,6 +478,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
   $('download').onclick = event => chooseRoute('windows', event);
   return {
     clearSourceBackup,
+    setFirmwareState,
     previewLink(hash) {
       const match = /^#preview\/(source\/)?(mac|windows)\/([a-z-]+)$/.exec(hash);
       if (busy || !match || !(match[1] ? sourcePreviewStages : previewStages).has(match[3])) return false;

@@ -104,6 +104,8 @@ main { display:grid; grid-template-columns:230px minmax(0,1fr); gap:24px; max-wi
 .drop strong { font-size:16px; font-weight:400; }
 .drop>span:not(.file-icon) { color:var(--muted); font-size:13px; }
 .file-result { font:12px/1.7 Consolas,monospace; margin:14px 0 24px; overflow-wrap:anywhere; }
+.file-result[data-state="loaded"] { padding:18px; border:1px solid #73f59b; border-radius:7px; background:#10251a; color:#dcf5e3; font:15px/1.6 Arial,Helvetica,sans-serif; }
+#firmware-replace { display:inline-flex; margin:0 0 16px; }
 .file-pair { display:grid; gap:18px; }
 .file-button { position:relative; display:inline-flex; padding:10px 16px; border:1px solid var(--line); border-radius:7px; min-height:44px; }
 details { font-size:12px; margin:20px 0; }
@@ -193,10 +195,12 @@ details input { max-width:100%; }
 .flow-copy #flow-detail { margin:0; }
 .flow-copy .flow-actions { justify-content:flex-start; margin-top:20px; }
 .flow-copy .instruction-list { margin:18px 0; padding-left:18px; gap:8px; font-size:13px; }
-.install-reminder { margin:20px 0; padding:18px; border:1px solid #ffd45c; border-radius:8px; background:#2b2411; box-shadow:0 0 20px #ffd45c30,inset 0 0 16px #ffd45c0d; }
-.install-reminder h3 { margin:0 0 10px; color:#ffe083; font-size:20px; text-shadow:0 0 14px #ffd45c66; }
-.install-reminder p { margin:10px 0 0; color:#fff0c2; font-size:13px; line-height:1.6; }
+.install-reminder { margin:12px 0; padding:12px; border:1px solid #ffd45c; border-radius:8px; background:#2b2411; box-shadow:0 0 20px #ffd45c30,inset 0 0 16px #ffd45c0d; }
+.install-reminder h3 { margin:0 0 6px; color:#ffe083; font-size:15px; font-weight:600; text-shadow:0 0 14px #ffd45c66; }
+.install-reminder p { margin:6px 0 0; color:#fff0c2; font-size:12px; line-height:1.45; }
+.install-reminder code { font-size:inherit; }
 .install-reminder button { margin-top:14px; white-space:normal; }
+#missing-os-help { --accent:#ffd45c; --accent-ink:#241c08; --accent-hover:#ffe083; max-width:100%; font-weight:600; }
 #flow-files .copy-guide { gap:10px; grid-template-columns:minmax(0,1fr) 15px minmax(0,1fr); margin:20px 0 0; }
 #flow-files .copy-tree { padding:12px; border-radius:6px; }
 #flow-files .copy-tree>svg { display:none; }
@@ -223,6 +227,7 @@ details input { max-width:100%; }
 #dev-status { max-width:600px; margin:22px auto 0; font-size:13px; }
 #dev-status:empty { display:none; }
 #connection-help { max-width:600px; text-align:left; margin:24px auto; }
+#midi-ports { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
 .attribution { font-size:11px; }
 /* The same original SVG is used for the source, boot and connection steps. */
 .device-body { fill:#181818; stroke:#737373; stroke-width:1.3; }
