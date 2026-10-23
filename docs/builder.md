@@ -124,7 +124,15 @@ npm run deploy:cloudflare
 ```
 
 The deploy rebuilds in release mode, fails without a valid collection, and
-uploads only the release directory. To add a custom domain, make its parent an
+uploads only the release directory.
+
+The `beta` environment deploys the `staging` branch to `beta.open-xy.com` as a
+separate `open-xy-beta` site. Merge work into `staging`, deploy it from a
+`staging` checkout with `npm run deploy:beta`, then open a pull request from
+`staging` to `main` and deploy production from `main`. Both commands need a
+fresh `OPEN_XY_OUT_DIR`.
+
+To add a custom domain, make its parent an
 active Cloudflare zone, then use **Workers & Pages → open-xy → Settings →
 Domains & Routes → Add → Custom Domain**; see the
 [custom-domain guide](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
