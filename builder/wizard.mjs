@@ -4,10 +4,10 @@ import * as Visuals from './visuals.mjs';
 import {presetPath} from './core.mjs';
 
 // Screen state is supplied by the user at the relevant step. Only the explicit
-// Find / Enable / Disable actions access MIDI. On a Mac, the transfer step can
-// also send chosen files to the top level over USB, opening the device only
-// while sending. Flashing remains manual.
-export function createWizard({getKit, getSelected, hasDownload}) {
+// Find / Enable / Disable actions access MIDI. On a Mac with WebUSB, Send to
+// OP–XY copies the build over USB, opening the device only while sending;
+// otherwise copying is manual. Flashing remains manual.
+export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
   const $ = id => document.getElementById(id);
   let purpose = null, stage = null, history = [], revision = 0;
   // Set when the OS-copy guide ends in file transfer mode, so the install guide
@@ -15,12 +15,13 @@ export function createWizard({getKit, getSelected, hasDownload}) {
   let inTransfer = false, resumed = false;
   let computer = null, busy = false, connected = false;
   let hostPage = 1;
-  // Sending from this page: the chosen device, the file being sent, a pending
-  // replace question and what this step has sent so far.
-  let mtp = null, sending = null, asking = null, sent = [];
-  const stopSending = () => { asking?.resolve(false); asking = sending = null; mtp?.close(); };
-  const release = () => { stopSending(); mtp = null; sent = []; };
-  const direct = () => stage === 'transfer' && purpose === 'install' && computer === 'mac' && Mtp.supported();
+  // Installing from this page: the chosen device, progress through the build,
+  // and whether every file arrived. `manual` means the user chose to copy.
+  let mtp = null, sending = null, sent = [], delivered = false, manual = false, downloaded = false;
+  const stopSending = () => { sending = null; mtp?.close(); };
+  const release = () => { stopSending(); mtp = null; sent = []; delivered = false; };
+  const sendsDirectly = () => computer === 'mac' && Mtp.supported() && !manual;
+  const direct = () => stage === 'transfer' && purpose === 'install' && sendsDirectly();
   const supported = () => globalThis.isSecureContext && !!navigator.requestMIDIAccess;
   const status = (message = '', error = false) => {
     $('dev-status').textContent = message; $('dev-status').dataset.error = String(error);
@@ -38,7 +39,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
       computer === 'mac' ? 'Open your MTP file-transfer app.' : 'Open your OP–XY in File Explorer.',
     ];
     if (install) {
-      transferSteps.push('Extract the ZIP you just downloaded.',
+      transferSteps.push(downloaded ? 'Extract the ZIP you just downloaded.' : 'Select Download ZIP below, then extract the ZIP.',
         'Drag everything from the extracted ZIP to your OP–XY’s root folder.',
         'Confirm when asked to replace files.');
       transferSteps.push('Wait until every file has finished copying.');
@@ -71,7 +72,12 @@ export function createWizard({getKit, getSelected, hasDownload}) {
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". The next screen is titled "factory menu".', [action('Factory menu is open', 'start-transfer')]],
       'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', 'transfer')]],
-      transfer: [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
+      transfer: install && sendsDirectly() ? ['Send the files to your OP–XY.',
+        resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Quit Field Kit, OpenMTP or Android File Transfer first. Your device’s other content stays in place.',
+        delivered ? [action('Files sent · Continue', 'exit-transfer')]
+          : [action(busy ? 'Sending…' : sent.length ? 'Try again' : 'Send to OP–XY', null, 'mtp-send'),
+            ...(busy ? [] : [action('Copy them myself instead', null, 'mtp-manual')]), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])]] :
+      [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? 'Your OP–XY should still be in file transfer mode from copying the OS file. If it isn’t, start from the beginning.' : 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
       'exit-transfer': ['Exit file transfer.', 'Once every file has finished copying, press track 2 for "2. exit".', [action('I’m back at the factory menu', 'write-os')]],
       'write-os': ['Write the OS.', 'Press track 5 for "5. write os to boot partition". Keep your OP–XY connected to power.', [action('I pressed track 5', 'write-result')]],
       'write-result': ['Wait for the write result.', 'Do not restart while writing. Wait for "firmware written ok" on your OP–XY.', [action('I see "firmware written ok"', 'restart'), action('I see an error', 'write-help')]],
@@ -100,7 +106,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     $('flow-visual').replaceChildren(visual);
     $('flow-file-details').hidden = stage !== 'transfer';
     if (focus) $('flow-file-details').open = false;
-    $('flow-files').replaceChildren(...(stage === 'transfer' ? [Visuals.fileMap(install, files)] : []));
+    $('flow-files').replaceChildren(...(stage === 'transfer' ? [Visuals.fileMap(install, files, install && sendsDirectly())] : []));
     $('flow-detail').textContent = detail; $('flow-detail').hidden = !detail;
     $('flow-instructions').replaceChildren(...instructions.map(text => {
       const li = document.createElement('li'), span = document.createElement('span');
@@ -115,6 +121,8 @@ export function createWizard({getKit, getSelected, hasDownload}) {
       button.onclick = () => {
         if (['dev-connect', 'dev-enable', 'dev-disable'].includes(a.id)) return deviceAction(a.id);
         if (a.id === 'disable-menu-after-install') return begin('disable', 3);
+        if (a.id === 'mtp-send') return sendBuild();
+        if (a.id === 'mtp-manual') { manual = true; release(); status(); return render(true); }
         if (a.id === 'flow-restart') { inTransfer = resumed = false; history = []; stage = null; }
         if (a.id?.startsWith('computer-')) computer = a.id.slice(9);
         advance(a.next);
@@ -126,8 +134,8 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     $('dev-cancel').textContent = sending ? 'Stop sending' : 'Cancel connection';
     $('flow-back').hidden = !history.length || ['write-os', 'write-result', 'write-help'].includes(stage);
     $('flow-back').disabled = $('flow-exit').disabled = busy;
-    $('flow-exit').textContent = hostPage === 1 ? 'Back to file choice' : 'Back to download';
-    $('flow-download').hidden = hostPage !== 3 || !hasDownload();
+    $('flow-exit').textContent = hostPage === 1 ? 'Back to file choice' : 'Back to install choice';
+    $('flow-download').hidden = hostPage !== 3 || !hasDownload() || sendsDirectly();
     $('connection-help').hidden = !['connect', 'menu-help', 'disable-help'].includes(stage);
     if (stage === 'connect' && !supported()) status('MIDI access is unavailable in this browser. Use Connection help below.', true);
     if (focus) { $('flow-title').focus(); Visuals.reveal($('device-flow')); }
@@ -189,76 +197,67 @@ export function createWizard({getKit, getSelected, hasDownload}) {
   const size = n => n < 1024 ? n + ' bytes' : n < 1024 ** 2 ? (n / 1024).toFixed(1) + ' KiB' : (n / 1024 ** 2).toFixed(1) + ' MiB';
   function showProgress() {
     if (!sending) return;
-    $('mtp-bar').style.width = sending.done * 100 + '%';
-    $('mtp-progress').textContent = `${sending.name} · ${size(Math.round(sending.done * sending.size))} of ${size(sending.size)}`;
+    const {path, index, count, done, total} = sending;
+    $('mtp-bar').style.width = done / total * 100 + '%';
+    $('mtp-progress').textContent = `File ${index + 1} of ${count} · ${path} · ${size(done)} of ${size(total)}`;
   }
   function renderDirect() {
-    $('mtp-panel').hidden = !direct();
-    $('mtp-connect-row').hidden = !!mtp;
-    $('mtp-connect').disabled = busy;
-    $('mtp-drop').hidden = !mtp || busy;
-    $('mtp-sending').hidden = !sending || !!asking;
-    $('mtp-replace').hidden = !asking;
-    if (asking) $('mtp-replace-text').textContent = asking.name + ' is already on your OP–XY.';
+    $('mtp-panel').hidden = !direct() || (!sending && !sent.length);
+    $('mtp-sending').hidden = !sending;
     $('mtp-sent').hidden = !sent.length;
-    $('mtp-sent').replaceChildren(...sent.map(({name, kept}) => {
-      const li = document.createElement('li');
-      li.textContent = kept ? 'Kept the existing ' + name : '✓ ' + name;
-      li.dataset.kept = String(kept); return li;
+    $('mtp-sent').replaceChildren(...sent.map(path => {
+      const li = document.createElement('li'); li.textContent = '✓ ' + path; return li;
     }));
     showProgress();
   }
+  // Content first and the OS last, so os.ldr on the device means the copy finished.
+  const order = path => path === 'os.ldr' ? 2 : path.startsWith('content/') ? 0 : 1;
   // The chooser needs the click's user activation, so request before any await.
-  async function connectTransfer() {
+  // The device is open only while sending, so other apps can use it in between.
+  async function sendBuild() {
     if (busy || !direct()) return;
-    const ticket = revision, request = Mtp.Device.request();
-    busy = true; render(); status('Choose your OP–XY when your browser asks…');
+    const ticket = revision, request = mtp ? Promise.resolve(mtp) : Mtp.Device.request();
+    const files = Object.entries(getFiles() ?? {}).sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b));
+    const total = files.reduce((n, [, bytes]) => n + bytes.length, 0);
+    busy = true; sent = []; render(); status(mtp ? '' : 'Choose your OP–XY when your browser asks…');
+    let device;
     try {
-      const device = await request;
+      device = mtp = await request;
       if (ticket !== revision) return;
-      mtp = device; busy = false; render(); status();
-    } catch (error) {
-      if (ticket !== revision) return;
-      busy = false; render();
-      status(error.name === 'NotFoundError' ? 'No OP–XY chosen.' : error.message || String(error), true);
-    }
-  }
-  // Opens the device only while sending, so other apps can use it in between.
-  async function sendFiles(files) {
-    if (busy || !direct() || !mtp || !files.length) return;
-    const ticket = revision, device = mtp;
-    busy = true; status();
-    try {
-      await device.open();
-      for (const file of files) {
-        sending = {name: file.name, size: file.size, done: 0}; render();
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const replaced = await device.sendToRoot(file.name, bytes, {
-          replace: name => new Promise(resolve => { asking = {name, resolve}; render(); $('mtp-replace-yes').focus(); }),
-          onProgress: done => { if (ticket === revision && sending) { sending.done = done; showProgress(); } },
-        });
+      status(); await device.open();
+      let before = 0;
+      for (const [index, [path, bytes]] of files.entries()) {
+        sending = {path, index, count: files.length, done: before, total}; render();
+        await device.send(path, bytes, {replace: async () => true, onProgress: part => {
+          if (ticket === revision && sending) { sending.done = before + part * bytes.length; showProgress(); }
+        }});
         if (ticket !== revision) return;
-        sent.push({name: file.name, kept: !replaced});
+        before += bytes.length; sent.push(path);
       }
+      delivered = true;
+      status(`✓ All ${files.length} files are on your OP–XY.`);
     } catch (error) {
-      if (ticket === revision) status(error.message || String(error), true);
+      if (ticket !== revision) return;
+      status(error.name === 'NotFoundError' ? 'No OP–XY chosen.' : error.message || String(error), true);
     } finally {
-      await device.close();
-      if (ticket === revision) { busy = false; sending = asking = null; render(); }
+      await device?.close();
+      if (ticket === revision) { busy = false; sending = null; render(); }
     }
   }
-  const answer = value => { const question = asking; asking = null; question?.resolve(value); render(); };
-  $('mtp-replace-yes').onclick = () => answer(true);
-  $('mtp-replace-no').onclick = () => answer(false);
-  $('mtp-connect').onclick = connectTransfer;
-  $('mtp-file').onchange = event => { const files = [...event.target.files]; event.target.value = ''; sendFiles(files); };
-  const drop = $('mtp-drop');
-  for (const type of ['dragover', 'dragleave', 'drop']) drop.addEventListener(type, event => {
-    event.preventDefault(); drop.dataset.drag = String(type === 'dragover');
-    if (type === 'drop') sendFiles([...event.dataTransfer.files]);
-  });
+  function renderRoute() {
+    const chosen = computer, direct = sendsDirectly();
+    for (const name of ['mac', 'windows']) $('route-' + name).setAttribute('aria-pressed', String(chosen === name));
+    $('install-direct').hidden = !chosen || !direct;
+    $('download').hidden = !chosen || direct;
+    $('route-note').textContent = chosen === 'mac' && !Mtp.supported()
+      ? 'To install without downloading, open this page in Chrome or Edge.'
+      : chosen === 'mac' && manual ? 'You chose to copy the files yourself.' : '';
+    $('route-note').hidden = !$('route-note').textContent;
+  }
+  for (const name of ['mac', 'windows']) $('route-' + name).onclick = () => { computer = name; manual = false; renderRoute(); };
+  $('install-direct').onclick = () => { if (hasDownload() && sendsDirectly()) begin('install'); };
   $('dev-cancel').onclick = () => {
-    const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending;
+    const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending || (direct() && busy);
     revision++; busy = connected = false; session.close(); stopSending();
     if (enabling) advance('menu'); else { render(); status(stopped ? 'Sending stopped. Check the last file on your OP–XY.' : 'Connection cancelled.'); }
   };
@@ -276,7 +275,9 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     $('source-start').hidden = false; $('source-title').focus();
     Visuals.reveal($('source-start'));
   };
+  $('flow-download').addEventListener('click', () => { downloaded = true; });
   $('download').onclick = () => {
+    downloaded = true;
     const url = $('download').getAttribute('href');
     // Let the anchor start its download before changing the visible step.
     // Browsers do not report whether the user completed or cancelled saving.
@@ -287,7 +288,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
     }, 0);
   };
   return {
-    invalidate() { if (hostPage === 3) exit(false); },
-    navigate(page) { if (stage && page !== hostPage) exit(false); },
+    invalidate() { downloaded = false; if (hostPage === 3) exit(false); },
+    navigate(page) { if (stage && page !== hostPage) exit(false); if (page === 3) renderRoute(); },
   };
 }

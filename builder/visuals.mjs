@@ -140,15 +140,15 @@ function tree(title, files) {
   for (const file of files) section.append(element('div', file, 'copy-file'));
   return section;
 }
-export function fileMap(install, files) {
+export function fileMap(install, files, direct = false) {
   const figure = element('figure', '', 'copy-guide');
   const arrow = element('span', '→', 'copy-arrow'); arrow.setAttribute('aria-hidden', 'true');
-  figure.append(tree(install ? 'Extracted ZIP' : 'OP–XY', files), arrow,
+  figure.append(tree(install ? (direct ? 'This build' : 'Extracted ZIP') : 'OP–XY', files), arrow,
     tree(install ? 'OP–XY' : 'This computer', install ? files : files.map(file => file.split('/').at(-1))));
   return figure;
 }
 export function bundle(files) {
-  return tree('ZIP contents', files);
+  return tree('Your build', files);
 }
 export function guide(stage, {install, computer, files, disabling = false}) {
   if (stage === 'boot') {

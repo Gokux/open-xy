@@ -30,7 +30,7 @@ await new Promise(resolve => {
 });
 const colors = ['var(--machine-1)', 'var(--machine-2)', 'var(--machine-3)', 'var(--machine-4)'];
 const kib = n => (n / 1024).toFixed(1) + ' KiB';
-let kit, stock, catalog, selected = [], inspected, linked, downloadUrl, layout, revision = 0;
+let kit, stock, catalog, selected = [], inspected, linked, downloadUrl, built, layout, revision = 0;
 let stopPreview = () => {}, previewRevision = 0;
 let stopAudio = () => {};
 window.addEventListener('blur', () => stopAudio());
@@ -41,7 +41,7 @@ const status = (message = '', error = false) => { $('status').textContent = mess
 const fail = error => status(error.message || String(error), true);
 function invalidate() {
   wizard.invalidate();
-  revision++; layout = null;
+  revision++; layout = built = null;
   if (downloadUrl) { URL.revokeObjectURL(downloadUrl); downloadUrl = null; }
   $('download').removeAttribute('href');
   $('flow-download').removeAttribute('href');
@@ -63,7 +63,7 @@ function ready() {
   $('build').disabled = !(stock && linked);
 }
 
-const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => selected, hasDownload: () => !!downloadUrl});
+const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => selected, hasDownload: () => !!downloadUrl, getFiles: () => built});
 
 async function readBounded(file, limit) {
   Core.requireThat(file && file.size > 0 && file.size <= limit, 'Missing or oversized file');
@@ -254,7 +254,7 @@ async function build() {
       sizes: result.sizes, files: hashes, hardware_qualified: false, cpu_measured: false});
     const zip = Core.zipFiles(files);
     if (ticket !== revision) return;
-    layout = nextLayout; downloadUrl = URL.createObjectURL(new Blob([zip], {type: 'application/zip'}));
+    layout = nextLayout; built = files; downloadUrl = URL.createObjectURL(new Blob([zip], {type: 'application/zip'}));
     $('download').href = $('flow-download').href = downloadUrl;
     $('download-summary').textContent = kit.machines.filter(m => selection.includes(m.id)).map(m => m.name).join(' + ');
     $('bundle-art').replaceChildren(Visuals.bundle(Object.keys(files)));

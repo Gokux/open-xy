@@ -61,9 +61,13 @@
     <div class="actions"><button data-step="1" class="secondary">← OS</button><button id="build" class="primary" disabled>Build ZIP <span aria-hidden="true">→</span></button></div>
   </section>
   <section data-page="3" class="download-page" hidden aria-labelledby="download-title">
-    <div class="page-header"><div><span class="eyebrow">Step 3 of 3 · Download & install</span><h1 id="download-title" tabindex="-1">Download and install</h1><p id="download-summary"></p></div></div>
+    <div class="page-header"><div><span class="eyebrow">Step 3 of 3 · Install</span><h1 id="download-title" tabindex="-1">Install</h1><p id="download-summary"></p></div></div>
     <div id="download-overview" class="download-overview flow-shell">
-    <div class="download-card"><div id="bundle-art"></div><h2>Your open-xy ZIP</h2><a id="download" class="primary" download="open-xy.zip">Download ZIP <span aria-hidden="true">↓</span></a></div>
+    <div class="download-card"><div id="bundle-art"></div><h2>Ready to install</h2>
+      <div id="route-choice" class="route-choice"><p>Which computer will you install from?</p><div class="route-options" role="group" aria-label="Computer"><button type="button" id="route-mac" aria-pressed="false">Mac</button><button type="button" id="route-windows" aria-pressed="false">Windows</button></div></div>
+      <button type="button" id="install-direct" class="primary" hidden>Install from this page <span aria-hidden="true">→</span></button>
+      <a id="download" class="primary" download="open-xy.zip" hidden>Download ZIP <span aria-hidden="true">↓</span></a>
+      <p id="route-note" class="route-note" hidden></p></div>
     <p class="qualification">Checks passed. This combination hasn’t been tested on a device, so CPU load and recovery aren’t guaranteed.</p>
     <details><summary>What was checked</summary><ul><li>Your OS file matched OP–XY OS 1.2.0 exactly</li><li>Only the reviewed changes were made, and the machines fit their memory</li><li>The original OS can be rebuilt from the new one</li></ul><p id="output-hash" class="hash"></p></details>
     </div>
@@ -90,12 +94,8 @@
   <ol id="flow-instructions" class="instruction-list" hidden></ol>
   <details id="flow-file-details" hidden><summary>File locations</summary><div id="flow-files"></div></details>
   <section id="mtp-panel" class="direct-copy" aria-labelledby="mtp-title" hidden>
-    <h3 id="mtp-title">Or send files from this page</h3>
-    <p>Sends to your OP–XY’s top level, where os.ldr goes. Copy folders with your file-transfer app, and quit it first.</p>
-    <div id="mtp-connect-row" class="flow-actions"><button type="button" id="mtp-connect" class="secondary">Connect to OP–XY</button></div>
-    <label id="mtp-drop" class="drop" hidden><span class="file-icon" data-icon="install" aria-hidden="true"></span><strong>Choose files</strong><span>or drop them here</span><input id="mtp-file" type="file" multiple aria-label="Choose files to send to your OP–XY"></label>
+    <h3 id="mtp-title" class="sr-only">Sending to your OP–XY</h3>
     <div id="mtp-sending" hidden><div class="transfer-bar"><span id="mtp-bar"></span></div><p id="mtp-progress" class="file-result" aria-live="polite"></p></div>
-    <div id="mtp-replace" hidden><p id="mtp-replace-text" class="file-result"></p><div class="flow-actions"><button type="button" id="mtp-replace-yes" class="secondary">Replace</button><button type="button" id="mtp-replace-no" class="secondary">Keep existing</button></div></div>
     <ul id="mtp-sent" class="sent-list" aria-label="Sent to your OP–XY" hidden></ul>
   </section>
   <div id="flow-actions" class="flow-actions"></div>

@@ -1,7 +1,8 @@
-// MTP over WebUSB for an OP–XY in "mtp file transfer (mac)" mode. Writes only
-// to the device's top level. The only deletion is a same-named top-level file
-// the user agreed to replace. Windows binds its own MTP driver, so WebUSB
-// cannot open the device there; Windows keeps the File Explorer steps.
+// MTP over WebUSB for an OP–XY in "mtp file transfer (mac)" mode. Sends files
+// to paths below the device's top level, creating missing folders. The only
+// deletion is a same-named file the caller agreed to replace; folders are never
+// replaced or deleted. Windows binds its own MTP driver, so WebUSB cannot open
+// the device there; Windows keeps the File Explorer steps.
 
 const VENDOR = 0x2367, VENDOR_CLASS = 0xff, ROOT = 0xffffffff;
 const COMMAND = 1, DATA = 2, RESPONSE = 3;
@@ -51,25 +52,33 @@ export function readString(bytes, at) {
   for (let i = 0; i < bytes[at]; i++) text += String.fromCharCode(v.getUint16(at + 1 + i * 2, true));
   return text.replace(/\0$/, '');
 }
-// ObjectInfo dataset for a top-level file; the filename follows the fixed fields.
-export function objectInfo(storage, name, size) {
+// ObjectInfo dataset; the filename follows the fixed fields. A folder is a
+// generic association (type 1) with no data.
+export function objectInfo(storage, name, size, parent = ROOT, folder = false) {
   const fixed = new Uint8Array(52), v = view(fixed);
-  v.setUint32(0, storage, true); v.setUint16(4, UNDEFINED_FORMAT, true);
-  v.setUint32(8, size, true); v.setUint32(38, ROOT, true);
+  v.setUint32(0, storage, true); v.setUint16(4, folder ? FOLDER_FORMAT : UNDEFINED_FORMAT, true);
+  v.setUint32(8, size, true); v.setUint32(38, parent, true);
+  if (folder) v.setUint16(42, 1, true);
   return concat(fixed, ptpString(name), ptpString(''), ptpString(''), ptpString(''));
 }
+const readParams = bytes => Array.from({length: Math.floor(bytes.length / 4)}, (_, i) => view(bytes).getUint32(i * 4, true));
 function readWords(bytes) {
   const v = view(bytes), count = v.getUint32(0, true);
   if (bytes.length < 4 + count * 4) throw new Error('Unexpected reply from your OP–XY.');
   return Array.from({length: count}, (_, i) => v.getUint32(4 + i * 4, true));
 }
-function checkName(name) {
-  if (!name || name === '.' || name === '..' || /[/\\\0]/.test(name)) throw new Error('Choose a file with a plain file name.');
-  ptpString(name);
+// A relative path of plain names, such as content/display/macroosc.svg.
+function segments(path) {
+  const names = String(path).split('/');
+  for (const name of names) {
+    if (!name || name === '.' || name === '..' || /[\\\0]/.test(name)) throw new Error(`${path} isn’t a file path your OP–XY accepts.`);
+    ptpString(name);
+  }
+  return names;
 }
 
 export class Device {
-  #device; #number; #in; #out; #packet; #transaction = 0; #storage; #running = false;
+  #device; #number; #in; #out; #packet; #transaction = 0; #storage; #running = false; #folders;
   static async request(usb = navigator.usb) {
     return new Device(await usb.requestDevice({filters: [{vendorId: VENDOR, classCode: VENDOR_CLASS}]}));
   }
@@ -98,10 +107,11 @@ export class Device {
     const [storage] = readWords(this.#expect(await this.#run(STORAGE_IDS), 'find its storage').payload);
     if (storage === undefined) throw new Error('Your OP–XY has no storage available.');
     this.#storage = storage;
+    this.#folders = new Map([['', ROOT]]);
   }
-  // Top-level names, mapped to their object handles.
-  async rootFiles() {
-    const {payload} = this.#expect(await this.#run(OBJECT_HANDLES, [this.#storage, 0, ROOT]), 'list its files');
+  // Names in one folder, mapped to their object handles.
+  async #children(parent) {
+    const {payload} = this.#expect(await this.#run(OBJECT_HANDLES, [this.#storage, 0, parent]), 'list its files');
     const files = new Map();
     for (const handle of readWords(payload)) {
       const info = this.#expect(await this.#run(OBJECT_INFO, [handle]), 'list its files').payload;
@@ -109,18 +119,34 @@ export class Device {
     }
     return files;
   }
-  // Returns false when a same-named file exists and replace() declines.
-  async sendToRoot(name, bytes, {replace = async () => false, onProgress = () => {}} = {}) {
-    checkName(name);
-    if (bytes.length > 0xffffffff - 12) throw new Error('That file is too large for your OP–XY.');
-    const existing = (await this.rootFiles()).get(name);
-    if (existing?.folder) throw new Error(`Your OP–XY already has a folder named ${name}.`);
-    if (existing) {
-      if (!await replace(name)) return false;
-      this.#expect(await this.#run(DELETE_OBJECT, [existing.handle, 0]), 'replace ' + name);
+  // The handle of a folder path, creating missing folders on the way.
+  async #folder(names) {
+    let parent = ROOT, path = '';
+    for (const name of names) {
+      path = path ? path + '/' + name : name;
+      if (this.#folders.has(path)) { parent = this.#folders.get(path); continue; }
+      const existing = (await this.#children(parent)).get(name);
+      if (existing && !existing.folder) throw new Error(`Your OP–XY has a file named ${path} where a folder is needed.`);
+      parent = existing?.handle ?? this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, parent],
+        objectInfo(this.#storage, name, 0, parent, true)), 'create the folder ' + path).params[2];
+      this.#folders.set(path, parent);
     }
-    this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, ROOT], objectInfo(this.#storage, name, bytes.length)), 'accept ' + name);
-    this.#expect(await this.#run(SEND_OBJECT, [], bytes, onProgress), 'save ' + name);
+    return parent;
+  }
+  // Sends one file, such as os.ldr or content/op1_factory.json. Returns false
+  // when a same-named file exists and replace() declines.
+  async send(path, bytes, {replace = async () => false, onProgress = () => {}} = {}) {
+    const names = segments(path), name = names.pop();
+    if (bytes.length > 0xffffffff - 12) throw new Error('That file is too large for your OP–XY.');
+    const parent = await this.#folder(names);
+    const existing = (await this.#children(parent)).get(name);
+    if (existing?.folder) throw new Error(`Your OP–XY already has a folder named ${path}.`);
+    if (existing) {
+      if (!await replace(path)) return false;
+      this.#expect(await this.#run(DELETE_OBJECT, [existing.handle, 0]), 'replace ' + path);
+    }
+    this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, parent], objectInfo(this.#storage, name, bytes.length, parent)), 'accept ' + path);
+    this.#expect(await this.#run(SEND_OBJECT, [], bytes, onProgress), 'save ' + path);
     return true;
   }
   // Safe to call at any time. A pending transfer fails rather than ending the session.
@@ -147,7 +173,7 @@ export class Device {
       let reply = await this.#receive(), payload = null;
       if (reply.type === DATA) { payload = reply.payload; reply = await this.#receive(); }
       if (reply.type !== RESPONSE || reply.id !== id) throw new Error('Unexpected reply from your OP–XY.');
-      return {code: reply.code, payload};
+      return {code: reply.code, payload, params: readParams(reply.payload)};
     } finally { this.#running = false; }
   }
   async #send(bytes, onProgress = () => {}) {
