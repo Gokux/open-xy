@@ -1,10 +1,10 @@
 name: Source checks
-# Once per pull request update and per push to main; any branch on demand.
-# A newer push cancels the run it supersedes.
+# Once per pull request update and per push to staging or main; any branch on
+# demand. A newer push cancels the run it supersedes.
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, staging]
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,6 +21,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Release source
+        # Contributions go to staging; main takes only the staging release PR.
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          if [ "$HEAD_REF" != staging ] || [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "::error::Open pull requests against staging; only staging merges into main."
+            exit 1
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -47,8 +58,8 @@ jobs:
           npm run test:web
           npm run build
   windows:
-    # Windows minutes bill double: main and manual runs only.
-    if: github.event_name != 'pull_request'
+    # Windows minutes bill double: release PRs, main and manual runs only.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.base_ref == 'main'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

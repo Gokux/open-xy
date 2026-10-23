@@ -42,6 +42,11 @@ with the machine's own project, not in this repository. Native
 changes also require the complete [release verification](docs/build.md#release-verification); its
 required checks and private fixtures cannot be skipped.
 
+Open pull requests against `staging`, the default branch. Merged work is
+deployed to beta.open-xy.com for testing; a release is a pull request from
+`staging` to `main`, and CI rejects pull requests to `main` from any other
+branch. See [Cloudflare deployment](docs/builder.md#cloudflare-deployment).
+
 In a PR, explain the behavior, how to try it, compatibility changes and checks
 run. For a device observation, include the exact image/asset hashes and what you
 actually exercised. Build success is not a hardware timing measurement.
