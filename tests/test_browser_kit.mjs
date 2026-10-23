@@ -143,6 +143,6 @@ test('firmware recovery rejects malformed and foreign loader layouts without pri
   new DataView(final.buffer).setUint32(0, 0xad008004, true);
   final[2] = final.reduce((a,b) => a ^ b, 0);
   await assert.rejects(recoverFirmware(kit, final), /Only OP–XY OS 1\.2\.0 is supported/);
-  kit.machines = Array.from({length:5},(_,i) => machine('m'+i,34+i,82+i));
+  kit.machines = Array.from({length:11},(_,i) => machine('m'+i,34+i,82+i));
   await assert.rejects(recoverFirmware(kit, final), /can.t be recognized/);
 });
