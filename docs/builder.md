@@ -6,19 +6,34 @@ leaves the browser.
 
 ## Using the builder
 
-1. Acknowledge the risk notice (asked again on every load).
-2. Choose Mac or Windows, then choose the OS: the decrypted OP-XY OS 1.2.0 file `os.ldr`, or an Open-XY
+1. Use a desktop browser exposing both Web MIDI and WebUSB, such as Chrome, Edge
+   or Opera. Compatible browsers go straight to the risk notice; acknowledge it
+   on every load. Unsupported browsers see a centered blocking message with no
+   Continue button. Developer preview links still display the guide without
+   enabling device access; returning to the builder restores the risk notice
+   or browser block as appropriate.
+2. Choose Mac or Windows. **Help me get the OS file** starts the guided setup;
+   **I already have the OS file** opens the file picker. At the dev menu check,
+   **No, it’s missing** is the first option and leads to enabling the menu.
+   Choose the OS: the decrypted OP-XY OS 1.2.0 file `os.ldr`, or an Open-XY
    build to change. Only OS 1.2.0 is supported; the `.tfw` update files teenage
    engineering hosts are a different, encrypted format. The stock file is in a
    device capture at `/upgrade/firmware/blackfin/bin/os.ldr`; a previously
-   installed Open-XY build is at `/os.ldr`. On a Mac with WebUSB (desktop Chrome
-   or Edge), select **Read OS from OP-XY**. The guide confirms OS 1.2.0, opens
+   installed Open-XY build is at `/os.ldr`. On a Mac with WebUSB in a compatible browser,
+   follow the OS file guide and select **Read original OS**. The guide confirms OS 1.2.0, opens
    Mac file transfer mode and asks you to quit Field Kit and OpenMTP. It reads
    the original firmware path, checks the exact stock hash and loads the OS
    directly into the builder, with an optional backup download. It does not change device files or fall back to
    the patched root OS. Keep file transfer open to resume installation later.
-   Windows and browsers without WebUSB use the manual copy guide; Mac users
+   Windows uses the manual copy guide; Mac users
    can also choose **Copy it myself instead**.
+   Both transfer guides show a notice for the rare case where a factory
+   reset or initialization leaves `OPXY/upgrade/firmware/blackfin/bin/os.ldr`
+   missing. **The OS file is missing · Help me recover it** shows how to exit
+   file transfer, then **Disable dev menu** connects and sends the disable command
+   in one click. The next page links to the official OS 1.2.0 download and explains
+   how to power cycle, check that the menu is gone, and reinstall. After reinstalling,
+   **Try again** goes straight to enabling the dev menu for the same computer.
 3. Select machines. Synth rows have a playable preview of their C++ sound and
    display code; each row shows its code, data and state size against the
    memory meter.
@@ -50,8 +65,13 @@ touched.
 The MIDI helper, adapted from [Ferret](https://github.com/bagofwaffles/ferret)
 (MIT, Bag of Waffles; see `builder/ferret.mjs` and `builder/ferret.LICENSE`),
 enables or disables the dev menu after an explicit click and browser MIDI
-permission. It sets or removes only the `bootloader.dev` flag; it never
-transfers firmware. Refresh the menu with track 8 twice to see the result. MIDI
+permission. Each enable or disable button connects and sends the requested
+command in one action; failures and cancellation leave the action available
+on the same page. It sets or removes only the `bootloader.dev` flag; it never
+transfers firmware. After enabling, separate illustrated steps guide you through
+pressing track 8 to open the system menu, then track 8 to return, before asking
+whether the dev menu appears. After installation, **Disable dev menu** sends the command directly
+before restarting; if already restarted, return to te-boot first. MIDI
 needs a desktop browser and a secure context; otherwise the helper links to
 hosted Ferret. The separate WebUSB MTP client reads or sends files only after
 an explicit click and USB permission, and releases the connection afterwards.
@@ -83,6 +103,7 @@ Installation screens have direct preview links, such as
 `http://127.0.0.1:8918/#preview/mac/transfer`, `#preview/mac/exit-transfer`
 and `#preview/mac/write-os`. The original-OS flow uses
 `#preview/source/mac/close-field-kit` and `#preview/source/mac/transfer`.
+Use `#preview/source/mac/missing-os` to preview the recovery side path.
 Replace `mac` with `windows` to see the manual
 copy route. These developer links open the selected step immediately, skipping
 the disclaimer and requiring no OS file or build. Device actions are disabled in previews;

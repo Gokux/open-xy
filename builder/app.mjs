@@ -5,13 +5,17 @@ import * as Segments from '../sdk/browser/segments.mjs';
 import * as Visuals from './visuals.mjs';
 import {Audition} from './audition.mjs';
 import {shownControls} from '../sdk/browser/controls.mjs';
+import {supportsDeviceApis} from './browser.mjs';
 
 const $ = id => document.getElementById(id);
 document.querySelectorAll('[data-icon]').forEach(el => el.append(Visuals.icon(el.dataset.icon)));
 document.querySelectorAll('[data-device-art]').forEach(el => el.append(Visuals.device()));
 // Preview links can show the guide immediately; using the builder still needs acknowledgement.
 let acknowledged = false;
+const browserAllowed = supportsDeviceApis();
+$('browser-blocked').hidden = browserAllowed;
 $('risk-acknowledgement').checked = false;
+$('risk-acknowledgement').disabled = !browserAllowed;
 $('risk-continue').disabled = true;
 const colors = ['var(--machine-1)', 'var(--machine-2)', 'var(--machine-3)', 'var(--machine-4)'];
 const kib = n => (n / 1024).toFixed(1) + ' KiB';
@@ -52,24 +56,26 @@ const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => select
   onFirmware: (file, isCurrent) => acceptFirmware(file, isCurrent),
   onPreviewExit() {
     history.replaceState(null, '', location.pathname + location.search);
-    if (acknowledged) navigate(1); else showDisclaimer();
+    if (acknowledged) navigate(1); else showEntryGate();
   },
 });
-function showDisclaimer() {
+function showEntryGate() {
   wizard.navigate(1);
-  $('risk-gate').hidden = false;
+  $('browser-gate').hidden = browserAllowed;
+  $('risk-gate').hidden = !browserAllowed;
   $('phase-nav').hidden = true;
   $('builder-workspace').hidden = true;
   $('builder-workspace').inert = true;
 }
 function openPreviewLink() {
   if (wizard.previewLink(location.hash)) {
+    $('browser-gate').hidden = true;
     $('risk-gate').hidden = true;
     $('builder-workspace').hidden = false;
     $('builder-workspace').inert = false;
     if (!acknowledged) $('status').textContent = '';
     navigate(wizard.previewPage());
-  } else if (!acknowledged) showDisclaimer();
+  } else if (!acknowledged) showEntryGate();
 }
 window.addEventListener('hashchange', openPreviewLink);
 openPreviewLink();
@@ -77,11 +83,11 @@ openPreviewLink();
 // returns to this unchecked notice instead of treating the preview as consent.
 await new Promise(resolve => {
   $('risk-acknowledgement').onchange = () => {
-    $('risk-continue').disabled = !$('risk-acknowledgement').checked;
+    $('risk-continue').disabled = !browserAllowed || !$('risk-acknowledgement').checked;
   };
   $('risk-form').onsubmit = event => {
     event.preventDefault();
-    if (!$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
+    if (!browserAllowed || !$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
     acknowledged = true;
     $('risk-gate').hidden = true;
     $('phase-nav').hidden = false;
@@ -102,6 +108,8 @@ async function acceptFirmware(file, isCurrent = () => true) {
   wizard.clearSourceBackup();
   const current = ++ticket; invalidate();
   stock = null; ready();
+  wizard.setFirmwareState('checking');
+  $('firmware-result').textContent = 'Verifying ' + file.name + '…';
   try {
     const recovered = await Core.recoverFirmware(kit, await readBounded(file, 16 * 1024 ** 2));
     if (current !== ticket || !isCurrent()) return false;
@@ -111,6 +119,8 @@ async function acceptFirmware(file, isCurrent = () => true) {
       $('firmware-result').textContent = '✓ open-xy OS with ' +
         kit.machines.filter(m => selected.includes(m.id)).map(m => m.name).join(' + ');
     } else $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 verified · ' + file.name;
+    wizard.setFirmwareState('loaded');
+    $('files-title').focus();
     status(); ready();
     return true;
   } catch (error) {
@@ -118,6 +128,11 @@ async function acceptFirmware(file, isCurrent = () => true) {
     $('firmware-result').textContent = 'OS not loaded';
     fail(error); ready();
     return false;
+  } finally {
+    if (current === ticket && !stock) {
+      wizard.setFirmwareState('empty');
+      $('firmware-result').textContent = 'OS not loaded';
+    }
   }
 }
 function node(tag, text, className) {

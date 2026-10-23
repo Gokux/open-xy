@@ -153,5 +153,5 @@ export function guide(stage, {install, computer, files, disabling = false}) {
   if (stage === 'write-os') return press('factory', 5);
   if (stage === 'write-result') return bootGuide('written', null, 'Once “firmware written ok!” appears, it’s safe to power cycle.', {highlight: 'firmware written ok!'});
   if (stage === 'write-help') return bootGuide('writing', null, '“looking for /os.ldr” alone doesn’t confirm a completed write.', {highlight: 'looking for /os.ldr'});
-  return device({cable: ['connect', 'enable', 'computer'].includes(stage)});
+  return device({cable: ['enable', 'computer', 'missing-os'].includes(stage)});
 }

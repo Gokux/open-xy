@@ -120,6 +120,36 @@ test('ambiguous devices and input pairs send no commands', async () => {
   }
 });
 
+test('Windows composite port names connect and diagnostics describe only reported ports', async () => {
+  const d = device(), snapshots = [];
+  d.input.name = d.output.name = 'OP-XY (Composite)';
+  d.input.manufacturer = d.output.manufacturer = 'Teenage Engineering';
+  d.input.connection = d.output.connection = 'closed';
+  const session = new Session(async () => d.access, () => {}, 30, {onPorts: ports => snapshots.push(ports)});
+  await session.connect();
+  assert.deepEqual(commands(d), [9]);
+  assert.equal(d.other.sent.length, 0);
+  assert.equal(snapshots.length, 1);
+  assert.deepEqual(snapshots[0].inputs, [{name:'OP-XY (Composite)', manufacturer:'Teenage Engineering', state:'connected', connection:'closed'}]);
+  assert.equal(snapshots[0].outputs.length, 2);
+  session.close();
+});
+
+test('missing OP-XY reports visible ports without opening or probing other devices', async () => {
+  for (const empty of [false, true]) {
+    const d = device(); let snapshot;
+    d.access.inputs.clear(); d.access.outputs.delete(d.output.id);
+    if (empty) d.access.outputs.clear();
+    d.other.open = () => { throw new Error('Must not open another device'); };
+    const session = new Session(async () => d.access, () => {}, 30, {onPorts: ports => { snapshot = ports; }});
+    await assert.rejects(session.connect(), /no connected OP–XY MIDI output/);
+    assert.deepEqual(snapshot.inputs, []);
+    assert.deepEqual(snapshot.outputs.map(port => port.name), empty ? [] : ['Another synth']);
+    assert.deepEqual(commands(d), []);
+    assert.equal(d.other.sent.length, 0);
+  }
+});
+
 test('wrong product, normal OS, changed unit, and invalid challenge never write a flag', async () => {
   for (const options of [
     {metadata:()=>meta('TX-6')}, {metadata:()=>meta('OP-XY','test-unit','normal')},
