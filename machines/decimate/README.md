@@ -1,74 +1,84 @@
 # Decimate send effect
 
-A sample-and-hold rate reducer with a crossover, output tone filter and
-additive dry level. The original hold timing and unquantized samples are
-preserved: with Xover at zero, Tone fully open and Dry at zero, the return
-is bit-for-bit identical to the original Rate/Mix version at fully wet.
+A sample-and-hold rate reducer with a low cut, stereo capture offset and
+additive dry level. With Low Cut, Stereo and Dry at zero, the return is
+bit-for-bit identical to the original Rate/Mix version at fully wet.
+The original unquantized samples and steady 1-32-sample hold timing remain.
 
 | Encoder | Control | Mapping |
 |---|---|---|
 | 1 | Rate | Hold length 1-32 samples; higher settings reduce the update rate |
-| 2 | Xover | Zero processes the full band; raising it selects higher frequencies for the effect |
-| 3 | Tone | Softens the crushed signal after sample-and-hold; fully open by default |
-| 4 | Dry | Adds untouched input at zero to unity gain, without reducing the processed signal; zero by default |
+| 2 | Low Cut | Zero processes the full band; raising it removes bass before crushing |
+| 3 | Stereo | Offsets right-channel captures by up to half the hold period; zero keeps both channels aligned |
+| 4 | Dry | Adds untouched input at zero to unity gain without reducing the processed signal; zero by default |
 
 ## Using it as a send
 
-Start with Xover at zero, Tone at 100 and Dry at zero for the original
-full-band sound. Use the track sends and FX return level to set how much
-Decimate you hear. Raise Xover to keep bass out of the effect's input while
-crushing the upper frequencies. Lower Tone to tame the resulting high-frequency
-fizz. Dry adds clean signal to the return independently of the effect.
+Start with Low Cut, Stereo and Dry at zero for the original full-band sound.
+Use the track sends and FX return level to set how much Decimate you hear.
+Raise Low Cut to keep bass out of the crushed return. Turn up Stereo to spread
+the crushed texture, then raise Dry if you want clean signal in the return too.
 
-This follows the separate dry-level convention described for stock delay and
-reverb in the [OP-XY FX guide](https://teenage.engineering/guides/op-xy/fx).
-Dry is not a crossfade: turning it up does not turn the crushed sound down.
-The main mix's existing dry track is unaffected. With Dry at zero, the low
-band removed by Xover is not added back to this send return; it remains
-available through the normal dry track.
+Dry follows the separate level convention described for stock delay and reverb
+in the [OP-XY FX guide](https://teenage.engineering/guides/op-xy/fx). It adds
+clean audio without turning the crushed signal down. The main mix's dry track
+is unaffected. Bass removed by Low Cut is not added back to this send return;
+it remains available through the normal dry track.
 
-## Crossover and tone
+## Low Cut
 
-Xover uses a gradual first-order (6 dB/octave) high-pass derived from a
-complementary low/high split. Its normalized readout maps approximately to
-`10000 * (value / 100)^2` Hz at 44.1 kHz:
+A gradual first-order high-pass selects the upper band before sample-and-hold.
+The normalized readout maps approximately to `10000 * (value / 100)^2` Hz
+at 44.1 kHz:
 
-| Xover readout | Approximate crossover |
+| Low Cut readout | Approximate cutoff |
 |---|---|
-| 0.0 | Full band / crossover off |
+| 0.0 | Full band / filter off |
 | 10.0 | 100 Hz |
 | 25.0 | 625 Hz |
 | 50.0 | 2.5 kHz |
 | 75.0 | 5.6 kHz |
 | 100.0 | 10 kHz |
 
-The upper band is held at the selected Rate, then passes through Tone's
-one-pole low-pass. Tone runs from approximately 200 Hz at zero to exact
-bypass at 100. The untouched input is added afterwards at the Dry level.
-Neither Xover nor Tone filters the Dry path. Sample-rate reduction can create
-aliases below the crossover; Xover is not an output high-pass.
+The slope is 6 dB/octave. Sample-rate reduction can create aliases below the
+cutoff; this is an input filter. Its coefficient has a roughly 1.5 ms smoothing
+time constant. Turning Low Cut off returns to exact full-band processing once
+the coefficient settles.
 
-Both filter coefficients use roughly 1.5 ms smoothing time constants.
-Returning Xover to zero and Tone to 100 restores the exact original wet path
-once the coefficients settle. Full-scale peaks saturate instead of wrapping,
-including when adding dry signal. No bit-depth reduction, jitter or automatic
-gain compensation is applied. Shift + turn gives fine adjustment of all four
-controls. The FX page retains stock value captions.
+## Stereo
+
+The left channel keeps the original capture clock. Stereo offsets the right
+channel's captures by whole samples, from zero to half the current hold period
+(rounded down for odd periods). Both channels still update at the same rate.
+At a 32-sample hold, maximum Stereo offsets the right clock by 16 samples,
+about 0.36 ms. At a one-sample hold, Stereo has no effect. Short holds have
+fewer available offset steps.
+
+Changes latch at the start of a left-channel hold cycle. Adjusting Rate or
+Stereo can briefly shorten or lengthen a right-channel hold while the clocks
+realign. At startup, the right wet channel waits for its first capture; at
+maximum Rate/Stereo this is only 16 samples. Turning Stereo back to zero aligns
+both clocks at the next left capture. The channels never feed into each other;
+Stereo can spread mono material, and summing it back to mono can change its tone.
+It does not pan or delay the Dry path. No jitter or bit-depth reduction is used.
+
+Shift + turn gives fine adjustment of all four controls; Stereo still resolves
+to whole-sample timing. The FX page retains stock value captions. Full-scale
+peaks saturate instead of wrapping, including when adding Dry.
 
 ## Saved sounds
 
-Control order is now Rate, Xover, Tone, Dry. Saved settings and locks from
-Rate/Bits/Jitter/Mix are not migrated: the former Bits value becomes Xover,
-Jitter becomes Tone, and Mix becomes Dry. Only Rate retains its meaning.
-The earlier two-control version's Mix slot also becomes Xover. Reset these
-controls and their locks when revisiting older sounds. The new defaults are
-Rate 25, Xover 0, Tone 100 and Dry 0.
+Control order is Rate, Low Cut, Stereo, Dry. Only Rate retains its meaning from
+Rate/Bits/Jitter/Mix; the other slots are not migrated. The earlier two-control
+Mix slot becomes Low Cut. In the previous Low Cut/Tone test build, the Tone slot
+now becomes Stereo, so a saved fully open Tone becomes maximum Stereo. Reset
+these controls and their locks when revisiting older sounds. New defaults are
+Rate 25, Low Cut 0, Stereo 0 and Dry 0.
 
 ## Implementation
 
-`fx.cpp` implements the [effect interface](../../docs/api.md#effects):
-`initialize` and `process` over one 64-sample block with no allocation, I/O or
-stock calls. Filtering uses a small coefficient table and 32-bit integer
-arithmetic. `core.h` declares the 44-byte `State`. `machine.json` declares FX
-ID 11. It is part of the collection that `python sdk.py build` links (see
-[native builds](../../docs/build.md)).
+`fx.cpp` implements the [effect interface](../../docs/api.md#effects) entirely
+in C++: `initialize` and `process` over one 64-sample stereo block, with no
+allocation, I/O or stock calls. Filtering and timing use 32-bit integer
+arithmetic. `core.h` declares a 36-byte `State`; the effect retains ID 11.
+See [native builds](../../docs/build.md) for collection verification.

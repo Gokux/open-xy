@@ -16,7 +16,7 @@
     },
     {
       "id": "crossover",
-      "label": "Xover",
+      "label": "Low Cut",
       "default": 0,
       "mapping": {
         "kind": "power",
@@ -26,13 +26,13 @@
       "display": "percent"
     },
     {
-      "id": "tone",
-      "label": "Tone",
-      "default": 1.0,
+      "id": "stereo",
+      "label": "Stereo",
+      "default": 0,
       "mapping": {
-        "kind": "power",
-        "maximum": 1,
-        "exponent": 2
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
       },
       "display": "percent"
     },

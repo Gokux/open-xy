@@ -62,26 +62,20 @@ opxy::i32 smooth(opxy::i32 value, opxy::i32 target) {
 
 void initialize(State& state) {
     state = State();
-    state.tone = 32767;
 }
 
 // Bounded: one pass over the 64-sample block, no allocation or stock calls.
 void process(State& state, opxy::Channel left, opxy::Channel right, opxy::Parameters parameters) {
     const opxy::u32 hold = 1 + (((nonnegative(parameters[0]) >> 16) * (kMaxHold - 1) + 16384) >> 15);
     const opxy::u32 crossover = nonnegative(parameters[1]) >> 16;
-    const opxy::u32 tone = nonnegative(parameters[2]) >> 16;
+    const opxy::u32 stereo = nonnegative(parameters[2]) >> 16;
     const opxy::u32 dry = nonnegative(parameters[3]) >> 16;
     const opxy::u32 index = crossover >> 10;
     const opxy::i32 target = static_cast<opxy::i32>(kCrossover[index] +
         ((kCrossover[index + 1] - kCrossover[index]) * (crossover & 1023) >> 10));
-    // A one-pole output low-pass: about 200 Hz at minimum, exact bypass at
-    // maximum. Quadratic control gives more travel to the darker settings.
-    const opxy::u32 tone_squared = (tone * tone) >> 15;
-    const opxy::i32 tone_target = tone == 32767 ? 32767 :
-        static_cast<opxy::i32>(916 + ((31851 * tone_squared) >> 15));
+    const opxy::u32 offset = (((hold >> 1) * stereo) + 16384) >> 15;
     for (unsigned i = 0; i < opxy::block_frames; ++i) {
         state.crossover = smooth(state.crossover, target);
-        state.tone = smooth(state.tone, tone_target);
         opxy::i32 low_left = 0, low_right = 0;
         if (state.crossover) {
             low_left = lowpass(left[i], state.low_left, state.crossover);
@@ -92,18 +86,21 @@ void process(State& state, opxy::Channel left, opxy::Channel right, opxy::Parame
             state.held_low_left = state.held_low_right = 0;
         }
         if (state.phase == 0) {
+            // Latch once per cycle so turning Stereo cannot move this cycle's
+            // capture point past the clock. Rate retains its original timing.
+            state.right_offset = offset;
             state.held_left = left[i];
-            state.held_right = right[i];
             state.held_low_left = low_left;
+        }
+        if (state.phase == state.right_offset) {
+            state.held_right = right[i];
             state.held_low_right = low_right;
         }
         state.phase = state.phase + 1 >= hold ? 0 : state.phase + 1;
-        state.tone_left = blend(state.tone_left, high_band(state.held_left, state.held_low_left), state.tone);
-        state.tone_right = blend(state.tone_right, high_band(state.held_right, state.held_low_right), state.tone);
         // Send convention: dry is additive. Turning it up never ducks the
-        // processed signal, and neither filter touches this clean path.
-        left[i] = saturating_add(state.tone_left, blend(0, left[i], dry));
-        right[i] = saturating_add(state.tone_right, blend(0, right[i], dry));
+        // processed signal. Low Cut and Stereo never touch this clean path.
+        left[i] = saturating_add(high_band(state.held_left, state.held_low_left), blend(0, left[i], dry));
+        right[i] = saturating_add(high_band(state.held_right, state.held_low_right), blend(0, right[i], dry));
     }
 }
 }
