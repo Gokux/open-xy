@@ -48,7 +48,7 @@ export function createWizard({getKit, getSelected, hasDownload}) {
         'Keep your OP–XY on the te-boot menu.',
       ]],
       enable: ['Enable the dev menu.', 'Your OP–XY is connected. This enables the menu; it does not change the OS.', [action('Enable dev menu', null, 'dev-enable')]],
-      disable: ['Disable the dev menu.', 'This hides the bootloader dev menu. It does not uninstall your machines or restore the original OS.', [action('Disable dev menu', null, 'dev-disable')]],
+      disable: ['Disable the dev menu.', 'This hides the dev menu. It does not uninstall your machines or restore the original OS.', [action('Disable dev menu', null, 'dev-disable')]],
       'refresh-open': ['Open the system menu.', 'On your OP–XY, press track 8 for "8. system menu".', [action('System menu is open', 'refresh-return')]],
       'refresh-return': ['Return to te-boot.', 'Press track 8 for "8. back" to refresh the te-boot menu.', [action('I’m back at te-boot', 'confirm')]],
       confirm: [disabling ? 'Has "3. dev menu" disappeared?' : 'Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', disabling ? [action('It’s gone', 'disabled', 'dev-confirm'), action('It’s still there', 'disable-help')] : [action('Yes, I see it', transfer, 'dev-confirm'), action('No, it’s still missing', 'menu-help')]],
