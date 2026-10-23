@@ -123,12 +123,14 @@
     <p>On rare occasions, a factory reset or initialization can leave your OP–XY without the original os.ldr file. Disable the dev menu, reinstall OS 1.2.0 with the dev menu disabled, then try again.</p>
     <button id="missing-os-help" class="primary">The OS file is missing · Help me recover it</button>
   </aside>
+  <aside id="flow-copy-reminder" class="install-reminder" aria-labelledby="copy-reminder-title" hidden>
+    <h3 id="copy-reminder-title">Yes, copy to the ROOT folder.</h3>
+    <p>Copy the extracted ZIP’s contents to the top level of your OP–XY. Do not put these files back in <code>upgrade/firmware/blackfin/bin</code>.</p>
+    <p><strong>Replace existing files if prompted.</strong></p>
+  </aside>
   <aside id="flow-install-reminder" class="install-reminder" aria-labelledby="install-reminder-title" hidden>
     <h3 id="install-reminder-title">You are not done yet!</h3>
-    <p>After extracting and copying the files, you must install the firmware by pressing <strong>track 5</strong>.</p>
-    <p>Wait for every file to finish copying, then exit MTP with track 2. In the factory menu, press track 5 for:</p>
-    <div class="install-menu-option">5. write os to boot partition</div>
-    <p>Keep power connected and wait for <strong>firmware written ok</strong> before restarting.</p>
+    <p>Copying the files does not finish installation. Continue through the next steps to install the OS before restarting.</p>
   </aside>
   <details id="flow-file-details" hidden><summary>File locations</summary><div id="flow-files"></div></details>
   <section id="mtp-panel" class="direct-copy" aria-labelledby="mtp-title" hidden>

@@ -171,7 +171,14 @@ test('post-install disable runs directly and retries without restarting setup', 
   f.$('route-mac').onclick({preventDefault() {}});
   f.click('Connected and at te-boot'); f.click('menu-yes'); f.click('Dev menu is open');
   f.click('I see "mtp mode active"'); f.click('field-kit-closed'); f.click('mtp-manual');
-  f.click('All files copied'); f.click('I’m back at the dev menu'); f.click('I pressed track 5');
+  f.click('All files copied · Continue');
+  assert.equal(f.$('device-flow').dataset.stage, 'exit-transfer');
+  assert.match(f.$('flow-detail').textContent, /track 2/);
+  f.click('I’m back at the dev menu');
+  assert.equal(f.$('device-flow').dataset.stage, 'write-os');
+  assert.match(f.$('flow-detail').textContent, /track 5/);
+  f.click('I pressed track 5');
+  assert.equal(f.$('device-flow').dataset.stage, 'write-result');
   f.click('I see "firmware written ok!"');
   assert.equal(f.$('device-flow').dataset.stage, 'restart');
   assert.deepEqual(calls, []);
