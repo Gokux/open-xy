@@ -113,14 +113,14 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
         delivered ? [action('Files sent · Continue', 'exit-transfer')]
           : [action(busy ? 'Sending…' : log.length ? 'Try again' : 'Send to OP–XY', null, 'mtp-send'),
             ...(busy ? [] : [action('Copy them myself instead', null, 'mtp-manual')]), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])]] :
-      [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? stillInTransfer : 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
+      [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? stillInTransfer : 'Keep your device’s other content in place.', [action(install ? 'All files copied · Continue' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
       'exit-transfer': ['Exit file transfer.', 'Once every file has finished copying, press track 2 for "2. exit" to return to the dev menu (titled "factory menu" on your OP–XY).', [action('I’m back at the dev menu', 'write-os')]],
       'write-os': ['Write the OS.', 'Press track 5 for "5. write os to boot partition". Keep your OP–XY connected to power.', [action('I pressed track 5', 'write-result')]],
       'write-result': ['Wait for the write result.', 'Don’t power off while writing. When "firmware written ok!" appears under "looking for /os.ldr", it’s safe to power cycle your OP–XY.', [action('I see "firmware written ok!"', 'restart'), action('I see something else', 'write-help')]],
       'write-help': ['Check the message on your OP–XY.', 'If it stops at "looking for /os.ldr" without "firmware written ok!", os.ldr isn’t at the device’s top level. For any other message, stop here and investigate it before power cycling.', [action('Return to the write status', 'write-result')]],
-      restart: ['Power cycle your OP–XY.', 'It’s safe now. To hide the dev menu, select Disable dev menu before restarting. If you already restarted, hold COM while switching on to return to te-boot first.',
+      restart: ['Power cycle your OP–XY.', 'It’s safe now. Switch it off, then on again without holding COM. Then check your selected machines on the device.',
         [action('Device restarted · Done', 'exit'), action(busy ? 'Disabling…' : 'Disable dev menu', null, 'dev-disable')],
-        ['Switch off, then on without holding COM to use your OP–XY and check your selected machines.']],
+        ['Optional: to hide the dev menu, select Disable dev menu before restarting. If you already restarted, hold COM while switching on to return to te-boot first.']],
     }[stage];
   }
   function render(focus = false) {
@@ -153,6 +153,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       span.textContent = text; li.append(span); return li;
     }));
     $('flow-instructions').hidden = !instructions.length;
+    $('flow-copy-reminder').hidden = !install || stage !== 'transfer' || sendsDirectly();
     $('flow-install-reminder').hidden = !install || !['transfer', 'exit-transfer', 'write-os'].includes(stage);
     $('recovery-downloads').hidden = purpose !== 'recover' || stage !== 'disabled';
     $('flow-missing-os').hidden = purpose !== 'source' || stage !== 'transfer';
