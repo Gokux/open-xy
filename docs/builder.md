@@ -82,7 +82,7 @@ if it has not been acknowledged; opening a preview does not acknowledge it.
 The dev server serves only the browser source allowlist and the configured
 collection; do not replace it with a server rooted at the repository. Previews
 and bundles need a collection: point the ignored `.env.local` at a verified
-export from [Maintainer export](#maintainer-export):
+export from [Export a kit](#export-a-kit):
 
 ```dotenv
 OPEN_XY_KIT=C:/Users/YOUR_USER/AppData/Local/OPXY-SDK/private/builds/browser-kit-001/opxy-builder.html
@@ -118,7 +118,7 @@ active Cloudflare zone, then use **Workers & Pages → open-xy → Settings →
 Domains & Routes → Add → Custom Domain**; see the
 [custom-domain guide](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
 
-## Maintainer export
+## Export a kit
 
 With the [pinned native tools](build.md) and Clang++ for wasm32:
 
@@ -131,6 +131,14 @@ full native build and its checks, then packages the native objects in link
 order with each machine's `machine.json` and definition. The HTML carries the
 authenticated stock menu and the SDK screen template; firmware stays
 user-supplied. It is named only after every check passes.
+
+A published kit comes from the release host, after
+[release verification](build.md#release-verification). For your own machines,
+add `--personal`: it runs on any pinned host, Windows or Apple-silicon macOS,
+and skips only that verification. Open the resulting `opxy-builder.html`, or
+serve it as in [web development](#web-development), to select machines,
+preview them and use the installation guide with your device. It accepts your
+stock OS and builds of its own collection.
 
 The browser links the normalized ELF32 Blackfin objects itself, supporting the
 LUIMM16, HUIMM16, PCREL24, PCREL24_JUMP_L and BYTE4 relocations. Unsupported

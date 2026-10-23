@@ -1,6 +1,8 @@
 """Export a self-contained browser builder from a freshly verified native build.
 
-Maintainer tooling only. The delivered HTML needs neither Python nor a server.
+Published kits come from the release host after release verification;
+--personal exports one for your own collection on any pinned host. The
+delivered HTML needs neither Python nor a server.
 Object ownership comes from the native build; presentation from machine.json.
 """
 import argparse
@@ -159,9 +161,12 @@ def main(argv=None):
     parser.add_argument('--toolchain', help='pinned binutils directory (default: local/toolchain/bin)')
     parser.add_argument('--compiler', help='pinned Blackfin GCC bundle root (default: local/toolchain)')
     parser.add_argument('--preview-cxx', default='clang++', help='Clang++ with wasm32/wasm-ld')
+    parser.add_argument('--personal', action='store_true',
+                        help='a kit for your own collection on any pinned host, without release verification')
     args = parser.parse_args(argv)
     try:
-        require_release_host()
+        if not args.personal:
+            require_release_host()
         args.toolchain, args.compiler = resolve_toolchain(args.toolchain, args.compiler)
     except ValueError as error:
         parser.exit(1, 'ERROR: ' + str(error) + '\n')
@@ -172,8 +177,9 @@ def main(argv=None):
     options = []
     for name in ('toolchain', 'compiler', 'stock_os', 'stock_content'):
         options += ['--' + name.replace('_', '-'), str(Path(getattr(args, name)).resolve())]
-    subprocess.run([sys.executable, str(ROOT / 'sdk.py'), 'check', '--native-package', str(package), *options],
-                   cwd=ROOT, check=True)
+    if not args.personal:  # independent rebuild against the reference bytes
+        subprocess.run([sys.executable, str(ROOT / 'sdk.py'), 'check', '--native-package', str(package), *options],
+                       cwd=ROOT, check=True)
     export(package, out, tool_paths(args.toolchain), args.preview_cxx,
            stock_catalog=read(Path(args.stock_content) / 'op1_factory.json'))
     # Validate firmware and content output against the independent Python writer.
@@ -182,4 +188,6 @@ def main(argv=None):
                         args.stock_content], cwd=ROOT, check=True)
     (out / 'builder.pending.html').rename(out / 'opxy-builder.html')
     print('Browser builder: ' + str(out / 'opxy-builder.html'))
+    if args.personal:
+        print('Personal kit: for your own collection and device; published kits come from release verification.')
     return 0
