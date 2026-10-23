@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createWizard} from '../builder/wizard.mjs';
 import {Session} from '../builder/ferret.mjs';
+import {isDesktopChrome} from '../builder/browser.mjs';
 import * as Visuals from '../builder/visuals.mjs';
 import {sha256} from '../builder/core.mjs';
 import {fakeDevice} from './fixtures/mtp.mjs';
@@ -269,11 +270,12 @@ test('installation links preview the edited steps without a build or device acce
   const source = readFileSync(new URL('../builder/app.mjs', import.meta.url), 'utf8').replace(/^import .*\r?\n/gm, '');
   const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
   let startupError;
-  new AsyncFunction('Wizard', 'Visuals', source)({createWizard}, Visuals).catch(error => { startupError = error; });
+  new AsyncFunction('Wizard', 'Visuals', 'isDesktopChrome', source)({createWizard}, Visuals, isDesktopChrome).catch(error => { startupError = error; });
   await Promise.resolve();
   assert.ifError(startupError);
   assert.equal($('risk-gate').hidden, true);
   assert.equal($('risk-acknowledgement').checked, false);
+  assert.equal($('risk-acknowledgement').disabled, true);
   assert.equal($('builder-workspace').inert, false);
   assert.equal($('device-flow').dataset.stage, 'transfer');
   assert.equal(action('mtp-send').disabled, true);
@@ -281,6 +283,14 @@ test('installation links preview the edited steps without a build or device acce
   assert.equal($('risk-gate').hidden, false);
   assert.equal($('builder-workspace').inert, true);
   assert.equal($('risk-acknowledgement').checked, false);
+  // Unknown/non-Chrome browsers cannot enter the builder even if a checkbox
+  // change or submit handler is invoked directly after leaving a preview.
+  $('risk-acknowledgement').checked = true;
+  $('risk-acknowledgement').onchange();
+  assert.equal($('risk-continue').disabled, true);
+  $('risk-form').onsubmit({preventDefault() {}});
+  assert.equal($('builder-workspace').inert, true);
+  assert.equal($('risk-gate').hidden, false);
   location.hash = '#preview/mac/write-os';
   listeners.get('hashchange')();
   assert.equal($('risk-gate').hidden, true);

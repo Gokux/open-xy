@@ -21,8 +21,9 @@
   <section id="risk-gate" class="panel risk-notice" aria-labelledby="risk-title">
     <span class="eyebrow">Before you start</span>
     <aside class="browser-notice" aria-labelledby="browser-notice-title">
-      <h2 id="browser-notice-title">Please use Google Chrome.</h2>
+      <h2 id="browser-notice-title">Google Chrome is required.</h2>
       <p>Open this page in Google Chrome before continuing. Use it for device setup and, on Mac, transferring files directly from this page.</p>
+      <p id="browser-blocked" role="alert" hidden>You can’t continue in this browser. Reopen this page in desktop Google Chrome. <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer">Get Chrome</a></p>
     </aside>
     <h1 id="risk-title">Before you modify your OP–XY</h1>
     <p>This is experimental, unofficial software for modifying your device's firmware.</p>
@@ -30,7 +31,7 @@
     <p>This site and its software are independent of teenage engineering and are not affiliated with, endorsed, sponsored, or supported by teenage engineering.</p>
     <p>The software is provided as is, without warranty. Proceed only if you understand and accept these risks. Back up any device content you want to keep before installing modified firmware.</p>
     <form id="risk-form">
-      <label class="risk-accept"><input id="risk-acknowledgement" type="checkbox" required><span>I have read this notice, understand the risks, and accept responsibility for proceeding and for any resulting damage or data loss.</span></label>
+      <label class="risk-accept"><input id="risk-acknowledgement" type="checkbox" required disabled><span>I have read this notice, understand the risks, and accept responsibility for proceeding and for any resulting damage or data loss.</span></label>
       <button id="risk-continue" class="primary" type="submit" disabled>Continue to builder</button>
     </form>
     <noscript><p>JavaScript is required to acknowledge this notice and use the builder.</p></noscript>
@@ -128,7 +129,7 @@
   <div id="flow-actions" class="flow-actions"></div>
   <p id="dev-status" role="status" aria-live="polite"></p>
   <button type="button" id="dev-cancel" hidden>Cancel connection</button>
-  <details id="connection-help" hidden><summary>Connection help</summary><p>Use desktop Chrome or Edge. Close other MIDI apps. If this page cannot get MIDI permission, use the <a href="https://bagofwaffles.github.io/ferret/op-xy/" target="_blank" rel="noopener noreferrer">hosted Ferret tool</a>, then check the menu here again.</p><p class="attribution"><a href="https://github.com/bagofwaffles/ferret" target="_blank" rel="noopener noreferrer">Ferret by Bag of Waffles</a> · MIT license</p></details>
+  <details id="connection-help" hidden><summary>Connection help</summary><p>Use desktop Google Chrome. Close other MIDI apps. If this page cannot get MIDI permission, use the <a href="https://bagofwaffles.github.io/ferret/op-xy/" target="_blank" rel="noopener noreferrer">hosted Ferret tool</a>, then check the menu here again.</p><p class="attribution"><a href="https://github.com/bagofwaffles/ferret" target="_blank" rel="noopener noreferrer">Ferret by Bag of Waffles</a> · MIT license</p></details>
   <div class="flow-navigation"><button id="flow-back" class="secondary">← Back</button><button id="flow-exit" class="text-button">Back to file choice</button><a id="flow-download" class="file-button" download="open-xy.zip" hidden>Download ZIP</a></div>
   </div>
   </div>

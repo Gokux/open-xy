@@ -5,13 +5,17 @@ import * as Segments from '../sdk/browser/segments.mjs';
 import * as Visuals from './visuals.mjs';
 import {Audition} from './audition.mjs';
 import {shownControls} from '../sdk/browser/controls.mjs';
+import {isDesktopChrome} from './browser.mjs';
 
 const $ = id => document.getElementById(id);
 document.querySelectorAll('[data-icon]').forEach(el => el.append(Visuals.icon(el.dataset.icon)));
 document.querySelectorAll('[data-device-art]').forEach(el => el.append(Visuals.device()));
 // Preview links can show the guide immediately; using the builder still needs acknowledgement.
 let acknowledged = false;
+const chromeAllowed = isDesktopChrome();
+$('browser-blocked').hidden = chromeAllowed;
 $('risk-acknowledgement').checked = false;
+$('risk-acknowledgement').disabled = !chromeAllowed;
 $('risk-continue').disabled = true;
 const colors = ['var(--machine-1)', 'var(--machine-2)', 'var(--machine-3)', 'var(--machine-4)'];
 const kib = n => (n / 1024).toFixed(1) + ' KiB';
@@ -77,11 +81,11 @@ openPreviewLink();
 // returns to this unchecked notice instead of treating the preview as consent.
 await new Promise(resolve => {
   $('risk-acknowledgement').onchange = () => {
-    $('risk-continue').disabled = !$('risk-acknowledgement').checked;
+    $('risk-continue').disabled = !chromeAllowed || !$('risk-acknowledgement').checked;
   };
   $('risk-form').onsubmit = event => {
     event.preventDefault();
-    if (!$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
+    if (!chromeAllowed || !$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
     acknowledged = true;
     $('risk-gate').hidden = true;
     $('phase-nav').hidden = false;

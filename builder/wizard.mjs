@@ -71,7 +71,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       menu: ['Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', [action('Yes, I see it', disabling ? 'connect' : transfer, 'menu-yes'), action('No, it’s missing', disabling ? 'disabled' : 'connect', 'menu-no')]],
       connect: ['Connect your OP–XY.', 'When you select Find OP–XY, allow MIDI access if prompted.', [action('Find OP–XY', null, 'dev-connect')], [
         'Connect your OP–XY to this computer with a USB-C data cable.',
-        'Open this site in Chrome, Edge, or another browser that supports Web MIDI.',
+        'Open this site in desktop Google Chrome.',
         'Keep your OP–XY on the te-boot menu.',
       ]],
       enable: ['Enable the dev menu.', 'Your OP–XY is connected. This enables the menu; it does not change the OS.', [action('Enable dev menu', null, 'dev-enable')]],
@@ -389,7 +389,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     $('download').hidden = computer === 'mac';
     $('route-change').hidden = !computer;
     $('route-mac-note').textContent = Mtp.supported() ? 'Send from this page. No download needed.'
-      : 'Downloads the ZIP. Use Chrome or Edge to skip the download.';
+      : 'Direct USB access is unavailable. Download the ZIP and copy it manually.';
   }
   $('dev-cancel').onclick = () => {
     const enabling = ['enable', 'disable'].includes(stage), stopped = !!sending, reading = purpose === 'source' && direct();

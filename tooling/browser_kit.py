@@ -106,7 +106,8 @@ def write_builder(kit, output):
                "import * as Segments from '../sdk/browser/segments.mjs';\n"
                "import * as Visuals from './visuals.mjs';\n"
                "import {Audition} from './audition.mjs';\n"
-               "import {shownControls} from '../sdk/browser/controls.mjs';\n")
+               "import {shownControls} from '../sdk/browser/controls.mjs';\n"
+               "import {isDesktopChrome} from './browser.mjs';\n")
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
     exports = ('requireThat decode64 sha256 equal readObject identities moduleBytes openKit linkKit readLdr '
@@ -144,6 +145,7 @@ def write_builder(kit, output):
     for variable, file in [('engineSource', 'engine.mjs'), ('processorSource', 'processor.mjs')]:
         bundled += 'const ' + variable + '=' + json.dumps(read(ROOT / 'sdk/browser' / file).decode('utf-8')) + ';\n'
     bundled += audition[len(audition_imports):].replace('export ', '') + '\nreturn Audition;\n})();\n'
+    bundled += read(ROOT / 'builder/browser.mjs').decode('utf-8').replace('export ', '') + '\n'
     bundled += app[len(imports):]
     # Include attribution even when refreshing a kit exported before device setup existed.
     kit = dict(kit)
