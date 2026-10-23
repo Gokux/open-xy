@@ -148,6 +148,8 @@
       "dials": 4,
       "textControls": [
         0,
+        1,
+        2,
         3
       ]
     }
