@@ -171,21 +171,25 @@ def main(argv=None):
     except ValueError as error:
         parser.exit(1, 'ERROR: ' + str(error) + '\n')
     out = fresh_output(args.out)
-    package = out / 'source'
-    native.build(package, Path(args.toolchain), Path(args.compiler),
-                 Path(args.stock_os), Path(args.stock_content))
-    options = []
-    for name in ('toolchain', 'compiler', 'stock_os', 'stock_content'):
-        options += ['--' + name.replace('_', '-'), str(Path(getattr(args, name)).resolve())]
-    if not args.personal:  # independent rebuild against the reference bytes
-        subprocess.run([sys.executable, str(ROOT / 'sdk.py'), 'check', '--native-package', str(package), *options],
-                       cwd=ROOT, check=True)
-    export(package, out, tool_paths(args.toolchain), args.preview_cxx,
-           stock_catalog=read(Path(args.stock_content) / 'op1_factory.json'))
-    # Validate firmware and content output against the independent Python writer.
-    for mode in ([], ['-O']):
-        subprocess.run([sys.executable, *mode, str(ROOT / 'tools/check_browser_firmware.py'), str(out), args.stock_os,
-                        args.stock_content], cwd=ROOT, check=True)
+    try:
+        package = out / 'source'
+        native.build(package, Path(args.toolchain), Path(args.compiler),
+                     Path(args.stock_os), Path(args.stock_content))
+        options = []
+        for name in ('toolchain', 'compiler', 'stock_os', 'stock_content'):
+            options += ['--' + name.replace('_', '-'), str(Path(getattr(args, name)).resolve())]
+        if not args.personal:  # independent rebuild against the reference bytes
+            subprocess.run([sys.executable, str(ROOT / 'sdk.py'), 'check', '--native-package', str(package), *options],
+                           cwd=ROOT, check=True)
+        export(package, out, tool_paths(args.toolchain), args.preview_cxx,
+               stock_catalog=read(Path(args.stock_content) / 'op1_factory.json'))
+        # Validate firmware and content output against the independent Python writer.
+        for mode in ([], ['-O']):
+            subprocess.run([sys.executable, *mode, str(ROOT / 'tools/check_browser_firmware.py'), str(out),
+                            args.stock_os, args.stock_content], cwd=ROOT, check=True)
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        # The unnamed builder and its inputs stay in --out for inspection.
+        parser.exit(1, f'ERROR: {error}\nIncomplete export left in {out}; use a new --out to retry.\n')
     (out / 'builder.pending.html').rename(out / 'opxy-builder.html')
     print('Browser builder: ' + str(out / 'opxy-builder.html'))
     if args.personal:
