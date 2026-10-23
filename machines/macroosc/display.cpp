@@ -38,7 +38,15 @@ inline void display(const opxy::segments::Input& input, Frame& frame) {
   for (unsigned i = 0; i < 4; ++i)
     frame.masks[i] = models[index].masks[i];
   opxy::segments::text(frame.label, sizeof(frame.label), models[index].label);
-  opxy::segments::text(frame.values[0], sizeof(frame.values[0]), models[index].code);
+  // The header shows the model code in lower case, which fits its column.
+  char code[5];
+  for (unsigned i = 0; i < sizeof(code); ++i) {
+    const char c = models[index].code[i];
+    code[i] = c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c;
+    if (!c) break;
+  }
+  code[4] = 0;
+  opxy::segments::text(frame.values[0], sizeof(frame.values[0]), code);
   amount(frame.values[1], sizeof(frame.values[1]), input.parameters[1]);
   amount(frame.values[2], sizeof(frame.values[2]), input.parameters[2]);
   if (input.shown[3] == kRatioSlot)
