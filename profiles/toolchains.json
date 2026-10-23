@@ -33,6 +33,11 @@
     },
     "darwin-arm64": {
       "executable_suffix": "",
+      "download": {
+        "url": "https://github.com/etcetc000/open-xy/releases/download/toolchain-1/open-xy-toolchain-darwin-arm64.zip",
+        "sha256": "65b1ee794831973894542ad89145c444cc1d1316911fd149a07879d1bf3549a5",
+        "folder": "open-xy-toolchain-darwin-arm64"
+      },
       "build": {
         "script": "tools/gcc/build-macos.sh",
         "source": "/Users/ericgao/opxy-toolchain/fork-clean",

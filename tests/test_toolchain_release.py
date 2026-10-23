@@ -34,6 +34,17 @@ def tiny_pe(imports):
     return bytes(image)
 
 
+def tiny_macho(libraries):
+    """A minimal 64-bit Mach-O header with one LC_LOAD_DYLIB per library and an unrelated command."""
+    commands = [struct.pack('<II', 0x19, 16) + bytes(8)]  # LC_SEGMENT_64 stand-in
+    for name in libraries:
+        text = name.encode() + b'\0'
+        size = (24 + len(text) + 7) // 8 * 8
+        commands.append(struct.pack('<IIIIII', 0xc, size, 24, 0, 0, 0) + text.ljust(size - 24, b'\0'))
+    body = b''.join(commands)
+    return struct.pack('<IiiIIIII', 0xfeedfacf, 0x0100000c, 0, 2, len(commands), len(body), 0, 0) + body
+
+
 class ToolchainReleaseTests(unittest.TestCase):
     def test_every_pinned_library_has_a_source_package(self):
         manifest = json.loads((ROOT / 'tools/gcc/release-sources.json').read_text('utf-8'))
@@ -53,6 +64,12 @@ class ToolchainReleaseTests(unittest.TestCase):
         self.assertEqual(release.pe_imports(tiny_pe([])), [])
         with self.assertRaises(ValueError):
             release.pe_imports(b'ELF')
+
+    def test_macho_load_commands(self):
+        libraries = ['/usr/lib/libSystem.B.dylib', '/opt/homebrew/opt/gmp/lib/libgmp.10.dylib']
+        self.assertEqual(release.macho_imports(tiny_macho(libraries)), libraries)
+        with self.assertRaises(ValueError):
+            release.macho_imports(tiny_pe([]))
 
 
 if __name__ == '__main__':

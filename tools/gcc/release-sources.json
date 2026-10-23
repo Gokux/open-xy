@@ -12,6 +12,8 @@
   },
   "hosts": {
     "windows-x86_64": {
+      "build": "tools/gcc/build-gcc.sh",
+      "notices": ["winpthreads.txt", "zlib.txt"],
       "runtime": [
         {
           "file": "mingw-w64-gcc-15.2.0-11.src.tar.zst",
@@ -61,6 +63,33 @@
           "sha256": "9f274086ee2aa74e449908443f5e225855a4fe20f2abddadb4d18c0194c1ceff",
           "license": "Zlib",
           "provides": ["zlib1.dll"]
+        }
+      ]
+    },
+    "darwin-arm64": {
+      "build": "tools/gcc/build-macos.sh",
+      "notices": [],
+      "runtime": [
+        {
+          "file": "gmp-6.3.0.tar.xz",
+          "url": "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz",
+          "sha256": "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898",
+          "license": "LGPL-3.0-or-later OR GPL-2.0-or-later",
+          "provides": ["libgmp.a, linked into cc1plus (Homebrew gmp 6.3.0)"]
+        },
+        {
+          "file": "mpfr-4.2.2.tar.xz",
+          "url": "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz",
+          "sha256": "b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01",
+          "license": "LGPL-3.0-or-later",
+          "provides": ["libmpfr.a, linked into cc1plus (Homebrew mpfr 4.2.2)"]
+        },
+        {
+          "file": "mpc-1.3.1.tar.gz",
+          "url": "https://ftp.gnu.org/gnu/mpc/mpc-1.3.1.tar.gz",
+          "sha256": "ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8",
+          "license": "LGPL-3.0-or-later",
+          "provides": ["libmpc.a, linked into cc1plus (Homebrew libmpc 1.3.1)"]
         }
       ]
     }
