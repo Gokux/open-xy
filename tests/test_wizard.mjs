@@ -46,7 +46,7 @@ function sourceFlow(t, {fake, bytes, hash, usb = true}) {
     $('source-' + computer).onclick(); $('source-device').onclick();
     click('version-yes'); click('Connected and at te-boot'); click('menu-yes');
     assert.equal($('device-flow').dataset.stage, 'open-dev-menu');
-    click('Factory menu is open'); click('I see "mtp mode active"');
+    click('Dev menu is open'); click('I see "mtp mode active"');
   };
   return {$, wizard, click, reachTransfer, accepted, requests: () => requests};
 }
@@ -162,7 +162,7 @@ test('installation links preview the edited steps without a build or device acce
   action('Preview next step').onclick();
   assert.equal($('device-flow').dataset.stage, 'exit-transfer');
   assert.equal($('flow-install-reminder').hidden, false);
-  action('I’m back at the factory menu').onclick();
+  action('I’m back at the dev menu').onclick();
   assert.equal($('device-flow').dataset.stage, 'write-os');
   assert.equal($('flow-install-reminder').hidden, false);
   action('I pressed track 5').onclick();
