@@ -27,7 +27,8 @@ any OS; native firmware builds need Windows x86_64 or Apple-silicon macOS, where
 
 ## Try an example
 
-Requires Python 3.11+, Node 22+, numpy 2.3.5, Clang++ with wasm32/wasm-ld,
+Commands say `python`; on macOS use `python3`. Requires Python 3.11+, Node 22+,
+numpy 2.3.5, Clang++ with wasm32/wasm-ld,
 and a recent Chrome or Edge. Firmware and Blackfin tools are not needed.
 Follow [Check your tools](docs/first-machine.md#check-your-tools) to set up an
 isolated Python environment and verify WebAssembly support, then run:

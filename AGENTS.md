@@ -16,7 +16,7 @@ Read README.md and CONTRIBUTING.md. For native changes also read
   output directories and the allowlisted preview server.
 - Run `python sdk.py check` for every change. Machine tests are the machine
   maintainer's responsibility and do not live in this repository.
-  Native changes require the build and
+  Native changes to this repository require the build and
   [release verification](docs/build.md#release-verification), with no skipped
   required fixtures. Checks must remain active under `python -O`.
 - Build and verification commands are local. Device operations require a separate
@@ -30,5 +30,6 @@ User instructions take precedence over this file.
 
 Firmware, stock content, extracted firmware and firmware-containing packages
 must live outside every checkout, including ignored local/ directories. The
-docs use %LOCALAPPDATA%/OPXY-SDK/private/; pass external input/output paths to
-build commands. Never force-add these files or bypass the commit/push guards.
+docs use %LOCALAPPDATA%/OPXY-SDK/private/ (Windows) or
+~/Library/Application Support/OPXY-SDK/private/ (macOS); pass external
+input/output paths to build commands. Never force-add these files or bypass the commit/push guards.

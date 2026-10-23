@@ -520,6 +520,9 @@ def validate_panel(m, fragment=None):
     nodes = list(panel_root(fragment, f'machines/{m.id}/panel.svg.fragment').iter())
     ids = [node.get('id') for node in nodes if node.get('id')]
     require(len(ids) == len(set(ids)), 'Duplicate authored SVG ID')
+    require(m.prefix == 'local' or not any(i.startswith('local_') for i in ids),
+            f'machines/{m.id}/panel.svg.fragment still has local_ artwork IDs; '
+            f'rename every local_ prefix to {m.prefix}_ (docs/build.md, step 3)')
     by_id = {node.get('id'): node for node in nodes if node.get('id')}
 
     def visible(name, tags=('path', 'circle')):
@@ -709,6 +712,10 @@ def main(argv=None, command=None):
             output, result = build(args.out, *tools, args.stock_os, args.stock_content)
             print(json.dumps(result, indent=2))
             print('Local experimental package: ' + str(output))
+            candidate = output / 'candidate'
+            print('Files to install (docs/build.md, step 5), in ' + str(candidate) + ':')
+            for path in sorted(p for p in candidate.rglob('*') if p.is_file()):
+                print('  ' + path.relative_to(candidate).as_posix())
         return 0
     except (ValueError, OSError, KeyError, ET.ParseError, subprocess.SubprocessError) as error:
         print('ERROR: ' + str(error), file=sys.stderr)
