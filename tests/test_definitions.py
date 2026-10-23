@@ -8,11 +8,11 @@ import tempfile
 import json
 import unittest
 
-from opxy_sdk.adapters import (catalog_defaults, catalog_entry, control_cycles, generate_display, generate_screen,
+from tooling.adapters import (catalog_defaults, catalog_entry, control_cycles, generate_display, generate_screen,
                                generate_segment_binding, generate_synth_controls, screen_bytes)
-from opxy_sdk.definitions import ROOT, control_positions, validate_definition
-from opxy_sdk.machines import machine
-from opxy_sdk.native import drawing_ids, segment_ids
+from tooling.definitions import ROOT, control_positions, validate_definition
+from tooling.machines import machine
+from tooling.native import drawing_ids, segment_ids
 
 
 def layout_compiler():

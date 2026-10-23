@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 import unittest
 
-from opxy_sdk.checks import FIXTURES, fixture_environment, run_suite
+from tooling.checks import FIXTURES, fixture_environment, run_suite
 from unittest.mock import patch
 
 
@@ -41,8 +41,8 @@ class CheckRunnerTests(unittest.TestCase):
                 fixture_environment(self.options(**values), {})
 
     def test_native_suite_rejects_skipped_test_even_when_unittest_succeeds(self):
-        with patch('opxy_sdk.checks.unittest.TestLoader.discover'), patch('builtins.print'), \
-             patch('opxy_sdk.checks.unittest.TextTestRunner') as runner:
+        with patch('tooling.checks.unittest.TestLoader.discover'), patch('builtins.print'), \
+             patch('tooling.checks.unittest.TextTestRunner') as runner:
             result = runner.return_value.run.return_value
             result.wasSuccessful.return_value = True
             result.skipped = [('case', 'missing input')]

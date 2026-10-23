@@ -5,8 +5,8 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from opxy_sdk import machines
-from opxy_sdk.pipeline import config
+from tooling import machines
+from tooling.pipeline import config
 
 RULES = config()['identities']
 

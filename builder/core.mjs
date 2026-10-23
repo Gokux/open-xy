@@ -95,7 +95,7 @@ export function readObject(bytes) {
   return {sections, symbols, relocations};
 }
 
-// The profile's identity rules, as opxy_sdk.machines.check_identity applies them.
+// The profile's identity rules, as tooling.machines.check_identity applies them.
 export function validIdentity(rules, kind, identity) {
   const slot = kind === 'effect' ? 'effect' : 'engine';
   if (!identity || typeof identity !== 'object' || Object.keys(identity).sort().join() !== [slot, 'page'].sort().join()) return false;
@@ -267,7 +267,7 @@ const words = (...values) => {
   values.forEach((word, i) => view(bytes).setUint16(i * 2, word, true)); return bytes;
 };
 // Replacement bytes of a profile edit whose destination is a module symbol
-// (opxy_sdk.firmware.hook_instruction and opxy_sdk.startup_label.jump).
+// (tooling.firmware.hook_instruction and tooling.startup_label.jump).
 export function redirect(edit, destination) {
   check(Number.isInteger(destination) && destination >= 0 && destination <= 0xffffffff && destination % 2 === 0,
     'Invalid redirect destination');
@@ -419,7 +419,7 @@ export async function buildAssets(kit, selection, catalog) {
   check(await sha256(catalog) === kit.profile.stock_catalog_sha256, 'The site’s machine data is damaged. Reload this page.');
   const machines = kit.machines.filter(m => selection.includes(m.id));
   // Each machine's entry ends its stock list; the offsets are bound to the
-  // authenticated stock catalog (opxy_sdk.native.extend_catalog).
+  // authenticated stock catalog (tooling.native.extend_catalog).
   const groups = {engine_types: machines.filter(m => m.kind !== 'effect'), fx_types: machines.filter(m => m.kind === 'effect')};
   const inserts = Object.entries(kit.profile.stock_catalog_inserts).sort((a, b) => b[1] - a[1]);
   check(inserts.map(([key]) => key).sort().join() === Object.keys(groups).sort().join(), 'Unexpected catalog insertion points');

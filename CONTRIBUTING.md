@@ -13,7 +13,7 @@ in the layer that owns the behavior:
 
 A machine folder holds C++ source, `definition.json` (controls, the same
 schema for every kind), `machine.json` and artwork. It never holds build scripts; a new
-machine is not a reason to add code to `opxy_sdk/`. A new callback contract or
+machine is not a reason to add code to `tooling/`. A new callback contract or
 native identity still needs SDK work.
 
 ## Checks

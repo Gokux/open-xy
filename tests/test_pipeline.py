@@ -10,9 +10,9 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from opxy_sdk.formats import elf32, header, ldr, mapped_offset, sha
-from opxy_sdk import pipeline
-from opxy_sdk.pipeline import ROOT, PROTECTED, check_patch_boundaries, child, config, fresh_output
+from tooling.formats import elf32, header, ldr, mapped_offset, sha
+from tooling import pipeline
+from tooling.pipeline import ROOT, PROTECTED, check_patch_boundaries, child, config, fresh_output
 
 
 class Formats(unittest.TestCase):

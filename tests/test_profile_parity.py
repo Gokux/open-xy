@@ -8,10 +8,10 @@ from pathlib import Path
 import subprocess
 import unittest
 
-from opxy_sdk import startup_label
-from opxy_sdk.firmware import hook_instruction, hooks
-from opxy_sdk.machines import check_identity
-from opxy_sdk.pipeline import ROOT, config
+from tooling import startup_label
+from tooling.firmware import hook_instruction, hooks
+from tooling.machines import check_identity
+from tooling.pipeline import ROOT, config
 
 BROWSER = """
 import {validIdentity, redirect} from %s;

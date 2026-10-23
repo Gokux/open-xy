@@ -89,7 +89,7 @@ def metadata(files):
 
 def source_hashes(files):
     from .preview import SDK_FOLDERS, SDK_SOURCES
-    paths = set(SDK_SOURCES) | {'opxy_sdk/custom_preview.py', 'opxy_sdk/native.py'}
+    paths = set(SDK_SOURCES) | {'tooling/custom_preview.py', 'tooling/native.py'}
     for folder in SDK_FOLDERS:
         paths |= {p.relative_to(ROOT).as_posix() for p in (ROOT / folder).rglob('*')
                   if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.md'}

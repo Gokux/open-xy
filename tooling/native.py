@@ -73,7 +73,7 @@ def configuration():
 def provenance(machines):
     """Every authored, SDK and compiler-profile input; private artifacts never enter."""
     paths = {PROFILE, LINKER, 'profiles/collection.json'}
-    for folder in ('sdk/include', 'sdk/platform', 'opxy_sdk', *('machines/' + m.id for m in machines)):
+    for folder in ('sdk/include', 'sdk/platform', 'tooling', *('machines/' + m.id for m in machines)):
         paths |= {p.relative_to(ROOT).as_posix() for p in (ROOT / folder).rglob('*')
                   if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.md'}
     return {name: sha(read(child(ROOT, name))) for name in sorted(paths)}

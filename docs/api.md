@@ -62,7 +62,7 @@ device.
 
 Every machine kind keeps its controls in `definition.json` (for example
 [2op FM's](../machines/fm2op/definition.json)); the
-[validator](../opxy_sdk/definitions.py) rejects missing or unknown fields.
+[validator](../tooling/definitions.py) rejects missing or unknown fields.
 
 | Field | Contract |
 | --- | --- |

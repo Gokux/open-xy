@@ -2,8 +2,8 @@ import copy
 import json
 import unittest
 
-from opxy_sdk import startup_label as label
-from opxy_sdk.pipeline import ROOT, check_patch_boundaries
+from tooling import startup_label as label
+from tooling.pipeline import ROOT, check_patch_boundaries
 
 
 class StartupLabelTests(unittest.TestCase):

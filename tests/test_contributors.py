@@ -2,11 +2,11 @@ import re
 import unittest
 import tempfile
 from pathlib import Path
-from opxy_sdk.adapters import generate_voice
+from tooling.adapters import generate_voice
 
-from opxy_sdk.contributors import validate_source_boundary
-from opxy_sdk.machines import discovered, machine
-from opxy_sdk.native import check_sources
+from tooling.contributors import validate_source_boundary
+from tooling.machines import discovered, machine
+from tooling.native import check_sources
 
 
 class ContributorBoundary(unittest.TestCase):

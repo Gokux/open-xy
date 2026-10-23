@@ -13,9 +13,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from opxy_sdk import native
-from opxy_sdk.formats import elf32, sha
-from opxy_sdk.pipeline import document, read, save_json
+from tooling import native
+from tooling.formats import elf32, sha
+from tooling.pipeline import document, read, save_json
 
 
 @unittest.skipUnless(os.environ.get('OPXY_TEST_NATIVE_PACKAGE') and os.environ.get('OPXY_TEST_STOCK_OS') and

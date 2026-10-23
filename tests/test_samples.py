@@ -5,10 +5,10 @@ import tempfile
 import unittest
 from dataclasses import replace
 
-from opxy_sdk import adapters
-from opxy_sdk.machines import check_analysis_budgets, machine
-from opxy_sdk.definitions import validate_definition
-from opxy_sdk import firmware
+from tooling import adapters
+from tooling.machines import check_analysis_budgets, machine
+from tooling.definitions import validate_definition
+from tooling import firmware
 
 
 class Generation(unittest.TestCase):

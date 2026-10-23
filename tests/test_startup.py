@@ -5,8 +5,8 @@ Its behavior runs on the host in test_sample_services.py (fixtures/startup.cpp).
 import re
 import unittest
 
-from opxy_sdk.native import DEFINITIONS
-from opxy_sdk.startup import MAX_ENGINES, render
+from tooling.native import DEFINITIONS
+from tooling.startup import MAX_ENGINES, render
 
 
 class Startup(unittest.TestCase):

@@ -5,9 +5,9 @@ import subprocess
 import tempfile
 import unittest
 from dataclasses import replace
-from opxy_sdk.adapters import generate_sample_callbacks, generate_screen_order
-from opxy_sdk.machines import machine
-from opxy_sdk.startup import generate as generate_startup
+from tooling.adapters import generate_sample_callbacks, generate_screen_order
+from tooling.machines import machine
+from tooling.startup import generate as generate_startup
 
 ROOT = Path(__file__).resolve().parents[1]
 

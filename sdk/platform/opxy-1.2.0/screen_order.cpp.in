@@ -1,5 +1,5 @@
 // Generated: the compositor traversal hook (screen_hooks.s) over the relocated
-// screen slots (opxy_sdk/stock_tables.py). sdk_screen_owned is in the
+// screen slots (tooling/stock_tables.py). sdk_screen_owned is in the
 // collection's startup glue.
 #include "screen_order.hpp"
 

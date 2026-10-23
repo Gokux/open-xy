@@ -81,7 +81,7 @@ def main(argv=None):
                  '--toolchain', args.toolchain.resolve(), '--compiler', args.compiler.resolve()])
         for optimized in (False, True):
             command = [sys.executable, *(['-O'] if optimized else []), '-m',
-                       'opxy_sdk.checks', '_suite', *(['--require-all'] if native else [])]
+                       'tooling.checks', '_suite', *(['--require-all'] if native else [])]
             run('Python checks' + (' (assertions disabled)' if optimized else ''), command)
         print('\nPASS: ' + ('native package verified; all fixture tests required.' if native else
                            'public source checks; private tests explicitly skipped.'))
