@@ -39,11 +39,11 @@ class SampleServices(unittest.TestCase):
                 probe = replace(machine('timestretch'), id='probe', identity=dict(engine=46, page=7))
                 generate_sample_callbacks(folder, [probe])
             if name == 'screen_order':
-                probe = replace(machine('fm2op'), id='probe', identity=dict(engine=46, page=112))
-                generate_screen_order(folder, [probe, machine('timestretch'), machine('decimate')])
+                generate_screen_order(folder)
             if name == 'startup':
                 generate_startup(folder, ['first', 'second', 'sampled'], ['effect'], ['sampled'])
-            command = [HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror',
+            # A fixture that includes barrier.hpp supplies host_barrier for the Blackfin SSYNC.
+            command = [HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror', '-D__builtin_bfin_ssync()=host_barrier()',
                        '-I' + str(folder), '-I' + str(ROOT / 'sdk/include'),
                        '-I' + str(ROOT / 'sdk/platform/opxy-1.2.0'), str(ROOT / 'tests/fixtures' / (name + '.cpp')),
                        *(str(ROOT / path) for path in extra), '-o', str(binary)]
@@ -59,10 +59,10 @@ class SampleServices(unittest.TestCase):
         self.run_fixture('sample_progress', ('sdk/platform/opxy-1.2.0/sample_progress.cpp',))
 
     def test_saved_settings_tuning_and_trim_bounds(self):
-        self.run_fixture('sample_region')
+        self.run_fixture("stock_sample")
 
     def test_callbacks_work_for_another_engine_and_preserve_stock_fields(self):
-        self.run_fixture('sample_callbacks')
+        self.run_fixture('sample_callbacks', ('sdk/platform/opxy-1.2.0/sample_machines.cpp',))
 
     def test_owned_primary_screen_precedes_stock_overlays(self):
         self.run_fixture('screen_order')

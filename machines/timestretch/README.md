@@ -1,90 +1,69 @@
 # Timestretch sample engine
 
-Timestretch plays samples in time with the project, using either repitching or
-pitch-preserving Capicola-derived timestretch. Each drum pad has its own
-sample and settings. Retriggering a pad chokes its previous voice; other pads
-and tracks keep playing. New presets use zero amp decay and release.
+Timestretch plays samples in time with the project, either by repitching or
+with pitch-preserving, Capicola-derived timestretch. It uses engine 35 on the
+stock drum page (page 7): each pad has its own sample and settings.
 
-The stock drum page supplies the waveform, trim markers and graphics:
+## Playing it
 
 | Encoder | Main page | Shift |
 | --- | --- | --- |
-| 1 | Pitch, -12 to +12 semitones in 0.1 steps; press resets | Stock reverse control and icon |
+| 1 | Pitch, -12 to +12 semitones in 0.1 steps; press resets | Stock reverse |
 | 2 | Sample start | Loop length or source BPM; press switches between them |
 | 3 | Sample end | `repitch` or `timestretch`; press toggles |
-| 4 | Loop or play once; press toggles | Stock volume control and glyph |
+| 4 | Loop or play once; press toggles | Stock volume |
 
-The factory page retains its saved-pad and live-track editing routes. Live
-pitch adds up to 12 semitones in either direction to the pad's pitch, including
-fractional semitones. Both pad edits and live/step edits use 0.1-semitone
-increments. Pad pitch is stored in stock root/fine-tuning fields.
-Live start/end controls move the saved markers toward
-the sample boundaries. The display and audio use the same effective settings.
-Live play and stretch controls have a middle `pad` position that inherits the
-saved mode; reverse toggles the saved direction, and volume attenuates it.
-Live tempo offsets the saved source BPM or bar selection.
+- **Length and tempo.** Lengths are 1/4, 1/2, 1, 2, 4 and 8 bars of 4/4.
+  Source BPM is an integer from 20 to 300. Switching from bars to BPM starts
+  at 120; switching back starts at one bar. Set the length or source BPM
+  correctly before judging stretch quality.
+- **Automatic source BPM.** Put exactly three digits at the start or end of
+  the file name, separated by a space, `_` or `-`: `095_guitar.wav` or
+  `guitar_095.wav` (020 to 300). Conflicting values at both ends are ignored.
+  Without one, Timestretch suggests a length from the duration and project
+  tempo; it does not detect beats.
+- **Replacing a sample** keeps the pad's pitch, reverse, volume, loop/play and
+  mode. A BPM in the new file name updates the source BPM; otherwise the
+  previous BPM or length stays. An empty pad starts with loop, repitch, zero
+  pitch and the suggested length; a pad without saved settings plays one bar.
+- **Recording.** A recording made with the stock recorder is assigned to the
+  selected pad like a file, keeping a replaced pad's settings. Its source BPM
+  is the project tempo at assignment, rounded to a whole BPM.
+- **Trim.** Playback follows the outer start/end markers, which new
+  assignments set to the whole sample; the sampler's hidden loop markers do
+  not apply.
+- **Pitch.** Pad pitch, live pitch (another ±12 semitones), the octave
+  buttons and the track transpose (±36) add up, limited to ±60 semitones. In
+  timestretch mode pitch is independent of loop speed; in repitch mode it
+  also changes speed. Retriggering a pad, at any octave, chokes its previous
+  voice; other pads and tracks keep playing.
+- **Live controls** start from the pad's settings. Start and end move the
+  markers toward the sample's ends; play and mode have a middle `pad`
+  position that keeps the saved choice; reverse flips the saved direction;
+  volume scales the saved volume. Tempo offsets the source BPM by up to ±140
+  BPM, or the length by up to ±5 steps. The bundled preset centers them.
+- **Analysis.** Timestretch mode needs an analysis of the sample, prepared on
+  the stock file worker after assignment; the progress overlay reports it.
+  Repitch plays meanwhile; timestretch stays silent until it completes. The
+  stock loader's limit applies: 882,000 frames (20 seconds at 44.1 kHz).
+- New presets use zero amp decay and full release. Load the preset on a fresh
+  track when testing; saved tracks keep their stored parameter values.
 
-The bundled preset centers pitch, start, end, play, tempo and mode, disables
-live reverse and sets live volume to unity. Load this preset on a fresh track
-when testing; previously saved tracks retain their stored parameter values.
+## How it uses the sample API
 
-Replacing a sample retains the pad's pitch, reverse, volume, loop/play and
-repitch/timestretch settings. A valid BPM in the new filename updates source
-BPM; otherwise the previous BPM or bar selection stays in place. Empty pads
-start from the assignment defaults.
-The stock sample recorder also assigns completed external-input recordings to
-the selected pad. Recording over a pad retains its playback settings and starts
-with full-sample trims. Recordings switch to source-BPM mode using the current
-project tempo at assignment, rounded to the nearest whole BPM. They retain the
-pad's loop/play and repitch/timestretch modes and do not import BPM from the file browser.
-New assignments span the full loaded sample. Trim positions use the waveform
-markers rather than numeric labels. Playback follows these outer start/end
-markers; hidden sampler loop markers do not constrain them.
-Length choices are 1/4, 1/2, 1, 2, 4 and
-8 bars in 4/4. Source BPM is an integer from 20 to 300. Switching from bars
-to BPM starts at 120; returning to bars starts at one bar. Correct the length
-or source BPM before judging stretch quality. Pitch changes are independent
-of loop speed in timestretch mode; they also change speed in repitch mode.
-The +/- octave buttons retain the same pad's sample and change playback pitch
-by 12 semitones per press, separately from the saved pad pitch. Empty pads
-start with zero pad pitch.
-Track settings transpose (-36 to +36 semitones) also adds to saved pad and
-live/step pitch in both modes. The combined pitch is limited to -60 to +60
-semitones. Retriggering the same pad at another octave chokes its prior voice.
+[`sample.cpp`](sample.cpp) renders through the
+[sample engine API](../../docs/api.md#sample-engines). `definition.json`
+declares stereo output, same-key choke, pad settings with drum controls, and a
+2 MiB analysis budget.
 
-For automatic source BPM, put exactly three digits at the beginning or end of
-the filename, separated by a space, underscore or hyphen: `095_guitar.wav`
-or `guitar_095.wav`. Only 020 through 300 are accepted. Conflicting values at
-both ends are ignored. Directory names and numbers inside a name are ignored.
-Without this convention, Timestretch suggests a length from duration and project
-tempo; this does not detect beats in the audio.
+- [`controls.h`](controls.h) packs loop/play, mode and BPM-or-length into the
+  16-bit pad settings, and implements `sample_defaults`, `sample_assign`,
+  `drum_control` and `drum_panel`. [`assignment.h`](assignment.h) reads the
+  file-name BPM and suggests a length.
+- [`analysis.h`](analysis.h) prepares a keyframe bitmap per channel: positions
+  where the derivative changes sign, at most 256 frames apart. Playback reads
+  the original PCM; keyframes only time grain splices.
+  [`stretch.h`](stretch.h) plays grains with linear interpolation and shares
+  playheads and crossfades between channels.
 
-Committed samples are analyzed on the stock file worker, one at a time. Scrolling the
-browser does not start analysis; the shared progress overlay reports preparation
-after assignment. Playback reads the original PCM with linear interpolation;
-an immutable keyframe grid supplies adaptive splice timing. It is not a fully
-prerendered audio cache. Repitch can
-play while analysis is pending; timestretch waits for completed analysis.
-The shared analysis cache has a 2 MiB limit and reports failures or exhaustion.
-The stock loader's 882,000-frame limit still applies (20 seconds at 44.1 kHz).
-
-`sample.cpp` and the control callbacks are portable C++ using the
-[sample engine API](../../docs/api.md#sample-engines). The machine declares
-analysis, same-key choke and drum controls in `definition.json`. The SDK owns
-native addresses, registration, sample lifetime, analysis scheduling, control
-dispatch and stock graphics. Adding another machine using these services
-does not add firmware patch sites. Timestretch uses engine 35 and stock page 7.
-
-Both repitch and timestretch retain stereo. Timestretch analyzes each channel
-separately and shares playhead positions and crossfades, using the more active
-channel to choose splice timing. Mono samples play equally on both sides.
-Pitch changes also scale the crossfade speed, as in upstream Capicola.
-Stereo analysis counts both channels against the shared cache budget.
-
-The fixed-point adaptation uses integer derivative-crossing positions with
-a 0.001 amplitude-change threshold to select grain placement and crossfade
-duration. Keyframes do not store or reconstruct the audible waveform.
-Stereo PCM shares interpolation positions and fade weights. The upstream
-hardware UI and live-input processing are not included; the stock recorder
-supplies completed audio files. See the
-[upstream revision and AGPL notices](vendor/README.md).
+See the [upstream revision and AGPL notices](vendor/README.md).

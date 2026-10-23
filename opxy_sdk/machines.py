@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import json
 import re
 
-from .definitions import ROOT, stock_name, validate_definition
+from .definitions import ANALYSIS_HEAP_LIMIT, ROOT, stock_name, validate_definition
 from .formats import require
 from .pipeline import config
 
@@ -108,8 +108,9 @@ def machine(identity):
     # The native plan compiles extra translation units only into synths.
     if kind != 'synth':
         require(not sources and not includes, 'Sample engines and effects compile one fx.cpp or sample.cpp')
-    if kind == 'sample' and definition['resources'].get('drumControls', 0):
-        require(value['identity']['page'] == 7, 'Drum control callbacks need stock page 7')
+    # Pad settings live in the stock drum page's pad records, whose fade the SDK then owns.
+    if kind == 'sample' and definition['resources'].get('padSettings', 0):
+        require(value['identity']['page'] == 7, 'Pad settings and drum controls need stock page 7')
     defaults = value.get('presetDefaults', {})
     require(isinstance(defaults, dict) and set(defaults) <= {'amp'}, 'Invalid preset defaults')
     amp = defaults.get('amp', {})
@@ -139,7 +140,15 @@ def collection():
     pages = [m.identity['page'] for m in machines if m.display != 'stock']
     require(len(set(engines)) == len(engines) and len(set(effects)) == len(effects) and len(set(pages)) == len(pages),
             'Conflicting engine, effect or page ID')
+    check_analysis_budgets(machines)
     return machines
+
+
+def check_analysis_budgets(machines):
+    """Every machine's analysis budget comes from one stock-heap allowance."""
+    total = sum(m.definition['resources'].get('sampleAnalysis', 0) for m in machines if m.kind == 'sample')
+    require(total <= ANALYSIS_HEAP_LIMIT,
+            'Sample analysis budgets exceed the collection limit of %d bytes' % ANALYSIS_HEAP_LIMIT)
 
 
 def by_kind(machines, *kinds):

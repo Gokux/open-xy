@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from .adapters import catalog_entry
+from .adapters import catalog_entry, sample_callbacks
 from .formats import require, sha
 from .pipeline import ROOT, child, fresh_output, read, require_release_host, tool_paths
 from . import native, preview, screen
@@ -45,13 +45,8 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
         else:
             entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_register', '_name_matches', '_ready')}
             if m.display == 'stock':
-                if m.definition['resources'].get('drumControls', 0):
-                    for callback in ('assign', 'migrate', 'control', 'panel'):
-                        entry['absent'][m.prefix + '_sample_' + callback] = 'kit_absent'
-                # Unselected, its analysis is not linked; the shared cache's begin call then declines.
-                if m.definition['resources'].get('sampleAnalysis', 0):
-                    for callback in ('begin', 'step', 'words', 'result'):
-                        entry['absent'][m.prefix + '_sample_prepare_' + callback] = 'kit_absent'
+                # The shared sample table names these; unselected, its ready check declines first.
+                entry['absent'].update({symbol: 'kit_absent' for symbol in sample_callbacks(m)})
             else:
                 entry['absent'][m.prefix + '_screen_register'] = 'kit_absent'
         if m.display != 'stock':

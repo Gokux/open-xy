@@ -6,7 +6,7 @@ import unittest
 from dataclasses import replace
 
 from opxy_sdk import adapters
-from opxy_sdk.machines import machine
+from opxy_sdk.machines import check_analysis_budgets, machine
 from opxy_sdk.definitions import validate_definition
 from opxy_sdk import firmware
 
@@ -14,7 +14,7 @@ from opxy_sdk import firmware
 class Generation(unittest.TestCase):
     def test_optional_services_are_explicit_integer_flags(self):
         definition = copy.deepcopy(machine('timestretch').definition)
-        for key in ('sampleAnalysis', 'chokeSameKey', 'drumControls', 'stereoOutput'):
+        for key in ('sampleAnalysis', 'chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput'):
             for value in (True, -1, 2, '1', None):
                 invalid = copy.deepcopy(definition)
                 invalid['resources'][key] = value
@@ -25,8 +25,21 @@ class Generation(unittest.TestCase):
             invalid['resources']['sampleAnalysis'] = value
             with self.subTest(heap=value), self.assertRaises(ValueError):
                 validate_definition(invalid, 'sample')
+        drum_only = copy.deepcopy(definition)
+        del drum_only['resources']['padSettings']
+        with self.assertRaisesRegex(ValueError, 'padSettings'):
+            validate_definition(drum_only, 'sample')
         definition['resources'] = {'voiceCapacity': 256}
         validate_definition(definition, 'sample')
+
+    def test_analysis_budgets_share_one_collection_limit(self):
+        def analyzing(name, budget):
+            definition = copy.deepcopy(machine('timestretch').definition)
+            definition['resources']['sampleAnalysis'] = budget
+            return replace(machine('timestretch'), id=name, definition=definition)
+        check_analysis_budgets([analyzing('one', 1 << 20), analyzing('two', 1 << 20)])
+        with self.assertRaisesRegex(ValueError, 'analysis budgets'):
+            check_analysis_budgets([analyzing('one', 1 << 20), analyzing('two', (1 << 20) + 4)])
 
     def test_absolute_calls_reject_invalid_width_opcode_padding_and_alignment(self):
         for target in (0, 0x8d450d60, 0xfffffffe):
@@ -37,24 +50,19 @@ class Generation(unittest.TestCase):
         for bad in (valid[:-1], valid + b'\0', b'\1' + valid[1:], valid[:4] + b'\x61' + valid[5:], valid[:-1] + b'\1'):
             with self.assertRaises(ValueError): firmware.absolute_target(bad)
 
-    def test_routes_are_generated_for_arbitrary_sample_identities(self):
+    def test_dispatch_table_is_generated_for_arbitrary_sample_identities(self):
         first = machine('timestretch')
-        second = replace(first, id='slicer', identity=dict(engine=46, page=7))
+        second = replace(first, id='slicer', identity=dict(engine=46, page=2))
         with tempfile.TemporaryDirectory() as directory:
-            text = adapters.generate_sample_routes(directory, [first, second, machine('fm2op')]).read_text()
-        self.assertIn('R1 = 35;', text)
-        self.assertIn('R1 = 46;', text)
-        self.assertIn('CALL timestretch_ready;', text)
-        self.assertIn('CALL slicer_ready;', text)
-        self.assertNotIn('fm2op_ready', text)
-        self.assertEqual(text.count('IF !CC JUMP .Lkind_return;'), 2)
-        self.assertIn('    R0 = 7;', text)
+            text = adapters.generate_sample_callbacks(directory, [first, second, machine('fm2op')]).read_text()
+        self.assertIn('{35, 7, timestretch_ready, ', text)
+        self.assertIn('{46, 2, slicer_ready, ', text)
+        self.assertNotIn('fm2op', text)
 
-    def test_empty_collection_routes_remain_stock(self):
+    def test_empty_collection_dispatch_remains_stock(self):
         with tempfile.TemporaryDirectory() as directory:
-            text = adapters.generate_sample_routes(directory, []).read_text()
-        self.assertIn('extensions_sample_kind:\n    LINK 12;\n\n    R0 = 0;', text)
-        self.assertNotIn('_ready;', text)
+            text = adapters.generate_sample_callbacks(directory, []).read_text()
+        self.assertNotIn('_ready', text)
 
     def test_engine_units_expand_every_placeholder(self):
         m = replace(machine('timestretch'), identity=dict(engine=46, page=2))

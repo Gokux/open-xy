@@ -3,12 +3,14 @@
 #include <startup.cpp>
 #include <cstdio>
 #include <cstdlib>
+#include <initializer_list>
 #include <string>
 
 #define require(value) do { if (!(value)) { std::fprintf(stderr, "line %d\n", __LINE__); std::abort(); } } while (0)
 
 static std::string calls;
-static bool gui, ready_state = true, screens = true;
+static bool gui, screens = true;
+static int ready_state = 1;
 static const char* named;
 static u32 inserted;
 
@@ -20,6 +22,7 @@ static u32 inserted;
 ENGINE(first)
 ENGINE(second)
 ENGINE(sampled)
+const char first_page_id[1] = {}, second_page_id[1] = {};
 int first_screen_register() { calls += "first-page "; return screens; }
 int second_screen_register() { calls += "second-page "; return 1; }
 int effect_fx_register() { calls += "effect "; return 1; }
@@ -60,6 +63,17 @@ int main() {
     require(catalog("stock", 33) == 0 && inserted == 0);
     require(catalog("first", 33) == 0 && inserted == 0);
     require(kit_absent() == 0);
+
+    // Only a ready machine's own page is owned; readiness must be exactly 1.
+    calls.clear();
+    require(sdk_screen_owned(value(second_page_id)) == 1 && calls == "second? ");
+    require(sdk_screen_owned(value(first_page_id)) == 1);
+    require(sdk_screen_owned(0) == 0 && sdk_screen_owned(value(first_engine_id)) == 0);
+    for (int state : {0, 2, -1}) {
+        ready_state = state;
+        require(sdk_screen_owned(value(first_page_id)) == 0);
+    }
+    ready_state = 1;
     std::puts("startup ok");
     return 0;
 }

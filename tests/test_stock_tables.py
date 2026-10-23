@@ -54,6 +54,16 @@ class Profile(unittest.TestCase):
         with self.assertRaises(ValueError):
             tables.check_profile(dict(self.profile, table_bytes=self.profile['table_bytes'] + 4))
 
+    def test_compositor_bound_must_be_hooked(self):
+        hooked = [p for p in self.profile['patches'] if p['kind'] == 'hook']
+        tables.check_compositor(hooked)
+        site = '%#x' % tables.COMPOSITOR_ADVANCE
+        for change in (dict(symbol='sdk_other'), dict(before='0f6420e180008708'), dict(address='0x8d5208fc')):
+            altered = copy.deepcopy(hooked)
+            next(p for p in altered if p['address'] == site).update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                tables.check_compositor(altered)
+
     def test_imm7_bound_is_the_largest_encodable(self):
         self.assertEqual(tables.decode('imm7', bytes.fromhex('f961')), (0x6001, 63))
         self.assertEqual(tables.decode('imm7', bytes.fromhex('0962')), (0x6001, -63))

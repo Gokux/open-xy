@@ -30,7 +30,6 @@ struct Builder {
     u32 last_key;
     i32 previous_derivative;
     i32 previous_value;
-    bool counting;
     bool failed;
 };
 constexpr u32 bitmap_words(u32 frames) {
@@ -70,25 +69,17 @@ inline bool begin(Builder& builder, const opxy::SampleView& sample, u32* storage
     builder.storage = storage;
     return true;
 }
-inline bool begin_count(Builder& builder, const opxy::SampleView& sample, u32 channel = 0) {
-    builder = Builder();
-    if (!valid_sample(sample) || channel >= sample.channels) return false;
-    builder.analysis.sample = sample;
-    builder.analysis.channel = channel;
-    builder.counting = true;
-    return true;
-}
 // Budget counts source frames; each iteration has constant work. Blocks are
 // cleared on entry, so begin itself does not walk a sample-sized allocation.
 inline bool prepare(Builder& builder, u32 frame_budget) {
-    if ((!builder.storage && !builder.counting) || builder.failed || builder.analysis.ready)
+    if (!builder.storage || builder.failed || builder.analysis.ready)
         return builder.analysis.ready;
     const opxy::SampleView& sample = builder.analysis.sample;
     while (frame_budget && builder.cursor < sample.frames) {
         --frame_budget;
         const u32 n = builder.cursor;
         const u32 block = (n >> 8) * kBlockWords;
-        if (builder.storage && !(n & 255)) {
+        if (!(n & 255)) {
             builder.storage[block] = builder.keys;
             for (u32 i = 1; i < kBlockWords; ++i) builder.storage[block + i] = 0;
         }
@@ -109,8 +100,7 @@ inline bool prepare(Builder& builder, u32 frame_budget) {
             (crossing && n - builder.last_key > 1 &&
              (difference > kKeyThreshold || difference < -kKeyThreshold));
         if (store) {
-            if (builder.storage)
-                builder.storage[block + 1 + ((n & 255) >> 5)] |= 1u << (n & 31);
+            builder.storage[block + 1 + ((n & 255) >> 5)] |= 1u << (n & 31);
             ++builder.keys;
             builder.last_key = n;
             builder.previous_value = here;
@@ -224,17 +214,18 @@ struct Preparation {
 };
 constexpr opxy::u32 kAnalysisHeader = 4;
 constexpr opxy::u32 kAnalysisFormat = 0x53545232u;
+inline opxy::u32 analysis_words(const opxy::SampleView& sample) {
+    return sample_analysis::valid_sample(sample) ?
+        kAnalysisHeader + sample.channels * sample_analysis::bitmap_words(sample.frames) : 0;
+}
 inline bool prepare_begin(Preparation& job, const opxy::SampleView& sample, opxy::u32* storage, opxy::u32 words) {
     job = Preparation{};
     job.storage = storage;
     job.capacity = words;
     job.used = kAnalysisHeader;
-    if (storage) {
-        if (words < kAnalysisHeader) return false;
-        for (opxy::u32 i = 0; i < kAnalysisHeader; ++i) storage[i] = 0;
-        return sample_analysis::begin(job.builder, sample, storage + kAnalysisHeader, words - kAnalysisHeader);
-    }
-    return sample_analysis::begin_count(job.builder, sample);
+    if (!storage || words < kAnalysisHeader) return false;
+    for (opxy::u32 i = 0; i < kAnalysisHeader; ++i) storage[i] = 0;
+    return sample_analysis::begin(job.builder, sample, storage + kAnalysisHeader, words - kAnalysisHeader);
 }
 inline opxy::PrepareStatus prepare_step(Preparation& job, opxy::u32 frames, opxy::u32& cursor) {
     const opxy::SampleView sample = job.builder.analysis.sample;
@@ -245,23 +236,19 @@ inline opxy::PrepareStatus prepare_step(Preparation& job, opxy::u32 frames, opxy
     if (job.builder.failed) { job.failed = true; return opxy::prepare_failed; }
     if (!complete) return opxy::prepare_running;
     const opxy::u32 used = sample_analysis::bitmap_words(sample.frames);
-    if (job.storage) {
-        job.storage[job.channel * 2] = job.builder.keys;
-        job.storage[job.channel * 2 + 1] = job.builder.analysis.activity;
-    }
+    job.storage[job.channel * 2] = job.builder.keys;
+    job.storage[job.channel * 2 + 1] = job.builder.analysis.activity;
     job.used += used;
     if (++job.channel == sample.channels) { job.done = true; return opxy::prepare_done; }
     // Starting the other channel clears no sample-sized memory and does no
     // analysis, so this invocation still observes the caller's frame budget.
-    const bool started = job.storage ?
-        sample_analysis::begin(job.builder, sample, job.storage + job.used, job.capacity - job.used, job.channel) :
-        sample_analysis::begin_count(job.builder, sample, job.channel);
+    const bool started =
+        sample_analysis::begin(job.builder, sample, job.storage + job.used, job.capacity - job.used, job.channel);
     job.failed = !started;
     return started ? opxy::prepare_running : opxy::prepare_failed;
 }
-inline opxy::u32 prepare_words(const Preparation& job) { return job.done && !job.failed ? job.used : 0; }
 inline bool prepared(const Preparation& job, opxy::SampleAnalysis& out) {
-    if (!job.done || job.failed || !job.storage) return false;
+    if (!job.done || job.failed) return false;
     out = opxy::SampleAnalysis{job.builder.analysis.sample, job.storage, job.used, kAnalysisFormat};
     return true;
 }

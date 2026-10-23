@@ -236,6 +236,11 @@ def generate_registration_stock(directory):
     return expand('registration_stock.cpp.in', RELOCATED, Path(directory) / 'registration_stock.cpp')
 
 
+def generate_screen_order(directory):
+    """The compositor traversal over the relocated screen slots."""
+    return expand('screen_order.cpp.in', RELOCATED, Path(directory) / 'screen_order.cpp')
+
+
 def generate_screen(directory, m):
     """The machine's renderer: its display shape and artwork IDs as data for the
     SDK renderer (screen_drawing.hpp or screen_segments.hpp), and its exported
@@ -269,100 +274,56 @@ OPXY_SCREEN(opxy::screen::{kind}<Machine>, "{m.prefix}", "{m.native_name}.svg", 
     return destination
 
 
+# Each optional sample service and the C entry points (prefix + suffix) its
+# machine exports, in sample_machines.hpp's SampleMachine order.
+SAMPLE_SERVICES = (
+    ('padSettings', (('_sample_defaults', 'opxy::PadSettings', ''),
+                     ('_sample_assign', 'opxy::PadSettings', 'const opxy::SampleAssignment*'))),
+    ('drumControls', (('_drum_control', 'void', 'opxy::PadSettings*, const opxy::DrumControl*'),
+                      ('_drum_panel', 'void', 'opxy::PadSettings, const opxy::i32*, opxy::DrumPanel*'))),
+    ('sampleAnalysis', (('_analysis_words', 'opxy::u32', 'const opxy::SampleView*'),
+                        ('_prepare_begin', 'opxy::u32', 'const opxy::SampleView*, opxy::u32*, opxy::u32'),
+                        ('_prepare_step', 'opxy::u32', 'opxy::u32, opxy::u32*'),
+                        ('_prepared', 'opxy::u32', 'opxy::SampleAnalysis*'))),
+)
+
+
+def sample_callbacks(m):
+    """The C entry points a sample machine exports for the services it declares."""
+    resources = m.definition['resources']
+    return [m.prefix + suffix for flag, entries in SAMPLE_SERVICES if resources.get(flag, 0) for suffix, *_ in entries]
+
+
 def generate_sample_voice(directory, m):
+    resources = m.definition['resources']
     values = dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'], NAME=m.native_name,
-                  LABELS=stock_labels(m), CAPACITY=m.definition['resources']['voiceCapacity'],
-                  ANALYSIS=m.definition['resources'].get('sampleAnalysis', 0),
-                  STEREO=m.definition['resources'].get('stereoOutput', 0),
-                  CHOKE=m.definition['resources'].get('chokeSameKey', 0), DRUM_KEYS=int(m.identity['page'] == 7))
-    values['CONTROLS'] = m.definition['resources'].get('drumControls', 0)
+                  LABELS=stock_labels(m), CAPACITY=resources['voiceCapacity'],
+                  ANALYSIS=resources.get('sampleAnalysis', 0), STEREO=resources.get('stereoOutput', 0),
+                  CHOKE=resources.get('chokeSameKey', 0), DRUM_KEYS=int(m.identity['page'] == 7),
+                  PAD_SETTINGS=resources.get('padSettings', 0), DRUM_CONTROLS=resources.get('drumControls', 0),
+                  ENGINE=m.identity['engine'])
     return expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
 
 
-def generate_sample_routes(directory, machines):
-    """One stock sample dispatch boundary for the collection, not per-machine patches."""
-    dispatch, analysis, ready, controls = [], [], [], []
+def generate_sample_callbacks(directory, machines):
+    """The collection's sample machines as one table (sample_machines.hpp) and the stock-page bridge."""
+    declarations, rows = [], []
     for m in machines:
         if m.kind != 'sample':
             continue
-        block = [f'    R1 = {m.identity["engine"]};', '    CC = R0 == R1;',
-                     f'    IF !CC JUMP .Lkind_next_{m.prefix};', f'    CALL {m.prefix}_ready;',
-                     '    CC = R0 == 1;', '    IF !CC JUMP .Lkind_return;',
-                     f'    R0 = {m.identity["page"]};', '    JUMP .Lkind_return;',
-                     f'.Lkind_next_{m.prefix}:']
-        dispatch += block
-        if m.definition['resources'].get('drumControls', 0):
-            controls += [line.replace('.Lkind_', '.Lcontrols_') for line in block]
-        if m.definition['resources'].get('sampleAnalysis', 0):
-            analysis += [line.replace('.Lkind_', '.Lanalysis_') for line in block]
-            ready += [f'    CALL {m.prefix}_ready;', '    CC = R0 == 1;',
-                      '    IF CC JUMP .Lanalysis_ready_return;']
-    return expand('sample_routes.s.in', dict(DISPATCH='\n'.join(dispatch),
-                  ANALYSIS_DISPATCH='\n'.join(analysis), ANALYSIS_READY='\n'.join(ready), CONTROLS_DISPATCH='\n'.join(controls)),
-                  Path(directory) / 'sample_routes.s')
-
-
-def generate_screen_order(directory, machines):
-    """Ownership-gated layer ordering for extended synth pages."""
-    synths = [m for m in machines if m.kind == 'synth']
-    declarations = '\n'.join(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");' for m in synths)
-    cases = '\n'.join(f'        case {m.identity["page"]}: owned = {m.prefix}_ready() == 1; break;' for m in synths)
-    source = f'''// Generated from the collection; stock overlays retain their relative order.
-#include "screen_order.hpp"
-extern "C" {{
-{declarations}
-opxy::u32 sdk_screen_next(opxy::u32, opxy::u32) __asm__("sdk_screen_next");
-}}
-opxy::u32 sdk_screen_next(opxy::u32 current, opxy::u32 selected) {{
-    static opxy::screen::Order order;
-    bool owned = false;
-    if (current == 0) switch (selected) {{
-{cases}
-        default: break;
-    }}
-    return order.next(current, selected, owned);
-}}
-'''
-    destination = Path(directory) / 'screen_order.cpp'
-    destination.write_text(source, encoding='utf-8', newline='\n')
-    return destination
-
-
-def generate_sample_callbacks(directory, machines):
-    declarations, branches = [], {name: [] for name in ('ASSIGN', 'MIGRATE', 'CONTROL', 'PANEL')}
-    types = dict(ASSIGN=('opxy::u32', 'const opxy::SampleAssignment* input', 'input'),
-                 MIGRATE=('opxy::u32', 'const opxy::SampleRegion* input', 'input'),
-                 CONTROL=('void', 'opxy::u32* value, const opxy::SampleControl* event', 'value, event'),
-                 PANEL=('void', 'opxy::u32 value, const opxy::i32* parameters, opxy::SamplePanel* panel', 'value, parameters, panel'))
-    prepare = {name: [] for name in ('PREPARE_BEGIN', 'PREPARE_STEP', 'PREPARE_WORDS', 'PREPARE_RESULT',
-                                     'PREPARE_BUDGET')}
-    analysis = [m for m in machines if m.kind == 'sample' and m.definition['resources'].get('sampleAnalysis', 0)]
-    # The cache keeps one preparation in flight and does not know a sample's engine.
-    require(len(analysis) <= 1, 'At most one sample-analysis machine per collection')
-    for m in machines:
-        if m in analysis or (m.kind == 'sample' and m.definition['resources'].get('drumControls', 0)):
-            declarations.append(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");')
-        if m in analysis:
-            budget = m.definition['resources']['sampleAnalysis']
-            prepare['PREPARE_BUDGET'].append(f'    if ({m.prefix}_ready()) return {budget}u;')
-            for name, (arguments, call) in dict(
-                    PREPARE_BEGIN=('const opxy::SampleView*, opxy::u32*, opxy::u32', 'sample, storage, words'),
-                    PREPARE_STEP=('opxy::u32, opxy::u32*', 'frames, cursor'), PREPARE_WORDS=('', ''),
-                    PREPARE_RESULT=('opxy::SampleAnalysis*', 'out')).items():
-                symbol = m.prefix + '_sample_' + name.lower()
-                declarations.append(f'opxy::u32 {symbol}({arguments}) __asm__("{symbol}");')
-                prepare[name].append(f'    if ({m.prefix}_ready()) return {symbol}({call});')
-        if m.kind != 'sample' or not m.definition['resources'].get('drumControls', 0):
-            continue
-        for name, (result, arguments, call) in types.items():
-            symbol = m.prefix + '_sample_' + name.lower()
-            declarations.append(f'{result} {symbol}({arguments}) __asm__("{symbol}");')
-            branches[name] += [f'    if (engine == {m.identity["engine"]} && {m.prefix}_ready()) '
-                               + '{ ' + ('' if result == 'void' else 'return ') + f'{symbol}({call});'
-                               + (' return;' if result == 'void' else '') + ' }']
-    return expand('sample_callbacks.cpp.in', dict(CALLBACK_DECLS='\n'.join(declarations),
-                  **{name: '\n'.join(lines) for name, lines in branches.items()},
-                  **{name: '\n'.join(lines) for name, lines in prepare.items()}),
+        p, resources = m.prefix, m.definition['resources']
+        declarations.append(f'int {p}_ready() __asm__("{p}_ready");')
+        fields = [str(m.identity['engine']), str(m.identity['page']), p + '_ready']
+        for flag, entries in SAMPLE_SERVICES:
+            declared = bool(resources.get(flag, 0))
+            if flag == 'sampleAnalysis':
+                fields.append(f'{resources.get(flag, 0)}u')
+            for suffix, result, arguments in entries:
+                if declared:
+                    declarations.append(f'{result} {p}{suffix}({arguments}) __asm__("{p}{suffix}");')
+                fields.append(p + suffix if declared else 'nullptr')
+        rows.append('    {' + ', '.join(fields) + '},')
+    return expand('sample_callbacks.cpp.in', dict(CALLBACK_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows)),
                   Path(directory) / 'sample_callbacks.cpp')
 
 

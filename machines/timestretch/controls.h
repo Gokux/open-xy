@@ -4,7 +4,7 @@
 #include "assignment.h"
 
 namespace timestretch {
-// Portable per-pad state; the SDK owns serialization and stock memory layouts.
+// Pad settings (opxy::PadSettings): the SDK owns serialization and stock layouts.
 struct Controls { bool once; bool stretch; opxy::u32 bpm; opxy::u32 length; };
 // Stock's live controls are bipolar around Q31 half-scale. The saved pad
 // settings remain the base; the middle third of a mode control inherits it.
@@ -20,16 +20,16 @@ inline bool live_mode(opxy::u32 value, bool saved) {
     return value < 0x2aaaaaaau ? false : value >= 0x55555555u ? true : saved;
 }
 struct EffectiveControls { Controls pad; int pitch_cents; };
-inline Controls decode_controls(opxy::u32 value) {
+inline Controls decode_controls(opxy::PadSettings value) {
     const opxy::u32 tempo = (value >> 7) & 511u;
     return Controls{(value & 32) != 0, (value & 64) != 0,
                     tempo >= 6 && tempo <= 286 ? tempo + 14 : 0, tempo < 6 ? tempo : 2};
 }
-inline opxy::u32 encode_controls(const Controls& c) {
-    return 12u | (c.once ? 32u : 0) | (c.stretch ? 64u : 0) |
-           ((c.bpm ? c.bpm - 14u : c.length) << 7);
+inline opxy::PadSettings encode_controls(const Controls& c) {
+    return static_cast<opxy::PadSettings>(12u | (c.once ? 32u : 0) | (c.stretch ? 64u : 0) |
+                                          ((c.bpm ? c.bpm - 14u : c.length) << 7));
 }
-inline EffectiveControls effective_controls(opxy::u32 value, const opxy::i32* live) {
+inline EffectiveControls effective_controls(opxy::PadSettings value, const opxy::i32* live) {
     Controls c = decode_controls(value);
     const int cents = live_offset(live_parameter(live, 0), 1200);
     c.once = live_mode(live_parameter(live, 3), c.once);
@@ -61,22 +61,22 @@ inline opxy::u32 live_marker(opxy::u32 marker, opxy::u32 frames, opxy::u32 value
         return value ? marker - live_scale(marker, (0x40000000u - value) << 1) : 0;
     return marker + live_scale(frames - marker, value == 0x7fffffffu ? value : (value - 0x40000000u) << 1);
 }
-// A region without saved settings (assigned under another engine) starts from
-// the defaults: no pitch change, loop, repitch, one bar.
-inline opxy::u32 sample_migrate(const opxy::SampleRegion&) {
+// A pad without saved settings: loop, repitch, one bar.
+inline opxy::PadSettings sample_defaults() {
     return encode_controls(Controls{false, false, 0, 2});
 }
-inline opxy::u32 sample_assign(const opxy::SampleAssignment& input) {
-    Controls c = input.previous.initialized ? decode_controls(input.previous.value) :
-        Controls{false, false, 0, suggested_length(input.frames, input.rate, input.transport.bpm_x10)};
-    const opxy::u32 tempo = input.transport.bpm_x10;
-    const opxy::u32 bpm = input.recorded ?
-        (tempo >= 200 && tempo <= 3000 ? (tempo + 5) / 10 : 0) :
-        filename_bpm(input.filename, input.filename_bytes);
+inline opxy::PadSettings sample_assign(const opxy::SampleAssignment& input) {
+    Controls c = input.replacing ? decode_controls(input.previous) :
+        Controls{false, false, 0, suggested_length(input.frames, input.rate, input.bpm_x10)};
+    // A recording plays at the project tempo it was recorded at (whole BPM);
+    // a file may name its tempo.
+    const opxy::u32 tempo = input.bpm_x10;
+    const opxy::u32 bpm = !input.recorded ? filename_bpm(input.filename, input.filename_bytes) :
+        tempo >= 200 && tempo <= 3000 ? (tempo + 5) / 10 : 0;
     if (bpm) c.bpm = bpm;
     return encode_controls(c);
 }
-inline void sample_control(opxy::u32& value, const opxy::SampleControl& event) {
+inline void drum_control(opxy::PadSettings& value, const opxy::DrumControl& event) {
     Controls c = decode_controls(value);
     const int delta = event.direction < 0 ? -1 : event.direction > 0 ? 1 : 0;
     if (!event.shifted && event.knob == 3) {
@@ -102,10 +102,10 @@ inline void sample_caption(char* target, const char* text) {
     while (n < 15 && text[n]) { target[n] = text[n]; ++n; }
     target[n] = 0;
 }
-inline void sample_panel(opxy::u32 value, const opxy::i32* live, opxy::SamplePanel& panel) {
+inline void drum_panel(opxy::PadSettings value, const opxy::i32* live, opxy::DrumPanel& panel) {
     const EffectiveControls effective = effective_controls(value, live);
     const Controls c = effective.pad;
-    panel = opxy::SamplePanel{};
+    panel = opxy::DrumPanel{};
     panel.pitch_cents = effective.pitch_cents;
     panel.repeat = !c.once;
     if (c.bpm) {

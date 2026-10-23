@@ -19,9 +19,9 @@ import xml.etree.ElementTree as ET
 
 from . import screen, startup_label, stock_tables
 from .adapters import (catalog_entry, generate_display, generate_fx_object, generate_registration,
-                       generate_registration_stock, generate_sample_voice, generate_sample_routes,
-                       generate_sample_callbacks, generate_screen, generate_segment_binding, generate_voice,
-                       generate_screen_order)
+                       generate_registration_stock, generate_sample_voice,
+                       generate_sample_callbacks, generate_screen, generate_screen_order, generate_segment_binding,
+                       generate_voice)
 from .contributors import validate_source_boundary
 from .firmware import assemble, hook_instruction, hook_target
 from .formats import elf32, elf_sections, require, sha
@@ -33,8 +33,7 @@ from .startup import generate as generate_startup
 LINKER = 'linker/opxy-1.2.0.ld'
 TARGET = 'opxy-1.2.0'
 DEFINITIONS = dict(stock_catalog_insert=0x8d5bbaa0, stock_gui_role=0x8d5c200c, stock_sample_classify_tail=0x8d5b5b3e,
-                   stock_sample_key_tail=0x8d5878ac, stock_sample_engine_getter=0x8d585eb4,
-                   stock_drum_key=0x8d5b6800, stock_sample_octave=0x8d58da64)
+                   stock_sample_key_tail=0x8d5878ac)
 TEMPLATES = 'sdk/platform/opxy-1.2.0/'
 RUNTIME_ASM, RUNTIME_CXX = 'sdk/platform/blackfin/divide.s', 'sdk/platform/blackfin/memory.cpp'
 ALLOWED_SECTIONS = {'.text', '.rodata', '.data', '.bss'}
@@ -151,13 +150,19 @@ def plan(machines):
         else:
             steps = ('registration', 'sample_voice')
         units += [(f'{m.id}/{Path(step.removeprefix("source:")).stem}.o', m, step) for step in steps]
-    units += [(f'sdk/{step}.o', None, step) for step in ('divide', 'memory', 'registration', 'registration_stock',
-              'startup', 'startup_exit', 'startup_label', 'sample_routes', 'sample_cache', 'sample_cache_stock', 'sample_cache_worker', 'sample_progress', 'sample_progress_stock',
-              'sample_callbacks', 'sample_controls', 'sample_controls_stock', 'sample_assignment',
-              'sample_assignment_stock', 'sample_drum', 'sample_drum_stock', 'screen_order', 'screen_order_bridge')]
+    units += [(f'sdk/{step}.o', None, step) for step in SDK_UNITS]
     names = [name for name, _m, _step in units]
     require(len(names) == len(set(names)), 'Duplicate object name')
     return units
+
+
+# The SDK's shared objects, after every machine's. Sources are TEMPLATES/<unit>.cpp
+# or .s, except the generated units and the Blackfin runtime.
+SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup', 'startup_exit', 'startup_label',
+             'hook', 'sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache', 'sample_cache_stock',
+             'sample_cache_hooks', 'sample_progress', 'sample_progress_stock', 'pad_assignment',
+             'pad_assignment_stock', 'drum_page', 'drum_controls_stock', 'drum_display_stock', 'screen_order',
+             'screen_hooks')
 
 
 def module_bytes(profile):
@@ -232,21 +237,11 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         folder.mkdir(exist_ok=True)
         if m is None:
             if step == 'screen_order':
-                return cxx(str(generate_screen_order(folder, machines)), obj)
-            if step == 'screen_order_bridge':
-                return assemble_unit(ROOT / TEMPLATES / 'screen_order.s', obj)
+                return cxx(str(generate_screen_order(folder)), obj)
             if step == 'sample_callbacks':
                 return cxx(str(generate_sample_callbacks(folder, machines)), obj)
             if step == 'registration_stock':
                 return cxx(str(generate_registration_stock(folder)), obj)
-            if step == 'registration':
-                return cxx(TEMPLATES + step + '.cpp', obj)
-            if step in ('sample_cache', 'sample_progress') or step.endswith('_stock'):
-                return cxx(TEMPLATES + step + '.cpp', obj)
-            if step == 'sample_cache_worker':
-                return assemble_unit(ROOT / TEMPLATES / (step.rsplit('_', 1)[0] + '.s'), obj)
-            if step == 'sample_routes':
-                return assemble_unit(generate_sample_routes(folder, machines), obj)
             if step == 'divide':
                 return assemble_unit(ROOT / RUNTIME_ASM, obj)
             if step == 'memory':
@@ -255,6 +250,8 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
                 prefixes = [x.prefix for x in by_kind(machines, 'synth', 'sample')]
                 return cxx(str(generate_startup(folder, prefixes, [x.prefix for x in effects],
                                                 [x.prefix for x in sample_engines])), obj)
+            if (ROOT / TEMPLATES / (step + '.cpp')).is_file():
+                return cxx(TEMPLATES + step + '.cpp', obj)
             return assemble_unit(ROOT / TEMPLATES / (step + '.s'), obj)
         if step.startswith('source:'):
             return cxx('machines/' + m.id + '/' + step.removeprefix('source:'), obj, m)

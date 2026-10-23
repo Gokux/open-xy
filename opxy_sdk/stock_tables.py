@@ -3,9 +3,9 @@
 The static audit (docs/abi-1.2.0.md, "Relocated tables") found every direct
 reader of the two tables: seven engine-record base loads, the engine validity
 bound and clear length, the two screen-slot base loads in the slot getter and
-two 81-slot loop bounds. The compositor's third bound is in screen_order.s,
-whose hook also puts owned primary screens before overlays. These table edits rewrite only their
-immediates; this module decodes them independently of the profile's bytes.
+three 81-slot loop bounds. Table edits rewrite only the immediates of all but
+the compositor's bound, whose loop advance is hooked instead (screen_order.hpp).
+This module decodes them independently of the profile's bytes.
 """
 import struct
 
@@ -31,6 +31,8 @@ EDITS = (
     *[(site, 'imm16', STOCK_SCREEN_COUNT, SCREEN_COUNT) for site in (0x8d51fcf6, 0x8d520176)],
 )
 SIZES = dict(imm32=8, imm16=4, imm7=2)
+# The compositor's loop advance: R7 += 1; R0 = 81 (imm16); CC = R7 < R0.
+COMPOSITOR_ADVANCE, COMPOSITOR_BOUND = 0x8d5208fa, 0x8d5208fc
 
 
 # Template values for the stock side of registration and the page renderers.
@@ -47,6 +49,7 @@ def check_profile(profile):
     end = profile['module_base'] + profile['reserved_bytes']
     require(end == RESERVATION_END and end - profile['table_bytes'] == SCREEN_SLOTS, 'Table bytes differ from the tables')
     check_edits([p for p in profile['patches'] if p['kind'] == 'table'])
+    check_compositor([p for p in profile['patches'] if p['kind'] == 'hook'])
 
 
 def decode(kind, raw):
@@ -75,3 +78,13 @@ def check_edits(patches):
         opcode, value = decode(kind, before)
         require(value == stock, 'Table edit preimage differs from audited stock value')
         require(decode(kind, after) == (opcode, relocated), 'Table edit must change only the immediate')
+
+
+def check_compositor(hooks):
+    """The compositor's stock-count bound is covered by its traversal hook."""
+    advance = [p for p in hooks if int(p['address'], 16) == COMPOSITOR_ADVANCE]
+    require(len(advance) == 1 and advance[0]['symbol'] == 'sdk_screen_advance' and advance[0]['length'] == 8,
+            'The compositor loop advance must be hooked')
+    at = COMPOSITOR_BOUND - COMPOSITOR_ADVANCE
+    bound = bytes.fromhex(advance[0]['before'])[at:at + SIZES['imm16']]
+    require(decode('imm16', bound)[1] == STOCK_SCREEN_COUNT, 'Compositor hook preimage differs from the audited bound')

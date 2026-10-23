@@ -6,6 +6,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <vector>
+extern "C" void host_barrier();
 #include "../../sdk/platform/opxy-1.2.0/sample_cache.cpp"
 
 static unsigned analysis_words(const opxy::SampleView& sample) {
@@ -17,28 +18,42 @@ struct Preparation {
     unsigned cursor, words;
 };
 static Preparation preparation;
-extern "C" unsigned sdk_sample_prepare_begin(const opxy::SampleView* sample, unsigned* storage, unsigned words) {
-    if (!sample->data || sample->frames < 2) return 0;
-    preparation = Preparation{*sample, storage, 0, analysis_words(*sample)};
-    return !storage || words >= preparation.words;
+static unsigned fake_words(const opxy::SampleView* sample) {
+    return sample->data && sample->frames >= 2 ? analysis_words(*sample) : 0;
 }
-extern "C" unsigned sdk_sample_prepare_step(unsigned frames, unsigned* cursor) {
+static unsigned fake_begin(const opxy::SampleView* sample, unsigned* storage, unsigned words) {
+    preparation = Preparation{*sample, storage, 0, analysis_words(*sample)};
+    return storage && words >= preparation.words;
+}
+static unsigned fake_step(unsigned frames, unsigned* cursor) {
     preparation.cursor += std::min(frames, preparation.sample.frames - preparation.cursor);
     *cursor = preparation.cursor;
     if (preparation.cursor < preparation.sample.frames) return opxy::prepare_running;
-    if (preparation.storage)
-        for (unsigned i = 0; i < preparation.words; ++i) preparation.storage[i] = i ^ 0x51a7u;
+    for (unsigned i = 0; i < preparation.words; ++i) preparation.storage[i] = i ^ 0x51a7u;
     return opxy::prepare_done;
 }
-extern "C" unsigned sdk_sample_prepare_words() { return preparation.words; }
-extern "C" unsigned sdk_sample_prepare_budget() { return 2u * 1024u * 1024u; }
-extern "C" unsigned sdk_sample_prepare_result(opxy::SampleAnalysis* out) {
-    if (!preparation.storage || preparation.cursor != preparation.sample.frames) return 0;
+static unsigned fake_prepared(opxy::SampleAnalysis* out) {
+    if (preparation.cursor != preparation.sample.frames) return 0;
     *out = opxy::SampleAnalysis{preparation.sample, preparation.storage, preparation.words, 0x51a7u};
     return 1;
 }
-
-extern "C" unsigned extensions_sample_analysis_kind(unsigned engine) { return engine == 35 || engine == 46 ? 2 : 0; }
+// Two analysis machines: engine 35 with the full budget, and engine 46, only
+// registered for the per-engine checks, with 64 KiB.
+static bool second_registered;
+static int first_ready() { return 1; }
+static int second_ready() { return second_registered; }
+const opxy::platform::SampleMachine sdk_sample_machines[] = {
+    {35, 7, first_ready, nullptr, nullptr, nullptr, nullptr, 2u * 1024u * 1024u,
+     fake_words, fake_begin, fake_step, fake_prepared},
+    {46, 7, second_ready, nullptr, nullptr, nullptr, nullptr, 64u * 1024u,
+     fake_words, fake_begin, fake_step, fake_prepared},
+};
+const unsigned sdk_sample_machine_count = 2;
+extern "C" const opxy::platform::SampleMachine* sdk_sample_machine(unsigned engine) {
+    for (const auto& m : sdk_sample_machines)
+        if (m.engine == engine) return m.ready() == 1 ? &m : nullptr;
+    return nullptr;
+}
 
 static unsigned checks, allocations, frees, overlay_calls;
 static bool allocation_failure, observing;
@@ -83,10 +98,10 @@ extern "C" void sdk_sample_cache_free(void* pointer) {
     blocks.erase(found);
     std::free(block);
 }
-extern "C" void sdk_sample_cache_barrier() {
+extern "C" void host_barrier() {
     if (!observed || observing) return;
     observing = true;
-    const auto* published = sdk_sample_cache_find(observed);
+    const auto* published = sdk_sample_cache_find(observed, 35);
     if (published) {
         require(published->words && published->word_count == analysis_words(published->sample) &&
                 published->info == 0x51a7u, "partially prepared analysis became visible");
@@ -134,22 +149,22 @@ int main() {
     std::vector<opxy::i16> pcm(0xfffff, 0);
     opxy::SampleView small{pcm.data(), 8193, 44100, 1};
     Object first(small), second(small);
-    require(!sdk_sample_cache_find(nullptr), "null cache lookup");
+    require(!sdk_sample_cache_find(nullptr, 35), "null cache lookup");
     observed = &first;
     sdk_sample_cache_prepare(&first);
-    const auto* first_analysis = sdk_sample_cache_find(&first);
+    const auto* first_analysis = sdk_sample_cache_find(&first, 35);
     require(first_analysis != nullptr, "preparation did not publish");
     require(first_analysis->sample.data == small.data && first_analysis->sample.frames == small.frames &&
             first_analysis->sample.channels == small.channels, "published sample identity changed");
     const unsigned before = allocations;
     for (unsigned i = 0; i < 1000; ++i)
-        require(sdk_sample_cache_find(&first) == first_analysis, "cache lookup changed immutable entry");
+        require(sdk_sample_cache_find(&first, 35) == first_analysis, "cache lookup changed immutable entry");
     sdk_sample_cache_prepare(&first);
     require(allocations == before, "cache hit or audio lookup allocated");
     sdk_sample_cache_release(&second);
-    require(sdk_sample_cache_find(&first) == first_analysis, "foreign release evicted a sample");
+    require(sdk_sample_cache_find(&first, 35) == first_analysis, "foreign release evicted a sample");
     sdk_sample_cache_release(&first);
-    require(!sdk_sample_cache_find(&first) && blocks.empty(), "release left stale cache entry");
+    require(!sdk_sample_cache_find(&first, 35) && blocks.empty(), "release left stale cache entry");
     sdk_sample_cache_release(&first);
     observed = nullptr;
 
@@ -158,24 +173,44 @@ int main() {
     Object stereo_object(stereo);
     observed = &stereo_object;
     sdk_sample_cache_prepare(&stereo_object);
-    const auto* stereo_analysis = sdk_sample_cache_find(&stereo_object);
+    const auto* stereo_analysis = sdk_sample_cache_find(&stereo_object, 35);
     require(stereo_analysis && stereo_analysis->sample.channels == 2 &&
             stereo_analysis->word_count == analysis_words(stereo), "stereo publication is incomplete");
     sdk_sample_cache_release(&stereo_object);
     require(blocks.empty(), "stereo release leaked allocation");
     observed = nullptr;
 
+    // Each registered analysis machine prepares and owns its own result for a
+    // shared sample, within its own budget.
+    second_registered = true;
+    sdk_sample_cache_prepare(&first);
+    const auto* mine = sdk_sample_cache_find(&first, 35);
+    const auto* theirs = sdk_sample_cache_find(&first, 46);
+    require(mine && theirs && mine != theirs && mine->words != theirs->words &&
+            !sdk_sample_cache_find(&first, 47), "analysis is not keyed by engine");
+    require(used_bytes(46) == 4 * analysis_words(small), "budget not charged to its machine");
+    opxy::SampleView longest{pcm.data(), 0xfffff, 44100, 1};
+    Object big(longest);
+    sdk_sample_cache_prepare(&big);
+    require(sdk_sample_cache_find(&big, 35) && !sdk_sample_cache_failed(&big, 35) &&
+            !sdk_sample_cache_find(&big, 46) && sdk_sample_cache_failed(&big, 46),
+            "one machine's budget limited another");
+    sdk_sample_cache_release(&big);
+    sdk_sample_cache_release(&first);
+    require(blocks.empty() && !sdk_sample_cache_failed(&big, 46), "release left another machine's entry");
+    second_registered = false;
+
     allocation_failure = true;
     sdk_sample_cache_prepare(&first);
-    require(!sdk_sample_cache_find(&first) && blocks.empty(), "allocation failure exposed cache");
+    require(!sdk_sample_cache_find(&first, 35) && blocks.empty(), "allocation failure exposed cache");
     allocation_failure = false;
     const unsigned failed_allocations = allocations;
     sdk_sample_cache_prepare(&first);
-    require(allocations == failed_allocations && !sdk_sample_cache_find(&first),
+    require(allocations == failed_allocations && !sdk_sample_cache_find(&first, 35),
             "failed preparation retried on browser refresh");
     sdk_sample_cache_release(&first);
     sdk_sample_cache_prepare(&first);
-    require(sdk_sample_cache_find(&first) != nullptr, "failed sample could not retry");
+    require(sdk_sample_cache_find(&first, 35) != nullptr, "failed sample could not retry");
     sdk_sample_cache_release(&first);
 
     opxy::SampleView tiny{pcm.data(), 2, 44100, 1};
@@ -183,14 +218,14 @@ int main() {
     for (unsigned i = 0; i < 256; ++i) sdk_sample_cache_prepare(&tiny_objects[i]);
     const unsigned full_allocations = allocations;
     sdk_sample_cache_prepare(&tiny_objects[256]);
-    require(!sdk_sample_cache_find(&tiny_objects[256]) && allocations == full_allocations,
+    require(!sdk_sample_cache_find(&tiny_objects[256], 35) && allocations == full_allocations,
             "metadata capacity overrun or unexpected allocation");
     const unsigned full_generation = progress.generation;
     sdk_sample_cache_prepare(&tiny_objects[256]);
     require(progress.generation == full_generation, "full cache announced again on the next worker pass");
     sdk_sample_cache_release(&tiny_objects[80]);
     sdk_sample_cache_prepare(&tiny_objects[256]);
-    require(sdk_sample_cache_find(&tiny_objects[256]) != nullptr, "released slot not reusable");
+    require(sdk_sample_cache_find(&tiny_objects[256], 35) != nullptr, "released slot not reusable");
     for (auto& object : tiny_objects) sdk_sample_cache_release(&object);
     require(blocks.empty(), "capacity test leaked storage");
 
@@ -200,16 +235,16 @@ int main() {
     std::vector<Object> large_objects(fitting + 1, Object(maximum));
     for (unsigned i = 0; i < fitting; ++i) {
         sdk_sample_cache_prepare(&large_objects[i]);
-        require(sdk_sample_cache_find(&large_objects[i]) != nullptr, "valid budget preparation failed");
+        require(sdk_sample_cache_find(&large_objects[i], 35) != nullptr, "valid budget preparation failed");
     }
     const unsigned budget_allocations = allocations;
     sdk_sample_cache_prepare(&large_objects[fitting]);
-    require(!sdk_sample_cache_find(&large_objects[fitting]) && allocations == budget_allocations,
+    require(!sdk_sample_cache_find(&large_objects[fitting], 35) && allocations == budget_allocations,
             "analysis memory budget exceeded");
     // Releasing another sample frees budget; the failed sample retries without being evicted.
     sdk_sample_cache_release(&large_objects[0]);
     sdk_sample_cache_prepare(&large_objects[fitting]);
-    require(sdk_sample_cache_find(&large_objects[fitting]) != nullptr, "failed sample did not retry once budget was freed");
+    require(sdk_sample_cache_find(&large_objects[fitting], 35) != nullptr, "failed sample did not retry once budget was freed");
     for (auto& object : large_objects) sdk_sample_cache_release(&object);
 
     for (unsigned frames : {0u, 1u, 0x100000u, 0xffffffffu}) {
@@ -217,7 +252,7 @@ int main() {
         Object object(invalid);
         const unsigned old_allocations = allocations;
         sdk_sample_cache_prepare(&object);
-        require(!sdk_sample_cache_find(&object) && allocations == old_allocations,
+        require(!sdk_sample_cache_find(&object, 35) && allocations == old_allocations,
                 "invalid source frames reached allocation or analysis");
         sdk_sample_cache_release(&object);
     }
@@ -254,7 +289,7 @@ int main() {
     }
     require(wanted_count == 1, "duplicate wanted keys not deduplicated");
     sdk_sample_cache_prepare_keys();
-    require(sdk_sample_cache_find(&first) && acquired == 1 && released == 1 &&
+    require(sdk_sample_cache_find(&first, 35) && acquired == 1 && released == 1 &&
             key_locks == key_unlocks, "assigned cache hit was not prepared under retained reference");
     unsigned prepared_allocations = allocations;
     sdk_sample_cache_prepare_keys();
@@ -285,9 +320,9 @@ int main() {
                 "transient browser region was marked for analysis");
         sdk_sample_cache_prepare_keys();
         require(allocations == prepared_allocations && acquired == browsing_acquired &&
-                progress.generation == browsing_generation && !sdk_sample_cache_find(&second),
+                progress.generation == browsing_generation && !sdk_sample_cache_find(&second, 35),
                 "browser highlight allocated, retained or announced analysis");
-        require(sdk_sample_cache_find(&first) != nullptr,
+        require(sdk_sample_cache_find(&first, 35) != nullptr,
                 "browser opening discarded a completed analysis");
         samples.erase(preview_key);
     }
@@ -308,13 +343,13 @@ int main() {
     sdk_sample_cache_reset_keys();
     sdk_sample_cache_release(&first);
     sdk_sample_cache_prepare_keys();
-    require(!sdk_sample_cache_find(&first) && allocations == prepared_allocations,
+    require(!sdk_sample_cache_find(&first, 35) && allocations == prepared_allocations,
             "browser reopened preview eagerly prepared analysis");
     require(sdk_sample_cache_snapshot_keys(123, 123, pending, 2) != 123 &&
             sdk_sample_cache_take_force_send(), "cache-hit browser exit did not force refresh");
     sdk_sample_cache_accept_key(key, sdk_sample_cache_tag_priority(key, 0));
     sdk_sample_cache_prepare_keys();
-    require(sdk_sample_cache_find(&first) && allocations == prepared_allocations + 1 &&
+    require(sdk_sample_cache_find(&first, 35) && allocations == prepared_allocations + 1 &&
             acquired == released, "confirmed cache hit did not prepare exactly once");
     prepared_allocations = allocations;
     sdk_sample_cache_prepare_keys();
@@ -330,7 +365,7 @@ int main() {
     require(sdk_sample_cache_tag_priority(key, 99) == 99, "removed assignment remains marked");
     const unsigned old_acquired = acquired;
     sdk_sample_cache_prepare_keys();
-    require(acquired == old_acquired && !sdk_sample_cache_find(&first),
+    require(acquired == old_acquired && !sdk_sample_cache_find(&first, 35),
             "unassigned preview restarted analysis");
 
     // A maximum-size candidate list is bounded. No NUL within the stock path
@@ -409,6 +444,6 @@ int main() {
             "missing cache entry allocated or released a foreign reference");
     sdk_sample_cache_reset_keys();
     sdk_sample_gui_tick();
-    require(overlay_calls && blocks.empty() && used_bytes == 0, "GUI delivery or final ownership failure");
+    require(overlay_calls && blocks.empty() && used_bytes(35) == 0, "GUI delivery or final ownership failure");
     std::cout << "cache lifecycle: " << checks << " checks, " << allocations << " allocations, " << frees << " frees\n";
 }

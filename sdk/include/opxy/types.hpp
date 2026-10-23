@@ -5,6 +5,7 @@ namespace opxy {
 using i32 = __INT32_TYPE__;
 using u32 = __UINT32_TYPE__;
 using u16 = __UINT16_TYPE__;
+using i16 = __INT16_TYPE__;
 using i64 = __INT64_TYPE__;
 static_assert(sizeof(i32) == 4 && sizeof(u32) == 4, "32-bit audio words required");
 // Q10 fixed point, used by display coordinates, scales and unit vectors: 1.0 is 1024.

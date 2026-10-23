@@ -29,7 +29,8 @@ def render(prefixes, effects=(), stock_page=()):
         declarations += [_declare(prefix + '_register'), _declare(prefix + '_name_matches', '(const void*)'),
                          _declare(prefix + '_ready'), f'extern const char {prefix}_engine_id[] __asm__("{prefix}_engine_id");']
         if prefix not in stock_page:
-            declarations.append(_declare(prefix + '_screen_register'))
+            declarations += [_declare(prefix + '_screen_register'),
+                             f'extern const char {prefix}_page_id[] __asm__("{prefix}_page_id");']
     screens = []
     for prefix in prefixes:
         guard = '' if prefix in stock_page else f'if ({prefix}_screen_register() == 1) '
@@ -37,7 +38,9 @@ def render(prefixes, effects=(), stock_page=()):
     catalog = [f'    if ({prefix}_name_matches(name))\n'
                f'        return id == value({prefix}_engine_id) && {prefix}_ready() == 1 ? '
                'stock_catalog_insert(catalog, name, id) : 0;' for prefix in prefixes]
-    values = dict(DECLARATIONS='\n'.join(declarations),
+    owned = [f'    if (page == value({prefix}_page_id)) return {prefix}_ready() == 1;'
+             for prefix in prefixes if prefix not in stock_page]
+    values = dict(DECLARATIONS='\n'.join(declarations), OWNED_SCREENS='\n'.join(owned),
                   EFFECTS='\n'.join(f'    {prefix}_fx_register();' for prefix in effects),
                   ENGINES='\n'.join(f'    {prefix}_register();' for prefix in prefixes),
                   SCREENS='\n'.join(screens), CATALOG='\n'.join(catalog), ENGINE_SENTINEL=str(ENGINE_SENTINEL))

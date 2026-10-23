@@ -77,15 +77,14 @@ Controls are finite numbers in [0, 1]. Mappings support `linear`
 (`minimum + (maximum - minimum) * value`), three or more increasing `anchors`
 interpolated evenly, `power` (`maximum * value^exponent`, exponent other than 1),
 `exponential` (`minimum * (maximum/minimum)^value`) and `enum`. Display formats
-are `ratio`, `percent`, `duration`, `semitones` and `enum`. Mappings describe
+are `ratio`, `percent` (of the normalized value), `bipolar` (a -1..1 value as a signed
+percentage), `duration`, `semitones` and `enum`. Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
 Parameter order and mapping changes affect saved sounds. The stock parameter
 page shows labels in lower case.
 
-A sample engine declares `voiceCapacity` (1..256), optionally `sampleAnalysis`
-(its analysis heap budget in bytes; see below), and optional integer flags
-`chokeSameKey`, `drumControls` and `stereoOutput` (0 or 1; omitted means 0).
-`drumControls` requires stock page 7. An effect declares no resources (`{}`).
+A sample engine declares `voiceCapacity` (1..256) and the optional
+[sample services](#sample-engines) it uses. An effect declares no resources (`{}`).
 A synth declares:
 
 | Field | Required value or meaning |
@@ -151,93 +150,125 @@ serialized access.
 
 ## Sample engines
 
-[sample_engine.hpp](../sdk/include/opxy/sample_engine.hpp) defines the portable
-sample interface. A sample machine supplies `sample.cpp` with these callbacks:
+[sample_engine.hpp](../sdk/include/opxy/sample_engine.hpp) defines the sample
+interface. A sample machine supplies `sample.cpp` with:
 
 ```cpp
+struct Voice { ... };
 void initialize(Voice&, const opxy::SampleView&);
 void start(Voice&);
 void render_sample(Voice&, const opxy::SampleBlock&);
 ```
 
-The SDK retains the sample for the stock voice's lifetime. `SampleBlock` carries
-the output and track parameter buffers, pitch increments, advisory transport,
-clamped trim bounds, reverse and gain, legacy tuning/fade values, per-pad saved
-settings and optional immutable analysis. A missing analysis pointer means
-preparation is pending or unavailable. Never retain a block or its transient
-buffers. Sample PCM and its analysis remain valid until the voice is destroyed.
+`initialize` receives the read-only sample stock assigned to the voice, which
+the SDK retains until the voice is destroyed; a view with no frames means
+silence. `start` runs on each note. Never retain a block or its buffers.
 
-`stereoOutput: 1` supplies 64 interleaved left/right frames (128 Q31 words)
-and sets `SampleBlock.output_channels` to 2. Otherwise it supplies 64 mono
-words and sets the field to 1. Write every supplied word, including silence.
-Source channel count and output channel count are separate. Stock mixing
-uses the declared output layout.
+### Services
 
-`sampleAnalysis: <bytes>` asks the SDK to prepare per-sample data with the
-machine's own analysis, declared in
-[sample_analysis.hpp](../sdk/include/opxy/sample_analysis.hpp): a measuring
-pass sizes the storage, then a building pass fills it. The
-SDK prepares committed assignments outside audio callbacks, each sample to
-completion on the stock file worker, defers while the sample
-browser is open, publishes completed immutable results and releases them before
-the stock PCM object is freed. Storage is allocated from the stock heap, which
-also holds samples, up to the declared budget (at most 2 MiB); a sample that
-does not fit stays unanalyzed. One machine per collection may declare it.
+Each service is an optional entry in `definition.json` `resources`; omitted
+means 0. Callbacks are functions in the machine's namespace.
 
-`chokeSameKey: 1` silences earlier voices only when another note actually starts
-on the same track and key. Page 7 uses the stock 24-pad canonical key mapping,
-so octave aliases of a pad share ownership. Different pads and tracks are
-independent. Stock envelopes and project voice settings still apply.
+| Resource | Value | Effect | Callbacks |
+| --- | --- | --- | --- |
+| `stereoOutput` | 0 or 1 | Output is 64 interleaved left/right frames | |
+| `chokeSameKey` | 0 or 1 | A note silences earlier voices on the same track and key (page 7: the same pad, at any octave) | |
+| `padSettings` | 0 or 1; page 7 | The SDK saves 16 machine-defined bits with each pad | `sample_defaults`, `sample_assign` |
+| `drumControls` | 0 or 1; needs `padSettings` | The drum page's machine encoders and panel | `drum_control`, `drum_panel` |
+| `sampleAnalysis` | Budget in bytes, 4096..2 MiB, whole words | Prepared per-sample data | `analysis_words`, `prepare_begin`, `prepare_step`, `prepared` |
 
-With `drumControls: 1`, the machine also implements:
+### Audio block
+
+| `SampleBlock` field | Contract |
+| --- | --- |
+| `output` | 64 Q31 words, or with `stereoOutput` 64 interleaved left/right frames (128 words). Write every word |
+| `parameters` | The track's eight live Q31 parameters; the first are the declared controls |
+| `pitch` | 64 phase increments, as for a synth |
+| `transport` | Advisory project tempo, 96-PPQN tick and play state |
+| `region.begin`, `region.end` | The pad's trim, a half-open frame interval within the sample; empty means silence. With `drumControls`, the outer markers |
+| `region.level` | Unsigned Q27 gain; `opxy::sample_unity_level` is unity |
+| `region.reverse` | The pad's saved direction |
+| `region.pitch_cents` | The pad's saved tuning, in cents |
+| `analysis` | This machine's completed analysis of the sample, or null while pending, declined or over budget |
+| `settings` | The pad's saved settings, or `sample_defaults()` when it has none; 0 without `padSettings` |
+| `output_channels` | 1, or 2 with `stereoOutput` |
+| `track_transpose` | The track settings transpose, -36..36 semitones |
+| `drum_transpose` | Page 7: semitones from the note's pad to the played note (whole octaves), fixed at note start. 0 on page 2 |
+
+Source and output channel counts are independent. Stock envelopes, mixing and
+project voice settings follow the callback.
+
+### Pad settings
 
 ```cpp
-opxy::u32 sample_assign(const opxy::SampleAssignment&);
-opxy::u32 sample_migrate(const opxy::SampleRegion&);
-void sample_control(opxy::u32& settings, const opxy::SampleControl&);
-void sample_panel(opxy::u32 settings, opxy::Parameters live, opxy::SamplePanel&);
+opxy::PadSettings sample_defaults();
+opxy::PadSettings sample_assign(const opxy::SampleAssignment&);
 ```
 
-Settings are a **16-bit** machine-defined value persisted per pad. Assignment
-receives a bounded filename, loaded frame count, source rate, advisory tempo
-and `previous` settings from an assigned pad being replaced. `recorded` identifies
-a completed live recording, with tempo sampled when it is assigned; a file load
-is false even when filename metadata is unavailable. The machine chooses
-which settings to retain and how new sample metadata overrides them. Empty or
-untagged pads have uninitialized `previous` settings. The SDK retains a replaced
-pad's saved pitch, reverse and volume; the new sample's trim spans its full length.
-Migration supplies defaults for untagged regions. Control events identify a
-zero-based encoder, direction, press and Shift state. The bridge routes main
-encoder 4 and Shift encoders 2/3 to the machine. The SDK edits main pitch
-in ten-cent steps over +/-12 semitones using stock root/fine fields; pressing
-resets it. Stock owns main start/end trims and Shift reverse/volume.
-The panel supplies a live pitch offset in cents, loop/play state
-and two NUL-terminated Shift captions of at most 15 bytes. The panel receives
-the eight normalized live Q31 parameters used for audio and returns effective
-play mode and pitch offset. The SDK adds saved pitch (`6000 - root_cents`)
-for display; audio receives the same saved tuning in `SampleRegion`. Stock paints a
-temporary region copy; saved tuning, markers and reverse remain untouched.
-`SampleBlock.track_transpose` supplies the track settings transpose in
-semitones (-36 to +36), separately from the pad key and live pitch parameter.
-`SampleBlock.key_transpose` supplies the drum note's octave displacement from
-its assigned pad in semitones. It is captured at note start. Drum-page sample
-lookup and same-key choke use the stock octave-aware 24-pad mapping.
-Drum controls expose outer start/end bounds to playback; hidden inner loop
-markers do not narrow that interval.
-Callbacks must be bounded and allocation-free; they do not receive native
-pointers or call stock graphics. See [Timestretch](../machines/timestretch/controls.h).
+`sample_defaults` returns the settings of a pad that has none. `sample_assign`
+runs when a file or a completed stock recording (`recorded`) is assigned to a
+pad and returns the pad's new settings. It receives the file path
+(`filename_bytes` long, not NUL-terminated, possibly null; null for a
+recording), the loaded frame count and rate, the project tempo, and in
+`previous` the settings of the pad's replaced sample (`replacing`) or the
+defaults. The new sample's trim spans its whole length; a replaced pad keeps
+its pitch, reverse and volume. Settings survive project save exactly.
 
-These per-pad settings are the base for the track's normalized live parameter
-vector. Stock retains its live editing and automation routing. Drum-page
-definitions use pitch/start/end/play in slots 0–3, reverse in slot 4, custom
-Shift controls in slots 5–6 and volume in slot 7. Pitch and the bipolar trim
-modifiers are neutral at 0.5; reverse is neutral at 0 and volume at 1.
-Live pitch uses stock's -12 to +12 semitone offset range and ten-cent encoder
-steps. The machine must apply its live controls to audio as well as its panel.
-The platform combines live reverse and volume with the saved region for the
-display; the machine applies the same values to playback. Play-mode and
-custom Shift defaults are machine policy. `definition.json` supplies names
-and preset defaults; the callbacks combine them with the pad's settings.
+### Drum page
+
+```cpp
+void drum_control(opxy::PadSettings&, const opxy::DrumControl&);
+void drum_panel(opxy::PadSettings, opxy::Parameters live, opxy::DrumPanel&);
+```
+
+| Encoder | Main | Shift |
+| --- | --- | --- |
+| 1 | Pad pitch: ±12 semitones in ten-cent steps; press resets | Stock reverse |
+| 2 | Stock start marker | Machine, knob 1 |
+| 3 | Stock end marker | Machine, knob 2 |
+| 4 | Machine, knob 3 | Stock volume |
+
+`drum_control` receives each turn (signed direction) or press of a machine
+encoder, with `shifted` set on the Shift row, and edits the settings.
+`drum_panel` receives the settings and the eight live parameters audio uses.
+It returns the live pitch offset in cents (the page adds the pad's pitch), loop
+or play once, and two Shift captions of at most 15 characters, which replace
+the pan row. Callbacks are bounded and allocation-free.
+
+The track's live parameters modify the pad's settings, for display and audio
+alike; the machine applies them to both. Drum-page definitions use these
+slots:
+
+| Slot | Control | Neutral |
+| --- | --- | --- |
+| 0 | Pitch offset, -12..12 semitones in stock's ten-cent steps | 0.5 |
+| 1, 2 | Start and end modifiers | 0.5 |
+| 3 | Play mode | Machine policy |
+| 4 | Reverse, toggling the pad's direction | 0 |
+| 5, 6 | The machine's Shift controls | Machine policy |
+| 7 | Volume, scaling the pad's level | 1 |
+
+Machine names and defaults come from `definition.json`. See
+[Timestretch](../machines/timestretch/controls.h).
+
+### Sample analysis
+
+```cpp
+struct Preparation { ... };
+opxy::u32 analysis_words(const opxy::SampleView&);
+bool prepare_begin(Preparation&, const opxy::SampleView&, opxy::u32* storage, opxy::u32 words);
+opxy::PrepareStatus prepare_step(Preparation&, opxy::u32 frames, opxy::u32& cursor);
+bool prepared(const Preparation&, opxy::SampleAnalysis&);
+```
+
+[sample_analysis.hpp](../sdk/include/opxy/sample_analysis.hpp) defines the
+types. After a file is assigned to a pad, the SDK asks each analysis machine how
+many words the sample needs (0 declines), allocates them from the stock heap
+within that machine's budget, and runs `prepare_step` in bounded chunks on the
+stock file worker until `prepared` publishes the immutable result. Nothing is
+prepared while the sample browser is open, and a sample that does not fit stays
+unanalyzed. Results are released before stock frees the sample. A collection's
+analysis budgets together may not exceed 2 MiB.
 
 ## Effects
 
@@ -291,7 +322,7 @@ namespace. It is a lowercase letter followed by letters, digits or `_`, at most
 | Kind | ID | Page |
 | --- | --- | --- |
 | `synth` | 1..62, except the stock sentinel 33 and the IDs stock registers (2–4, 6, 7, 18–20, 22, 29–32) | Its own screen: 82..127 |
-| `sample` | 34..62 | Stock sample page 2 or 7; `drumControls` requires 7 |
+| `sample` | 34..62 | Stock sample page 2 or 7; `padSettings` requires 7 |
 | `effect` | A free stock FX ID: 1–4, 6–8 or 11 | Stock FX page 21 |
 
 IDs above 32 and pages above 81 exist only in the relocated stock tables.

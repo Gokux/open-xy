@@ -2,11 +2,9 @@
 #include <opxy/types.hpp>
 
 namespace opxy {
-using i16 = __INT16_TYPE__;
-
-// Read-only view of the sample the stock allocator assigned to a voice.
-// frames == 0 means no usable sample; engines then output silence.
-// channels == 2 means interleaved stereo frames (layout not yet hardware-verified).
+// Read-only view of the sample the stock allocator assigned to a voice: 16-bit
+// PCM, with left/right interleaved per frame when channels == 2. frames == 0
+// means no usable sample; engines then output silence.
 struct SampleView {
     const i16* data;
     u32 frames;
