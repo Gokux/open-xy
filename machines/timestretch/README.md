@@ -67,6 +67,10 @@ declares stereo output, same-key choke, pad settings with drum controls, and a
   where the derivative changes sign, at most 256 frames apart. Playback reads
   the original PCM; keyframes only time grain splices.
   [`stretch.h`](stretch.h) plays grains with linear interpolation and shares
-  playheads and crossfades between channels.
+  playheads and crossfades between channels. Incoming grains that advance
+  faster than the tempo clock start behind it by 75% of their predicted
+  drift during the fade, reducing early attacks without shifting the loop
+  clock. This offset is bounded to a quarter of the trimmed loop and cannot
+  precede initial playback.
 
 See the [upstream revision and AGPL notices](vendor/README.md).
