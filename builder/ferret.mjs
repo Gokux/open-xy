@@ -76,6 +76,7 @@ export class Session {
     this.accessTimeout = options.accessTimeout ?? 15000;
     this.portTimeout = options.portTimeout ?? 5000;
     this.progress = options.onProgress ?? (() => {});
+    this.onPorts = options.onPorts ?? (() => {});
   }
   #wait(promise, ms, message, late = () => {}) {
     return new Promise((resolve, reject) => {
@@ -153,10 +154,13 @@ export class Session {
         'Chrome did not finish granting or initializing MIDI. No device command was sent. Dismiss any pending prompt and close other MIDI tabs/apps before trying again.');
       if (epoch !== this.#epoch) throw new Error('Connection cancelled.');
       this.#access = access;
+      const describe = port => ({name: port.name || '(unnamed)', manufacturer: port.manufacturer || '(unknown)',
+        state: port.state, connection: port.connection});
+      this.onPorts({inputs: [...access.inputs.values()].map(describe), outputs: [...access.outputs.values()].map(describe)});
       const outputs = [...access.outputs.values()].filter(p => p.state === 'connected' && /op[-– ]?xy/i.test(p.name));
       if (outputs.length !== 1) throw new Error(outputs.length
         ? 'More than one OP–XY found. Connect only the unit you want to use.'
-        : 'OP–XY not found. Connect USB and hold COM while powering on.');
+        : 'This browser reports no connected OP–XY MIDI output. See the MIDI ports listed in Connection help below.');
       const inputs = [...access.inputs.values()].filter(p => p.state === 'connected' &&
         p.name === outputs[0].name && p.manufacturer === outputs[0].manufacturer);
       if (inputs.length !== 1) throw new Error('No unique OP–XY MIDI pair. Close other MIDI apps and reconnect USB.');
