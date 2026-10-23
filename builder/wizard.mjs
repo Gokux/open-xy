@@ -102,7 +102,6 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       if (path) files.push(path);
     });
     const visual = Visuals.guide(stage, {install, computer, files, disabling: purpose === 'disable'});
-    $('device-flow').classList.toggle('has-transition', visual.classList.contains('transition-guide'));
     $('flow-visual').replaceChildren(visual);
     $('flow-file-details').hidden = stage !== 'transfer';
     if (focus) $('flow-file-details').open = false;

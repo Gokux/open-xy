@@ -17,7 +17,6 @@ const bootMenus = {
   system: {title: 'system menu', rows: ['1. function test', '2. reset volume pot calibration', '', '8. back']},
   factory: {title: 'factory menu', rows: ['1. factory reset', '2. mtp file transfer (mac)', '3. mtp file transfer (windows)', '4. reset vol calibration', '5. write os to boot partition', '6. reset', '', '8. back']},
   mtp: {title: 'mtp mode active', rows: ['', '2. exit']},
-  written: {title: 'firmware written ok', rows: []},
 };
 function screenMarkup(name, selected, devMenu = true) {
   const model = bootMenus[name];
@@ -102,37 +101,18 @@ function menu(title, lines, selected, caption) {
   figure.append(screen, element('figcaption', caption));
   return figure;
 }
-function bootGuide(name, track, caption, {com = false} = {}) {
+function bootGuide(name, track, caption, {com = false, devMenu = true} = {}) {
   const figure = element('figure', '', 'boot-guide');
   const closeup = element('div', '', 'lcd-closeup');
-  const label = bootMenus[name].title + '. ' + bootMenus[name].rows.filter(Boolean).join('. ');
-  closeup.append(svg(screenMarkup(name, track), '0 0 480 222', label));
+  const rows = bootMenus[name].rows.filter(line => line && (name !== 'boot' || devMenu || !line.startsWith('3.')));
+  closeup.append(svg(screenMarkup(name, track, devMenu), '0 0 480 222', bootMenus[name].title + '. ' + rows.join('. ')));
   const hardware = element('div', '', 'boot-hardware');
-  hardware.append(device({screen: name, track, com}));
+  hardware.append(device({screen: name, track, com, devMenu}));
   const hint = element('figcaption');
   if (track !== null || com) hint.append(element('kbd', com ? 'com' : String(track)));
   hint.append(element('span', caption));
   figure.append(hardware, closeup, hint);
   return figure;
-}
-function transitionGuide(before, after, track, {beforeDev = true, afterDev = true, afterLabel = 'After pressing'} = {}) {
-  const guide = element('div', '', 'transition-guide');
-  const screens = element('div', '', 'transition-screens');
-  for (const [name, selected, devMenu, label] of [
-    [before, track, beforeDev, 'Before pressing'], [after, null, afterDev, afterLabel],
-  ]) {
-    const panel = element('figure', '', 'transition-screen');
-    const closeup = element('div', '', 'lcd-closeup');
-    const model = bootMenus[name];
-    const description = model.rows.filter(line => line && (name !== 'boot' || devMenu || !line.startsWith('3.'))).join('. ');
-    closeup.append(svg(screenMarkup(name, selected, devMenu), '0 0 480 222', `${label}: ${model.title}. ${description}`));
-    panel.append(element('figcaption', label), closeup);
-    screens.append(panel);
-  }
-  const hardware = element('div', '', 'boot-hardware');
-  hardware.append(device({screen: before, track, devMenu: beforeDev}));
-  guide.append(screens, hardware);
-  return guide;
 }
 function tree(title, files) {
   const section = element('div', '', 'copy-tree');
@@ -161,16 +141,18 @@ export function guide(stage, {install, computer, files, disabling = false}) {
   }
   if (['menu', 'menu-help'].includes(stage)) return bootGuide('boot', 3, 'Look for “3. dev menu”. It may be missing on your device.');
   if (stage === 'confirm') return bootGuide('boot', null, 'Check your device’s screen for “3. dev menu”.');
-  if (stage === 'refresh-open') return transitionGuide('boot', 'system', 8, {beforeDev: disabling});
-  if (stage === 'refresh-return') return transitionGuide('system', 'boot', 8, {afterDev: !disabling});
-  if (stage === 'open-dev-menu') return transitionGuide('boot', 'factory', 3);
+  // Steps that press a track show only the current screen, with that track lit.
+  const press = (screen, track, options) => bootGuide(screen, track, `Press track ${track}.`, options);
+  if (stage === 'refresh-open') return press('boot', 8, {devMenu: disabling});
+  if (stage === 'refresh-return') return press('system', 8);
+  if (stage === 'open-dev-menu') return press('boot', 3);
   if (stage === 'start-transfer') {
     const key = computer === 'mac' ? 2 : 3;
-    return transitionGuide('factory', 'mtp', key);
+    return press('factory', key);
   }
   if (stage === 'transfer') return bootGuide('mtp', null, 'Keep file transfer open until copying finishes.');
-  if (stage === 'exit-transfer') return transitionGuide('mtp', 'factory', 2);
-  if (stage === 'write-os') return transitionGuide('factory', 'written', 5, {afterLabel: 'When writing finishes'});
+  if (stage === 'exit-transfer') return press('mtp', 2);
+  if (stage === 'write-os') return press('factory', 5);
   if (stage === 'write-result') return menu('Write result', ['firmware written ok'], 0, 'Continue only when this message appears on your device.');
   if (stage === 'write-help') return menu('Check the device message', ['Looking for /os.ldr'], -1, 'This message does not confirm a completed write.');
   return device({cable: ['connect', 'enable', 'computer'].includes(stage)});
