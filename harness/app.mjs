@@ -15,14 +15,15 @@ if (customPreview) {
   document.querySelector('.badge').textContent = 'LOCAL AUTHORING';
   document.getElementById('preview-mode').textContent = 'Local authoring preview. This audition does not qualify a firmware build.';
 }
-import { createControls, VIEWS } from '../sdk/browser/controls.mjs';
+import { createControls, shownControls, VIEWS } from '../sdk/browser/controls.mjs';
 const controls = createControls(previewManifest.definition);
-const { definition, parameters, defaults, presets, displayValue, makePatch, readPatch, validateParameters, q31 } = controls;
+const { definition, parameters, positions, defaults, presets, displayValue, makePatch, readPatch, validateParameters, q31 } = controls;
 import { renderScreen as renderBase } from './screen.mjs';
 import { PreviewDisplay, SvgDisplay } from '../sdk/browser/display.mjs';
 
 import { SegmentDisplay, SegmentSvg } from '../sdk/browser/segments.mjs';
-const renderScreen = (...args) => renderBase(...args, controls, previewManifest.graphics?.kind === 'segments');
+const segmented = previewManifest.graphics?.kind === 'segments';
+const renderScreen = (...args) => renderBase(...args, controls, segmented, shown);
 const $ = id => document.getElementById(id);
 const controlId = id => customPreview ? `custom-control-${parameters.findIndex(p => p.id === id)}` : id;
 // Page copy comes from the machine: its definition and machine.json description.
@@ -36,12 +37,13 @@ if (customPreview) {
   document.querySelector('.intro .eyebrow').textContent = 'LOCAL MACHINE / AUTHORING';
   document.querySelector('.intro .lede').textContent = 'Edit your C++ sound and display, then rebuild to hear and see the change.';
 }
-let values = defaults(), view = VIEWS[0], octave = 3;
+// The parameter each control position shows: the one last edited there.
+let values = defaults(), view = VIEWS[0], octave = 3, shown = [0, 1, 2, 3];
 let visualNotes = 0, display = null, scene = null, displayBackend = null;
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let context, processor, gain, analyser, samples, starting;
 let audioBackend = null;
-const parameterWords = () => q31(values).slice(0, parameters.length);
+const parameterWords = () => q31(values);
 const held = new Map(), timers = new Set();
 const keys = ['a', 'w', 's', 'e', 'd', 'f', 't', 'g', 'y', 'h', 'u', 'j', 'k'];
 const black = new Set([1, 3, 6, 8, 10]);
@@ -52,10 +54,11 @@ for (const [i, param] of parameters.entries()) {
   const id = controlId(param.id);
   const item = document.createElement('div');
   item.className = 'control';
-  item.innerHTML = `<label for="${id}">${i + 1} / ${param.label}</label><svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="27"/><line id="dial-${id}" x1="30" y1="9" x2="30" y2="18"/></svg><output id="value-${id}" for="${id}"></output><input id="${id}" type="range" min="0" max="1" step="0.001" aria-label="${param.label}">`;
+  item.innerHTML = `<label for="${id}">${positions[i] + 1} / ${param.label}</label><svg class="dial" viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="27"/><line id="dial-${id}" x1="30" y1="9" x2="30" y2="18"/></svg><output id="value-${id}" for="${id}"></output><input id="${id}" type="range" min="0" max="1" step="0.001" aria-label="${param.label}">`;
   $('controls').append(item);
   $(id).addEventListener('input', event => {
     values[param.id] = Number(event.target.value);
+    shown[positions[i]] = i;
     update();
   });
 }
@@ -67,7 +70,11 @@ for (const [name, preset] of Object.entries(presets)) {
 }
 function draw(elapsed = 0) {
   if (display) {
-    try { scene.apply(display.tick(parameterWords(), elapsed, visualNotes, 0, reducedMotion.matches)); }
+    const input = shownControls(parameterWords(), shown);
+    try {
+      scene.apply(segmented ? display.tick(input.parameters, input.shown)
+        : display.tick(input.parameters, elapsed, visualNotes, 0, reducedMotion.matches, input.shown));
+    }
     catch (error) { display = scene = displayBackend = null; status(`Display stopped: ${error.message}`); }
   }
   $('screen').innerHTML = renderScreen(values, view, samples, scene?.svg() || '');
@@ -261,7 +268,7 @@ $('file').addEventListener('change', async () => {
   } catch (error) { status(`Import rejected: ${error.message}`); }
   finally { $('file').value = ''; }
 });
-$('reset').addEventListener('click', () => { panic(); values = defaults(); update(); status('Controls reset'); });
+$('reset').addEventListener('click', () => { panic(); values = defaults(); shown = [0, 1, 2, 3]; update(); status('Controls reset'); });
 // Stable local automation surface: uses the same validation and note lifecycle as UI.
 window.machineLab = Object.freeze({
   getPatch: () => makePatch(values, view),

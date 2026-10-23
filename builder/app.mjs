@@ -4,6 +4,7 @@ import * as Retained from '../sdk/browser/display.mjs';
 import * as Segments from '../sdk/browser/segments.mjs';
 import * as Visuals from './visuals.mjs';
 import {Audition} from './audition.mjs';
+import {shownControls} from '../sdk/browser/controls.mjs';
 
 const $ = id => document.getElementById(id);
 document.querySelectorAll('[data-icon]').forEach(el => el.append(Visuals.icon(el.dataset.icon)));
@@ -129,7 +130,9 @@ async function inspect(id) {
       const ns = 'http://www.w3.org/2000/svg', canvas = document.createElementNS(ns, 'svg');
       canvas.setAttribute('viewBox', '0 0 480 224'); canvas.setAttribute('aria-label', m.name + ' display preview');
       canvas.append(renderer.root); $('art-preview').replaceChildren(canvas);
-      const parameters = [...m.preview.defaults]; let serial = 0, previous = 0, handle, cancelled = false, heldNotes = 0;
+      // Eight parameter words; each control position shows the parameter last edited there.
+      const parameters = Object.assign(Array(8).fill(0), m.preview.defaults), shown = [0, 1, 2, 3];
+      let serial = 0, previous = 0, handle, cancelled = false, heldNotes = 0;
       const play = node('button', 'Play', 'secondary'); play.id = 'preview-play'; play.setAttribute('aria-pressed', 'false');
       const pitch = node('select'); pitch.id = 'preview-note'; pitch.setAttribute('aria-label', 'Preview note');
       for (let note = 48; note <= 72; note++) {
@@ -151,12 +154,19 @@ async function inspect(id) {
       level.oninput = () => audio.setVolume(Number(level.value) / 100);
       $('audition-controls').append(play, pitch, volume);
       const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-      function frame(dt = 34) { renderer.apply(display.tick(parameters, dt, serial, heldNotes, reduced.matches)); }
+      function frame(dt = 34) {
+        const input = shownControls(parameters, shown);
+        renderer.apply(segmented ? display.tick(input.parameters, input.shown)
+          : display.tick(input.parameters, dt, serial, heldNotes, reduced.matches, input.shown));
+      }
       const controls = m.controls.map((name, i) => {
         const label = node('label', name, 'preview-control'), input = node('input');
         input.type = 'range'; input.min = '0'; input.max = '1000'; input.step = '1';
         input.value = String(parameters[i] / 0x7fffffff * 1000); input.setAttribute('aria-label', name + ' preview');
-        input.oninput = () => { parameters[i] = Math.round(Number(input.value) / 1000 * 0x7fffffff); frame(0); audio.setParameters(parameters); };
+        input.oninput = () => {
+          parameters[i] = Math.round(Number(input.value) / 1000 * 0x7fffffff); shown[m.positions[i]] = i;
+          frame(0); audio.setParameters(parameters);
+        };
         label.append(input); return label;
       });
       $('controls').replaceChildren(...controls);

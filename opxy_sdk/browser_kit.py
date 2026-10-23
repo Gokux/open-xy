@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 from .adapters import catalog_entry, sample_callbacks
+from .definitions import control_positions
 from .formats import require, sha
 from .pipeline import ROOT, child, fresh_output, read, require_release_host, tool_paths
 from . import native, preview, screen
@@ -34,7 +35,8 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
     kit_machines = []
     for m in machines:
         entry = dict(id=m.id, name=m.name, kind=m.kind, prefix=m.prefix, description=m.description,
-                     identity=m.identity, controls=[p['label'] for p in m.definition['parameters']])
+                     identity=m.identity, controls=[p['label'] for p in m.definition['parameters']],
+                     positions=control_positions(m.definition))
         entry['catalog'] = catalog_entry(m)
         entry['presetDefaults'] = m.preset_defaults
         if m.icon:
@@ -98,7 +100,8 @@ def write_builder(kit, output):
                "import * as Retained from '../sdk/browser/display.mjs';\n"
                "import * as Segments from '../sdk/browser/segments.mjs';\n"
                "import * as Visuals from './visuals.mjs';\n"
-               "import {Audition} from './audition.mjs';\n")
+               "import {Audition} from './audition.mjs';\n"
+               "import {shownControls} from '../sdk/browser/controls.mjs';\n")
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
     exports = ('requireThat decode64 sha256 equal readObject identities moduleBytes openKit linkKit readLdr '
@@ -109,7 +112,9 @@ def write_builder(kit, output):
         ('Segments', 'segments.mjs', 'SegmentDisplay,SegmentSvg')):
         bundled += 'const ' + namespace + '= (() => {\n' + read(ROOT / 'sdk/browser' / file).decode('utf-8').replace(
             'export ', '') + '\nreturn {' + classes + '};\n})();\n'
-    bundled += 'const Ferret = (() => {\n' + read(ROOT / 'builder/ferret.mjs').decode('utf-8').replace(
+    bundled += 'const {shownControls} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode('utf-8').replace(
+        'export ', '') + '\nreturn {shownControls};\n})();\n'
+    bundled += 'const Ferret = (() => {\n'+ read(ROOT / 'builder/ferret.mjs').decode('utf-8').replace(
         'export ', '') + '\nreturn {Session};\n})();\n'
     bundled += 'const Visuals = (() => {\n' + read(ROOT / 'builder/visuals.mjs').decode('utf-8').replace(
         'export ', '') + '\nreturn {icon,device,fileMap,bundle,guide,reveal};\n})();\n'

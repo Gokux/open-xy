@@ -5,6 +5,7 @@
 #include "core.h"
 #include "engine.cpp"
 #include "stock.hpp"
+#include "synth_controls.hpp"
 // Stock assembly imports use explicit names; all other C symbols keep the ABI prefix.
 extern "C" {
 void* @PREFIX@_factory(opxy::u32) __asm__("@PREFIX@_factory");
@@ -49,9 +50,12 @@ int @PREFIX@_render(void* self, opxy::i32* output, const opxy::i32* parameters) 
 static int zero() { return 0; }
 static void noop() {}
 const char @PREFIX@_name[] = "@NAME@";
+// Stock control titles: the parameter each page position edits, which a press
+// of the encoder can switch to an alternate.
 const char* @PREFIX@_parameter_name(opxy::u32 index) {
     static const char* const labels[] = {@LABELS@};
-    return index < 4 ? labels[index] : "";
+    const opxy::u32 slot = sdk_synth_title_slot(@ENGINE@, index);
+    return slot < sizeof(labels) / sizeof(labels[0]) ? labels[slot] : "";
 }
 const void* const @PREFIX@_vtable[11] = {
     reinterpret_cast<const void*>(&@PREFIX@_destroy), reinterpret_cast<const void*>(&@PREFIX@_destroy),

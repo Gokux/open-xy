@@ -1,0 +1,13 @@
+// Generated for one collection: its synths that list alternate parameters.
+#include "synth_controls.hpp"
+extern "C" {
+@READY_DECLS@
+}
+using opxy::platform::SynthControls;
+
+const SynthControls sdk_synth_controls[] = {
+@MACHINES@
+    {0, nullptr, {0, 1, 2, 3, 4, 5, 6, 7}}
+};
+// The terminating entry keeps the array nonempty for a collection without alternates.
+const opxy::u32 sdk_synth_control_count = sizeof(sdk_synth_controls) / sizeof(sdk_synth_controls[0]) - 1;
