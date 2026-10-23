@@ -8,7 +8,7 @@ import {shownControls} from '../sdk/browser/controls.mjs';
 
 const $ = id => document.getElementById(id);
 document.querySelectorAll('[data-icon]').forEach(el => el.append(Visuals.icon(el.dataset.icon)));
-$('source-device-art').append(Visuals.device());
+document.querySelectorAll('[data-device-art]').forEach(el => el.append(Visuals.device()));
 // Preview links can show the guide immediately; using the builder still needs acknowledgement.
 let acknowledged = false;
 $('risk-acknowledgement').checked = false;

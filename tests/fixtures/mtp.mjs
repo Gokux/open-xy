@@ -7,7 +7,10 @@ import {container, objectInfo, readString} from '../../builder/mtp.mjs';
 const STORAGE = 0x10001, ROOT = 0xffffffff, PACKET = 512;
 const le = bytes => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 // `files` maps paths to bytes, or to null for a folder.
-export function fakeDevice({files = {}, busy = false, refuse = null, split = false, hang = null, corrupt = null} = {}) {
+// `strictToggle`: like some embedded stacks, clearing a halt that wasn't set desyncs the
+// endpoint's data toggle, so the device drops the next packet. `stallOnce` stalls one
+// transfer in that direction until it's cleared.
+export function fakeDevice({files = {}, busy = false, refuse = null, split = false, hang = null, corrupt = null, strictToggle = false, stallOnce = null} = {}) {
   const objects = new Map(), state = {opened: false, claimed: null, ops: [], zeroLength: 0, deleted: []};
   let next = 1;
   const find = (parent, name) => [...objects].find(([, o]) => o.parent === parent && o.name === name)?.[0];
@@ -94,7 +97,11 @@ export function fakeDevice({files = {}, busy = false, refuse = null, split = fal
       assert.equal(setup.request, 0x67); state.statusPolls = (state.statusPolls ?? 0) + 1;
       return {status: 'ok', data: new DataView(Uint8Array.of(4, 0, ...(state.statusPolls === 1 ? [0x19, 0x20] : [0x01, 0x20])).buffer)};
     },
-    async clearHalt(direction, endpoint) { (state.halts ??= []).push(direction + ' ' + endpoint); },
+    async clearHalt(direction, endpoint) {
+      (state.halts ??= []).push(direction + ' ' + endpoint);
+      if (state.stalled === direction) state.stalled = null;
+      else if (strictToggle && direction === 'out') state.desync = true;
+    },
     async selectConfiguration() {
       device.configuration = {interfaces: [{interfaceNumber: 0, alternate: {interfaceClass: 255, endpoints: [
         {direction: 'out', type: 'bulk', endpointNumber: 10, packetSize: PACKET},
@@ -106,6 +113,9 @@ export function fakeDevice({files = {}, busy = false, refuse = null, split = fal
     async transferOut(endpoint, bytes) {
       assert.equal(endpoint, 10); assert.ok(state.claimed === 0);
       const chunk = Uint8Array.from(bytes);
+      if (stallOnce === 'out' && !state.stallUsed) { state.stallUsed = true; state.stalled = 'out'; }
+      if (state.stalled === 'out') return {status: 'stall', bytesWritten: 0};
+      if (state.desync) { state.desync = false; state.dropped = (state.dropped ?? 0) + 1; return {status: 'ok', bytesWritten: chunk.length}; }
       if (!chunk.length) { state.zeroLength++; return {status: 'ok', bytesWritten: 0}; }
       incoming.push(chunk); expected ||= le(chunk).getUint32(0, true);
       const have = incoming.reduce((n, c) => n + c.length, 0);

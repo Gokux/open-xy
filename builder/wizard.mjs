@@ -80,7 +80,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       confirm: [disabling ? 'Has "3. dev menu" disappeared?' : 'Does your screen show "3. dev menu"?', 'Check the te-boot menu on your OP–XY.', disabling ? [action('It’s gone', 'disabled', 'dev-confirm'), action('It’s still there', 'disable-help')] : [action('Yes, I see it', transfer, 'dev-confirm'), action('No, it’s still missing', 'menu-help')]],
       'menu-help': ['The dev menu is still missing.', 'Stay on te-boot. Retry the connection or use Connection help below.', [action('Try connecting again', 'connect'), action('Refresh the screen again', 'refresh-open')]],
       'disable-help': ['The dev menu is still visible.', 'Stay on te-boot. Reconnect to try again, or refresh the screen once more.', [action('Try connecting again', 'connect'), action('Refresh the screen again', 'refresh-open')]],
-      disabled: ['Dev menu hidden.', 'You can enable it again from “I don’t have the OS file” when you need it.', [action('Done', 'exit')]],
+      disabled: ['Dev menu hidden.', 'You can enable it again from “I don’t know where the OS is, help me find it” when you need it.', [action('Done', 'exit')]],
       computer: ['Which computer are you using?', 'The device has a transfer option for each system.', [action('Windows', 'open-dev-menu', 'computer-windows'), action('Mac', 'open-dev-menu', 'computer-mac')]],
       'open-dev-menu': ['Open the dev menu.', 'Press track 3 for "3. dev menu". Your OP–XY calls this screen "factory menu".', [action('Dev menu is open', 'start-transfer')]],
       'start-transfer': ['Start file transfer.', computer === 'mac' ? 'Press track 2 for "2. mtp file transfer (mac)".' : 'Press track 3 for "3. mtp file transfer (windows)".', [action('I see "mtp mode active"', sendsDirectly() ? 'close-field-kit' : 'transfer')]],
@@ -201,9 +201,14 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
       Visuals.reveal($(hostPage === 1 ? 'source-start' : 'download-overview'));
     }
   }
-  function showFiles() {
+  // After an OS read from the device there is nothing to choose: show the result
+  // and the backup link instead of the drop zone.
+  function showFiles(fromDevice = false) {
     exit(false); $('source-start').hidden = true;
-    $('file-panel').hidden = $('file-actions').hidden = false; $('firmware').focus();
+    $('file-panel').hidden = $('file-actions').hidden = false;
+    $('firmware-drop').hidden = $('files-note').hidden = fromDevice;
+    $('files-title').textContent = fromDevice ? 'Original OS loaded from your OP–XY.' : 'Choose your OS file.';
+    (fromDevice ? $('files-title') : $('firmware')).focus();
     Visuals.reveal($('file-panel'));
   }
   async function deviceAction(id) {
@@ -343,7 +348,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
         clearSourceBackup(); sourceBackupUrl = URL.createObjectURL(file);
         $('source-backup').href = sourceBackupUrl; $('source-backup').hidden = false;
         inTransfer = true; transferComputer = computer;
-        busy = false; sending = null; showFiles();
+        busy = false; sending = null; showFiles(true);
         return;
       } catch (error) { if (ticket === revision) { note(error.message, 'error'); status(error.message, true); } }
     }
@@ -371,12 +376,11 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     status(); render(true);
   };
   $('flow-exit').onclick = () => exit();
-  $('source-local').onclick = showFiles;
+  $('source-local').onclick = () => showFiles();
   $('source-device').onclick = () => begin('source');
   for (const name of ['mac', 'windows']) $('source-' + name).onclick = () => {
     computer = name; manual = false;
     $('computer-choice').hidden = true; $('source-start').hidden = false;
-    $('source-device').textContent = name === 'mac' && Mtp.supported() ? 'Read OS from OP–XY' : 'I don’t have the OS file';
     $('source-title').focus(); Visuals.reveal($('source-start'));
   };
   $('source-computer-change').onclick = () => {

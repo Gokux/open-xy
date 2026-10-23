@@ -96,9 +96,9 @@ export class Device {
   constructor(device) { this.#device = device; }
   async open() {
     const device = this.#device;
-    try { await device.open(); }
-    catch (error) { throw new Error(error.name === 'NotFoundError' ? DISCONNECTED : BUSY); }
-    if (!device.configuration) await device.selectConfiguration(1);
+    try { await timed(device.open(), 5000); }
+    catch (error) { throw new Error(error.name === 'NotFoundError' ? DISCONNECTED : error.message === STOPPED ? STOPPED : BUSY); }
+    if (!device.configuration) await timed(device.selectConfiguration(1), 5000);
     const found = device.configuration.interfaces.find(i => {
       const a = i.alternate;
       return a.interfaceClass === VENDOR_CLASS && ['in', 'out'].every(d => a.endpoints.some(e => e.type === 'bulk' && e.direction === d));
@@ -107,14 +107,15 @@ export class Device {
       await device.close().catch(() => {});
       throw new Error('Your OP–XY isn’t in Mac file transfer mode. On the factory menu, press track 2.');
     }
-    try { await device.claimInterface(found.interfaceNumber); }
+    try { await timed(device.claimInterface(found.interfaceNumber), 5000); }
     catch { await device.close().catch(() => {}); throw new Error(BUSY); }
     this.#number = found.interfaceNumber;
     const endpoint = d => found.alternate.endpoints.find(e => e.type === 'bulk' && e.direction === d);
     this.#in = endpoint('in').endpointNumber; this.#out = endpoint('out').endpointNumber;
     this.#packet = endpoint('out').packetSize;
-    // A stall left by an earlier failure would block the first command.
-    await this.#clearHalts();
+    // Halts are cleared only when an endpoint actually stalls: clearing a healthy
+    // endpoint resets the host's data toggle, and a device that keeps its own
+    // then drops the next packet, so a second session would never get going.
     this.#transaction = 0; this.#broken = false;
     const opened = await this.#run(OPEN_SESSION, [1]);
     if (opened.code !== SESSION_ALREADY_OPEN) this.#expect(opened, 'open file transfer');
@@ -212,7 +213,8 @@ export class Device {
   }
   // Cancel Request (0x64) for a pending transaction, then Get Device Status
   // (0x67) until the device reports OK, as the still-image class requires
-  // before the next command.
+  // before the next command. Endpoints the device stalled for the cancel are
+  // cleared by the next session's first transfer.
   async #cancel(pending) {
     const setup = request => ({requestType: 'class', recipient: 'interface', request, value: 0, index: this.#number});
     if (pending) {
@@ -224,12 +226,6 @@ export class Device {
       const status = await timed(this.#device.controlTransferIn(setup(0x67), 64), 2000).catch(() => null);
       if (!status || status.status !== 'ok' || status.data.byteLength < 4 || status.data.getUint16(2, true) === OK) break;
       await pause(100);
-    }
-    await this.#clearHalts();
-  }
-  async #clearHalts() {
-    for (const [direction, endpoint] of [['out', this.#out], ['in', this.#in]]) {
-      await this.#device.clearHalt(direction, endpoint).catch(() => {});
     }
   }
   #expect(result, action) {
@@ -256,18 +252,26 @@ export class Device {
       throw error.name === 'NotFoundError' ? new Error(DISCONNECTED) : error;
     } finally { this.#running = false; }
   }
+  // One bulk transfer. A stalled endpoint is cleared and the transfer retried
+  // once; that's the only place halts are cleared (see open()).
+  async #transfer(direction, start) {
+    for (let attempt = 0; ; attempt++) {
+      const result = await timed(start());
+      if (result.status === 'ok') return result;
+      if (result.status !== 'stall' || attempt) throw new Error(STOPPED);
+      await timed(this.#device.clearHalt(direction, direction === 'out' ? this.#out : this.#in), 2000);
+    }
+  }
   async #send(bytes, onProgress = () => {}) {
     for (let at = 0; at < bytes.length; at += CHUNK) {
-      const result = await timed(this.#device.transferOut(this.#out, bytes.subarray(at, at + CHUNK)));
-      if (result.status !== 'ok') throw new Error(STOPPED);
+      await this.#transfer('out', () => this.#device.transferOut(this.#out, bytes.subarray(at, at + CHUNK)));
       onProgress(Math.min(1, (at + CHUNK) / bytes.length));
     }
     // A transfer ending exactly on a packet boundary needs a zero-length packet.
-    if (bytes.length % this.#packet === 0) await timed(this.#device.transferOut(this.#out, new Uint8Array(0)));
+    if (bytes.length % this.#packet === 0) await this.#transfer('out', () => this.#device.transferOut(this.#out, new Uint8Array(0)));
   }
   async #read() {
-    const result = await timed(this.#device.transferIn(this.#in, CHUNK));
-    if (result.status !== 'ok') throw new Error(STOPPED);
+    const result = await this.#transfer('in', () => this.#device.transferIn(this.#in, CHUNK));
     return new Uint8Array(result.data.buffer, result.data.byteOffset, result.data.byteLength);
   }
   async #receive({maxBytes = 16 * 1024 ** 2, onProgress = () => {}} = {}) {
