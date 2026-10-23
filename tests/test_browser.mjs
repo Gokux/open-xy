@@ -1,34 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {isDesktopChrome} from '../builder/browser.mjs';
+import {supportsDeviceApis} from '../builder/browser.mjs';
 
-const chrome = {
+const desktop = {
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/141.0.0.0 Safari/537.36',
   vendor: 'Google Inc.', platform: 'Win32',
+  requestMIDIAccess() { throw new Error('The gate must not request MIDI permissions'); },
+  usb: {requestDevice() { throw new Error('The gate must not request USB permissions'); }},
 };
 const brands = (...names) => ({brands: names.map(brand => ({brand, version:'141'})), mobile:false, platform:'Windows'});
 
-test('desktop Chrome works with client hints and the legacy/offline identity', () => {
-  assert.equal(isDesktopChrome({...chrome, userAgentData:brands('Not;A Brand', 'Chromium', 'Google Chrome')}), true);
-  assert.equal(isDesktopChrome(chrome), true);
-  assert.equal(isDesktopChrome({...chrome, platform:'MacIntel', userAgent:chrome.userAgent.replace('Windows NT 10.0; Win64; x64', 'Macintosh; Intel Mac OS X 10_15_7')}), true);
+test('any desktop browser with both APIs passes without requesting permissions', () => {
+  for (const name of ['Google Chrome', 'Microsoft Edge', 'Opera', 'Brave', 'Chromium', 'Another browser'])
+    assert.equal(supportsDeviceApis({...desktop, userAgentData:brands(name)}), true, name);
+  assert.equal(supportsDeviceApis(desktop), true);
+  assert.equal(supportsDeviceApis({...desktop, platform:'MacIntel'}), true);
 });
 
-test('other browser brands and unknown identities remain blocked', () => {
-  for (const name of ['Microsoft Edge', 'Opera', 'Brave', 'Chromium'])
-    assert.equal(isDesktopChrome({...chrome, userAgentData:brands(name)}), false, name);
-  for (const suffix of ['Edg/141.0', 'OPR/126.0', 'Vivaldi/7.0', 'YaBrowser/25.0', 'SamsungBrowser/28.0'])
-    assert.equal(isDesktopChrome({...chrome, userAgent:chrome.userAgent + ' ' + suffix}), false, suffix);
-  assert.equal(isDesktopChrome({...chrome, brave:{}}), false);
-  assert.equal(isDesktopChrome({userAgent:'Mozilla/5.0 Firefox/143.0', vendor:''}), false);
-  assert.equal(isDesktopChrome({userAgent:'Mozilla/5.0 Version/26.0 Safari/605.1.15', vendor:'Apple Computer, Inc.'}), false);
-  assert.equal(isDesktopChrome({}), false);
+test('missing or nonfunctional API entries block even a Chrome identity', () => {
+  for (const override of [{usb:undefined}, {usb:{}}, {usb:{requestDevice:true}},
+    {requestMIDIAccess:undefined}, {requestMIDIAccess:true}])
+    assert.equal(supportsDeviceApis({...desktop, ...override}), false);
+  assert.equal(supportsDeviceApis({}), false);
 });
 
 test('mobile Chrome and tablets in desktop mode cannot pass the desktop gate', () => {
-  assert.equal(isDesktopChrome({...chrome, userAgentData:{...brands('Google Chrome'), mobile:true}}), false);
-  assert.equal(isDesktopChrome({...chrome, userAgentData:{...brands('Google Chrome'), platform:'Android'}}), false);
-  assert.equal(isDesktopChrome({...chrome, userAgent:'Mozilla/5.0 (iPhone) CriOS/141.0 Mobile Safari/604.1'}), false);
-  assert.equal(isDesktopChrome({...chrome, userAgent:chrome.userAgent + ' Android 15'}), false);
-  assert.equal(isDesktopChrome({...chrome, platform:'MacIntel', maxTouchPoints:5}), false);
+  assert.equal(supportsDeviceApis({...desktop, userAgentData:{...brands('Google Chrome'), mobile:true}}), false);
+  assert.equal(supportsDeviceApis({...desktop, userAgentData:{...brands('Google Chrome'), platform:'Android'}}), false);
+  assert.equal(supportsDeviceApis({...desktop, userAgent:'Mozilla/5.0 (iPhone) CriOS/141.0 Mobile Safari/604.1'}), false);
+  assert.equal(supportsDeviceApis({...desktop, userAgent:desktop.userAgent + ' Android 15'}), false);
+  assert.equal(supportsDeviceApis({...desktop, platform:'MacIntel', maxTouchPoints:5}), false);
 });

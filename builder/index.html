@@ -18,14 +18,18 @@
   </nav>
   </aside>
   <div class="main-stage">
-  <section id="risk-gate" class="panel risk-notice" aria-labelledby="risk-title">
+  <section id="browser-gate" class="panel browser-notice" aria-labelledby="browser-notice-title">
     <span class="eyebrow">Before you start</span>
-    <aside class="browser-notice" aria-labelledby="browser-notice-title">
-      <h2 id="browser-notice-title">Google Chrome is required.</h2>
-      <p>Open this page in Google Chrome before continuing. Use it for device setup and, on Mac, transferring files directly from this page.</p>
-      <p id="browser-blocked" role="alert" hidden>You can’t continue in this browser. Reopen this page in desktop Google Chrome. <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer">Get Chrome</a></p>
-    </aside>
-    <h1 id="risk-title">Before you modify your OP–XY</h1>
+    <h1 id="browser-notice-title" tabindex="-1">Use a compatible desktop browser.</h1>
+    <p>This guide needs Web MIDI for device setup and WebUSB for file transfers on Mac. Desktop Chrome, Edge and Opera support both.</p>
+    <p id="browser-blocked" role="alert" hidden>This browser doesn’t expose both required features, or you’re using a mobile device. Open this page in a compatible browser on your computer. <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer">Get Chrome</a></p>
+    <p id="browser-ready" hidden>Your browser supports both. Continue to read the disclaimer.</p>
+    <button id="browser-continue" class="primary" disabled>Continue</button>
+    <noscript><p>JavaScript is required to check your browser and use the builder.</p></noscript>
+  </section>
+  <section id="risk-gate" class="panel risk-notice" aria-labelledby="risk-title" hidden>
+    <span class="eyebrow">Before you start</span>
+    <h1 id="risk-title" tabindex="-1">Before you modify your OP–XY</h1>
     <p>This is experimental, unofficial software for modifying your device's firmware.</p>
     <p>Modified firmware can cause data loss, permanent hardware damage, or make your device unusable ("bricking"). Recovery is not guaranteed.</p>
     <p>This site and its software are independent of teenage engineering and are not affiliated with, endorsed, sponsored, or supported by teenage engineering.</p>
@@ -129,7 +133,7 @@
   <div id="flow-actions" class="flow-actions"></div>
   <p id="dev-status" role="status" aria-live="polite"></p>
   <button type="button" id="dev-cancel" hidden>Cancel connection</button>
-  <details id="connection-help" hidden><summary>Connection help</summary><p>Use desktop Google Chrome. Close other MIDI apps. If this page cannot get MIDI permission, use the <a href="https://bagofwaffles.github.io/ferret/op-xy/" target="_blank" rel="noopener noreferrer">hosted Ferret tool</a>, then check the menu here again.</p><p class="attribution"><a href="https://github.com/bagofwaffles/ferret" target="_blank" rel="noopener noreferrer">Ferret by Bag of Waffles</a> · MIT license</p></details>
+  <details id="connection-help" hidden><summary>Connection help</summary><p>Use a compatible desktop browser, such as Chrome or Edge. Close other MIDI apps. If this page cannot get MIDI permission, use the <a href="https://bagofwaffles.github.io/ferret/op-xy/" target="_blank" rel="noopener noreferrer">hosted Ferret tool</a>, then check the menu here again.</p><p class="attribution"><a href="https://github.com/bagofwaffles/ferret" target="_blank" rel="noopener noreferrer">Ferret by Bag of Waffles</a> · MIT license</p></details>
   <div class="flow-navigation"><button id="flow-back" class="secondary">← Back</button><button id="flow-exit" class="text-button">Back to file choice</button><a id="flow-download" class="file-button" download="open-xy.zip" hidden>Download ZIP</a></div>
   </div>
   </div>

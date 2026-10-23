@@ -81,10 +81,11 @@ main { display:grid; grid-template-columns:230px minmax(0,1fr); gap:24px; max-wi
 .risk-notice { max-width:660px; margin:auto; padding:24px 0; }
 .risk-notice .eyebrow { margin-bottom:24px; }
 .risk-notice h1 { margin-bottom:28px; }
-.browser-notice { padding:18px; margin-bottom:28px; border:1px solid var(--line); border-radius:8px; }
-.browser-notice h2 { font-size:20px; margin:0 0 10px; }
-.risk-notice .browser-notice p { margin:0; }
-.risk-notice #browser-blocked { margin-top:12px; color:#ffe083; }
+.browser-notice { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; max-width:660px; min-height:60vh; margin:auto; padding:32px 0; }
+.browser-notice h1 { margin:18px 0; }
+.browser-notice p { max-width:540px; margin:0 0 20px; }
+.browser-notice #browser-blocked { color:#ffe083; }
+.browser-notice #browser-ready { color:var(--muted); font-size:13px; }
 .risk-notice p { font-size:14px; margin-bottom:18px; }
 .risk-accept { display:grid; grid-template-columns:20px minmax(0,1fr); gap:14px; font-size:14px; padding:20px 0; margin:24px 0 8px; border-top:1px solid var(--line); cursor:pointer; }
 .risk-accept input { width:18px; height:18px; margin:3px 0; accent-color:white; }

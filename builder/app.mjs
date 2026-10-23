@@ -5,17 +5,19 @@ import * as Segments from '../sdk/browser/segments.mjs';
 import * as Visuals from './visuals.mjs';
 import {Audition} from './audition.mjs';
 import {shownControls} from '../sdk/browser/controls.mjs';
-import {isDesktopChrome} from './browser.mjs';
+import {supportsDeviceApis} from './browser.mjs';
 
 const $ = id => document.getElementById(id);
 document.querySelectorAll('[data-icon]').forEach(el => el.append(Visuals.icon(el.dataset.icon)));
 document.querySelectorAll('[data-device-art]').forEach(el => el.append(Visuals.device()));
 // Preview links can show the guide immediately; using the builder still needs acknowledgement.
-let acknowledged = false;
-const chromeAllowed = isDesktopChrome();
-$('browser-blocked').hidden = chromeAllowed;
+let acknowledged = false, browserConfirmed = false;
+const browserAllowed = supportsDeviceApis();
+$('browser-blocked').hidden = browserAllowed;
+$('browser-ready').hidden = !browserAllowed;
+$('browser-continue').disabled = !browserAllowed;
 $('risk-acknowledgement').checked = false;
-$('risk-acknowledgement').disabled = !chromeAllowed;
+$('risk-acknowledgement').disabled = true;
 $('risk-continue').disabled = true;
 const colors = ['var(--machine-1)', 'var(--machine-2)', 'var(--machine-3)', 'var(--machine-4)'];
 const kib = n => (n / 1024).toFixed(1) + ' KiB';
@@ -56,24 +58,34 @@ const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => select
   onFirmware: (file, isCurrent) => acceptFirmware(file, isCurrent),
   onPreviewExit() {
     history.replaceState(null, '', location.pathname + location.search);
-    if (acknowledged) navigate(1); else showDisclaimer();
+    if (acknowledged) navigate(1); else showEntryGate();
   },
 });
-function showDisclaimer() {
+function showEntryGate() {
   wizard.navigate(1);
-  $('risk-gate').hidden = false;
+  $('browser-gate').hidden = browserConfirmed;
+  $('risk-gate').hidden = !browserConfirmed;
   $('phase-nav').hidden = true;
   $('builder-workspace').hidden = true;
   $('builder-workspace').inert = true;
 }
+$('browser-continue').onclick = () => {
+  if (!browserAllowed) return;
+  browserConfirmed = true;
+  $('risk-acknowledgement').disabled = false;
+  showEntryGate();
+  $('risk-title').focus();
+  Visuals.reveal($('risk-gate'));
+};
 function openPreviewLink() {
   if (wizard.previewLink(location.hash)) {
+    $('browser-gate').hidden = true;
     $('risk-gate').hidden = true;
     $('builder-workspace').hidden = false;
     $('builder-workspace').inert = false;
     if (!acknowledged) $('status').textContent = '';
     navigate(wizard.previewPage());
-  } else if (!acknowledged) showDisclaimer();
+  } else if (!acknowledged) showEntryGate();
 }
 window.addEventListener('hashchange', openPreviewLink);
 openPreviewLink();
@@ -81,11 +93,11 @@ openPreviewLink();
 // returns to this unchecked notice instead of treating the preview as consent.
 await new Promise(resolve => {
   $('risk-acknowledgement').onchange = () => {
-    $('risk-continue').disabled = !chromeAllowed || !$('risk-acknowledgement').checked;
+    $('risk-continue').disabled = !browserAllowed || !browserConfirmed || !$('risk-acknowledgement').checked;
   };
   $('risk-form').onsubmit = event => {
     event.preventDefault();
-    if (!chromeAllowed || !$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
+    if (!browserAllowed || !browserConfirmed || !$('risk-acknowledgement').checked || !$('risk-form').reportValidity()) return;
     acknowledged = true;
     $('risk-gate').hidden = true;
     $('phase-nav').hidden = false;

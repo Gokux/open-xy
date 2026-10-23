@@ -107,7 +107,7 @@ def write_builder(kit, output):
                "import * as Visuals from './visuals.mjs';\n"
                "import {Audition} from './audition.mjs';\n"
                "import {shownControls} from '../sdk/browser/controls.mjs';\n"
-               "import {isDesktopChrome} from './browser.mjs';\n")
+               "import {supportsDeviceApis} from './browser.mjs';\n")
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
     exports = ('requireThat decode64 sha256 equal readObject identities moduleBytes openKit linkKit readLdr '

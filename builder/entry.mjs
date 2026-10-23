@@ -24,5 +24,5 @@ try {
   reload.onclick = () => location.reload();
   notice.append(message, reload);
   // Keep acknowledgement required; never expose a partially initialized app.
-  document.getElementById('risk-gate').append(notice);
+  document.getElementById('browser-gate').append(notice);
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createWizard} from '../builder/wizard.mjs';
 import {Session} from '../builder/ferret.mjs';
-import {isDesktopChrome} from '../builder/browser.mjs';
+import {supportsDeviceApis} from '../builder/browser.mjs';
 import * as Visuals from '../builder/visuals.mjs';
 import {sha256} from '../builder/core.mjs';
 import {fakeDevice} from './fixtures/mtp.mjs';
@@ -270,7 +270,8 @@ test('installation links preview the edited steps without a build or device acce
   const source = readFileSync(new URL('../builder/app.mjs', import.meta.url), 'utf8').replace(/^import .*\r?\n/gm, '');
   const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
   let startupError;
-  new AsyncFunction('Wizard', 'Visuals', 'isDesktopChrome', source)({createWizard}, Visuals, isDesktopChrome).catch(error => { startupError = error; });
+  navigator.usb = undefined; // Unsupported browser; previews must still work.
+  new AsyncFunction('Wizard', 'Visuals', 'supportsDeviceApis', source)({createWizard}, Visuals, supportsDeviceApis).catch(error => { startupError = error; });
   await Promise.resolve();
   assert.ifError(startupError);
   assert.equal($('risk-gate').hidden, true);
@@ -280,24 +281,28 @@ test('installation links preview the edited steps without a build or device acce
   assert.equal($('device-flow').dataset.stage, 'transfer');
   assert.equal(action('mtp-send').disabled, true);
   $('flow-exit').onclick();
-  assert.equal($('risk-gate').hidden, false);
+  assert.equal($('browser-gate').hidden, false);
+  assert.equal($('risk-gate').hidden, true);
   assert.equal($('builder-workspace').inert, true);
   assert.equal($('risk-acknowledgement').checked, false);
-  // Unknown/non-Chrome browsers cannot enter the builder even if a checkbox
+  // Unsupported browsers cannot enter the builder even if a checkbox
   // change or submit handler is invoked directly after leaving a preview.
   $('risk-acknowledgement').checked = true;
   $('risk-acknowledgement').onchange();
   assert.equal($('risk-continue').disabled, true);
   $('risk-form').onsubmit({preventDefault() {}});
+  $('browser-continue').onclick();
   assert.equal($('builder-workspace').inert, true);
-  assert.equal($('risk-gate').hidden, false);
+  assert.equal($('browser-gate').hidden, false);
+  assert.equal($('risk-gate').hidden, true);
   location.hash = '#preview/mac/write-os';
   listeners.get('hashchange')();
   assert.equal($('risk-gate').hidden, true);
   assert.equal($('device-flow').dataset.stage, 'write-os');
   location.hash = '#preview/mac/not-a-step';
   listeners.get('hashchange')();
-  assert.equal($('risk-gate').hidden, false);
+  assert.equal($('browser-gate').hidden, false);
+  assert.equal($('risk-gate').hidden, true);
   assert.equal($('builder-workspace').inert, true);
   assert.equal(deviceRequests, 0);
   location.hash = '#preview/source/mac/transfer';

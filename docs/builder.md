@@ -6,15 +6,16 @@ leaves the browser.
 
 ## Using the builder
 
-1. Open the page in desktop Google Chrome, then acknowledge the risk notice
-   (asked again on every load). Other detected browsers cannot acknowledge the
-   notice or enter the builder. Developer preview links still display the guide
-   without enabling device access; returning to the builder restores the gate.
+1. The centered opening screen requires a desktop browser exposing both Web MIDI
+   and WebUSB, such as Chrome, Edge or Opera. Continue to the separate risk notice
+   and acknowledge it (asked again on every load). Unsupported browsers cannot
+   proceed. Developer preview links still display the guide without enabling
+   device access; returning to the builder restores the required entry screen.
 2. Choose Mac or Windows, then choose the OS: the decrypted OP-XY OS 1.2.0 file `os.ldr`, or an Open-XY
    build to change. Only OS 1.2.0 is supported; the `.tfw` update files teenage
    engineering hosts are a different, encrypted format. The stock file is in a
    device capture at `/upgrade/firmware/blackfin/bin/os.ldr`; a previously
-   installed Open-XY build is at `/os.ldr`. On a Mac with WebUSB in desktop Chrome,
+   installed Open-XY build is at `/os.ldr`. On a Mac with WebUSB in a compatible browser,
    follow the OS file guide and select **Read original OS**. The guide confirms OS 1.2.0, opens
    Mac file transfer mode and asks you to quit Field Kit and OpenMTP. It reads
    the original firmware path, checks the exact stock hash and loads the OS
