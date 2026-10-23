@@ -92,9 +92,9 @@ can follow a parameter whichever one its position shows.
 label repaint when the key changes. For each position listed in `textControls`,
 the screen shows `values[i]` in place of the stock value,
 for whichever parameter the position shows; other positions keep the stock
-percentage of their shown parameter. Native segment screens size all four
-header values to approximately 12 px so decimal captions fit their columns.
-Text must terminate within its buffer.
+percentage of their shown parameter. Text appears at the stock value position
+and size, so keep it to about five characters. Text must terminate within its
+buffer.
 
 Dials apply every frame. Each is a clockwise rotation from the authored pose as
 a Q10 unit vector; `{0, 0}` is the authored pose. `rotation(tenths)` turns by
@@ -120,8 +120,10 @@ exponent notation and unsupported elements/references are rejected. Do not rely
 on browser-only SVG features or group style inheritance. The native packager
 combines the machine fragment with the SDK-owned
 [OP-XY screen template](../sdk/platform/opxy-1.2.0/screen.svg). It supplies a black
-480 × 220 canvas and four title/value controls in the top 25 pixels. No stock
-artwork is copied. Machine graphics below that header are controlled by
+480 × 220 canvas and the stock synth header: a stepped grey bar 20 pixels tall
+with four titles (10 px) above four values (20 px), light text on the dark half
+and dark text on the light half, at the stock positions. Machine artwork starts
+below y = 20. No stock artwork is copied. Machine graphics below that header are controlled by
 `display.cpp`; the platform adapter updates parameter labels and values.
 
 The template's `titles` and `values` groups each contain four group children,

@@ -55,7 +55,7 @@
     "fx_types": 1583,
     "engine_types": 4435
   },
-  "screen_template_sha256": "88ed06af444dd76773dd905204577f0f1eeca548a8cdd92dc760e6ae67147e4e",
+  "screen_template_sha256": "d71b110ac905c1bcfcecc9ad94237aa72fe12c531e651f170bb5a1042547fb16",
   "patches": [
     {
       "kind": "heap",

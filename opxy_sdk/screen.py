@@ -13,7 +13,11 @@ def validate_template(data):
     root = ET.fromstring(data)
     require(root.tag == NS + 'svg' and root.get('viewBox') == '0 0 480 220', 'Invalid platform screen dimensions')
     require(root.get('width') == '480' and root.get('height') == '220', 'Invalid platform screen size')
-    require(len(root) == 3 and root[0].tag == NS + 'rect', 'Unexpected platform screen content')
+    require(len(root) == 4 and root[0].tag == NS + 'rect', 'Unexpected platform screen content')
+    # The stepped header bar: eight explicitly filled blocks across the top.
+    bars = [n for n in root if n.get('id') == 'bar']
+    require(len(bars) == 1 and bars[0].tag == NS + 'g' and len(bars[0]) == 8 and
+            all(r.tag == NS + 'rect' and r.get('fill') for r in bars[0]), 'Screen requires the header bar')
     # Stock helper 0x8d520b3c looks up these groups, indexes four children,
     # then resolves the text leaf in each child with 0x8d51f660.
     for name in ('titles', 'values'):

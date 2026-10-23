@@ -31,16 +31,8 @@ template <class Machine> struct Segments {
         clear(o);
         o->last = ~0u;
         if (!o->base.svg) return;
+        // Header values keep the template's stock position and size.
         bind_controls(&o->base);
-        // All header values use approximately 12 px (60% of the template's
-        // 20 px), including stock-backed percentages. Decimal captions such
-        // as 100.0% must fit the same column as model codes and FM ratios.
-        for (u32 i = 0; i < 4; ++i) {
-            Leaf* value = text_node(o->base.values[i]);
-            if (!value) continue;
-            const i32 matrix[9] = {614, 0, 0, 0, 614, 0, static_cast<i32>(50 + 120 * i) * 1024, 18 * 1024, 1024};
-            set_matrix(value, matrix);
-        }
         for (u32 i = 0; i < bound; ++i) o->nodes[i] = path_node(find(&o->base, Machine::ids[i]));
         o->label = text_node(find(&o->base, Machine::ids[bound]));
         for (u32 i = 0; i < layers; ++i)
