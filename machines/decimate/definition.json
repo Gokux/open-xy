@@ -15,47 +15,31 @@
       "display": "percent"
     },
     {
-      "id": "bits",
-      "label": "Bits",
-      "default": 1.0,
-      "mapping": {
-        "kind": "enum",
-        "labels": [
-          "1",
-          "2",
-          "3",
-          "4",
-          "5",
-          "6",
-          "7",
-          "8",
-          "9",
-          "10",
-          "11",
-          "12",
-          "13",
-          "14",
-          "15",
-          "16"
-        ]
-      },
-      "display": "enum"
-    },
-    {
-      "id": "jitter",
-      "label": "Jitter",
+      "id": "crossover",
+      "label": "Xover",
       "default": 0,
       "mapping": {
-        "kind": "linear",
-        "minimum": 0,
-        "maximum": 1
+        "kind": "power",
+        "maximum": 10000,
+        "exponent": 2
       },
       "display": "percent"
     },
     {
-      "id": "mix",
-      "label": "Mix",
+      "id": "tone",
+      "label": "Tone",
       "default": 1.0,
+      "mapping": {
+        "kind": "power",
+        "maximum": 1,
+        "exponent": 2
+      },
+      "display": "percent"
+    },
+    {
+      "id": "dry",
+      "label": "Dry",
+      "default": 0,
       "mapping": {
         "kind": "linear",
         "minimum": 0,

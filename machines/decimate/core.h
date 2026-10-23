@@ -1,19 +1,25 @@
 #pragma once
 #include <opxy/effect.hpp>
 
-// Decimate: a sample-and-hold rate and bit-depth reducer. It holds, quantizes
-// and crossfades samples without rescaling them, so its output keeps the send
-// buffer's own scale.
+// Decimate: the original sample-and-hold reducer, with an optional crossover
+// that selects the upper band for the send. No quantization or clock jitter.
 namespace decimate {
 struct State {
     opxy::i32 held_left;
     opxy::i32 held_right;
     opxy::u32 phase;
-    opxy::u32 length;  // samples in the current hold
-    opxy::u32 seed;    // jitter noise
+    opxy::i32 low_left;
+    opxy::i32 low_right;
+    opxy::i32 held_low_left;
+    opxy::i32 held_low_right;
+    opxy::i32 crossover;  // smoothed twice-alpha, Q15
+    opxy::i32 tone_left;
+    opxy::i32 tone_right;
+    opxy::i32 tone;       // smoothed low-pass coefficient, Q15; 32767 = open
 };
-// Controls: 0 rate (hold length 1..32 samples), 1 bits (1..16), 2 jitter (hold
-// length varies by up to its own length), 3 mix (dry..wet).
+// Controls: 0 rate (hold length 1..32), 1 crossover (0 = full band;
+// otherwise approximately 10000 * value^2 Hz), 2 tone (1 = open),
+// 3 dry (adds clean input at 0..unity gain; processed gain stays unchanged).
 void initialize(State&);
 void process(State&, opxy::Channel left, opxy::Channel right, opxy::Parameters parameters);
 }
