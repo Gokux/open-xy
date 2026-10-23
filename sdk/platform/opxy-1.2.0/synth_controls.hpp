@@ -22,7 +22,8 @@ extern const opxy::u32 sdk_synth_control_count __asm__("sdk_synth_control_count"
 // The parameter slot each of a track's four page positions edits and shows:
 // 0..3 unless an owned synth's encoder press selected an alternate. GUI only.
 void sdk_synth_shown(opxy::u32 track, opxy::u8* shown) __asm__("sdk_synth_shown");
-// The slot shown at page position `index` while engine is the selected track's;
-// other indices and engines map to themselves. For stock control titles.
+// The slot shown at page position `index` while engine is the selected track's
+// owned synth, as last refreshed; other indices and engines map to themselves.
+// For stock control titles.
 opxy::u32 sdk_synth_title_slot(opxy::u32 engine, opxy::u32 index) __asm__("sdk_synth_title_slot");
 }

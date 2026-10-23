@@ -28,8 +28,8 @@ const SynthControls* owned(u32 engine) {
     return nullptr;
 }
 
-// The slot each position shows, per track, for the engine it was selected on.
-// Engine 0 is never a synth, so zeroed state starts on slots 0..3.
+// The slot each position shows, per track, while the track keeps an owned
+// engine. Engine 0 is never a synth, so zeroed state starts on slots 0..3.
 struct Track { u32 engine; u8 slots[opxy::page_controls]; };
 Track tracks[kTracks];
 
@@ -43,12 +43,13 @@ Track* state(u32 track, u32 engine) {
     return &t;
 }
 
-// The owned machine on the track and its state, or null.
+// The owned machine on the track and its state, or null. Any other engine
+// clears the track's selection.
 const SynthControls* machine(u32 track, Track*& t) {
     if (track >= kTracks) return nullptr;
     const u32 engine = track_engine(track);
     const SynthControls* m = owned(engine);
-    t = m ? state(track, engine) : nullptr;
+    t = state(track, m ? engine : 0);
     return m;
 }
 
@@ -62,9 +63,12 @@ void sdk_synth_shown(u32 track, u8* slots) {
     for (u32 i = 0; i < opxy::page_controls; ++i) slots[i] = static_cast<u8>(shown(track, i));
 }
 
+// Reads only the selection the screen shell refreshed for this frame (no stock
+// getters), so any caller of the record's name callback may use it.
 u32 sdk_synth_title_slot(u32 engine, u32 index) {
     const u32 track = byte(kSelectedTrack);
-    return track < kTracks && track_engine(track) == engine ? shown(track, index) : index;
+    if (track >= kTracks || index >= opxy::page_controls || !engine || tracks[track].engine != engine) return index;
+    return tracks[track].slots[index];
 }
 
 // 8c09022c: the track page's key handler asks stock about a key it does not
