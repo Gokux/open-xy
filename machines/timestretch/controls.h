@@ -105,12 +105,15 @@ inline void sample_caption(char* target, const char* text) {
     while (n < 15 && text[n]) { target[n] = text[n]; ++n; }
     target[n] = 0;
 }
-inline void drum_panel(opxy::PadSettings value, const opxy::i32* live, opxy::DrumPanel& panel) {
+inline void drum_panel(opxy::PadSettings value, const opxy::SampleRegion& saved, const opxy::i32* live,
+                       opxy::DrumPanel& panel) {
     const EffectiveControls effective = effective_controls(value, live);
     const Controls c = effective.pad;
     panel = opxy::DrumPanel{};
     panel.pitch_cents = effective.pitch_cents;
     panel.repeat = !c.once;
+    panel.reverse = live_mode(live_parameter(live, 4), saved.reverse);
+    panel.level = live_parameter(live, 7);
     if (c.bpm_x10) {
         char* text = panel.shifted[0];
         if (c.bpm_x10 >= 1000) *text++ = char('0' + c.bpm_x10 / 1000);

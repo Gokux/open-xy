@@ -277,7 +277,7 @@ SAMPLE_SERVICES = (
     ('padSettings', (('_sample_defaults', 'opxy::PadSettings', ''),
                      ('_sample_assign', 'opxy::PadSettings', 'const opxy::SampleAssignment*'))),
     ('drumControls', (('_drum_control', 'void', 'opxy::PadSettings*, const opxy::DrumControl*'),
-                      ('_drum_panel', 'void', 'opxy::PadSettings, const opxy::i32*, opxy::DrumPanel*'))),
+                      ('_drum_panel', 'void', 'opxy::PadSettings, const opxy::SampleRegion*, const opxy::i32*, opxy::DrumPanel*'))),
     ('sampleAnalysis', (('_analysis_words', 'opxy::u32', 'const opxy::SampleView*'),
                         ('_prepare_begin', 'opxy::u32', 'const opxy::SampleView*, opxy::u32*, opxy::u32'),
                         ('_prepare_step', 'opxy::u32', 'opxy::u32, opxy::u32*'),
