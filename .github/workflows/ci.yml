@@ -1,10 +1,22 @@
 name: Source checks
-on: [push, pull_request, workflow_dispatch]
+# Once per pull request update and per push to main; any branch on demand.
+# A newer push cancels the run it supersedes.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
-  private-data-guard:
+  checks:
+    # One Linux job: billing rounds every job up to a whole minute.
     runs-on: ubuntu-latest
+    env:
+      OPEN_XY_KIT: ''
     steps:
       - uses: actions/checkout@v4
         with:
@@ -12,13 +24,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python tools/check_private_files.py --tree HEAD
-      - run: python tools/check_private_files.py --history
-  source-checks:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Private-data guard
+        run: |
+          python tools/check_private_files.py --tree HEAD
+          python tools/check_private_files.py --history
+      - run: python -m pip install numpy==2.3.5
+      - name: Source checks
+        run: python sdk.py check
+      - name: First machine
+        # The first-machine walkthrough end to end: scaffold, C++/Wasm preview,
+        # stale-source rejection and the documented audible edit. No firmware.
+        run: |
+          sudo apt-get update && sudo apt-get install -y clang lld
+          python tools/check_first_machine.py --cxx clang++
+      - name: Web
+        run: |
+          npm ci
+          npm run test:web
+          npm run build
+  windows:
+    # Windows minutes bill double: main and manual runs only.
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,31 +60,3 @@ jobs:
           node-version: '22'
       - run: python -m pip install numpy==2.3.5
       - run: python sdk.py check
-  first-machine:
-    # The first-machine walkthrough end to end: scaffold, C++/Wasm preview,
-    # stale-source rejection and the documented audible edit. No firmware.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: sudo apt-get update && sudo apt-get install -y clang lld
-      - run: python -m pip install numpy==2.3.5
-      - run: python tools/check_first_machine.py --cxx clang++
-  open-xy-web:
-    runs-on: ubuntu-latest
-    env:
-      OPEN_XY_KIT: ''
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci
-      - run: npm run test:web
-      - run: npm run build
