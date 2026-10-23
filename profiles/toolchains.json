@@ -4,6 +4,11 @@
   "hosts": {
     "windows-x86_64": {
       "executable_suffix": ".exe",
+      "download": {
+        "url": "https://github.com/etcetc000/open-xy/releases/download/toolchain-1/open-xy-toolchain-windows-x86_64.zip",
+        "sha256": "6be9516300c6b43c6cb33d01cbcb867ce38e185be0c70a56b7613cdffbb6d9e8",
+        "folder": "open-xy-toolchain-windows-x86_64"
+      },
       "tools": {
         "as": "a8f3985d00c18df25c8ea77b12d006ab5bddca6dfcc603e0e43af05543ba7239",
         "ld": "7390edfe342e1418f782c29cc7511a963de5c0496e7fe1f2ceae0d7fd377127d",

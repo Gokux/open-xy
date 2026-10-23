@@ -10,7 +10,8 @@ COMMANDS = '''Commands:
   build     Native firmware package for the curated collection: python sdk.py build --help
   verify    Rebuild and compare a native package: python sdk.py verify --help
   kit       Browser builder export: python sdk.py kit --help
-  doctor    Check tools: python sdk.py doctor --preview | --toolchain <dir>
+  toolchain Install the pinned Blackfin tools: python sdk.py toolchain fetch
+  doctor    Check tools: python sdk.py doctor --preview | --toolchain [<dir>]
 Preview server: python tools/serve_harness.py --preview local/preview-001'''
 
 if __name__ == '__main__':
@@ -27,15 +28,18 @@ if __name__ == '__main__':
     if command == 'preview':
         from opxy_sdk.preview import main
         raise SystemExit(main(argv))
+    if command == 'toolchain':
+        from opxy_sdk.toolchain import main
+        raise SystemExit(main(argv))
     if command == 'check':
         from opxy_sdk.checks import main
         raise SystemExit(main(argv))
     if command == 'doctor':
         import argparse
-        from opxy_sdk.pipeline import host_platform, tool_paths
+        from opxy_sdk.pipeline import host_platform, resolve_toolchain, tool_paths
         parser = argparse.ArgumentParser(prog='sdk.py doctor')
         kind = parser.add_mutually_exclusive_group(required=True)
-        kind.add_argument('--toolchain')
+        kind.add_argument('--toolchain', nargs='?', const='', help='binutils directory (default: local/toolchain/bin)')
         kind.add_argument('--preview', action='store_true', help='Check Python, NumPy, Node and actual WASM compilation')
         parser.add_argument('--cxx', default='clang++', help='Clang++ for --preview')
         args = parser.parse_args(argv)
@@ -46,7 +50,7 @@ if __name__ == '__main__':
             except (ValueError, OSError) as error:
                 parser.exit(1, 'FAIL: ' + str(error) + '\n')
         try:
-            tool_paths(args.toolchain)
+            tool_paths(args.toolchain or resolve_toolchain()[0])
         except (ValueError, KeyError) as error:
             parser.exit(1, 'FAIL: ' + str(error) + '\n')
         print(f'PASS: pinned Blackfin tools for {host_platform()}; no device operations')

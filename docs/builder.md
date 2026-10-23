@@ -123,7 +123,7 @@ Domains & Routes → Add → Custom Domain**; see the
 With the [pinned native tools](build.md) and Clang++ for wasm32:
 
 ```powershell
-python sdk.py kit --toolchain local/toolchain/bin --compiler local/toolchain-gcc --preview-cxx clang++ --stock-os "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/os.ldr" --stock-content "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/content" --out "$env:LOCALAPPDATA/OPXY-SDK/private/builds/browser-kit-001"
+python sdk.py kit --preview-cxx clang++ --stock-os "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/os.ldr" --stock-content "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/content" --out "$env:LOCALAPPDATA/OPXY-SDK/private/builds/browser-kit-001"
 ```
 
 The stock content directory needs only `op1_factory.json`. The export runs the

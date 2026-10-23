@@ -11,8 +11,10 @@ validating the browser linker and packager.
 
 ## Inputs
 
-Use the pinned [toolchains](toolchain.md), decrypted stock `os.ldr` and stock
-content. An encrypted `.tfw` is not interchangeable. Keep private inputs and
+Use the pinned [toolchain](toolchain.md), decrypted stock `os.ldr` and stock
+content. `python sdk.py toolchain fetch` installs the toolchain in
+`local/toolchain`, which the commands below use when `--toolchain` and
+`--compiler` are omitted. An encrypted `.tfw` is not interchangeable. Keep private inputs and
 firmware outputs outside every checkout, such as `%LOCALAPPDATA%/OPXY-SDK/private/`.
 Tools and source-image hashes are checked before use. Every build uses a fresh
 output directory. Commands below perform no device operations.
@@ -21,8 +23,8 @@ output directory. Commands below perform no device operations.
 
 ```powershell
 $private = "$env:LOCALAPPDATA/OPXY-SDK/private"
-python sdk.py build --toolchain local/toolchain/bin --compiler local/toolchain-gcc --stock-os "$private/stock-1.2.0/os.ldr" --stock-content "$private/stock-1.2.0/content" --out "$private/builds/collection-001"
-python sdk.py check --native-package "$private/builds/collection-001" --toolchain local/toolchain/bin --compiler local/toolchain-gcc --host-cxx g++ --stock-os "$private/stock-1.2.0/os.ldr" --stock-content "$private/stock-1.2.0/content"
+python sdk.py build --stock-os "$private/stock-1.2.0/os.ldr" --stock-content "$private/stock-1.2.0/content" --out "$private/builds/collection-001"
+python sdk.py check --native-package "$private/builds/collection-001" --host-cxx g++ --stock-os "$private/stock-1.2.0/os.ldr" --stock-content "$private/stock-1.2.0/content"
 ```
 
 The collection is the ordered machine list in `profiles/collection.json`; each
