@@ -9,7 +9,7 @@ struct Controls { bool once; bool stretch; opxy::u32 bpm; opxy::u32 length; };
 // Stock's live controls are bipolar around Q31 half-scale. The saved pad
 // settings remain the base; the middle third of a mode control inherits it.
 inline opxy::u32 live_parameter(const opxy::i32* live, unsigned index) {
-    const opxy::u32 neutral = index == 4 ? 0u : index == 7 ? 0x7fffffffu : 0x40000000u;
+    const opxy::u32 neutral = index == 7 ? 0x7fffffffu : 0x40000000u;
     return !live ? neutral : live[index] < 0 ? 0u : opxy::u32(live[index]);
 }
 inline int live_offset(opxy::u32 value, int span) {

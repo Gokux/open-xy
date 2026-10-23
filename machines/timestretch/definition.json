@@ -53,11 +53,12 @@
     {
       "id": "reverse",
       "label": "reverse",
-      "default": 0,
+      "default": 0.5,
       "mapping": {
         "kind": "enum",
         "labels": [
           "off",
+          "pad",
           "on"
         ]
       },
