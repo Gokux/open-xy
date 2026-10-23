@@ -1,11 +1,11 @@
-"""Native qualification executes the real sample services with host boundary doubles."""
+"""Native qualification executes platform services with host boundary doubles."""
 import os
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 from dataclasses import replace
-from opxy_sdk.adapters import generate_sample_callbacks
+from opxy_sdk.adapters import generate_sample_callbacks, generate_screen_order
 from opxy_sdk.machines import machine
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +37,9 @@ class SampleServices(unittest.TestCase):
             if name == 'sample_callbacks':
                 probe = replace(machine('timestretch'), id='probe', identity=dict(engine=46, page=7))
                 generate_sample_callbacks(folder, [probe])
+            if name == 'screen_order':
+                probe = replace(machine('fm2op'), id='probe', identity=dict(engine=46, page=112))
+                generate_screen_order(folder, [probe, machine('timestretch'), machine('decimate')])
             command = [HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror',
                        '-I' + str(folder), '-I' + str(ROOT / 'sdk/include'),
                        '-I' + str(ROOT / 'sdk/platform/opxy-1.2.0'), str(ROOT / 'tests/fixtures' / (name + '.cpp')),
@@ -57,3 +60,6 @@ class SampleServices(unittest.TestCase):
 
     def test_callbacks_work_for_another_engine_and_preserve_stock_fields(self):
         self.run_fixture('sample_callbacks')
+
+    def test_owned_primary_screen_precedes_stock_overlays(self):
+        self.run_fixture('screen_order')

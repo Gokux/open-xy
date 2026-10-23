@@ -43,10 +43,9 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
             entry['absent'] = {m.prefix + '_fx_register_checked': 'kit_absent'}
         else:
             entry['absent'] = {m.prefix + suffix: fallback for suffix, fallback in (
-                ('_register_checked_draft', 'kit_absent'), ('_name_matches', 'kit_absent'),
+                ('_register_checked_draft', 'kit_absent'), ('_name_matches', 'kit_absent'), ('_ready', 'kit_absent'),
                 ('_catalog_checked', 'kit_catalog_stock'))}
             if m.display == 'stock':
-                entry['absent'][m.prefix + '_ready'] = 'kit_absent'
                 if m.definition['resources'].get('drumControls', 0):
                     for callback in ('assign', 'migrate', 'control', 'panel'):
                         entry['absent'][m.prefix + '_sample_' + callback] = 'kit_absent'

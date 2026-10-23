@@ -307,6 +307,32 @@ def generate_sample_routes(directory, machines):
                   Path(directory) / 'sample_routes.s')
 
 
+def generate_screen_order(directory, machines):
+    """Ownership-gated layer ordering for extended synth pages."""
+    synths = [m for m in machines if m.kind == 'synth']
+    declarations = '\n'.join(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");' for m in synths)
+    cases = '\n'.join(f'        case {m.identity["page"]}: owned = {m.prefix}_ready() == 1; break;' for m in synths)
+    source = f'''// Generated from the collection; stock overlays retain their relative order.
+#include "screen_order.hpp"
+extern "C" {{
+{declarations}
+opxy::u32 sdk_screen_next(opxy::u32, opxy::u32) __asm__("sdk_screen_next");
+}}
+opxy::u32 sdk_screen_next(opxy::u32 current, opxy::u32 selected) {{
+    static opxy::screen::Order order;
+    bool owned = false;
+    if (current == 0) switch (selected) {{
+{cases}
+        default: break;
+    }}
+    return order.next(current, selected, owned);
+}}
+'''
+    destination = Path(directory) / 'screen_order.cpp'
+    destination.write_text(source, encoding='utf-8', newline='\n')
+    return destination
+
+
 def generate_sample_callbacks(directory, machines):
     declarations, branches = [], {name: [] for name in ('ASSIGN', 'MIGRATE', 'CONTROL', 'PANEL')}
     types = dict(ASSIGN=('opxy::u32', 'const opxy::SampleAssignment* input', 'input'),

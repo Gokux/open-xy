@@ -3,7 +3,8 @@
 The static audit (docs/abi-1.2.0.md, "Relocated tables") found every direct
 reader of the two tables: seven engine-record base loads, the engine validity
 bound and clear length, the two screen-slot base loads in the slot getter and
-the three 81-slot loop bounds. The relocated profile rewrites only those
+two 81-slot loop bounds. The compositor's third bound is in screen_order.s,
+whose hook also puts owned primary screens before overlays. These table edits rewrite only their
 immediates; this module decodes them independently of the profile's bytes.
 """
 import struct
@@ -27,7 +28,7 @@ EDITS = (
     (0x8d504d06, 'imm7', STOCK_ENGINE_COUNT, ENGINE_COUNT),
     (0x8d50618c, 'imm16', STOCK_ENGINE_COUNT * RECORD_BYTES, ENGINE_COUNT * RECORD_BYTES),
     *[(site, 'imm32', STOCK_SCREEN_SLOTS, SCREEN_SLOTS) for site in (0x8d51fbca, 0x8d51fc00)],
-    *[(site, 'imm16', STOCK_SCREEN_COUNT, SCREEN_COUNT) for site in (0x8d51fcf6, 0x8d520176, 0x8d5208fc)],
+    *[(site, 'imm16', STOCK_SCREEN_COUNT, SCREEN_COUNT) for site in (0x8d51fcf6, 0x8d520176)],
 )
 SIZES = dict(imm32=8, imm16=4, imm7=2)
 

@@ -20,7 +20,7 @@ import xml.etree.ElementTree as ET
 from . import screen, startup_label, stock_tables
 from .adapters import (catalog_entry, generate_display, generate_fx_object, generate_fx_registration,
                        generate_registration, generate_sample_registration, generate_sample_voice, generate_sample_routes, generate_sample_callbacks, generate_screen,
-                       generate_segment_binding, generate_voice, screen_bytes)
+                       generate_segment_binding, generate_voice, generate_screen_order, screen_bytes)
 from .contributors import validate_source_boundary
 from .firmware import assemble, hook_instruction, hook_target
 from .formats import elf32, elf_sections, require, sha
@@ -154,7 +154,7 @@ def plan(machines):
     units += [(f'sdk/{step}.o', None, step) for step in ('divide', 'memory', 'startup', 'startup_label', 'fallback',
               'sample_routes', 'sample_cache', 'sample_cache_stock', 'sample_cache_worker', 'sample_progress', 'sample_progress_stock',
               'sample_callbacks', 'sample_controls', 'sample_controls_stock', 'sample_assignment',
-              'sample_assignment_stock', 'sample_drum', 'sample_drum_stock')]
+              'sample_assignment_stock', 'sample_drum', 'sample_drum_stock', 'screen_order', 'screen_order_bridge')]
     names = [name for name, _m, _step in units]
     require(len(names) == len(set(names)), 'Duplicate object name')
     return units
@@ -231,6 +231,10 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         folder = obj.parent
         folder.mkdir(exist_ok=True)
         if m is None:
+            if step == 'screen_order':
+                return cxx(str(generate_screen_order(folder, machines)), obj)
+            if step == 'screen_order_bridge':
+                return assemble_unit(ROOT / TEMPLATES / 'screen_order.s', obj)
             if step == 'sample_callbacks':
                 return cxx(str(generate_sample_callbacks(folder, machines)), obj)
             if step in ('sample_cache', 'sample_progress') or step.endswith('_stock'):

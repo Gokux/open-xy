@@ -27,8 +27,9 @@ version is rejected. The output differs from stock in exactly these places:
 | Hooks | 5 | Branches from the synth initializer, both screen factories and both catalog-insertion calls into SDK startup code |
 | Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock multisampler audio payload |
 | Sample analysis | 10 | Schedules bounded background work, snapshots committed assignments, releases cached analysis and reports progress |
-| Drum-page services | 14 | Routes controls, octave publication, assignment and waveform projection for machines declaring drum controls |
-| Relocated tables | 14 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
+| Drum-page services | 20 | Routes controls, octave publication, file/recorder assignment and waveform projection for machines declaring drum controls |
+| Relocated tables | 13 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
+| Screen composition | 1 | Traverses 128 slots, drawing the selected owned custom synth before stock overlays |
 | Startup label | 1 | Shows `OPEN 0.0.1-1.2.0` at boot through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
@@ -87,6 +88,12 @@ declaration (see the [display API](display.md)):
 - **Segments:** 14-segment characters, a lit/unlit palette, one label and text
   in place of chosen control values.
 
+Stock screen numbers also determine draw order. At each frame's first loop
+advance, the compositor snapshots the selected page and its SDK ownership.
+An owned custom synth page draws immediately after slot zero, before stock
+overlays such as the octave indicator. Every slot is visited once; stock
+screens retain their relative order and public page identities stay unchanged.
+
 The stock SVG parser **asserts (halts) on a number with five or more decimal
 places**, and parses exponents on a separate, unverified path. Every authored
 asset is limited to at most four decimal places and no exponents.
@@ -129,6 +136,10 @@ key and frame count before supplying filename metadata to the assignment
 callback. The callback also receives the replaced pad's saved settings.
 Custom drum-page assignments span the full loaded sample; replacements retain
 saved pitch, reverse and volume before stock publishes the new region.
+The recorder's target-selection and completion checks recognize owned sample
+engines through the same local multisampler alias. Completed recordings enter
+the drum assignment service with their actual frame count and the recorder's
+44.1 kHz rate, independently of any pending file-browser header metadata.
 
 The shared drum bridge stores a tagged 16-bit machine setting in the region's
 fade word, with padding to survive stock's integer/float serialization. It

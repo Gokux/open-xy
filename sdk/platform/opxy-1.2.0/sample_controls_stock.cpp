@@ -41,7 +41,9 @@ u32 publish(u32 key) {
 }
 }
 
-// 8c0b1e76: the page asks which engine the track uses.
+// The sample page and recorder ask which engine the track uses. Borrow the
+// multisampler branch only for owned sample registrations; track identity stays
+// intact. Recorder sites cover target selection, release and save completion.
 u32 sdk_sample_ui_engine(u32 track) { return extensions_sample_alias(engine(track)); }
 
 // 8d58d9ca: after stock clamps the octave, mirror its stored value immediately.

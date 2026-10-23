@@ -32,6 +32,9 @@ Replacing a sample retains the pad's pitch, reverse, volume, loop/play and
 repitch/timestretch settings. A valid BPM in the new filename updates source
 BPM; otherwise the previous BPM or bar selection stays in place. Empty pads
 start from the assignment defaults.
+The stock sample recorder also assigns completed external-input recordings to
+the selected pad. Recording over a pad retains its playback settings and starts
+with full-sample trims; a recording does not import BPM from the file browser.
 New assignments span the full loaded sample. Trim positions use the waveform
 markers rather than numeric labels. Playback follows these outer start/end
 markers; hidden sampler loop markers do not constrain them.
@@ -79,6 +82,7 @@ Stereo analysis counts both channels against the shared cache budget.
 The fixed-point adaptation uses integer derivative-crossing positions with
 a 0.001 amplitude-change threshold to select grain placement and crossfade
 duration. Keyframes do not store or reconstruct the audible waveform.
-Stereo PCM shares interpolation positions and fade weights. Live-input
-recording and the upstream hardware UI are not included. See the
+Stereo PCM shares interpolation positions and fade weights. The upstream
+hardware UI and live-input processing are not included; the stock recorder
+supplies completed audio files. See the
 [upstream revision and AGPL notices](vendor/README.md).

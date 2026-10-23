@@ -1,6 +1,6 @@
 // Stock OS 1.2.0 side of sample assignment for custom drum pages: the header
-// worker's frame-count hook, the region initializer hook and the ownership
-// test the retry stubs use. Stock calls the two hooks with the ordinary C ABI
+// worker's frame-count hook, the region initializer hooks and the ownership
+// test the retry stubs use. Stock calls these hooks with the ordinary C ABI
 // (each replaces a CALL to the function it forwards to); the retry stubs and
 // the owned initializer call stay in sample_assignment.s.
 #include "sample_region.hpp"
@@ -16,6 +16,8 @@ opxy::u32 sdk_sample_assign_owned(opxy::u32, opxy::u32, opxy::u32, opxy::u32, op
 opxy::u32 sdk_sample_assignment_frames(opxy::u32) __asm__("sdk_sample_assignment_frames");
 opxy::u32 sdk_sample_assign_region(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32)
     __asm__("sdk_sample_assign_region");
+opxy::u32 sdk_sample_record_region(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32)
+    __asm__("sdk_sample_record_region");
 opxy::u32 sdk_sample_retry_owned(opxy::u32) __asm__("sdk_sample_retry_owned");
 }
 
@@ -37,6 +39,21 @@ bool owned(u32 track) { return track < 8 && extensions_sample_controls_kind(engi
 // are read at commit time so edits made during loading are not lost.
 struct Hint { u32 valid, rate, track, key, generation, frames; };
 volatile Hint hint;
+
+u32 assign_owned(u32 track, u32 key, u32 frames, u32 last, u32 rate, const u32* path) {
+    u32 scratch;
+    void* raw = stock<void*(u32, u32, u32*, u32)>(0x8d587904)(track, key, &scratch, 0);
+    const opxy::platform::SampleReplacement previous = opxy::platform::sample_replacement(raw);
+    const u32 settings = sdk_sample_assignment(track, frames, rate, path, previous.settings);
+    // Stock normalizes its lookup key but stores the input key. Keep the raw
+    // note for lookup; the owned fade hook supplies the canonical stored key.
+    // Passing the canonical key into stock would apply the octave twice.
+    const u32 result = sdk_sample_assign_owned(track, key, settings, frames, last, extensions_sample_key(track, key));
+    // No publisher runs inside the stock initializer. Restore saved controls
+    // before returning to the stock caller and subsequent GUI publication.
+    opxy::platform::sample_restore_replacement(raw, previous);
+    return result;
+}
 }
 
 // 8c0a2cee: the header worker holds this reader until its completion is
@@ -63,9 +80,6 @@ u32 sdk_sample_assignment_frames(u32 reader) {
 u32 sdk_sample_assign_region(u32 track, u32 key, u32 third, u32 fourth, u32 fifth, u32 frames, u32 last) {
     if (!owned(track))
         return stock<u32(u32, u32, u32, u32, u32, u32, u32)>(0x8d588224)(track, key, third, fourth, fifth, frames, last);
-    u32 scratch;
-    void* raw = stock<void*(u32, u32, u32*, u32)>(0x8d587904)(track, key, &scratch, 0);
-    const opxy::platform::SampleReplacement previous = opxy::platform::sample_replacement(raw);
     u32 rate = 44100;
     const u32* path = nullptr;
     if (hint.valid == 1) {
@@ -77,15 +91,16 @@ u32 sdk_sample_assign_region(u32 track, u32 key, u32 third, u32 fourth, u32 fift
             path = reinterpret_cast<const u32*>(kActivePath);
         }
     }
-    const u32 settings = sdk_sample_assignment(track, frames, rate, path, previous.settings);
-    // Stock normalizes its lookup key but stores the input key. Keep the raw
-    // note for lookup; the owned fade hook supplies the canonical stored key.
-    // Passing the canonical key into stock would apply the octave twice.
-    const u32 result = sdk_sample_assign_owned(track, key, settings, frames, last, extensions_sample_key(track, key));
-    // No publisher runs inside the stock initializer. Restore saved controls
-    // before returning to its caller's sort and subsequent GUI publication.
-    opxy::platform::sample_restore_replacement(raw, previous);
-    return result;
+    return assign_owned(track, key, frames, last, rate, path);
+}
+
+// 8c0a4fa8: the recorder has stored its completed file's path for the raw
+// target key. It records at 44.1 kHz and has no browser header job. Never use
+// or consume that worker's hint, even if key and frame count happen to match.
+u32 sdk_sample_record_region(u32 track, u32 key, u32 third, u32 fourth, u32 fifth, u32 frames, u32 last) {
+    if (!owned(track))
+        return stock<u32(u32, u32, u32, u32, u32, u32, u32)>(0x8d588224)(track, key, third, fourth, fifth, frames, last);
+    return assign_owned(track, key, frames, last, 44100, nullptr);
 }
 
 // Retry stubs: whether an owned drum page on the selected track may retry.
