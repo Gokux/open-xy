@@ -240,7 +240,7 @@ function recalculate() {
   ready();
 }
 async function build() {
-  const ticket = revision; $('build').disabled = true; status('Linking and checking your download…');
+  const ticket = revision; $('build').disabled = true; status('Linking and checking your build…');
   try {
     const selection = [...selected], result = Core.linkKit(kit, selection);
     const files = await Core.buildAssets(kit, selection, catalog);
