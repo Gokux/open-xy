@@ -118,12 +118,12 @@ void render(Voice& value, Shared& state, opxy::u32 owner, opxy::Output out,
   } else {
     // Linear FM: at full depth the carrier frequency swings between zero and
     // twice the note. Increments stay below half the sample rate (2^31).
-    const uint32_t halves = RatioHalvesFromParameter(parameters[3]);
+    const uint32_t ratio = RatioQ16FromParameter(parameters[3]);
     for (size_t offset = 0; offset < kBlockSize; offset += kFmChunk) {
       const uint32_t increment = pitch_increments[offset] < 0x80000000u ? pitch_increments[offset] : 0x7fffffffu;
       const int32_t swing = (static_cast<int32_t>(depth) * stmlib::Interpolate824(braids::wav_sine, voice->fm_phase)) >> 15;
       const uint32_t carrier = increment + static_cast<uint32_t>(static_cast<int32_t>(increment >> 15) * swing);
-      voice->fm_phase += (increment >> 1) * halves * kFmChunk;
+      voice->fm_phase += RatioIncrement(increment, ratio) * kFmChunk;
       osc->set_pitch(ClampPitch(PitchFromIncrement(carrier)));
       osc->Render(kNoSync, block, kFmChunk);
       for (size_t i = 0; i < kFmChunk; ++i) {

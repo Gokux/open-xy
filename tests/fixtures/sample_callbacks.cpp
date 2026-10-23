@@ -81,8 +81,8 @@ int main() {
     empty_panel = sdk_sample_drum_view(low_root, shadow, nullptr);
     check(empty_panel && empty_panel->pitch_cents == 1200);
     bytes[27] = 192; bytes[31] = 1;
-    for (unsigned index = 0; index < 16; ++index) {
-        if (index == 0 || index == 8) continue; // SDK-owned pad pitch/reset.
+    for (unsigned index = 0; index < 32; ++index) {
+        if ((index & 15) == 0 || (index & 15) == 8) continue; // SDK-owned pad pitch/reset.
         raw[5] = opxy::platform::sample_store_settings(123);
         unsigned before[8]; std::memcpy(before, raw, sizeof(raw));
         check(sdk_sample_edit(raw, index, -4, 46) == 1);
@@ -92,7 +92,7 @@ int main() {
         check(sdk_sample_edit(raw, index, -4, 46) == 1 && opxy::platform::sample_settings(raw[5]).value == 78);
         raw[5] = opxy::platform::sample_store_settings(124);
         check(received.knob == (index & 3) && received.shifted == bool(index & 4) &&
-              received.pressed == bool(index & 8) && received.direction == -4);
+              received.pressed == bool(index & 8) && received.held == bool(index & 16) && received.direction == -4);
         before[5] = raw[5]; check(std::memcmp(before, raw, sizeof(raw)) == 0);
     }
     // Sustained pitch edits may change only stock root/fine bytes.
@@ -140,5 +140,5 @@ int main() {
     }
     check(!sdk_sample_edit(nullptr, 0, 1, 46));
     selected = 46; owned = true;
-    check(!sdk_sample_edit(raw, 16, 1, 46));
+    check(!sdk_sample_edit(raw, 32, 1, 46));
 }

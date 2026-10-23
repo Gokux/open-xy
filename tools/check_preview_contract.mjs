@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs';
 import {PreviewEngine} from '../sdk/browser/engine.mjs';
 import {PreviewDisplay} from '../sdk/browser/display.mjs';
 import {SegmentDisplay} from '../sdk/browser/segments.mjs';
+import {shownControls} from '../sdk/browser/controls.mjs';
 
 const module = await WebAssembly.compile(readFileSync(process.argv[2]));
 const graphics = process.argv[3];
@@ -37,9 +38,9 @@ for (let corner = 0; corner < 16; ++corner) {
       assert.ok(voice.output.every(value => Math.abs(value) <= peak), 'Declared output peak');
     }
     // Each position shows its own control, then its first alternate slot.
-    const shown = block & 1 ? 0x07060504 : 0x03020100;
-    if (graphics === 'segments') display.tick(controls.slice(0, 4), shown);
-    else display.tick(controls.slice(0, 4), 17, corner * 8 + block, 0, false, shown);
+    const input = shownControls(controls, block & 1 ? [4, 5, 6, 7] : [0, 1, 2, 3]);
+    if (graphics === 'segments') display.tick(input);
+    else display.tick(input, 17, corner * 8 + block, 0, false);
     assert.equal(engine.api.memory.buffer, memory);
     assert.equal(display.api.memory.buffer, displayMemory);
   }

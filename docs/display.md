@@ -34,9 +34,10 @@ void display(DisplayState& state, const opxy::draw::Input& input, Frame& output)
 [draw.hpp](../sdk/include/opxy/draw.hpp) is the format definition.
 `DisplayState` is trivial, standard-layout data. Input holds the Q31 value
 each of the four control positions shows, Q10 elapsed seconds, track identity,
-a uint32 note-start serial, the reduced-motion preference and `shown`, the
+a uint32 note-start serial, the reduced-motion preference, `shown`, the
 declared parameter index each position shows (its own, or an
-[alternate](api.md#alternate-controls)). A serial is a snapshot, not a queue:
+[alternate](api.md#alternate-controls)), and `slots`, the Q31 value of every
+declared parameter by index (0 beyond the declared ones). A serial is a snapshot, not a queue:
 several note starts between frames can coalesce. Initializing or changing track must
 not fabricate a note.
 
@@ -81,15 +82,19 @@ void display(const opxy::segments::Input& input, Frame& output);
 | `dials` | 0..4 rotating nodes |
 | `textControls` | Distinct control indices 0..3 |
 
-Input holds the Q31 value each control position shows and, in `shown`, which
-declared parameter that is (its own index or an [alternate](api.md#alternate-controls)).
+Input holds the Q31 value each control position shows, in `shown` which
+declared parameter that is (its own index or an [alternate](api.md#alternate-controls)),
+and in `slots` the Q31 value of every declared parameter by index, so a dial
+can follow a parameter whichever one its position shows.
 [segments.hpp](../sdk/include/opxy/segments.hpp) defines the frame: one
 14-segment mask per character (bits 15..2, segments `abcdefghjklmnp`),
 `label[16]`, `values[4][8]`, a nonzero key and four dials. Segments, glow and
 label repaint when the key changes. For each position listed in `textControls`,
-the screen shows `values[i]` in place of the stock value, at three-quarter size,
+the screen shows `values[i]` in place of the stock value,
 for whichever parameter the position shows; other positions keep the stock
-percentage of their shown parameter. Text must terminate within its buffer.
+percentage of their shown parameter. Native segment screens size all four
+header values to approximately 12 px so decimal captions fit their columns.
+Text must terminate within its buffer.
 
 Dials apply every frame. Each is a clockwise rotation from the authored pose as
 a Q10 unit vector; `{0, 0}` is the authored pose. `rotation(tenths)` turns by

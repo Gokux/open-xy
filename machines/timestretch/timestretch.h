@@ -22,7 +22,7 @@ struct Voice {
     opxy::u32 region_begin;
     opxy::u32 region_end;
     bool reverse;
-    opxy::u32 source_bpm; // 0 uses bars; otherwise original sample tempo, 20..300 BPM
+    opxy::u32 source_bpm_x10; // 0 uses bars; otherwise source tempo in tenths, 200..3000
     opxy::u32 time_remainder;
     opxy::u32 time_divisor;
     bool was_playing;
@@ -51,10 +51,10 @@ inline opxy::u32 frame(const Voice& voice) { return voice.position >> voice.shif
 void initialize(Voice&, const opxy::SampleView&);
 void start(Voice&);
 void render_sample(Voice&, const opxy::SampleBlock&);
-// Original sample tempo; project tempo remains the playback target. 0 selects bars.
-void set_source_bpm(Voice&, opxy::u32);
+// Original sample tempo in tenths; project tempo remains the playback target. 0 selects bars.
+void set_source_bpm_x10(Voice&, opxy::u32);
 // Tick-aligned source frame for a loop of arbitrary musical duration.
-opxy::u32 synced_source_position(opxy::u32 frames, opxy::u32 rate, opxy::u32 source_bpm, opxy::u32 ticks96);
+opxy::u32 synced_source_position(opxy::u32 frames, opxy::u32 rate, opxy::u32 source_bpm_x10, opxy::u32 ticks96);
 // The owner publishes a completed immutable cache and keeps it alive for the voice.
 void bind_analysis(Voice&, const opxy::SampleAnalysis*);
 // Half-open source frame range. Invalid/empty ranges render silence.

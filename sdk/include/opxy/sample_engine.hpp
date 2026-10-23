@@ -39,7 +39,9 @@ struct SampleAssignment {
 
 // Drum page (drumControls). A machine-routed encoder event: zero-based knob,
 // turn direction, press, and whether Shift is held.
-struct DrumControl { u32 knob; i32 direction; bool pressed; bool shifted; };
+// held is true for a turn while the encoder is physically held down.
+// pressed is a separate click; turning suppresses that click on release.
+struct DrumControl { u32 knob; i32 direction; bool pressed; bool shifted; bool held; };
 // What the drum page shows for the selected pad: a live pitch offset in cents
 // (the SDK adds the pad's saved pitch), loop (true) or play once (false), and
 // two NUL-terminated Shift captions of at most 15 characters.

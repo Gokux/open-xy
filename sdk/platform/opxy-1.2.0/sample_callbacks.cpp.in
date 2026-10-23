@@ -45,7 +45,9 @@ u32 track_engine(u32 track) {
 opxy::DrumPanel current_panel;
 }
 extern "C" u32 sdk_sample_edit(void* raw, u32 index, i32 direction, u32 engine) {
-    if (!raw || index >= 16) return 0;
+    if (!raw || index >= 32) return 0;
+    const bool held = (index & 16) != 0;
+    index &= 15;
     const SampleMachine* m = drum_machine(engine);
     if (!m) return 0;
     if (index == 0 || index == 8) {
@@ -55,7 +57,7 @@ extern "C" u32 sdk_sample_edit(void* raw, u32 index, i32 direction, u32 engine) 
         return 1;
     }
     PadSettings value = settings(m, raw);
-    const opxy::DrumControl event{index & 3, direction, (index & 8) != 0, (index & 4) != 0};
+    const opxy::DrumControl event{index & 3, direction, (index & 8) != 0, (index & 4) != 0, held};
     m->control(&value, &event);
     opxy::platform::store_pad_settings(raw, value);
     return 1;
