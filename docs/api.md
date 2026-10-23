@@ -7,7 +7,7 @@ A machine is a folder under `machines/` named after the machine. Every kind has
 | --- | --- | --- |
 | `synth` | `engine.cpp` with `Voice`/`Shared` state, `display.cpp` and `panel.svg.fragment` | [2op FM](../machines/fm2op/engine.cpp), [Macro Osc](../machines/macroosc/engine.cpp) |
 | `sample` | `sample.cpp` with `Voice` state; the stock sample page is its screen | [Timestretch](../machines/timestretch/sample.cpp) |
-| `effect` | `fx.cpp` with `State`; the stock FX page is its screen | [Decimate](../machines/decimate/fx.cpp) |
+| `effect` | `fx.cpp` with `State`; the stock FX page is its screen | [Ring Mod](../machines/ringmod/fx.cpp) |
 
 The [first-machine walkthrough](first-machine.md) creates a standalone synth
 and previews it without native integration. SDK adapters own allocation,
@@ -321,6 +321,15 @@ No destructor ever runs, so it holds no resources. The generated adapter
 checks both limits at compile time. Effects use the stock FX page and have no
 browser preview.
 
+`process` writes only the wet return. An effect may declare `dryParameter` in
+`machine.json`, naming a control with a linear 0..1 mapping. The adapter returns
+that control's raw Q31 word to the stock source mixer. Raising it restores dry
+source level without reducing the wet return. For one isolated send with effective
+send weight `s` and Dry `d`, the source dry factor is `1 - s*(1-d)`. At full send,
+Dry zero removes the source dry and Dry one retains it; at zero send, dry stays
+unchanged. Do not add clean audio inside `process` to implement this control.
+Without `dryParameter`, the adapter returns unity to preserve the source dry.
+
 ## Registration boundary
 
 A machine's folder name is its stock name: the engine type the device lists,
@@ -341,6 +350,9 @@ namespace. It is a lowercase letter followed by letters, digits or `_`, at most
 | `sources`, `includes` | Optional extra translation units and include folders inside the machine folder; synths only, since the native plan compiles one source for the other kinds |
 | `icon` | Optional builder glyph: SVG path data in a 46 × 48 box, drawn as a stroke. The kind's glyph is used otherwise |
 | `presetDefaults` | Optional `{"amp": {...}}` overriding generated factory preset envelope values: `attack`, `decay`, `release` and `sustain`, each 0..32767. It does not rewrite existing projects or presets |
+
+An effect's optional `dryParameter` field names the control used by the stock
+source dry mixer, as described under [effects](#effects).
 
 ### Identity
 

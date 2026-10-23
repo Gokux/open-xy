@@ -1,9 +1,0 @@
-{
-  "schema": 1,
-  "kind": "effect",
-  "description": "Reduce sample rate for grainy digital textures.",
-  "identity": {
-    "effect": 11,
-    "page": 21
-  }
-}

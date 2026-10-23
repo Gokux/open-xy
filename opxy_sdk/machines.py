@@ -15,7 +15,7 @@ from .formats import require
 from .pipeline import config
 
 KINDS = ('synth', 'sample', 'effect')
-FIELDS = {'schema', 'kind', 'description', 'identity', 'sources', 'includes', 'icon', 'presetDefaults'}
+FIELDS = {'schema', 'kind', 'description', 'identity', 'sources', 'includes', 'icon', 'presetDefaults', 'dryParameter'}
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
 COLLECTION = ROOT / 'profiles/collection.json'
@@ -34,6 +34,7 @@ class Machine:
     identity: dict
     preset_defaults: dict
     icon: str = ''
+    dry_parameter: int | None = None
 
     # The stock name and the symbol prefix are the machine's name.
     @property
@@ -103,6 +104,15 @@ def machine(identity):
     require(icon == '' or isinstance(icon, str) and ICON.fullmatch(icon), 'icon is SVG path data')
     definition = validate_definition(json.loads((root / 'definition.json').read_text(encoding='utf-8')), kind)
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
+    dry_parameter = None
+    if 'dryParameter' in value:
+        require(kind == 'effect' and isinstance(value['dryParameter'], str),
+                'dryParameter names a normalized control on an effect')
+        matches = [i for i, p in enumerate(definition['parameters']) if p['id'] == value['dryParameter']]
+        require(len(matches) == 1, 'dryParameter must name a declared control')
+        dry_parameter = matches[0]
+        require(definition['parameters'][dry_parameter]['mapping'] ==
+                dict(kind='linear', minimum=0, maximum=1), 'dryParameter must map linearly from 0 to 1')
     # A synth draws its own screen; sample engines and effects use a stock page.
     display = definition['resources']['display']['kind'] if kind == 'synth' else 'stock'
     # The native plan compiles extra translation units only into synths.
@@ -120,7 +130,7 @@ def machine(identity):
                    display=display, sources=sources, includes=includes,
                    definition=definition,
                    identity=check_identity(config()['identities'], kind, value['identity']), preset_defaults=defaults,
-                   icon=icon)
+                   icon=icon, dry_parameter=dry_parameter)
 
 
 def discovered():

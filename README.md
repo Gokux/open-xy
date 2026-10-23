@@ -4,7 +4,7 @@ Write an instrument in C++, audition it locally in a browser, and integrate it
 with stock OP-XY 1.2.0. The same sound and display code compiles to WebAssembly
 and Blackfin. Two examples are included: [2op FM](machines/fm2op/README.md)
 and [Macro Osc](machines/macroosc/README.md), a port of Mutable Instruments Braids.
-[Decimate](machines/decimate/README.md) and [Timestretch](machines/timestretch/README.md)
+[Ring Mod](machines/ringmod/README.md) and [Timestretch](machines/timestretch/README.md)
 demonstrate the experimental FX and sample interfaces.
 
 The SDK also includes [Open-XY](docs/builder.md), its browser firmware builder.

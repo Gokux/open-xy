@@ -29,7 +29,7 @@ The ZIP contains:
 | `layout.json`, hashes | Optional; for your records |
 
 Every build shows `OPEN 0.0.1-1.2.0` at boot. Timestretch starts without a sample;
-choose one on its sample page. Decimate is a send effect and has no preset.
+choose one on its sample page. Ring Mod is a send effect and has no preset.
 
 The builder accepts only the exact stock file or an exact Open-XY output of the
 same collection. Encrypted `.tfw`, unknown patches and damaged files are
