@@ -20,6 +20,10 @@
   <div class="main-stage">
   <section id="risk-gate" class="panel risk-notice" aria-labelledby="risk-title">
     <span class="eyebrow">Before you start</span>
+    <aside class="browser-notice" aria-labelledby="browser-notice-title">
+      <h2 id="browser-notice-title">Please use Google Chrome.</h2>
+      <p>Open this page in Google Chrome before continuing. Use it for device setup and, on Mac, transferring files directly from this page.</p>
+    </aside>
     <h1 id="risk-title">Before you modify your OP–XY</h1>
     <p>This is experimental, unofficial software for modifying your device's firmware.</p>
     <p>Modified firmware can cause data loss, permanent hardware damage, or make your device unusable ("bricking"). Recovery is not guaranteed.</p>
@@ -106,6 +110,11 @@
   <p id="flow-preview-note" hidden>Preview only. Build firmware in the builder to send files to your OP–XY.</p>
   <p id="flow-detail"></p>
   <ol id="flow-instructions" class="instruction-list" hidden></ol>
+  <aside id="flow-missing-os" class="install-reminder" aria-labelledby="missing-os-title" hidden>
+    <h3 id="missing-os-title">Can’t find os.ldr?</h3>
+    <p>On rare occasions, a factory reset or initialization can leave your OP–XY without the original os.ldr file. Disable the dev menu, reinstall OS 1.2.0 with the dev menu disabled, then try again.</p>
+    <button id="missing-os-help" class="secondary">The OS file is missing · Help me recover it</button>
+  </aside>
   <aside id="flow-install-reminder" class="install-reminder" aria-labelledby="install-reminder-title" hidden>
     <h3 id="install-reminder-title">You are not done yet, please don't stop the process here.</h3>
     <p>There are more installation steps after transferring the files. Please continue to the end of the guide.</p>

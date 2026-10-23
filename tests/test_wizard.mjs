@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createWizard} from '../builder/wizard.mjs';
+import {Session} from '../builder/ferret.mjs';
 import * as Visuals from '../builder/visuals.mjs';
 import {sha256} from '../builder/core.mjs';
 import {fakeDevice} from './fixtures/mtp.mjs';
@@ -28,7 +29,8 @@ function sourceFlow(t, {fake, bytes, hash, usb = true}) {
     document: {getElementById: $, createElement: () => new Element(), createElementNS: () => new Element(),
       querySelector: () => new Element()},
     window: {addEventListener() {}}, matchMedia: () => ({matches: true}), isSecureContext: true,
-    navigator: {usb: usb ? {requestDevice: async () => { requests++; return fake.device; }} : undefined},
+    navigator: {requestMIDIAccess() { throw new Error('Unexpected MIDI access'); },
+      usb: usb ? {requestDevice: async () => { requests++; return fake.device; }} : undefined},
   };
   for (const [name, value] of Object.entries(globals)) {
     const previous = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -98,11 +100,69 @@ test('Windows and browsers without WebUSB keep the manual source path', async t 
   });
 });
 
+test('missing OS recovery disables the menu before reinstalling, then restarts the correct source route', async t => {
+  for (const computer of ['mac', 'windows']) await t.test(computer, async t => {
+    let connects = 0, disables = 0;
+    for (const [name, replacement] of Object.entries({connect: async () => connects++, disable: async () => disables++,
+      enable: async () => { throw new Error('Recovery must not enable the dev menu'); }})) {
+      const original = Session.prototype[name]; Session.prototype[name] = replacement;
+      t.after(() => { Session.prototype[name] = original; });
+    }
+    const f = sourceFlow(t, {fake: fakeDevice(), bytes: new Uint8Array(1), hash: ''}), {$, click} = f;
+    f.reachTransfer(computer);
+    if (computer === 'mac') {
+      assert.equal($('flow-missing-os').hidden, true);
+      click('field-kit-closed'); click('mtp-manual');
+    }
+    assert.equal($('flow-missing-os').hidden, false);
+    assert.equal($('flow-install-reminder').hidden, true);
+    assert.ok($('flow-instructions').children.some(li => li.children[0].textContent.includes('OPXY/upgrade/firmware/blackfin/bin/os.ldr')));
+    $('missing-os-help').onclick();
+    assert.equal($('device-flow').dataset.stage, 'missing-os');
+    click('recovery-begin');
+    assert.equal($('device-flow').dataset.stage, 'recovery-exit');
+    assert.equal(f.requests(), 0); assert.equal(connects, 0); assert.equal(disables, 0);
+    assert.equal($('flow-missing-os').hidden, true);
+    click('I’m back at the dev menu'); click('Connected and at te-boot'); click('menu-yes');
+    await click('dev-connect');
+    assert.equal($('device-flow').dataset.stage, 'disable');
+    await click('dev-disable');
+    assert.equal(disables, 1);
+    click('System menu is open'); click('I’m back at te-boot');
+    assert.equal($('flow-title').textContent, 'Has "3. dev menu" disappeared?');
+    click('It’s still there');
+    assert.equal($('device-flow').dataset.stage, 'disable-help');
+    assert.ok(!$('flow-actions').children.some(b => b.id === 'recovery-retry'));
+    click('Refresh the screen again'); click('System menu is open'); click('I’m back at te-boot'); click('dev-confirm');
+    assert.equal($('flow-title').textContent, 'Reinstall OS 1.2.0 with the dev menu disabled.');
+    click('recovery-retry');
+    assert.equal($('device-flow').dataset.stage, 'boot');
+    click('Connected and at te-boot'); click('menu-no'); await click('dev-connect');
+    assert.equal($('device-flow').dataset.stage, 'enable');
+    // Retry is a fresh source guide, with the computer preserved and manual fallback reset.
+    $('flow-back').onclick(); $('flow-back').onclick(); click('menu-yes'); click('Dev menu is open');
+    assert.match($('flow-detail').textContent, computer === 'mac' ? /track 2/ : /track 3/);
+    click('I see "mtp mode active"');
+    assert.equal($('device-flow').dataset.stage, computer === 'mac' ? 'close-field-kit' : 'transfer');
+  });
+});
+
+test('recovery skips disabling only when the user confirms the dev menu is already absent', t => {
+  const f = sourceFlow(t, {fake: fakeDevice(), bytes: new Uint8Array(1), hash: ''});
+  f.reachTransfer('windows'); f.$('missing-os-help').onclick(); f.click('recovery-begin');
+  f.click('I’m back at the dev menu'); f.click('Connected and at te-boot'); f.click('menu-no');
+  assert.equal(f.$('flow-title').textContent, 'Reinstall OS 1.2.0 with the dev menu disabled.');
+  assert.equal(f.requests(), 0);
+});
+
 test('stopping a Mac read discards it and releases USB before a retry', async t => {
   const bytes = new Uint8Array(32), fake = fakeDevice({files: {'upgrade/firmware/blackfin/bin/os.ldr': bytes}, hang: 0x1009});
   const f = sourceFlow(t, {fake, bytes, hash: await sha256(bytes)});
   f.reachTransfer('mac'); f.click('field-kit-closed'); const reading = f.click('mtp-read');
   while (!fake.state.abort) await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(f.$('missing-os-help').disabled, true);
+  f.$('missing-os-help').onclick();
+  assert.equal(f.$('device-flow').dataset.stage, 'transfer');
   f.$('dev-cancel').onclick(); await reading;
   assert.deepEqual(f.accepted, []); assert.equal(fake.state.opened, false);
   assert.equal(f.$('dev-cancel').hidden, true);
@@ -155,6 +215,7 @@ test('installation links preview the edited steps without a build or device acce
     assert.equal($('flow-install-reminder').hidden, false);
     assert.equal($('flow-preview-note').hidden, false);
     assert.equal($('flow-download').hidden, true);
+    assert.equal($('flow-missing-os').hidden, true);
   }
   wizard.previewLink('#preview/mac/transfer');
   assert.equal($('flow-title').textContent, 'Send the files to your OP–XY.');
@@ -175,10 +236,17 @@ test('installation links preview the edited steps without a build or device acce
     assert.equal($('flow-install-reminder').hidden, true);
   }
   assert.equal(wizard.previewLink('#preview/source/mac/transfer'), true);
+  assert.equal($('flow-missing-os').hidden, false);
   assert.equal(wizard.previewPage(), 1);
   assert.equal($('flow-install-reminder').hidden, true);
   assert.equal(action('mtp-read').disabled, true);
   await action('mtp-read').onclick();
+  assert.equal(deviceRequests, 0);
+  assert.equal(wizard.previewLink('#preview/source/windows/missing-os'), true);
+  action('recovery-begin').onclick(); action('I’m back at the dev menu').onclick();
+  action('Connected and at te-boot').onclick(); action('menu-yes').onclick();
+  assert.equal(action('dev-connect').disabled, true);
+  await action('dev-connect').onclick();
   assert.equal(deviceRequests, 0);
   wizard.previewLink('#preview/mac/menu');
   action('menu-no').onclick();

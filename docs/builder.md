@@ -6,7 +6,8 @@ leaves the browser.
 
 ## Using the builder
 
-1. Acknowledge the risk notice (asked again on every load).
+1. Open the page in Google Chrome, as prompted before the disclaimer, then
+   acknowledge the risk notice (asked again on every load).
 2. Choose Mac or Windows, then choose the OS: the decrypted OP-XY OS 1.2.0 file `os.ldr`, or an Open-XY
    build to change. Only OS 1.2.0 is supported; the `.tfw` update files teenage
    engineering hosts are a different, encrypted format. The stock file is in a
@@ -19,6 +20,12 @@ leaves the browser.
    the patched root OS. Keep file transfer open to resume installation later.
    Windows and browsers without WebUSB use the manual copy guide; Mac users
    can also choose **Copy it myself instead**.
+   Both transfer guides show a yellow notice for the rare case where a factory
+   reset or initialization leaves `OPXY/upgrade/firmware/blackfin/bin/os.ldr`
+   missing. **The OS file is missing · Help me recover it** leads through leaving
+   file transfer, disabling the dev menu and confirming it is hidden, then
+   reinstalling official OS 1.2.0 with the dev menu disabled. After reinstalling,
+   **Try again** restarts the source guide for the same computer.
 3. Select machines. Synth rows have a playable preview of their C++ sound and
    display code; each row shows its code, data and state size against the
    memory meter.
@@ -83,6 +90,7 @@ Installation screens have direct preview links, such as
 `http://127.0.0.1:8918/#preview/mac/transfer`, `#preview/mac/exit-transfer`
 and `#preview/mac/write-os`. The original-OS flow uses
 `#preview/source/mac/close-field-kit` and `#preview/source/mac/transfer`.
+Use `#preview/source/mac/missing-os` to preview the recovery side path.
 Replace `mac` with `windows` to see the manual
 copy route. These developer links open the selected step immediately, skipping
 the disclaimer and requiring no OS file or build. Device actions are disabled in previews;
