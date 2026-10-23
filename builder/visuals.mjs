@@ -12,20 +12,25 @@ const paths = {
 };
 // Transcribed from the user's four bootloader photographs. The variable build
 // stamp is omitted; these drawings describe menus, not detected device state.
+const FACTORY = ['1. factory reset', '2. mtp file transfer (mac)', '3. mtp file transfer (windows)', '4. reset vol calibration', '5. write os to boot partition', '6. reset', '', '8. back'];
 const bootMenus = {
   boot: {title: 'TE BOOT', rows: ['1. upload firmware', '3. dev menu', '5. format drive', '', '7. factory reset', '8. system menu']},
   system: {title: 'system menu', rows: ['1. function test', '2. reset volume pot calibration', '', '8. back']},
-  factory: {title: 'factory menu', rows: ['1. factory reset', '2. mtp file transfer (mac)', '3. mtp file transfer (windows)', '4. reset vol calibration', '5. write os to boot partition', '6. reset', '', '8. back']},
+  factory: {title: 'factory menu', rows: FACTORY},
+  // Writing the OS adds status lines below the factory menu.
+  writing: {title: 'factory menu', rows: [...FACTORY, 'looking for /os.ldr']},
+  written: {title: 'factory menu', rows: [...FACTORY, 'looking for /os.ldr', 'firmware written ok!']},
   mtp: {title: 'mtp mode active', rows: ['', '2. exit']},
 };
-function screenMarkup(name, selected, devMenu = true) {
+// `highlight` outlines a status line, as `selected` outlines a numbered option.
+function screenMarkup(name, selected, devMenu = true, highlight = null) {
   const model = bootMenus[name];
   let markup = '<rect class="lcd-background" width="480" height="222"/>';
   markup += `<text class="lcd-text lcd-title" x="12" y="22">${model.title}</text>`;
   model.rows.forEach((line, index) => {
     if (name === 'boot' && line.startsWith('3.') && !devMenu) return;
     const y = 50 + index * 17;
-    const active = selected && line.startsWith(selected + '.');
+    const active = (selected && line.startsWith(selected + '.')) || (highlight && line === highlight);
     if (active) markup += `<rect class="lcd-highlight instruction-pulse" x="7" y="${y - 13}" width="466" height="17" rx="2"/>`;
     markup += `<text class="lcd-text${active ? ' lcd-selected' : ''}" x="12" y="${y}">${line}</text>`;
   });
@@ -93,19 +98,11 @@ function element(tag, text, className) {
   if (className) el.className = className;
   return el;
 }
-function menu(title, lines, selected, caption) {
-  const figure = element('figure', '', 'menu-guide');
-  const screen = element('div', '', 'menu-screen');
-  screen.append(element('div', title, 'menu-heading'));
-  lines.forEach((line, i) => screen.append(element('div', line, i === selected ? 'menu-option emphasized' : 'menu-option')));
-  figure.append(screen, element('figcaption', caption));
-  return figure;
-}
-function bootGuide(name, track, caption, {com = false, devMenu = true} = {}) {
+function bootGuide(name, track, caption, {com = false, devMenu = true, highlight = null} = {}) {
   const figure = element('figure', '', 'boot-guide');
   const closeup = element('div', '', 'lcd-closeup');
   const rows = bootMenus[name].rows.filter(line => line && (name !== 'boot' || devMenu || !line.startsWith('3.')));
-  closeup.append(svg(screenMarkup(name, track, devMenu), '0 0 480 222', bootMenus[name].title + '. ' + rows.join('. ')));
+  closeup.append(svg(screenMarkup(name, track, devMenu, highlight), '0 0 480 222', bootMenus[name].title + '. ' + rows.join('. ')));
   const hardware = element('div', '', 'boot-hardware');
   hardware.append(device({screen: name, track, com, devMenu}));
   const hint = element('figcaption');
@@ -154,7 +151,7 @@ export function guide(stage, {install, computer, files, disabling = false}) {
   if (stage === 'transfer') return bootGuide('mtp', null, 'Keep file transfer open until copying finishes.');
   if (stage === 'exit-transfer') return press('mtp', 2);
   if (stage === 'write-os') return press('factory', 5);
-  if (stage === 'write-result') return menu('Write result', ['firmware written ok'], 0, 'Continue only when this message appears on your device.');
-  if (stage === 'write-help') return menu('Check the device message', ['Looking for /os.ldr'], -1, 'This message does not confirm a completed write.');
+  if (stage === 'write-result') return bootGuide('written', null, 'Once “firmware written ok!” appears, it’s safe to power cycle.', {highlight: 'firmware written ok!'});
+  if (stage === 'write-help') return bootGuide('writing', null, '“looking for /os.ldr” alone doesn’t confirm a completed write.', {highlight: 'looking for /os.ldr'});
   return device({cable: ['connect', 'enable', 'computer'].includes(stage)});
 }

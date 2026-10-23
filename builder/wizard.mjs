@@ -84,9 +84,9 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles}) {
       [install ? 'Copy the ZIP’s files.' : 'Copy the OS file.', resumed ? stillInTransfer : 'Keep your device’s other content in place.', [action(install ? 'All files copied' : 'Files copied · Choose files', install ? 'exit-transfer' : 'files'), ...(resumed ? [action('Start from the beginning', 'boot', 'flow-restart')] : [])], transferSteps],
       'exit-transfer': ['Exit file transfer.', 'Once every file has finished copying, press track 2 for "2. exit".', [action('I’m back at the factory menu', 'write-os')]],
       'write-os': ['Write the OS.', 'Press track 5 for "5. write os to boot partition". Keep your OP–XY connected to power.', [action('I pressed track 5', 'write-result')]],
-      'write-result': ['Wait for the write result.', 'Do not restart while writing. Wait for "firmware written ok" on your OP–XY.', [action('I see "firmware written ok"', 'restart'), action('I see an error', 'write-help')]],
-      'write-help': ['Check the message on your OP–XY.', '"Looking for /os.ldr" is not a completed write. Check that os.ldr is at the device’s top level. For another error, stop here and investigate it before restarting.', [action('Return to the write status', 'write-result')]],
-      restart: ['Restart without holding COM.', 'After restarting, check your selected machines on the device.', [action('Device restarted · Done', 'exit'), action('Disable dev menu', null, 'disable-menu-after-install')]],
+      'write-result': ['Wait for the write result.', 'Don’t power off while writing. When "firmware written ok!" appears under "looking for /os.ldr", it’s safe to power cycle your OP–XY.', [action('I see "firmware written ok!"', 'restart'), action('I see something else', 'write-help')]],
+      'write-help': ['Check the message on your OP–XY.', 'If it stops at "looking for /os.ldr" without "firmware written ok!", os.ldr isn’t at the device’s top level. For any other message, stop here and investigate it before power cycling.', [action('Return to the write status', 'write-result')]],
+      restart: ['Power cycle your OP–XY.', 'It’s safe now. Switch it off, then on again without holding COM. Then check your selected machines on the device.', [action('Device restarted · Done', 'exit'), action('Disable dev menu', null, 'disable-menu-after-install')]],
     }[stage];
   }
   function render(focus = false) {
