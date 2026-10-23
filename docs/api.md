@@ -51,7 +51,7 @@ figures. State usually dominates, since a synth's voice pool is
 | Sample and effect controls | 1..8 | The stock eight-word parameter vector |
 | Control labels | 8 characters | The stock parameter page |
 | Drawing shape | ≤ 4 paths of ≤ 64 points, ≤ 64 nodes, ≤ 16 palette entries | Fixed-size renderer object and frame |
-| Segment display | 1..8 characters, 0..3 glow layers, 0..4 dials | Immediate offsets in the native renderer |
+| Segment display | 1..8 characters, 0..3 glow layers, 0..4 dials | Fixed-size renderer object and frame |
 
 `voiceBytes`, `sharedBytes` and display state have no limit of their own
 beyond whole words and module memory. Browser previews run 8 voices in
