@@ -117,12 +117,12 @@ inline void drum_panel(opxy::PadSettings value, const opxy::i32* live, opxy::Dru
     panel.repeat = !c.once;
     if (c.bpm_x10) {
         char* text = panel.shifted[0];
-        text[0] = char('0' + c.bpm_x10 / 1000);
-        text[1] = char('0' + c.bpm_x10 / 100 % 10);
-        text[2] = char('0' + c.bpm_x10 / 10 % 10);
-        text[3] = '.';
-        text[4] = char('0' + c.bpm_x10 % 10);
-        sample_caption(text + 5, " bpm");
+        if (c.bpm_x10 >= 1000) *text++ = char('0' + c.bpm_x10 / 1000);
+        *text++ = char('0' + c.bpm_x10 / 100 % 10);
+        *text++ = char('0' + c.bpm_x10 / 10 % 10);
+        *text++ = '.';
+        *text++ = char('0' + c.bpm_x10 % 10);
+        sample_caption(text, " bpm");
     } else {
         const char* labels[] = {"1/4 bar", "1/2 bar", "1 bar", "2 bars", "4 bars", "8 bars"};
         sample_caption(panel.shifted[0], labels[c.length]);
