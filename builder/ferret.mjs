@@ -157,13 +157,18 @@ export class Session {
       const describe = port => ({name: port.name || '(unnamed)', manufacturer: port.manufacturer || '(unknown)',
         state: port.state, connection: port.connection});
       this.onPorts({inputs: [...access.inputs.values()].map(describe), outputs: [...access.outputs.values()].map(describe)});
-      const outputs = [...access.outputs.values()].filter(p => p.state === 'connected' && /op[-– ]?xy/i.test(p.name));
+      // Drivers can expose different IN/OUT suffixes, Composite labels and
+      // manufacturers. Select one OP-XY port in each direction, then verify
+      // product, boot mode and device identity through the existing handshake.
+      const opxyPort = p => p.state === 'connected' && /(?:^|[^a-z0-9])op[-– ]?xy(?:$|[^a-z0-9])/i.test(p.name ?? '');
+      const outputs = [...access.outputs.values()].filter(opxyPort);
       if (outputs.length !== 1) throw new Error(outputs.length
         ? 'More than one OP–XY found. Connect only the unit you want to use.'
         : 'This browser reports no connected OP–XY MIDI output. See the MIDI ports listed in Connection help below.');
-      const inputs = [...access.inputs.values()].filter(p => p.state === 'connected' &&
-        p.name === outputs[0].name && p.manufacturer === outputs[0].manufacturer);
-      if (inputs.length !== 1) throw new Error('No unique OP–XY MIDI pair. Close other MIDI apps and reconnect USB.');
+      const inputs = [...access.inputs.values()].filter(opxyPort);
+      if (inputs.length !== 1) throw new Error(inputs.length
+        ? 'No unique OP–XY MIDI input: more than one is connected. Connect only the unit you want to use.'
+        : 'This browser reports no connected OP–XY MIDI input. See the MIDI ports listed in Connection help below.');
       this.#input = inputs[0]; this.#output = outputs[0];
       this.#input.addEventListener('midimessage', this.#message);
       access.addEventListener('statechange', this.#state);
