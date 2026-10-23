@@ -33,9 +33,10 @@ EDITS = (
 SIZES = dict(imm32=8, imm16=4, imm7=2)
 
 
-# Template values for the generated registration/readiness/page code.
+# Template values for the stock side of registration and the page renderers.
 REGISTRATION = dict(ENGINE_RECORDS='%#x' % ENGINE_RECORDS, ENGINE_LIMIT=str(ENGINE_COUNT),
-                    SCREEN_SLOTS='%#x' % SCREEN_SLOTS, PAGE_LIMIT=str(SCREEN_COUNT))
+                    ENGINE_SENTINEL=str(ENGINE_SENTINEL), SCREEN_SLOTS='%#x' % SCREEN_SLOTS,
+                    PAGE_LIMIT=str(SCREEN_COUNT))
 
 
 def check_profile(profile):

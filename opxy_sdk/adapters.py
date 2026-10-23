@@ -11,7 +11,6 @@ object layouts, method tables, storage, registration and menu entries:
 import json
 import math
 from pathlib import Path
-import struct
 
 from .definitions import ROOT, validate_definition
 from .formats import require
@@ -197,48 +196,44 @@ extern "C" unsigned {prefix}_display_validate(const Frame* frame) {{
     (directory / 'display_binding.cpp').write_text(source, encoding='utf-8', newline='\n')
 
 
-def name_checks(native_name):
-    name = native_name.encode('ascii')
+def generate_registration(directory, m):
+    """A machine's stock record (and own screen) for the SDK's checked registration."""
+    p, effect = m.prefix, m.kind == 'effect'
+    name = m.native_name.encode('ascii')
     require(1 <= len(name) <= 15 and b'\0' not in name, 'Unsupported inline engine name')
-    record = []
-    for i, word in enumerate(struct.unpack('<8I', name.ljust(32, b'\0'))):
-        record += [f'    R0 = [P4 + {16 + 4 * i}];', f'    R1 = 0x{word:08x};',
-                   '    CC = R0 == R1;', '    IF !CC JUMP .Lnot_owned;']
-    string = []
-    whole = len(name) // 4 * 4
-    for at in range(0, whole, 4):
-        word = int.from_bytes(name[at:at + 4], 'little')
-        string += [f'    R0 = [P0 + {at}];', f'    R1 = 0x{word:08x};',
-                   '    CC = R0 == R1;', '    IF !CC JUMP .Lname_no;']
-    for at in range(whole, len(name)):
-        string += [f'    R0 = B[P0 + {at}] (Z);', f'    R1 = {name[at]};',
-                   '    CC = R0 == R1;', '    IF !CC JUMP .Lname_no;']
-    return '\n'.join(record), '\n'.join(string)
+    own = 'fx_' if effect else ''
+    addresses = [f'{p}_{own}factory', f'{p}_{own}parameter_name', f'{p}_{own}name',
+                 f'{p}_fx_id' if effect else f'{p}_engine_id', f'{p}_{own}page_id']
+    declarations = [f'extern const char {symbol}[] __asm__("{symbol}");' for symbol in addresses]
+    objects = [f'const opxy::platform::Record record = {{{", ".join(addresses)}, {int(m.kind == "sample")}}};']
+    entries, screen = {}, 'nullptr'
+    if effect:
+        entries[p + '_fx_register()'] = 'sdk_register_effect(&record)'
+    else:
+        if m.display != 'stock':
+            declarations += [f'extern char {p}_screen_state[] __asm__("{p}_screen_state");',
+                             *(f'extern const char {p}_screen_{part}[] __asm__("{p}_screen_{part}");'
+                               for part in ('vtable', 'asset')),
+                             f'char* {p}_screen_ctor(char*, opxy::u32) __asm__("{p}_screen_ctor");']
+            objects.append(f'const opxy::platform::Screen screen = {{{p}_screen_state, {screen_bytes(m)}, '
+                           f'{p}_screen_vtable, {p}_screen_asset, {p}_screen_ctor}};')
+            screen = '&screen'
+            entries[p + '_screen_register()'] = 'sdk_register_screen(&record, &screen)'
+        entries[p + '_register()'] = 'sdk_register_engine(&record)'
+        entries[p + '_name_matches(const void* string)'] = 'sdk_name_matches(&record, string)'
+        entries[p + '_ready()'] = f'sdk_engine_ready(&record, {screen})'
+    declarations += [f'int {signature} __asm__("{signature.split("(")[0]}");' for signature in entries]
+    lines = [f"// Generated: {m.id}'s stock identity for the SDK's checked registration.",
+             '#include "registration.hpp"', 'extern "C" {', *declarations, '}', 'namespace {', *objects, '}',
+             *(f'int {signature} {{ return {call}; }}' for signature, call in entries.items())]
+    destination = Path(directory) / 'registration.cpp'
+    destination.write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
+    return destination
 
 
-def generate_registration(directory, leaf, machine=None, screen_bytes=None, assignment=None, flag=0,
-                          filename=None):
-    """Expand a registration template; `assignment` overrides the synth identity (sample engines).
-
-    flag is the stock record flag byte: 0 for synthesis, 1 for engines that receive samples.
-    """
-    require(leaf in ('register', 'readiness', 'screen_register', 'readiness_stock_page'), 'Unknown registration template')
-    require(flag in (0, 1), 'Unsupported engine flag')
-    if assignment is None:
-        assignment = stock_identity(machine)
-    name = assignment['native_name']
-    record, string = name_checks(name)
-    # Only screen registration needs the renderer object size; other templates leave it unexpanded.
-    screen = {}
-    if screen_bytes is not None:
-        require(76 <= screen_bytes <= 4096 and screen_bytes % 4 == 0, 'Invalid renderer object size')
-        screen = dict(SCREEN_BYTES=str(screen_bytes), SCREEN_WORDS=str(screen_bytes // 4))
-    values = dict(PREFIX=assignment['symbol_prefix'], NATIVE_NAME=name, NAME_LENGTH=str(len(name)),
-                  INLINE_PADDING=str(15 - len(name)), RECORD_NAME_MATCHES=record, STRING_NAME_MATCHES=string,
-                  **screen, **RELOCATED,
-                  FLAG_LOAD='    R0 = %d;' % flag,
-                  FLAG_CHECK='    CC = R0 == 0;' if flag == 0 else '    R1 = %d;\n    CC = R0 == R1;' % flag)
-    return expand(leaf + '.s.in', values, Path(directory) / (filename or leaf + '.generated.s'))
+def generate_registration_stock(directory):
+    """The stock tables behind checked registration, from the audited relocated layout."""
+    return expand('registration_stock.cpp.in', RELOCATED, Path(directory) / 'registration_stock.cpp')
 
 
 def generate_screen(directory, m):
@@ -371,24 +366,10 @@ def generate_sample_callbacks(directory, machines):
                   Path(directory) / 'sample_callbacks.cpp')
 
 
-def generate_sample_registration(directory, m, leaf):
-    """register.s.in with flag 1, or the stock-page readiness, written per engine."""
-    require(leaf in ('register', 'readiness_stock_page'), 'Unsupported sample-engine leaf')
-    return generate_registration(directory, leaf, assignment=stock_identity(m), flag=1, filename=f'{leaf}_{m.prefix}.s')
-
-
 def generate_fx_object(directory, m):
     return expand('fx_object.cpp.in', dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'],
                                            NAME=m.native_name, LABELS=stock_labels(m)),
                   Path(directory) / f'fx_object_{m.prefix}.cpp')
-
-
-def generate_fx_registration(directory, m):
-    record, _string = name_checks(m.native_name)
-    values = dict(PREFIX=m.prefix, NATIVE_NAME=m.native_name, NAME_LENGTH=len(m.native_name),
-                  INLINE_PADDING=15 - len(m.native_name), RECORD_NAME_MATCHES=record,
-                  PAGE_LIMIT=RELOCATED['PAGE_LIMIT'])
-    return expand('fx_register.s.in', values, Path(directory) / f'fx_register_{m.prefix}.s')
 
 
 def stock_labels(m):

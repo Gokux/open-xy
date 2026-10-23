@@ -125,8 +125,9 @@ The browser links the normalized ELF32 Blackfin objects itself, supporting the
 LUIMM16, HUIMM16, PCREL24, PCREL24_JUMP_L and BYTE4 relocations. Unsupported
 sections, COMMON or weak symbols, unresolved imports, overlapping relocations,
 range overflow, constructors and memory overflow are errors. A deselected
-machine's startup callbacks resolve to fallback stubs that skip it; its audio
-code and state are omitted.
+machine's startup and catalog callbacks resolve to `kit_absent`, which declines:
+startup skips it and its menu name is left to stock. Its audio code and state
+are omitted.
 
 The export checks, normally and under `python -O`, that:
 
