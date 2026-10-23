@@ -3,7 +3,7 @@
 // entry points; registration.cpp holds the checks, registration_stock.cpp.in
 // binds them to the stock tables. Startup and menu paths only, never audio.
 #pragma once
-#include <opxy/types.hpp>
+#include "stock.hpp"
 
 namespace opxy { namespace platform {
 
@@ -38,7 +38,7 @@ struct StockString {
 };
 static_assert(sizeof(StockString) == 28, "Stock string layout");
 
-typedef __UINTPTR_TYPE__ Address;
+
 
 // One stock record table of 48-byte records and the name map beside it.
 // Addresses are integers so the stock tables are constant data, not constructors.

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <vector>
+extern "C" void host_barrier();
 #include "../../sdk/platform/opxy-1.2.0/sample_cache.cpp"
 
 static unsigned analysis_words(const opxy::SampleView& sample) {
@@ -38,7 +39,11 @@ extern "C" unsigned sdk_sample_prepare_result(opxy::SampleAnalysis* out) {
     return 1;
 }
 
-extern "C" unsigned extensions_sample_analysis_kind(unsigned engine) { return engine == 35 || engine == 46 ? 2 : 0; }
+extern "C" const opxy::platform::SampleMachine* sdk_sample_machine(unsigned engine) {
+    static opxy::platform::SampleMachine machine{};
+    machine.analysis_budget = 2u * 1024u * 1024u;
+    return engine == 35 || engine == 46 ? &machine : nullptr;
+}
 
 static unsigned checks, allocations, frees, overlay_calls;
 static bool allocation_failure, observing;
@@ -83,7 +88,7 @@ extern "C" void sdk_sample_cache_free(void* pointer) {
     blocks.erase(found);
     std::free(block);
 }
-extern "C" void sdk_sample_cache_barrier() {
+extern "C" void host_barrier() {
     if (!observed || observing) return;
     observing = true;
     const auto* published = sdk_sample_cache_find(observed);

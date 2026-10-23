@@ -37,24 +37,19 @@ class Generation(unittest.TestCase):
         for bad in (valid[:-1], valid + b'\0', b'\1' + valid[1:], valid[:4] + b'\x61' + valid[5:], valid[:-1] + b'\1'):
             with self.assertRaises(ValueError): firmware.absolute_target(bad)
 
-    def test_routes_are_generated_for_arbitrary_sample_identities(self):
+    def test_dispatch_table_is_generated_for_arbitrary_sample_identities(self):
         first = machine('timestretch')
-        second = replace(first, id='slicer', identity=dict(engine=46, page=7))
+        second = replace(first, id='slicer', identity=dict(engine=46, page=2))
         with tempfile.TemporaryDirectory() as directory:
-            text = adapters.generate_sample_routes(directory, [first, second, machine('fm2op')]).read_text()
-        self.assertIn('R1 = 35;', text)
-        self.assertIn('R1 = 46;', text)
-        self.assertIn('CALL timestretch_ready;', text)
-        self.assertIn('CALL slicer_ready;', text)
-        self.assertNotIn('fm2op_ready', text)
-        self.assertEqual(text.count('IF !CC JUMP .Lkind_return;'), 2)
-        self.assertIn('    R0 = 7;', text)
+            text = adapters.generate_sample_callbacks(directory, [first, second, machine('fm2op')]).read_text()
+        self.assertIn('{35, 7, timestretch_ready, ', text)
+        self.assertIn('{46, 2, slicer_ready, ', text)
+        self.assertNotIn('fm2op', text)
 
-    def test_empty_collection_routes_remain_stock(self):
+    def test_empty_collection_dispatch_remains_stock(self):
         with tempfile.TemporaryDirectory() as directory:
-            text = adapters.generate_sample_routes(directory, []).read_text()
-        self.assertIn('extensions_sample_kind:\n    LINK 12;\n\n    R0 = 0;', text)
-        self.assertNotIn('_ready;', text)
+            text = adapters.generate_sample_callbacks(directory, []).read_text()
+        self.assertNotIn('_ready', text)
 
     def test_engine_units_expand_every_placeholder(self):
         m = replace(machine('timestretch'), identity=dict(engine=46, page=2))

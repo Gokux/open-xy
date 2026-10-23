@@ -4,6 +4,7 @@
 // Only the SDK knows the stock pitch buffer, method offsets and symbol names.
 #include "core.h"
 #include "engine.cpp"
+#include "stock.hpp"
 // Stock assembly imports use explicit names; all other C symbols keep the ABI prefix.
 extern "C" {
 void* @PREFIX@_factory(opxy::u32) __asm__("@PREFIX@_factory");
@@ -19,7 +20,7 @@ static_assert(sizeof(Voice) == @VOICE_BYTES@, "Declared voice size differs from 
 static_assert(alignof(Voice) == @VOICE_ALIGNMENT@, "Declared voice alignment differs from the compiled type");
 static_assert(@SHARED_BYTES@ == 0 ? __is_empty(Shared) : sizeof(Shared) == @SHARED_BYTES@,
               "Declared shared size differs from the compiled type");
-static const opxy::u32* const increments = reinterpret_cast<const opxy::u32*>(0x11904b00);
+static const opxy::u32* const increments = reinterpret_cast<const opxy::u32*>(opxy::platform::kPitchIncrements);
 static unsigned owner(Slot* slot) { return static_cast<unsigned>(slot - voices) + 1; }
 extern "C" {
 extern const void* const @PREFIX@_vtable[];
@@ -58,6 +59,6 @@ const void* const @PREFIX@_vtable[11] = {
     reinterpret_cast<const void*>(&@PREFIX@_start), reinterpret_cast<const void*>(&noop),
     reinterpret_cast<const void*>(&zero), reinterpret_cast<const void*>(&noop),
     reinterpret_cast<const void*>(&zero), reinterpret_cast<const void*>(&zero),
-    reinterpret_cast<const void*>(0x8d504b74)
+    reinterpret_cast<const void*>(opxy::platform::kVoiceDefaultMethod)
 };
 }

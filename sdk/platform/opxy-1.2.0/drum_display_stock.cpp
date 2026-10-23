@@ -1,14 +1,16 @@
 // Stock OS 1.2.0 drum-page projection. The machine's panel callback supplies
 // values and captions; this file shows them on the stock page and restores the
 // page before every repaint. GUI role only. Hooks replace CALLs to the stock
-// functions they forward to; the fade hook stays in sample_drum.s.
-#include <opxy/sample_engine.hpp>
+// functions they forward to; the fade hook arrives through drum_page.s.
+#include "sample_machines.hpp"
+#include "stock_sample.hpp"
+#include "stock.hpp"
 
 extern "C" {
-opxy::u32 extensions_sample_controls_kind(opxy::u32) __asm__("extensions_sample_controls_kind");
 opxy::u32 sdk_sample_selected_engine() __asm__("sdk_sample_selected_engine");
 const opxy::SamplePanel* sdk_sample_drum_view(const void*, void*, const opxy::i32*) __asm__("sdk_sample_drum_view");
 int sdk_sample_drum_owned() __asm__("sdk_sample_drum_owned");
+opxy::i32 sdk_sample_drum_fade_word(const void*) __asm__("sdk_sample_drum_fade_word");
 opxy::u32 sdk_sample_drum_range(const opxy::i32*, void*, void*) __asm__("sdk_sample_drum_range");
 void sdk_sample_drum_display(unsigned char*, const void*, opxy::u32, opxy::u32, opxy::u32) __asm__("sdk_sample_drum_display");
 }
@@ -16,13 +18,12 @@ void sdk_sample_drum_display(unsigned char*, const void*, opxy::u32, opxy::u32, 
 namespace {
 using opxy::i32;
 using opxy::u32;
-template <class Function> Function* stock(u32 address) { return reinterpret_cast<Function*>(address); }
+using namespace opxy::platform;
 typedef unsigned char Node;
 u32& field(Node* node, u32 offset) { return *reinterpret_cast<u32*>(node + offset); }
 Node* child(Node* node, u32 offset) { return reinterpret_cast<Node*>(field(node, offset)); }
 const u32 kTextVtable = 0x840c1ecc;
 bool is_text(Node* node) { return node && field(node, 0) == kTextVtable; }
-void set_text(Node* node, const char* text) { stock<void(Node*, const char*)>(0x8d5ff080)(node, text); }
 i32 spacing(Node* node) { return static_cast<signed char>(node[156]); }
 
 // Changes made to the last painted page, undone before its next repaint.
@@ -78,19 +79,22 @@ void restore(Node* page) {
 }
 }
 
-int sdk_sample_drum_owned() { return extensions_sample_controls_kind(sdk_sample_selected_engine()) != 0; }
+int sdk_sample_drum_owned() { return drum_controls(sdk_sample_selected_engine()); }
+
+// 8d5349e4 (through drum_page.s): the painter's fade, the record's fade word
+// >> 8. An owned page keeps machine settings there, so it paints no fade.
+i32 sdk_sample_drum_fade_word(const void* region) {
+    return sdk_sample_drum_owned() ? 0 : static_cast<i32>(pad_word(region, pad_record::kFade)) >> 8;
+}
 
 // 8d53465a: stock 8d4d78ec(region, &start, &end) normalizes the trim markers.
-// GUI regions store outer start/end at +4/+8; +12/+16 are inner loop markers.
+// An owned page shows the outer markers, which playback follows, instead of
+// the inner loop markers.
 u32 sdk_sample_drum_range(const i32* region, void* start, void* end) {
     u32 (*const range)(const i32*, void*, void*) = stock<u32(const i32*, void*, void*)>(0x8d4d78ec);
-    if (!sdk_sample_drum_owned() || !region || region[0] <= 0) return range(region, start, end);
-    const i32 frames = region[0];
-    i32 first = region[1] < 0 ? 0 : region[1];
-    if (first > frames) first = frames;
-    i32 last = region[2] < 0 ? frames : region[2];
-    if (last > frames) last = frames;
-    const i32 header[3] = {frames, first, last};
+    if (!sdk_sample_drum_owned() || !region || region[pad_record::kFrames] <= 0) return range(region, start, end);
+    const opxy::SampleRegion outer = sample_gui_region(region);
+    const i32 header[3] = {region[pad_record::kFrames], i32(outer.begin), i32(outer.end)};
     return range(header, start, end);
 }
 
@@ -128,14 +132,14 @@ void sdk_sample_drum_display(Node* page, const void* region, u32 third, u32 four
             values[3] = view->repeat ? 0x3f000000u : 0x3e800000u;
             projected = Parameters{0, values, values + 8, values + 8};
             third = reinterpret_cast<u32>(&projected);
-            reinterpret_cast<unsigned char*>(shadow)[31] ^= parameters[4] >= 0x40000000 ? 1 : 0;
+            reinterpret_cast<unsigned char*>(shadow)[pad_record::kFlags] ^= parameters[4] >= 0x40000000 ? pad_record::kReverse : 0;
             fourth = stock<u32(u32, u32)>(0x04021ac0)(fourth, values[7]);
         }
         else owned = false;
     }
     stock<void(Node*, const void*, u32, u32, u32)>(0x8d533438)(page, painted, third, fourth, fifth);
-    if (!owned || !region || !stock<u32()>(0x8d51e5bc)()) return;
-    Node* shifted = stock<Node*(Node*, const char*, u32)>(0x8d51f740)(page, "shifted", 1);
+    if (!owned || !region || !shift_held()) return;
+    Node* shifted = static_cast<Node*>(find_node(page, "shifted"));
     if (!shifted || !is_text(child(page, 104)) || !is_text(child(page, 156))) return;
     Node* group = child(page, 96);
     if (!group) return;

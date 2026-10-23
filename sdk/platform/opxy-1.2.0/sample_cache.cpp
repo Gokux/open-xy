@@ -1,10 +1,11 @@
 #include "sample_cache.hpp"
+#include "sample_machines.hpp"
+#include "barrier.hpp"
+#include "stock_sample.hpp"
 
 extern "C" {
-opxy::u32 extensions_sample_analysis_kind(opxy::u32) __asm__("extensions_sample_analysis_kind");
 void* sdk_sample_cache_alloc(opxy::u32) __asm__("sdk_sample_cache_alloc");
 void sdk_sample_cache_free(void*) __asm__("sdk_sample_cache_free");
-void sdk_sample_cache_barrier() __asm__("sdk_sample_cache_barrier");
 void sdk_sample_progress_update(opxy::u32, opxy::u32, opxy::u32) __asm__("sdk_sample_progress_update");
 opxy::u32 sdk_sample_cache_stock_hash(const char*) __asm__("sdk_sample_cache_stock_hash");
 void sdk_sample_cache_keys_lock() __asm__("sdk_sample_cache_keys_lock");
@@ -15,6 +16,7 @@ void sdk_sample_cache_sample_release(opxy::u32) __asm__("sdk_sample_cache_sample
 
 namespace {
 using opxy::u32;
+using opxy::platform::barrier;
 constexpr u32 kEntries = 256;
 constexpr u32 kChunkFrames = 4096;
 struct Entry {
@@ -105,11 +107,11 @@ bool assigned(u32 key) {
 
 void status(u32 state, u32 percent, bool next = false) {
     ++progress.sequence;
-    sdk_sample_cache_barrier();
+    barrier();
     progress.state = state;
     progress.percent = percent;
     if (next) ++progress.generation;
-    sdk_sample_cache_barrier();
+    barrier();
     ++progress.sequence;
 }
 
@@ -120,7 +122,7 @@ void failed(Entry* entry, const void* object, u32 state) {
         entry->failure = state;
         entry->storage = nullptr;
         entry->bytes = 0;
-        sdk_sample_cache_barrier();
+        barrier();
         entry->owner = object;
     }
     // Remember unsuccessful preparation until stock evicts the sample. A
@@ -133,18 +135,9 @@ bool valid_source(const opxy::SampleView& sample) {
     return sample.data && sample.frames >= 2 && sample.frames <= 0x000fffffu &&
            (sample.channels == 1 || sample.channels == 2);
 }
-opxy::SampleView sample_view(const void* opaque) {
-    opxy::SampleView sample{nullptr, 0, 0, 1};
-    if (!opaque) return sample;
-    const unsigned char* object = static_cast<const unsigned char*>(opaque);
-    if (!*reinterpret_cast<const u32*>(object)) return sample;
-    sample.data = *reinterpret_cast<const opxy::i16* const*>(object + 8);
-    sample.frames = *reinterpret_cast<const u32*>(object + 0x30);
-    sample.rate = *reinterpret_cast<const u32*>(object + 0x38);
-    sample.channels = object[0x3c] ? 2 : 1;
-    if (sample.rate < 8000 || sample.rate > 192000 ||
-        !valid_source(sample)) return opxy::SampleView{nullptr, 0, 0, 1};
-    return sample;
+opxy::SampleView sample_view(const void* object) {
+    const opxy::SampleView sample = opxy::platform::stock_sample_view(object);
+    return valid_source(sample) ? sample : opxy::SampleView{nullptr, 0, 0, 1};
 }
 }
 
@@ -155,7 +148,7 @@ extern "C" u32 sdk_sample_cache_snapshot_keys(u32 new_sum, u32 old_sum,
         const PendingTrack* tracks = static_cast<const PendingTrack*>(pending);
         for (u32 t = 0; t < count; ++t) {
             const unsigned char* track = tracks[t].track;
-            if (!track || !extensions_sample_analysis_kind(*reinterpret_cast<const u32*>(track + 24))) continue;
+            if (!track || !opxy::platform::sample_analysis(*reinterpret_cast<const u32*>(track + 24))) continue;
             for (u32 r = 0; r < 24; ++r) {
                 const char* path = reinterpret_cast<const char*>(track + 0x396c + r * 128);
                 u32 length = 0;
@@ -302,7 +295,7 @@ extern "C" void sdk_sample_cache_prepare(const void* object) {
     free_entry->storage = storage;
     free_entry->bytes = bytes;
     used_bytes += bytes;
-    sdk_sample_cache_barrier();
+    barrier();
     free_entry->owner = object;
     status(2, 100);
 }
@@ -318,7 +311,7 @@ extern "C" void sdk_sample_cache_release(const void* object) {
         Entry& entry = entries[i];
         if (entry.owner != object) continue;
         entry.owner = nullptr;
-        sdk_sample_cache_barrier();
+        barrier();
         u32* storage = entry.storage;
         used_bytes -= entry.bytes;
         entry.analysis = opxy::SampleAnalysis{};
@@ -343,7 +336,7 @@ extern "C" const opxy::SampleAnalysis* sdk_sample_cache_find(const void* object)
     // freed and no analysis field is read until the exact owner matches.
     for (u32 i = 0; i < kEntries; ++i) {
         if (entries[i].owner == object) {
-            sdk_sample_cache_barrier();
+            barrier();
             return entries[i].ready ? &entries[i].analysis : nullptr;
         }
     }
@@ -363,10 +356,10 @@ extern "C" void sdk_sample_gui_tick() {
     // A preempted writer simply delays the overlay until the next GUI frame.
     const u32 sequence = progress.sequence;
     if (sequence & 1u) return;
-    sdk_sample_cache_barrier();
+    barrier();
     const u32 state = progress.state;
     const u32 percent = progress.percent;
     const u32 generation = progress.generation;
-    sdk_sample_cache_barrier();
+    barrier();
     if (progress.sequence == sequence) sdk_sample_progress_update(state, percent, generation);
 }

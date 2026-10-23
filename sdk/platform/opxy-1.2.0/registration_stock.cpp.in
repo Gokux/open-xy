@@ -2,14 +2,15 @@
 // resolvers, registrars and screen page slots. Engine records and page slots
 // are the relocated tables (opxy_sdk/stock_tables.py); effects keep stock's.
 #include "registration.hpp"
+#include "stock.hpp"
 
 using opxy::u32;
 using opxy::platform::Record;
 using opxy::platform::Screen;
 using namespace opxy::platform::registry;
+using opxy::platform::stock;
 
 namespace {
-template <class Function> Function* stock(u32 address) { return reinterpret_cast<Function*>(address); }
 
 void add_engine(const Record& r, u32 id, u32 page) {
     stock<void(u32, const char*, const char*, const char*, u32, u32)>(0x8d505ecc)(

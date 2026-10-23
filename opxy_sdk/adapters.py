@@ -279,64 +279,33 @@ def generate_sample_voice(directory, m):
     return expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
 
 
-def generate_sample_routes(directory, machines):
-    """One stock sample dispatch boundary for the collection, not per-machine patches."""
-    dispatch, analysis, ready, controls = [], [], [], []
+def generate_sample_callbacks(directory, machines):
+    """The collection's sample machines as one table (sample_machines.hpp) and the stock-page bridge."""
+    declarations, rows = [], []
     for m in machines:
         if m.kind != 'sample':
             continue
-        block = [f'    R1 = {m.identity["engine"]};', '    CC = R0 == R1;',
-                     f'    IF !CC JUMP .Lkind_next_{m.prefix};', f'    CALL {m.prefix}_ready;',
-                     '    CC = R0 == 1;', '    IF !CC JUMP .Lkind_return;',
-                     f'    R0 = {m.identity["page"]};', '    JUMP .Lkind_return;',
-                     f'.Lkind_next_{m.prefix}:']
-        dispatch += block
-        if m.definition['resources'].get('drumControls', 0):
-            controls += [line.replace('.Lkind_', '.Lcontrols_') for line in block]
-        if m.definition['resources'].get('sampleAnalysis', 0):
-            analysis += [line.replace('.Lkind_', '.Lanalysis_') for line in block]
-            ready += [f'    CALL {m.prefix}_ready;', '    CC = R0 == 1;',
-                      '    IF CC JUMP .Lanalysis_ready_return;']
-    return expand('sample_routes.s.in', dict(DISPATCH='\n'.join(dispatch),
-                  ANALYSIS_DISPATCH='\n'.join(analysis), ANALYSIS_READY='\n'.join(ready), CONTROLS_DISPATCH='\n'.join(controls)),
-                  Path(directory) / 'sample_routes.s')
-
-
-def generate_sample_callbacks(directory, machines):
-    declarations, branches = [], {name: [] for name in ('ASSIGN', 'MIGRATE', 'CONTROL', 'PANEL')}
-    types = dict(ASSIGN=('opxy::u32', 'const opxy::SampleAssignment* input', 'input'),
-                 MIGRATE=('opxy::u32', 'const opxy::SampleRegion* input', 'input'),
-                 CONTROL=('void', 'opxy::u32* value, const opxy::SampleControl* event', 'value, event'),
-                 PANEL=('void', 'opxy::u32 value, const opxy::i32* parameters, opxy::SamplePanel* panel', 'value, parameters, panel'))
-    prepare = {name: [] for name in ('PREPARE_BEGIN', 'PREPARE_STEP', 'PREPARE_WORDS', 'PREPARE_RESULT',
-                                     'PREPARE_BUDGET')}
-    analysis = [m for m in machines if m.kind == 'sample' and m.definition['resources'].get('sampleAnalysis', 0)]
-    # The cache keeps one preparation in flight and does not know a sample's engine.
-    require(len(analysis) <= 1, 'At most one sample-analysis machine per collection')
-    for m in machines:
-        if m in analysis or (m.kind == 'sample' and m.definition['resources'].get('drumControls', 0)):
-            declarations.append(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");')
-        if m in analysis:
-            budget = m.definition['resources']['sampleAnalysis']
-            prepare['PREPARE_BUDGET'].append(f'    if ({m.prefix}_ready()) return {budget}u;')
-            for name, (arguments, call) in dict(
-                    PREPARE_BEGIN=('const opxy::SampleView*, opxy::u32*, opxy::u32', 'sample, storage, words'),
-                    PREPARE_STEP=('opxy::u32, opxy::u32*', 'frames, cursor'), PREPARE_WORDS=('', ''),
-                    PREPARE_RESULT=('opxy::SampleAnalysis*', 'out')).items():
-                symbol = m.prefix + '_sample_' + name.lower()
-                declarations.append(f'opxy::u32 {symbol}({arguments}) __asm__("{symbol}");')
-                prepare[name].append(f'    if ({m.prefix}_ready()) return {symbol}({call});')
-        if m.kind != 'sample' or not m.definition['resources'].get('drumControls', 0):
-            continue
-        for name, (result, arguments, call) in types.items():
-            symbol = m.prefix + '_sample_' + name.lower()
-            declarations.append(f'{result} {symbol}({arguments}) __asm__("{symbol}");')
-            branches[name] += [f'    if (engine == {m.identity["engine"]} && {m.prefix}_ready()) '
-                               + '{ ' + ('' if result == 'void' else 'return ') + f'{symbol}({call});'
-                               + (' return;' if result == 'void' else '') + ' }']
-    return expand('sample_callbacks.cpp.in', dict(CALLBACK_DECLS='\n'.join(declarations),
-                  **{name: '\n'.join(lines) for name, lines in branches.items()},
-                  **{name: '\n'.join(lines) for name, lines in prepare.items()}),
+        p, resources = m.prefix, m.definition['resources']
+        declarations.append(f'int {p}_ready() __asm__("{p}_ready");')
+        callbacks = []
+        for flag, names in (('drumControls', (('assign', 'opxy::u32', 'const opxy::SampleAssignment*'),
+                                              ('migrate', 'opxy::u32', 'const opxy::SampleRegion*'),
+                                              ('control', 'void', 'opxy::u32*, const opxy::SampleControl*'),
+                                              ('panel', 'void', 'opxy::u32, const opxy::i32*, opxy::SamplePanel*'))),
+                            ('sampleAnalysis', (('prepare_begin', 'opxy::u32', 'const opxy::SampleView*, opxy::u32*, opxy::u32'),
+                                                ('prepare_step', 'opxy::u32', 'opxy::u32, opxy::u32*'),
+                                                ('prepare_words', 'opxy::u32', ''),
+                                                ('prepare_result', 'opxy::u32', 'opxy::SampleAnalysis*')))):
+            declared = bool(resources.get(flag, 0))
+            for name, result, arguments in names:
+                symbol = f'{p}_sample_{name}'
+                if declared:
+                    declarations.append(f'{result} {symbol}({arguments}) __asm__("{symbol}");')
+                callbacks.append(symbol if declared else 'nullptr')
+        budget = resources.get('sampleAnalysis', 0)
+        rows.append(f'    {{{m.identity["engine"]}, {m.identity["page"]}, {p}_ready, ' + ', '.join(callbacks[:4]) +
+                    f', {budget}u, ' + ', '.join(callbacks[4:]) + '},')
+    return expand('sample_callbacks.cpp.in', dict(CALLBACK_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows)),
                   Path(directory) / 'sample_callbacks.cpp')
 
 

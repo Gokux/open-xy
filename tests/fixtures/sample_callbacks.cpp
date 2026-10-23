@@ -6,7 +6,6 @@ static unsigned selected = 46, edits;
 static bool owned = true;
 static opxy::SampleControl received;
 extern "C" unsigned sdk_sample_selected_engine() { return selected; }
-extern "C" unsigned extensions_sample_controls_kind(unsigned engine) { return engine == 46 && owned ? 7 : 0; }
 extern "C" int probe_ready() { return owned; }
 // The probe also declares analysis; these callbacks are not exercised here.
 extern "C" unsigned probe_sample_prepare_begin(const opxy::SampleView*, unsigned*, unsigned) { return 0; }
@@ -29,7 +28,7 @@ static void check(bool value) { if (!value) std::abort(); }
 int main() {
     const opxy::SampleAssignment replacement{"095_loop.wav", 12, 1234, 48000,
         opxy::Transport{1200, 0, false}, opxy::SampleSettings{0xabcd, true}};
-    check(assign(46, &replacement) == 1234 && assigned.previous.initialized &&
+    check(sdk_sample_machine(46)->assign(&replacement) == 1234 && assigned.previous.initialized &&
           assigned.previous.value == 0xabcd && assigned.filename == replacement.filename &&
           assigned.filename_bytes == 12 && assigned.rate == 48000);
     unsigned raw[8] = {1000, 0, 1000, 0, 1000, 0, 60, 0};

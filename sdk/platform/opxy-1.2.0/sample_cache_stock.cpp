@@ -1,12 +1,15 @@
-// Stock OS 1.2.0 side of the sample-analysis cache: hooks that replace stock
-// calls, and the stock functions the cache uses. Each hook replaces a CALL to
-// the stock function it forwards to, so stock calls it with the ordinary C ABI;
-// the firmware profile authenticates every site. Device-only: the host test
-// fixture supplies its own doubles for the stock functions.
+// Stock OS 1.2.0 side of the sample-analysis cache: hooks, and the stock
+// functions the cache uses. Most hooks replace a CALL to the stock function they
+// forward to, so stock calls them with the ordinary C ABI; the two load hooks
+// arrive through sample_cache_hooks.s. The firmware profile authenticates every
+// site. Device-only: the host test fixture supplies its own doubles.
 #include "sample_cache.hpp"
+#include "sample_machines.hpp"
+#include "stock.hpp"
 
 extern "C" {
-opxy::u32 extensions_sample_analysis_ready() __asm__("extensions_sample_analysis_ready");
+opxy::u32 sdk_sample_cache_old_sum(opxy::u32) __asm__("sdk_sample_cache_old_sum");
+opxy::u32 sdk_sample_cache_message_priority(const unsigned char*) __asm__("sdk_sample_cache_message_priority");
 void* sdk_sample_cache_alloc(opxy::u32) __asm__("sdk_sample_cache_alloc");
 void sdk_sample_cache_free(void*) __asm__("sdk_sample_cache_free");
 opxy::u32 sdk_sample_cache_stock_hash(const char*) __asm__("sdk_sample_cache_stock_hash");
@@ -25,12 +28,37 @@ opxy::u32 sdk_sample_cache_send() __asm__("sdk_sample_cache_send");
 namespace {
 using opxy::i32;
 using opxy::u32;
-template <class Function> Function* stock(u32 address) { return reinterpret_cast<Function*>(address); }
-u32 word(u32 address) { return *reinterpret_cast<const volatile u32*>(address); }
+using opxy::platform::stock;
+using opxy::platform::word;
 const u32 kHeap = 0x0802d0b0;           // stock heap: mutex, then pool
 const u32 kSampleManager = 0x8404599c;  // stock sample cache manager pointer
 const u32 kSendState = 0x8429e150;      // desired-list send state: +12 sent sum, +16 current sum
-bool analysis_ready() { return extensions_sample_analysis_ready() == 1; }
+const u32 kOldSum = 0x840364fc;         // the gather's previous path sum
+const u32 kPendingTracks = 0x842a3c2c;  // gather's pending track list (sample_cache.cpp PendingTrack)
+const u32 kPendingCount = 0x842a402c;
+bool analysis_ready() { return opxy::platform::any_sample_analysis(); }
+}
+
+// Gather completion (8d4dad2e): the stock track array is stable while its busy
+// flag is set. Ownership-only changes must also enter stock desired-list
+// rebuilding. Stock auditions replace the current region while its browser is
+// open, so this GUI-role capture publishes an empty request set then; the
+// stock leave callback marks the desired list dirty, so closing republishes
+// the final assignment even when the path sum is unchanged. Existing ready
+// cache stays valid.
+u32 sdk_sample_cache_old_sum(u32 new_sum) {
+    const u32 old_sum = word(kOldSum);
+    if (!analysis_ready()) return old_sum;
+    const bool browsing = word(opxy::platform::kScreen) == opxy::platform::kSampleBrowserScreen;
+    return sdk_sample_cache_snapshot_keys(new_sum, old_sum, browsing ? nullptr : reinterpret_cast<const void*>(kPendingTracks),
+                                          browsing ? 0 : word(kPendingCount));
+}
+// Cache message construction (8d4d957e) loads the priority byte at +100 of the
+// message whose key is at +96. Only this IPC copy carries the assigned marker.
+u32 sdk_sample_cache_message_priority(const unsigned char* message) {
+    const u32 priority = message[100];
+    if (!analysis_ready()) return priority;
+    return sdk_sample_cache_tag_priority(*reinterpret_cast<const u32*>(message + 96), priority);
 }
 
 // 8d4d0ddc's lock, allocate and unlock on the stock heap, returning null on

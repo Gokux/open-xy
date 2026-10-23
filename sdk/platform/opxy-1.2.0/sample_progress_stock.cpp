@@ -1,11 +1,10 @@
 // Stock OS 1.2.0 side of the analysis progress overlay: the GUI frame hook
 // and the stock popup it shares with other notifications. GUI role only; no
 // audio caller enters these. Device-only: the host fixture supplies doubles.
-#include <opxy/types.hpp>
+#include "sample_machines.hpp"
+#include "stock.hpp"
 
 extern "C" {
-opxy::u32 extensions_sample_analysis_ready() __asm__("extensions_sample_analysis_ready");
-opxy::u32 extensions_sample_analysis_kind(opxy::u32) __asm__("extensions_sample_analysis_kind");
 void sdk_sample_gui_tick() __asm__("sdk_sample_gui_tick");
 opxy::u32 sdk_sample_progress_frame(opxy::u32) __asm__("sdk_sample_progress_frame");
 int sdk_sample_progress_context() __asm__("sdk_sample_progress_context");
@@ -16,11 +15,8 @@ void sdk_sample_popup_publish(const char*, unsigned) __asm__("sdk_sample_popup_p
 
 namespace {
 using opxy::u32;
-template <class Function> Function* stock(u32 address) { return reinterpret_cast<Function*>(address); }
-u32 word(u32 address) { return *reinterpret_cast<const volatile u32*>(address); }
+using namespace opxy::platform;
 const volatile unsigned char* bytes(u32 address) { return reinterpret_cast<const volatile unsigned char*>(address); }
-const u32 kScreen = 0x84008c64;         // current GUI screen; 4 is the sample browser
-const u32 kSelectedTrack = 0x8409d2d8;  // byte
 const u32 kPopupState = 0x84054538;     // bytes: shown, persistent
 const u32 kPopupText = 0x84ebea18;      // stock string: +4 inline data or pointer, +20 size, +24 capacity
 }
@@ -32,10 +28,9 @@ u32 sdk_sample_progress_frame(u32 frame) {
 }
 // Only an analysis machine on the selected track, outside the sample browser, may notify.
 int sdk_sample_progress_context() {
-    if (extensions_sample_analysis_ready() != 1 || word(kScreen) == 4) return 0;
-    const u32 track = *bytes(kSelectedTrack);
-    if (track >= 8) return 0;
-    return extensions_sample_analysis_kind(stock<u32(u32)>(0x8d585eb4)(track)) != 0;
+    if (word(kScreen) == kSampleBrowserScreen) return 0;
+    const u32 track = byte(kSelectedTrack);
+    return track < kTracks && sample_analysis(track_engine(track));
 }
 int sdk_sample_popup_active() { return stock<int()>(0x8d5486c8)(); }
 // A shared popup is ours only while it shows exactly our last text, transiently.
