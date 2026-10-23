@@ -31,13 +31,13 @@ export function createWizard({getKit, getSelected, hasDownload}) {
         'Confirm when asked to replace files.');
       transferSteps.push('Wait until every file has finished copying.');
     } else {
-      transferSteps.push('Open upgrade → firmware → blackfin → bin on your OP-XY, then copy os.ldr to this computer.',
-        'If you previously installed an Open-XY bundle, you can use its os.ldr from the device’s top level instead.');
+      transferSteps.push('Open upgrade → firmware → blackfin → bin on your OP-XY, then copy the OS file, os.ldr, to this computer.',
+        'If you previously installed an open-xy bundle, you can use its OS file, os.ldr, from the device’s top level instead.');
     }
     return {
-      version: ['Is your OP–XY on OS 1.2.0?', 'Open-XY supports only OS 1.2.0. Install it on your OP–XY before you copy the OS file.', [action('Yes, it’s on 1.2.0', 'boot', 'version-yes'), action('No, or I’m not sure', 'version-help', 'version-no')]],
-      'version-help': ['Install OS 1.2.0 first.', 'Use teenage engineering’s usual update steps to put OS 1.2.0 on your OP–XY, then come back. Open-XY can’t work from any other version.', [action('It’s on 1.2.0 now', 'boot', 'version-done')]],
-      boot: ['Start in the te-boot menu.', disabling ? 'Finish any file transfers or OS installation before disabling the menu.' : install ? '' : 'The OS file (os.ldr) is your device’s firmware. It is not the .tfw update file on teenage engineering’s site. Follow these steps to copy it.', [action('Connected and at te-boot', 'menu')], [
+      version: ['Is your OP–XY on OS 1.2.0?', 'open-xy supports only OS 1.2.0. Install it on your OP–XY before you copy the OS file.', [action('Yes, it’s on 1.2.0', 'boot', 'version-yes'), action('No, or I’m not sure', 'version-help', 'version-no')]],
+      'version-help': ['Install OS 1.2.0 first.', 'Use teenage engineering’s usual update steps to put OS 1.2.0 on your OP–XY, then come back. open-xy can’t work from any other version.', [action('It’s on 1.2.0 now', 'boot', 'version-done')]],
+      boot: ['Start in the te-boot menu.', disabling ? 'Finish any file transfers or OS installation before disabling the menu.' : install ? '' : 'The OS file, os.ldr, is your device’s firmware. It is not the .tfw update file on teenage engineering’s site. Follow these steps to copy it.', [action('Connected and at te-boot', 'menu')], [
         'Power off your OP-XY.', 'Hold COM while switching it on.',
         'Release COM when the te-boot menu appears.', 'Connect it to this computer with USB.',
       ]],
@@ -181,7 +181,6 @@ export function createWizard({getKit, getSelected, hasDownload}) {
   $('flow-exit').onclick = () => exit();
   $('source-local').onclick = showFiles;
   $('source-device').onclick = () => begin('source');
-  $('disable-menu-start').onclick = () => begin('disable');
   $('files-back').onclick = () => {
     $('file-panel').hidden = $('file-actions').hidden = true;
     $('source-start').hidden = false; $('source-title').focus();

@@ -6,12 +6,12 @@ try {
   const kit = await response.json();
   document.getElementById('kit-data').textContent = JSON.stringify(kit);
 } catch (error) {
-  console.error('Open-XY: configure OPEN_XY_KIT with a verified export for a complete preview.', error);
+  console.error('open-xy: configure OPEN_XY_KIT with a verified export for a complete preview.', error);
 }
 try {
   await import('./app.mjs');
 } catch (error) {
-  console.error('Open-XY failed to load.', error);
+  console.error('open-xy failed to load.', error);
   const notice = document.createElement('div');
   notice.className = 'load-error';
   notice.setAttribute('role', 'alert');
