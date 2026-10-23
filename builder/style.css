@@ -61,8 +61,6 @@ main { display:grid; grid-template-columns:230px minmax(0,1fr); gap:24px; max-wi
 .panel { margin:0; padding:0; border:0; background:transparent; }
 .flow-shell { width:100%; }
 #source-start { text-align:center; padding:0 0 16px; }
-.source-tools { margin-top:12px; }
-.source-tools button { font-size:12px; color:var(--muted); }
 #source-requirements { font-size:13px; margin:22px auto; max-width:520px; }
 .device-art { width:100%; max-width:660px; margin:0 auto; }
 .device-art svg,.flow-visual>svg { width:100%; display:block; }

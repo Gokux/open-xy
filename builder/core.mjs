@@ -289,7 +289,7 @@ export function redirect(edit, destination) {
 export async function patchFirmware(kit, linked, stock) {
   const p = kit.profile;
   check(stock.length === p.stock_bytes && await sha256(stock) === p.stock_sha256,
-    'Only OP–XY OS 1.2.0 is supported. Choose the decrypted OS file (os.ldr) copied from your OP–XY, not a .tfw update file.');
+    'Only OP–XY OS 1.2.0 is supported. Choose the OS file, os.ldr, copied from your OP–XY, not a .tfw update file.');
   const blocks = readLdr(stock), first = blocks[0], final = blocks.at(-1);
   check(blocks.length === p.stock_records && first.count === 0 && (first.code & 0xffff) === 0x5004 &&
     final.count === 0 && (final.code & 0xffff) === 0x8004, 'Unexpected stock loader layout');
@@ -352,12 +352,12 @@ export async function recoverFirmware(kit, input) {
     module.target === p.module_base && module.argument === 0 &&
     module.count > 0 && module.count <= moduleBytes(p) &&
     input.length === p.stock_bytes + 16 + module.count,
-    'Only OP–XY OS 1.2.0 is supported. This file is not OS 1.2.0 or an Open-XY build of it. Install OS 1.2.0 on your OP–XY, then copy its OS file (os.ldr) again; a .tfw update file will not work.');
+    'Only OP–XY OS 1.2.0 is supported. This file is not OS 1.2.0 or an open-xy build of it. Install OS 1.2.0 on your OP–XY, then copy its OS file (os.ldr) again; a .tfw update file will not work.');
   const stock = join([input.subarray(0, module.offset), input.subarray(final.offset)]);
   stock.set(header(0x5004, first.target, 0, stock.length - 16));
   for (const edit of p.patches) stock.set(unhex(edit.before), Number(edit.file_offset));
   check(await sha256(stock) === p.stock_sha256,
-    'Only OP–XY OS 1.2.0 is supported. This Open-XY build was not made from OS 1.2.0.');
+    'Only OP–XY OS 1.2.0 is supported. This open-xy build was not made from OS 1.2.0.');
   const payload = input.subarray(module.offset + 16, final.offset);
   // Reconstruct every selection's entire image; never trust the uploaded
   // module or infer ownership from its label. At most 15 deterministic links.
@@ -370,7 +370,7 @@ export async function recoverFirmware(kit, input) {
       return {stock, selected};
     await new Promise(resolve => setTimeout(resolve, 0));
   }
-  throw new Error('This Open-XY build does not match this collection. Choose OP–XY OS 1.2.0 or an OS built by this site.');
+  throw new Error('This open-xy build does not match this collection. Choose OP–XY OS 1.2.0 or an OS built by this site.');
 }
 
 export function presetPath(machine) {
