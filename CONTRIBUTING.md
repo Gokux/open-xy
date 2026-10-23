@@ -19,9 +19,8 @@ native identity still needs SDK work.
 ## Checks
 
 Keep firmware, stock content, extracted firmware and firmware-containing build
-outputs **outside every checkout**, including ignored `local/`. On this
-workstation, private storage is `%LOCALAPPDATA%/OPXY-SDK/private/`; pass those
-external paths to build commands. `local/` is only for non-firmware development
+outputs **outside every checkout**, including ignored `local/`. The docs use
+`%LOCALAPPDATA%/OPXY-SDK/private/`; pass those external paths to build commands. `local/` is only for non-firmware development
 artifacts. Do not force-add private inputs or generated firmware packages.
 
 `python tools/check_private_files.py --staged` checks the actual index before
