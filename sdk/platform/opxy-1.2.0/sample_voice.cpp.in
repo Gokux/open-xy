@@ -73,20 +73,20 @@ void @PREFIX@_drum_panel(opxy::PadSettings value, const opxy::i32* parameters, o
 #endif
 #if @ANALYSIS@
 // One preparation at a time, on the stock file worker (sample_cache.cpp).
-opxy::u32 @PREFIX@_sample_prepare_begin(const opxy::SampleView*, opxy::u32*, opxy::u32) __asm__("@PREFIX@_sample_prepare_begin");
-opxy::u32 @PREFIX@_sample_prepare_step(opxy::u32, opxy::u32*) __asm__("@PREFIX@_sample_prepare_step");
-opxy::u32 @PREFIX@_sample_prepare_words() __asm__("@PREFIX@_sample_prepare_words");
-opxy::u32 @PREFIX@_sample_prepare_result(opxy::SampleAnalysis*) __asm__("@PREFIX@_sample_prepare_result");
+opxy::u32 @PREFIX@_analysis_words(const opxy::SampleView*) __asm__("@PREFIX@_analysis_words");
+opxy::u32 @PREFIX@_prepare_begin(const opxy::SampleView*, opxy::u32*, opxy::u32) __asm__("@PREFIX@_prepare_begin");
+opxy::u32 @PREFIX@_prepare_step(opxy::u32, opxy::u32*) __asm__("@PREFIX@_prepare_step");
+opxy::u32 @PREFIX@_prepared(opxy::SampleAnalysis*) __asm__("@PREFIX@_prepared");
 static @NAMESPACE@::Preparation preparation;
-opxy::u32 @PREFIX@_sample_prepare_begin(const opxy::SampleView* sample, opxy::u32* storage, opxy::u32 words) {
+opxy::u32 @PREFIX@_analysis_words(const opxy::SampleView* sample) { return @NAMESPACE@::analysis_words(*sample); }
+opxy::u32 @PREFIX@_prepare_begin(const opxy::SampleView* sample, opxy::u32* storage, opxy::u32 words) {
     preparation = @NAMESPACE@::Preparation();
     return @NAMESPACE@::prepare_begin(preparation, *sample, storage, words);
 }
-opxy::u32 @PREFIX@_sample_prepare_step(opxy::u32 frames, opxy::u32* cursor) {
+opxy::u32 @PREFIX@_prepare_step(opxy::u32 frames, opxy::u32* cursor) {
     return @NAMESPACE@::prepare_step(preparation, frames, *cursor);
 }
-opxy::u32 @PREFIX@_sample_prepare_words() { return @NAMESPACE@::prepare_words(preparation); }
-opxy::u32 @PREFIX@_sample_prepare_result(opxy::SampleAnalysis* out) { return @NAMESPACE@::prepared(preparation, *out); }
+opxy::u32 @PREFIX@_prepared(opxy::SampleAnalysis* out) { return @NAMESPACE@::prepared(preparation, *out); }
 #endif
 // The pad's saved settings, or the machine's defaults when it has none.
 static opxy::PadSettings settings(const opxy::i32* region) {
@@ -138,7 +138,7 @@ void* @PREFIX@_factory(opxy::u32 index, opxy::u32 track) {
     slot->sample_object = published_sample();
     const opxy::SampleView sample = opxy::platform::stock_sample_view(slot->sample_object);
     slot->frames = sample.frames;
-    slot->analysis = @ANALYSIS@ ? sdk_sample_cache_find(slot->sample_object) : nullptr;
+    slot->analysis = @ANALYSIS@ ? sdk_sample_cache_find(slot->sample_object, @ENGINE@) : nullptr;
     @NAMESPACE@::initialize(slot->voice, sample);
     slot->vtable = @PREFIX@_vtable;
     return slot;
@@ -153,8 +153,8 @@ static int render(void* self, opxy::i32* output, const opxy::i32* parameters) {
         if (slot->retry) --slot->retry;
         else {
             // Every 8 blocks while pending; every 256 once preparation has failed.
-            slot->analysis = sdk_sample_cache_find(slot->sample_object);
-            slot->retry = !slot->analysis && sdk_sample_cache_failed(slot->sample_object) ? 255 : 7;
+            slot->analysis = sdk_sample_cache_find(slot->sample_object, @ENGINE@);
+            slot->retry = !slot->analysis && sdk_sample_cache_failed(slot->sample_object, @ENGINE@) ? 255 : 7;
         }
     }
     const opxy::i32* region = *reinterpret_cast<const opxy::i32* const volatile*>(kVoiceRegion);

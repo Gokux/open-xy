@@ -5,17 +5,12 @@
 // lookup borrows a completed immutable entry while its stock voice owns the
 // corresponding sample reference. No cache allocation or work starts here.
 extern "C" {
+// Entries are keyed by sample object and engine: each registered analysis
+// machine prepares its own result within its own budget.
 void sdk_sample_cache_prepare(const void*) __asm__("sdk_sample_cache_prepare");
 void sdk_sample_cache_release(const void*) __asm__("sdk_sample_cache_release");
-const opxy::SampleAnalysis* sdk_sample_cache_find(const void*) __asm__("sdk_sample_cache_find");
-opxy::u32 sdk_sample_cache_failed(const void*) __asm__("sdk_sample_cache_failed");
-// The collection's sample-analysis machine, through sample_callbacks.cpp. When
-// that machine is not selected, begin declines and nothing else is called.
-opxy::u32 sdk_sample_prepare_begin(const opxy::SampleView*, opxy::u32*, opxy::u32) __asm__("sdk_sample_prepare_begin");
-opxy::u32 sdk_sample_prepare_step(opxy::u32, opxy::u32*) __asm__("sdk_sample_prepare_step");
-opxy::u32 sdk_sample_prepare_words() __asm__("sdk_sample_prepare_words");
-opxy::u32 sdk_sample_prepare_budget() __asm__("sdk_sample_prepare_budget");
-opxy::u32 sdk_sample_prepare_result(opxy::SampleAnalysis*) __asm__("sdk_sample_prepare_result");
+const opxy::SampleAnalysis* sdk_sample_cache_find(const void*, opxy::u32) __asm__("sdk_sample_cache_find");
+opxy::u32 sdk_sample_cache_failed(const void*, opxy::u32) __asm__("sdk_sample_cache_failed");
 void sdk_sample_gui_tick() __asm__("sdk_sample_gui_tick");
 // The GUI wrapper supplies null/zero while browsing: stock audition mutates
 // region paths before confirmation. An empty snapshot also removes old intent.

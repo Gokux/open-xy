@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import json
 import re
 
-from .definitions import ROOT, stock_name, validate_definition
+from .definitions import ANALYSIS_HEAP_LIMIT, ROOT, stock_name, validate_definition
 from .formats import require
 from .pipeline import config
 
@@ -140,7 +140,15 @@ def collection():
     pages = [m.identity['page'] for m in machines if m.display != 'stock']
     require(len(set(engines)) == len(engines) and len(set(effects)) == len(effects) and len(set(pages)) == len(pages),
             'Conflicting engine, effect or page ID')
+    check_analysis_budgets(machines)
     return machines
+
+
+def check_analysis_budgets(machines):
+    """Every machine's analysis budget comes from one stock-heap allowance."""
+    total = sum(m.definition['resources'].get('sampleAnalysis', 0) for m in machines if m.kind == 'sample')
+    require(total <= ANALYSIS_HEAP_LIMIT,
+            'Sample analysis budgets exceed the collection limit of %d bytes' % ANALYSIS_HEAP_LIMIT)
 
 
 def by_kind(machines, *kinds):

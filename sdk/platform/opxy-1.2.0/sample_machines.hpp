@@ -18,12 +18,12 @@ struct SampleMachine {
     // drumControls
     void (*control)(PadSettings*, const DrumControl*);
     void (*panel)(PadSettings, const i32*, DrumPanel*);
-    // sampleAnalysis
-    u32 analysis_budget;  // bytes
+    // sampleAnalysis: one preparation at a time per machine
+    u32 analysis_budget;  // bytes of stock heap its cached analyses may hold
+    u32 (*analysis_words)(const SampleView*);
     u32 (*prepare_begin)(const SampleView*, u32*, u32);
     u32 (*prepare_step)(u32, u32*);
-    u32 (*prepare_words)();
-    u32 (*prepare_result)(SampleAnalysis*);
+    u32 (*prepared)(SampleAnalysis*);
 };
 }}
 

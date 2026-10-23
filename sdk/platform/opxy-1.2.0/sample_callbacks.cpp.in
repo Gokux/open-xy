@@ -2,7 +2,6 @@
 // stock-page bridge to their callbacks. Authored callbacks only see SDK values.
 #include "sample_machines.hpp"
 #include "stock_sample.hpp"
-#include "sample_cache.hpp"
 #include "stock.hpp"
 extern "C" {
 @CALLBACK_DECLS@
@@ -101,33 +100,4 @@ extern "C" u32 sdk_sample_assignment(u32 track, u32 frames, u32 rate, const u32*
         input.filename_bytes = path[5];
     }
     return opxy::platform::sample_store_settings(m->assign(&input));
-}
-// Sample analysis: the collection's first registered analysis machine, or
-// declined when there is none.
-namespace {
-const SampleMachine* analysis_machine() {
-    for (u32 i = 0; i < sdk_sample_machine_count; ++i)
-        if (sdk_sample_machines[i].analysis_budget && sdk_sample_machines[i].ready() == 1) return &sdk_sample_machines[i];
-    return nullptr;
-}
-}
-extern "C" u32 sdk_sample_prepare_begin(const opxy::SampleView* sample, u32* storage, u32 words) {
-    const SampleMachine* m = analysis_machine();
-    return m ? m->prepare_begin(sample, storage, words) : 0;
-}
-extern "C" u32 sdk_sample_prepare_step(u32 frames, u32* cursor) {
-    const SampleMachine* m = analysis_machine();
-    return m ? m->prepare_step(frames, cursor) : opxy::prepare_failed;
-}
-extern "C" u32 sdk_sample_prepare_words() {
-    const SampleMachine* m = analysis_machine();
-    return m ? m->prepare_words() : 0;
-}
-extern "C" u32 sdk_sample_prepare_budget() {
-    const SampleMachine* m = analysis_machine();
-    return m ? m->analysis_budget : 0;
-}
-extern "C" u32 sdk_sample_prepare_result(opxy::SampleAnalysis* out) {
-    const SampleMachine* m = analysis_machine();
-    return m ? m->prepare_result(out) : 0;
 }

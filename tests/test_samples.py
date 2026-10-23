@@ -6,7 +6,7 @@ import unittest
 from dataclasses import replace
 
 from opxy_sdk import adapters
-from opxy_sdk.machines import machine
+from opxy_sdk.machines import check_analysis_budgets, machine
 from opxy_sdk.definitions import validate_definition
 from opxy_sdk import firmware
 
@@ -31,6 +31,15 @@ class Generation(unittest.TestCase):
             validate_definition(drum_only, 'sample')
         definition['resources'] = {'voiceCapacity': 256}
         validate_definition(definition, 'sample')
+
+    def test_analysis_budgets_share_one_collection_limit(self):
+        def analyzing(name, budget):
+            definition = copy.deepcopy(machine('timestretch').definition)
+            definition['resources']['sampleAnalysis'] = budget
+            return replace(machine('timestretch'), id=name, definition=definition)
+        check_analysis_budgets([analyzing('one', 1 << 20), analyzing('two', 1 << 20)])
+        with self.assertRaisesRegex(ValueError, 'analysis budgets'):
+            check_analysis_budgets([analyzing('one', 1 << 20), analyzing('two', (1 << 20) + 4)])
 
     def test_absolute_calls_reject_invalid_width_opcode_padding_and_alignment(self):
         for target in (0, 0x8d450d60, 0xfffffffe):

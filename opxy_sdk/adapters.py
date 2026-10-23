@@ -276,10 +276,10 @@ SAMPLE_SERVICES = (
                      ('_sample_assign', 'opxy::PadSettings', 'const opxy::SampleAssignment*'))),
     ('drumControls', (('_drum_control', 'void', 'opxy::PadSettings*, const opxy::DrumControl*'),
                       ('_drum_panel', 'void', 'opxy::PadSettings, const opxy::i32*, opxy::DrumPanel*'))),
-    ('sampleAnalysis', (('_sample_prepare_begin', 'opxy::u32', 'const opxy::SampleView*, opxy::u32*, opxy::u32'),
-                        ('_sample_prepare_step', 'opxy::u32', 'opxy::u32, opxy::u32*'),
-                        ('_sample_prepare_words', 'opxy::u32', ''),
-                        ('_sample_prepare_result', 'opxy::u32', 'opxy::SampleAnalysis*'))),
+    ('sampleAnalysis', (('_analysis_words', 'opxy::u32', 'const opxy::SampleView*'),
+                        ('_prepare_begin', 'opxy::u32', 'const opxy::SampleView*, opxy::u32*, opxy::u32'),
+                        ('_prepare_step', 'opxy::u32', 'opxy::u32, opxy::u32*'),
+                        ('_prepared', 'opxy::u32', 'opxy::SampleAnalysis*'))),
 )
 
 
@@ -295,7 +295,8 @@ def generate_sample_voice(directory, m):
                   LABELS=stock_labels(m), CAPACITY=resources['voiceCapacity'],
                   ANALYSIS=resources.get('sampleAnalysis', 0), STEREO=resources.get('stereoOutput', 0),
                   CHOKE=resources.get('chokeSameKey', 0), DRUM_KEYS=int(m.identity['page'] == 7),
-                  PAD_SETTINGS=resources.get('padSettings', 0), DRUM_CONTROLS=resources.get('drumControls', 0))
+                  PAD_SETTINGS=resources.get('padSettings', 0), DRUM_CONTROLS=resources.get('drumControls', 0),
+                  ENGINE=m.identity['engine'])
     return expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
 
 

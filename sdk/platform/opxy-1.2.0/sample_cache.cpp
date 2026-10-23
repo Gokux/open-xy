@@ -17,11 +17,14 @@ void sdk_sample_cache_sample_release(opxy::u32) __asm__("sdk_sample_cache_sample
 namespace {
 using opxy::u32;
 using opxy::platform::barrier;
+using opxy::platform::SampleMachine;
 constexpr u32 kEntries = 256;
 constexpr u32 kChunkFrames = 4096;
+// One machine's analysis of one retained sample.
 struct Entry {
     // The owner is published last and cleared before storage is released.
     const void* volatile owner;
+    u32 engine;
     opxy::SampleAnalysis analysis;
     bool ready;
     u32 failure;  // progress state of an unsuccessful preparation, else 0
@@ -29,7 +32,6 @@ struct Entry {
     u32 bytes;
 };
 static Entry entries[kEntries];
-static u32 used_bytes;
 struct Progress {
     volatile u32 sequence;
     volatile u32 state;
@@ -115,8 +117,9 @@ void status(u32 state, u32 percent, bool next = false) {
     ++progress.sequence;
 }
 
-void failed(Entry* entry, const void* object, u32 state) {
+void failed(Entry* entry, const void* object, u32 engine, u32 state) {
     if (entry) {
+        entry->engine = engine;
         entry->analysis = opxy::SampleAnalysis{};
         entry->ready = false;
         entry->failure = state;
@@ -138,6 +141,74 @@ bool valid_source(const opxy::SampleView& sample) {
 opxy::SampleView sample_view(const void* object) {
     const opxy::SampleView sample = opxy::platform::stock_sample_view(object);
     return valid_source(sample) ? sample : opxy::SampleView{nullptr, 0, 0, 1};
+}
+// Heap bytes one machine's published analyses hold.
+u32 used_bytes(u32 engine) {
+    u32 total = 0;
+    for (u32 i = 0; i < kEntries; ++i)
+        if (entries[i].owner && entries[i].engine == engine) total += entries[i].bytes;
+    return total;
+}
+
+// Runs synchronously on the existing file worker, with a retained stock sample
+// reference, after assigned keys have loaded. Stock PCM is never modified.
+// Budgets are extension limits, not assumptions about stock cache size or
+// available heap memory.
+void prepare_for(const void* object, const SampleMachine& m) {
+    Entry* free_entry = nullptr;
+    for (u32 i = 0; i < kEntries; ++i) {
+        if (entries[i].owner == object && entries[i].engine == m.engine) return;
+        if (!entries[i].owner && !free_entry) free_entry = &entries[i];
+    }
+    if (!free_entry) {
+        if (!full_reported) {
+            full_reported = true;
+            status(1, 0, true);
+            failed(nullptr, object, m.engine, 4);
+        }
+        return;
+    }
+    const opxy::SampleView sample = sample_view(object);
+    status(1, 0, true);
+    // The machine sizes its storage; bound it before converting to bytes.
+    const u32 words = sample.data ? m.analysis_words(&sample) : 0;
+    if (!words) {
+        failed(free_entry, object, m.engine, 3);
+        return;
+    }
+    const u32 budget = m.analysis_budget, used = used_bytes(m.engine);
+    if (used > budget || words > budget / sizeof(u32) || words * sizeof(u32) > budget - used) {
+        failed(free_entry, object, m.engine, 4);
+        return;
+    }
+    const u32 bytes = words * sizeof(u32);
+    u32* storage = static_cast<u32*>(sdk_sample_cache_alloc(bytes));
+    if (!storage) {
+        failed(free_entry, object, m.engine, 3);
+        return;
+    }
+    opxy::SampleAnalysis result{};
+    u32 step = opxy::prepare_failed;
+    if (m.prepare_begin(&sample, storage, words)) {
+        u32 cursor = 0;
+        // frames < 2^20, so this product cannot overflow u32.
+        while ((step = m.prepare_step(kChunkFrames, &cursor)) == opxy::prepare_running)
+            status(1, (cursor < sample.frames ? cursor : sample.frames) * 100u / sample.frames);
+    }
+    if (step != opxy::prepare_done || !m.prepared(&result) || result.words != storage || result.word_count > words) {
+        sdk_sample_cache_free(storage);
+        failed(free_entry, object, m.engine, 3);
+        return;
+    }
+    free_entry->engine = m.engine;
+    free_entry->analysis = result;
+    free_entry->ready = true;
+    free_entry->failure = 0;
+    free_entry->storage = storage;
+    free_entry->bytes = bytes;
+    barrier();
+    free_entry->owner = object;
+    status(2, 100);
 }
 }
 
@@ -227,77 +298,14 @@ extern "C" void sdk_sample_cache_prepare_keys() {
 }
 
 extern "C" void sdk_sample_cache_prepare(const void* object) {
-    // This function runs synchronously on the existing file worker, with a
-    // retained stock sample reference, after assigned keys have loaded. Samples
-    // decoded only for browser preview are not requested. Already-decoded
-    // previews assigned to an analysis-enabled sample engine pass through the same retained-key path.
-    // Stock PCM is never modified. Cache budgets are extension limits, not
-    // assumptions about stock cache size or available heap memory.
+    // Samples decoded only for browser preview are not requested. Every
+    // registered analysis machine prepares its own result: the request names
+    // the sample, not the engine it was assigned to.
     if (!object) return;
-    Entry* free_entry = nullptr;
-    for (u32 i = 0; i < kEntries; ++i) {
-        if (entries[i].owner == object) return;
-        if (!entries[i].owner && !free_entry) free_entry = &entries[i];
+    for (u32 i = 0; i < sdk_sample_machine_count; ++i) {
+        const SampleMachine& m = sdk_sample_machines[i];
+        if (m.analysis_budget && m.ready() == 1) prepare_for(object, m);
     }
-    if (!free_entry) {
-        if (!full_reported) {
-            full_reported = true;
-            status(1, 0, true);
-            failed(nullptr, object, 4);
-        }
-        return;
-    }
-    const opxy::SampleView sample = sample_view(object);
-    status(1, 0, true);
-    if (!sdk_sample_prepare_begin(&sample, nullptr, 0)) {
-        failed(free_entry, object, 3);
-        return;
-    }
-    u32 cursor = 0, step;
-    while ((step = sdk_sample_prepare_step(kChunkFrames, &cursor)) == opxy::prepare_running)
-        status(1, (cursor < sample.frames ? cursor : sample.frames) * 50u / sample.frames);
-    const u32 words = sdk_sample_prepare_words();
-    if (step != opxy::prepare_done || !words) {
-        failed(free_entry, object, 3);
-        return;
-    }
-    // The machine sizes its storage; bound it before converting to bytes.
-    // The analysis machine's declared heap budget (definition.json sampleAnalysis).
-    const u32 budget = sdk_sample_prepare_budget();
-    if (used_bytes > budget || words > budget / sizeof(u32) || words * sizeof(u32) > budget - used_bytes) {
-        failed(free_entry, object, 4);
-        return;
-    }
-    const u32 bytes = words * sizeof(u32);
-    u32* storage = static_cast<u32*>(sdk_sample_cache_alloc(bytes));
-    if (!storage) {
-        failed(free_entry, object, 3);
-        return;
-    }
-    opxy::SampleAnalysis result{};
-    if (sdk_sample_prepare_begin(&sample, storage, words)) {
-        cursor = 0;
-        // frames < 2^20, so this product cannot overflow u32.
-        while ((step = sdk_sample_prepare_step(kChunkFrames, &cursor)) == opxy::prepare_running)
-            status(1, 50u + (cursor < sample.frames ? cursor : sample.frames) * 50u / sample.frames);
-    } else {
-        step = opxy::prepare_failed;
-    }
-    if (step != opxy::prepare_done || !sdk_sample_prepare_result(&result) || result.words != storage ||
-        result.word_count > words) {
-        sdk_sample_cache_free(storage);
-        failed(free_entry, object, 3);
-        return;
-    }
-    free_entry->analysis = result;
-    free_entry->ready = true;
-    free_entry->failure = 0;
-    free_entry->storage = storage;
-    free_entry->bytes = bytes;
-    used_bytes += bytes;
-    barrier();
-    free_entry->owner = object;
-    status(2, 100);
 }
 
 extern "C" void sdk_sample_cache_release(const void* object) {
@@ -307,28 +315,29 @@ extern "C" void sdk_sample_cache_release(const void* object) {
     if (!object) return;
     keys_dirty = true;
     full_reported = false;
+    bool freed = false;
     for (u32 i = 0; i < kEntries; ++i) {
         Entry& entry = entries[i];
         if (entry.owner != object) continue;
         entry.owner = nullptr;
         barrier();
         u32* storage = entry.storage;
-        used_bytes -= entry.bytes;
         entry.analysis = opxy::SampleAnalysis{};
         entry.ready = false;
         entry.storage = nullptr;
         entry.bytes = 0;
         if (storage) {
             sdk_sample_cache_free(storage);
-            // Budget is free again: samples that failed for lack of it may retry.
-            for (u32 j = 0; j < kEntries; ++j)
-                if (entries[j].owner && entries[j].failure == 4) entries[j].owner = nullptr;
+            freed = true;
         }
-        return;
     }
+    // Budget is free again: samples that failed for lack of it may retry.
+    if (freed)
+        for (u32 j = 0; j < kEntries; ++j)
+            if (entries[j].owner && entries[j].failure == 4) entries[j].owner = nullptr;
 }
 
-extern "C" const opxy::SampleAnalysis* sdk_sample_cache_find(const void* object) {
+extern "C" const opxy::SampleAnalysis* sdk_sample_cache_find(const void* object, u32 engine) {
     if (!object) return nullptr;
     // The factory's stock reference protects the matching owner's lifetime;
     // this function must never be used with an unowned raw sample pointer.
@@ -337,17 +346,17 @@ extern "C" const opxy::SampleAnalysis* sdk_sample_cache_find(const void* object)
     for (u32 i = 0; i < kEntries; ++i) {
         if (entries[i].owner == object) {
             barrier();
-            return entries[i].ready ? &entries[i].analysis : nullptr;
+            if (entries[i].engine == engine) return entries[i].ready ? &entries[i].analysis : nullptr;
         }
     }
     return nullptr;
 }
 
 // Whether this sample's preparation has failed; a voice then checks rarely.
-extern "C" u32 sdk_sample_cache_failed(const void* object) {
+extern "C" u32 sdk_sample_cache_failed(const void* object, u32 engine) {
     if (!object) return 0;
     for (u32 i = 0; i < kEntries; ++i)
-        if (entries[i].owner == object) return entries[i].failure != 0;
+        if (entries[i].owner == object && entries[i].engine == engine) return entries[i].failure != 0;
     return 0;
 }
 

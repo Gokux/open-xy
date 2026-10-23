@@ -73,7 +73,7 @@ SEGMENT_CHARACTERS = (1, 8)
 SEGMENT_GLOW = (0, 3)
 SEGMENT_DIALS = (0, 4)
 # Analysis storage is allocated from the stock heap at runtime, which also holds
-# stock samples; the SDK lets one machine take at most this much of it.
+# stock samples; a collection's analysis budgets together take at most this much.
 ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
 # A sample engine's optional services: integer 0/1 flags and the analysis budget.
 SAMPLE_FLAGS = ('chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput')

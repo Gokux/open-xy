@@ -7,11 +7,11 @@ static bool owned = true;
 static opxy::DrumControl received;
 extern "C" unsigned sdk_sample_selected_engine() { return selected; }
 extern "C" int probe_ready() { return owned; }
-// The probe also declares analysis; these callbacks are not exercised here.
-extern "C" unsigned probe_sample_prepare_begin(const opxy::SampleView*, unsigned*, unsigned) { return 0; }
-extern "C" unsigned probe_sample_prepare_step(unsigned, unsigned*) { return 0; }
-extern "C" unsigned probe_sample_prepare_words() { return 0; }
-extern "C" unsigned probe_sample_prepare_result(opxy::SampleAnalysis*) { return 0; }
+// The probe also declares analysis; its callbacks are not exercised here.
+extern "C" unsigned probe_analysis_words(const opxy::SampleView*) { return 0; }
+extern "C" unsigned probe_prepare_begin(const opxy::SampleView*, unsigned*, unsigned) { return 0; }
+extern "C" unsigned probe_prepare_step(unsigned, unsigned*) { return 0; }
+extern "C" unsigned probe_prepared(opxy::SampleAnalysis*) { return 0; }
 static opxy::SampleAssignment assigned;
 extern "C" opxy::PadSettings probe_sample_defaults() { return 77; }
 extern "C" opxy::PadSettings probe_sample_assign(const opxy::SampleAssignment* input) {
