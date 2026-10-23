@@ -31,7 +31,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
 | Relocated tables | 13 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
-| Synth controls | 2 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit |
+| Synth and effect controls | 3 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit; scales fine turns on owned synth and send-effect pages |
 | Startup label | 1 | Shows `OPEN 0.0.1-1.2.0` at boot through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
@@ -110,38 +110,30 @@ asset is limited to at most four decimal places and no exponents.
 
 ### Alternate controls
 
-Tracks 0..7 show the instrument track controller (GUI screen 0, vtable
-`0x8400b208`); tracks 8 and up use another controller. Its page word
-`0x08023c74` is 0 on the engine page. An unshifted turn of encoder `e` there
-edits parameter `e` of the selected track through `0x8d5ab8ec` (call site
-`0x8c0b210a`), which owns stepping, parameter locks and publication; shifted
-turns edit `4 + e`, and other pages edit 8 and up. The engine page's
-parameters are the first eight words of the vector the voice renders. The
-GUI key dispatcher `0x8c0b6670` passes the click of encoder `e` (key `10 + e`,
-released without a turn and without shift) to `0x8d51e634(e)` before the top
-controller, whose engine page ignores it.
+On the engine page of an instrument track, an unshifted turn of encoder `e`
+edits parameter `e` through stock's controller, which owns stepping, parameter
+locks and publication; shifted turns edit `4 + e`. The engine page's
+parameters are the first eight words of the vector the voice renders. Stock's
+key dispatcher passes an encoder click (released without a turn or shift) to a
+handler the engine page ignores.
 [`synth_controls.cpp`](../sdk/platform/opxy-1.2.0/synth_controls.cpp) replaces
 both calls: while the engine page shows an owned synth with
 [alternates](api.md#alternate-controls), a press moves the position to its next
 parameter slot and a turn edits that slot. For owned synths, Shift's indices
 4..7 map back to the same shown positions; continuous controls receive a copy
-of the three-word event with signed word 0 divided by ten. Words 1 (detents)
-and 2 (acceleration) stay intact. Stock consumes the event synchronously and
-still owns lock editing and publication. The selection is GUI state per track,
-reset when the track's engine changes. Other pages and unowned engines retain
-stock routing.
+of the turn event with its step divided by ten, keeping detents and
+acceleration. Stock consumes the event synchronously and still owns lock
+editing and publication. The selection is GUI state per track, reset when the
+track's engine changes. Other pages and unowned engines retain stock routing.
 
-The auxiliary-track controller already folds Shift into positions 0..3.
-Its call at `0x8c090636` uses the same fine scaling only for owned FX on tracks
-14/15, checked against the FX registry rather than the synth registry.
-The stock held-key getter `0x8d5b5ef4(10 + encoder)` supplies the sample
-callback's held-turn flag. Encoder turns clear the separate pending-click
-flag, so a press-and-turn does not also click on release.
+The auxiliary-track controller already folds Shift into positions 0..3; owned
+send effects on tracks 14/15 get the same fine scaling. Encoder turns clear the
+pending-click flag, so a press-and-turn does not also click on release.
 
 Stock draws each position's title from the engine record's parameter-name
-callback and its value as a percentage of the vector word. The screen's
-parameter-vector getter (`0x8d4d7c60`) takes the selected track in R0; the
-adapter passes it explicitly after refreshing alternate-control selection.
+callback and its value as a percentage of the vector word. The adapter
+passes the selected track to the screen's parameter-vector getter after
+refreshing alternate-control selection.
 The adapter's callback names the shown parameter, and the screen shell passes stock a copy
 of the vector with each position's shown word in place. Generated metadata
 then supplies one-decimal amounts (0.0–100.0 without a suffix) and bounded positive
@@ -159,8 +151,8 @@ count, rate and channel layout. Tempo, tick position and play state come as an
 advisory `opxy::Transport`. Sample selection uses the stock sample page.
 
 Sample engines declaring stereo output write 64 interleaved L/R frames to
-the stock 128-word scratch buffer. Vtable offset +32 returns 1 to select the
-stock stereo mixer; mono declarations retain 64-word output and return 0.
+the stock 128-word scratch buffer and select the stock stereo mixer; mono
+declarations retain 64-word output.
 The stock stereo PCM reader consumes packed left/right 16-bit pairs, while
 its output writes alternating 32-bit left/right words.
 
@@ -176,8 +168,8 @@ borrows the multisampler payload. Track and voice IDs stay unchanged. Stock,
 absent and conflicting registrations follow the original paths. Adding a
 sample machine adds no firmware patch sites.
 
-The stock note-start callback for these registrations is vtable offset +16;
-factory creation alone does not start or choke a voice. Page 7 maps notes to
+Stock starts these voices through a separate note-start method; factory
+creation alone does not start or choke a voice. Page 7 maps notes to
 the stock 24 canonical pads. Optional same-key choke is scoped to track and
 canonical pad, and checked before DSP or analysis lookup.
 
@@ -252,14 +244,10 @@ in-place stereo buffers. **No destructor ever runs**, so an effect may hold no
 resources. The first slot word is the object's method table, which leaves 476
 bytes of effect state.
 
-Vtable offset `+0x1c` is a dry-level getter: `(object, parameters) -> Q31`.
-Stock delay (`0x8d500e38`) and reverb (`0x8d5013ae`) return parameter word 3
-unchanged. The stock mixer queries it at `0x8d510676` and `0x8d51070a`, then
-reduces the source dry contribution by `send * (1 - dry)`. The effect's DSP
+Each effect also answers a dry-level query, `(object, parameters) -> Q31`;
+stock delay and reverb return parameter word 3. The stock mixer reduces the
+source dry contribution by `send * (1 - dry)`. The effect's DSP
 supplies only wet audio. The generated adapter exposes the machine's declared
 `dryParameter`, or returns `INT32_MAX` when none is declared, matching stock's
 absent-object fallback. This is a source-mixer control, not a wet/dry crossfade
 inside the effect. See the [effect API](api.md#effects).
-
-Ring Mod uses effect ID 1. Retired Decimate's ID 11 remains unused; do not
-reassign it to a different effect in saved projects.

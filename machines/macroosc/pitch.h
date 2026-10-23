@@ -24,7 +24,9 @@
 //
 // -----------------------------------------------------------------------------
 //
-// Pitch lookup for the 44.1 kHz port.
+// Pitch lookup for the 44.1 kHz port. OP-XY: written for this port in Braids'
+// pitch convention (1/128 semitone, MIDI 0 = 0); not an upstream file, and it
+// carries Braids' MIT notice as derived work.
 
 #pragma once
 

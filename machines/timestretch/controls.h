@@ -21,16 +21,12 @@ inline bool live_mode(opxy::u32 value, bool saved) {
 }
 struct EffectiveControls { Controls pad; int pitch_cents; };
 inline Controls decode_controls(opxy::PadSettings value) {
-    // Version 2 uses two tag bits, two flags and twelve tempo bits. Keep the
-    // old whole-BPM payload readable when an existing pad is opened.
-    if ((value & 3u) == 1u) {
-        const opxy::u32 tempo = value >> 4;
-        return Controls{(value & 4) != 0, (value & 8) != 0,
-                        tempo >= 6 && tempo <= 2806 ? tempo + 194 : 0, tempo < 6 ? tempo : 2};
-    }
-    const opxy::u32 tempo = (value >> 7) & 511u;
-    return Controls{(value & 32) != 0, (value & 64) != 0,
-                    tempo >= 6 && tempo <= 286 ? (tempo + 14) * 10 : 0, tempo < 6 ? tempo : 2};
+    // Two tag bits, two flags and twelve tempo bits. An untagged word is a pad
+    // without saved settings: loop, repitch, one bar.
+    if ((value & 3u) != 1u) return Controls{false, false, 0, 2};
+    const opxy::u32 tempo = value >> 4;
+    return Controls{(value & 4) != 0, (value & 8) != 0,
+                    tempo >= 6 && tempo <= 2806 ? tempo + 194 : 0, tempo < 6 ? tempo : 2};
 }
 inline opxy::PadSettings encode_controls(const Controls& c) {
     return static_cast<opxy::PadSettings>(1u | (c.once ? 4u : 0) | (c.stretch ? 8u : 0) |

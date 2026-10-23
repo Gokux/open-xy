@@ -48,45 +48,43 @@ inline void smooth(i32& current, i32 target) {
 
 // Each note starts from silence: phases, feedback history and brightness reset.
 inline void start(Voice& voice, Shared&, u32) {
-    Voice* v = &voice;
-    v->carrier_phase = v->modulator_phase = 0;
-    v->last_modulator = v->previous_modulator = 0;
-    v->brightness = opxy::q31::maximum;
-    v->initialized = 0;
-    v->ratio = v->amount = v->feedback = v->decay = 0;
+    voice.carrier_phase = voice.modulator_phase = 0;
+    voice.last_modulator = voice.previous_modulator = 0;
+    voice.brightness = opxy::q31::maximum;
+    voice.initialized = 0;
+    voice.ratio = voice.amount = voice.feedback = voice.decay = 0;
 }
 inline void initialize(Voice& voice, Shared& shared, u32 owner) { start(voice, shared, owner); }
 inline void destroy(Voice&, Shared&, u32) {}
 
 inline void render(Voice& voice, Shared&, u32, opxy::Output output,
                    opxy::Parameters parameters, opxy::Pitch pitch) {
-    Voice* v = &voice;
     const Targets target(parameters);
-    if (!v->initialized) {
-        v->ratio = target.ratio;
-        v->amount = target.amount;
-        v->feedback = target.feedback;
-        v->decay = target.decay;
-        v->initialized = 1;
+    if (!voice.initialized) {
+        voice.ratio = target.ratio;
+        voice.amount = target.amount;
+        voice.feedback = target.feedback;
+        voice.decay = target.decay;
+        voice.initialized = 1;
     }
     for (unsigned i = 0; i != opxy::block_frames; ++i) {
-        smooth(v->ratio, target.ratio);
-        smooth(v->amount, target.amount);
-        smooth(v->feedback, target.feedback);
-        smooth(v->decay, target.decay);
-        const i32 history = half(v->last_modulator) + half(v->previous_modulator);
-        const u32 feedback = static_cast<u32>(multiply(history, v->feedback)) << 1;
-        const i32 modulator = sine(v->modulator_phase + feedback);
-        v->previous_modulator = v->last_modulator;
-        v->last_modulator = modulator;
+        smooth(voice.ratio, target.ratio);
+        smooth(voice.amount, target.amount);
+        smooth(voice.feedback, target.feedback);
+        smooth(voice.decay, target.decay);
+        const i32 history = half(voice.last_modulator) + half(voice.previous_modulator);
+        const u32 feedback = static_cast<u32>(multiply(history, voice.feedback)) << 1;
+        const i32 modulator = sine(voice.modulator_phase + feedback);
+        voice.previous_modulator = voice.last_modulator;
+        voice.last_modulator = modulator;
         const u32 offset = static_cast<u32>(
-            multiply(multiply(modulator, v->brightness), v->amount)) << 3;
-        output[i] = multiply(sine(v->carrier_phase + offset), FM2_OUTPUT_LEVEL);
-        v->brightness = multiply(v->brightness, v->decay);
+            multiply(multiply(modulator, voice.brightness), voice.amount)) << 3;
+        output[i] = multiply(sine(voice.carrier_phase + offset), FM2_OUTPUT_LEVEL);
+        voice.brightness = multiply(voice.brightness, voice.decay);
         const u32 increment = pitch[i];
-        v->carrier_phase += increment;
-        v->modulator_phase += static_cast<u32>(
-            multiply(static_cast<i32>(increment >> 1), v->ratio)) << 6;
+        voice.carrier_phase += increment;
+        voice.modulator_phase += static_cast<u32>(
+            multiply(static_cast<i32>(increment >> 1), voice.ratio)) << 6;
     }
 }
 

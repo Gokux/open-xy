@@ -61,7 +61,9 @@ class PackageVerification(unittest.TestCase):
         _, symbols = elf32(self.elf)
         for m in self.machines:
             self.assertIn(m.prefix + ('_fx_factory' if m.kind == 'effect' else '_factory'), symbols)
-        self.assertFalse(any('fourwave' in name.lower() for name in symbols))
+        factories = {name for name in symbols if name.endswith('_factory')}
+        self.assertEqual(factories, {m.prefix + ('_fx_factory' if m.kind == 'effect' else '_factory')
+                                     for m in self.machines})
         original = json.loads(self.catalog)
         current = json.loads((self.package / 'candidate/content/op1_factory.json').read_bytes())
         names = [m.native_name for m in self.machines if m.kind != 'effect']

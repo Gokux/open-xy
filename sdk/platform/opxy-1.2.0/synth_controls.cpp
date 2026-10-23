@@ -117,8 +117,9 @@ u32 sdk_synth_turn(u32 project, u32 track, u32 index, u32 event) {
     return stock<u32(u32, u32, u32, u32)>(0x8d5ab8ec)(project, track, index, event);
 }
 
-// Auxiliary-track page, including send FX tracks 14/15. Its controller folds
-// Shift into the same 0..3 positions before this call, unlike instruments.
+// 8c090636: auxiliary-track page, including send FX tracks 14/15. Its controller
+// folds Shift into the same 0..3 positions before this call, unlike instruments.
+// Ownership is checked against the FX registry, not the synth registry.
 u32 sdk_effect_turn(u32 project, u32 track, u32 index, u32 event) {
     const SynthControls* m = (track == 14 || track == 15) && index < 4 ? owned(track_engine(track), true) : nullptr;
     if (m && event && (m->continuous & (1u << index)) && shift_held()) {

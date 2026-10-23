@@ -37,8 +37,10 @@ void* @PREFIX@_fx_factory(void* storage) {
     object->vtable = @PREFIX@_fx_vtable;
     return object;
 }
-// +0x1c: stock queries the dry level separately from the wet DSP. Return the
-// declared normalized Q31 control unchanged, or unity when no Dry is declared.
+// +0x1c: stock queries the dry level separately from the wet DSP. Stock delay
+// (8d500e38) and reverb (8d5013ae) return parameter word 3; the mixer queries it
+// at 8d510676 and 8d51070a. Return the declared normalized Q31 control
+// unchanged, or unity (stock's absent-object fallback) when no Dry is declared.
 static opxy::i32 dry_level(void*, const opxy::i32* parameters) {
     (void)parameters;
     return @DRY_LEVEL@;

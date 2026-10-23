@@ -1,6 +1,6 @@
 /* Module layout for stock OP-XY 1.2.0: the 512 KiB tail of the application
  * heap, [0x8d450d60, 0x8d4d0d60). Its last 4 KiB hold the relocated stock
- * screen slots and engine records (opxy_sdk/stock_tables.py). */
+ * screen slots and engine records (tooling/stock_tables.py). */
 OUTPUT_ARCH(bfin)
 ENTRY(extensions_synth_exit)
 MEMORY { MODULE (rwx) : ORIGIN = 0x8d450d60, LENGTH = 0x7f000 }

@@ -3,7 +3,8 @@
 The unmodified reference headers in `capicola/` are from
 [heavylight-industries/capicola](https://github.com/heavylight-industries/capicola),
 commit `8c64e855fac64054fdb38451db00866ea682d0d8` (1.1.0).
-They are distributed under GNU AGPL version 3; see [LICENSE](LICENSE).
+They are distributed under GNU AGPL version 3; see [LICENSE](LICENSE). They are
+not compiled; they record what the adaptation below derives from.
 
 `machines/timestretch/analysis.h` and `machines/timestretch/stretch.h` form a modified, fixed-point offline playback
 adaptation of the Analyzer, SparseLine and Granule algorithms. It retains

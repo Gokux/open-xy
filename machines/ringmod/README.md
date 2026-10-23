@@ -41,7 +41,3 @@ There is no allocation, I/O or gain normalization in the callback.
 The optional `dryParameter` declaration delegates Dry to the stock mixer.
 The DSP writes only the modulated return and never adds clean signal itself.
 See [native builds](../../docs/build.md) for collection verification.
-
-Ring Mod has its own effect ID 1 and replaces Decimate in the examples.
-Decimate's ID 11 is not reused. Existing Decimate selections and parameter locks
-are not migrated; select Ring Mod and set new controls when revisiting those projects.

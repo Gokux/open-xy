@@ -1,17 +1,16 @@
-// Sound lookup tables: ratio anchors (Q5.26), interpolated sine and per-sample decay.
+// Sound lookup tables: ratio anchors (Q5.26) and an interpolated sine.
+// Included by engine.cpp only.
 #pragma once
 #include <opxy/types.hpp>
-static const opxy::i32 FM2_RATE_BASIS = 44100;
-static const opxy::i32 FM2_SMOOTH = 6078353;
-static const opxy::i32 FM2_AMOUNT_SCALE = 683565276;
-static const opxy::i32 FM2_FEEDBACK_SCALE = 512673957;
-static const opxy::i32 FM2_RATIO_POSITION_SCALE = 603979776;
-extern "C" {
-extern const opxy::i32 fm2op_ratios[10] = {
+static const opxy::i32 FM2_SMOOTH = 6078353;                // per-block control smoothing, about 0.0028 in Q31
+static const opxy::i32 FM2_AMOUNT_SCALE = 683565276;        // 1/pi in Q31: full Amount is one radian of index
+static const opxy::i32 FM2_FEEDBACK_SCALE = 512673957;      // 0.75/pi in Q31
+static const opxy::i32 FM2_RATIO_POSITION_SCALE = 603979776; // 9.0 in Q5.26: intervals between the ten anchors
+static const opxy::i32 fm2op_ratios[10] = {
   33554432, 67108864, 100663296, 134217728, 201326592, 268435456, 402653184, 536870912,
   805306368, 1073741824,
 };
-extern const opxy::i32 fm2op_sine_table[1025] = {
+static const opxy::i32 fm2op_sine_table[1025] = {
   0, 13176712, 26352928, 39528151, 52701887, 65873638, 79042909, 92209205,
   105372028, 118530885, 131685278, 144834714, 157978697, 171116733, 184248325, 197372981,
   210490206, 223599506, 236700388, 249792358, 262874923, 275947592, 289009871, 302061269,
@@ -177,4 +176,3 @@ extern const opxy::i32 fm2op_decay[257] = {
   2147469282, 2147469576, 2147469864, 2147470147, 2147470423, 2147470694, 2147470960, 2147471220,
   2147471474,
 };
-}

@@ -8,7 +8,7 @@ or in a separate source repository.
 ## Check your tools
 
 Install [Python 3.11 or newer](https://www.python.org/downloads/),
-[Node 22 or newer](https://nodejs.org/en/download), and
+[Node 22.12 or newer](https://nodejs.org/en/download), and
 [LLVM](https://releases.llvm.org/download.html) with Clang's `wasm32` target and
 `wasm-ld`. Use a recent Chrome or Edge for the workbench.
 
@@ -61,13 +61,13 @@ as a production instrument.
 Open `local/mymachine/engine.cpp`. Inside `render()`, change:
 
 ```cpp
-voice->phase += pitch[i];
+voice.phase += pitch[i];
 ```
 
 to:
 
 ```cpp
-voice->phase += pitch[i] / 2;
+voice.phase += pitch[i] / 2;
 ```
 
 The supplied pitch is a phase increment for each sample. Halving it makes the
@@ -101,6 +101,7 @@ does not change your machine.
 | `core.h`, `engine.cpp` | `Voice` and `Shared` state, lifecycle callbacks and the 64-sample render |
 | `display.h`, `display.cpp` | Display state and drawing callback |
 | `panel.svg.fragment` | Artwork; IDs follow the drawing convention (`local_panel`, `local_node_N`, `local_palette_N`) |
+| `machine.json` | Kind and a free engine ID and page, used once the machine joins a [firmware build](build.md#3-add-your-machine) |
 
 Change labels and presets directly in `definition.json`; custom previews read it
 when building, with no separate JavaScript definition generator. Parameter

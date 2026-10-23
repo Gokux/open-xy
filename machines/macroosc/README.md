@@ -56,8 +56,7 @@ the browser has a simple audition gate.
 Model selects `((q31 >> 16) * 47) >> 15`, clamped to 0..46. Timbre and Color
 use 0..32767. FM Ratio interpolates in Q16 through 0.5, 1, 1.5, 2,
 2.5, 3, 3.5, 4, 5, 6, 7 and 8; FM Depth (parameter slot 4) uses 0..32767.
-Saved normalized ratio settings now use this continuous mapping rather than
-the former twelve bins. The default still targets a 1:1 ratio.
+The default targets a 1:1 ratio.
 Changing model restrikes the oscillator. At depth 0, render produces
 24 + 24 + 16 Braids samples per 64-sample block. Otherwise it renders eight
 8-sample chunks, each at the note's phase increment scaled by

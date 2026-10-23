@@ -28,8 +28,8 @@ def main():
         preview_bundle(first)
         engine = source / 'engine.cpp'
         original = engine.read_text()
-        require(original.count('voice->phase += pitch[i];') == 1, 'Tutorial edit no longer matches the starter')
-        engine.write_text(original.replace('voice->phase += pitch[i];', 'voice->phase += pitch[i] / 2;'))
+        require(original.count('voice.phase += pitch[i];') == 1, 'Tutorial edit no longer matches the starter')
+        engine.write_text(original.replace('voice.phase += pitch[i];', 'voice.phase += pitch[i] / 2;'))
         try:
             preview_bundle(first)
         except ValueError as error:
