@@ -156,14 +156,18 @@ def scaffold(out, identity, name):
         artwork.append(f'  <circle id="{identity}" cx="640" cy="0" r="1" fill="{color}" stroke="{color}" stroke-width="1"/>')
     artwork.append('</g>')
     (out / 'panel.svg.fragment').write_text('\n'.join(artwork) + '\n', encoding='utf-8')
-    metadata(source_files(out))
     from .machines import free_synth_identity
+    # Used once the folder moves to machines/<id>/ for a device build: an identity
+    # no machine in this repository uses.
+    record = {'schema': 1, 'kind': 'synth', 'description': name, 'identity': free_synth_identity()}
+    (out / 'machine.json').write_text(json.dumps(record, indent=2) + '\n', encoding='utf-8')
+    metadata(source_files(out))
+    python = 'python3' if Path(sys.executable).name.startswith('python3') else 'python'
     print('Created local machine: ' + str(out))
-    print('Preview with: python sdk.py preview --source "' + str(out) + '" --out local/my-preview-001'
+    print(f'Preview with: {python} sdk.py preview --source "{out}" --out local/my-preview-001'
           ' (add --cxx <clang++> if doctor --preview needed one)')
-    print('To build it for the device (docs/build.md, step 3), its machine.json can be:')
-    print(json.dumps({'schema': 1, 'kind': 'synth', 'description': name,
-                      'identity': free_synth_identity()}, indent=2))
+    print(f'machine.json suggests engine {record["identity"]["engine"]}, page {record["identity"]["page"]} '
+          'for a device build, free in this repository (docs/build.md, step 3).')
 
 
 def square_outline(points, half=32):
@@ -179,7 +183,7 @@ def square_outline(points, half=32):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Create a browser-only machine with portable C++ sound and display callbacks')
-    parser.add_argument('--id', required=True, help='lower-case machine ID, also its folder name in machines/')
+    parser.add_argument('--id', required=True, help='lower-case machine ID; a device build moves the folder to machines/<id>/')
     parser.add_argument('--name', required=True, help='name shown on the OP-XY')
     parser.add_argument('--out', required=True, type=Path, help='new folder for the machine source, such as local/mymachine')
     args = parser.parse_args(argv)

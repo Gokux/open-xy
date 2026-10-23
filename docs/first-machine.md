@@ -100,7 +100,7 @@ does not change your machine.
 | `definition.json` | Name, four controls, presets and declared state sizes |
 | `core.h`, `engine.cpp` | `Voice` and `Shared` state, lifecycle callbacks and the 64-sample render |
 | `display.h`, `display.cpp` | Display state and drawing callback |
-| `panel.svg.fragment` | Artwork; IDs follow the drawing convention (`local_node_N`, `local_palette_N`) |
+| `panel.svg.fragment` | Artwork; IDs follow the drawing convention (`local_panel`, `local_node_N`, `local_palette_N`) |
 
 Change labels and presets directly in `definition.json`; custom previews read it
 when building, with no separate JavaScript definition generator. Parameter

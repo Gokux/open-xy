@@ -50,26 +50,29 @@ stock-1.2.0/
 For example, keep the folder in `%LOCALAPPDATA%/OPXY-SDK/private/` on Windows or
 `~/Library/Application Support/OPXY-SDK/private/` on macOS. The build accepts
 only the exact stock files: an encrypted `.tfw` is a different format, and an
-installed Open-XY build replaces `/content/op1_factory.json`.
+installed Open-XY build replaces `/content/op1_factory.json`. `--stock-content`
+is whichever folder holds `op1_factory.json`.
 
 ## 3. Add your machine
 
-Start from [your first machine](first-machine.md). `sdk.py new` prints a
-`machine.json` with an engine ID and page no machine in this repository uses.
-To build it for the device:
+Start from [your first machine](first-machine.md); `sdk.py new` needs no
+preview tools. Its `machine.json` holds an engine ID and page no machine in
+this repository uses. To build it for the device:
 
-1. Move its folder to `machines/<id>/` and rename its artwork IDs from
-   `local_` to `<id>_` in `panel.svg.fragment`.
-2. Save the printed `machine.json` there, or write one with another free
+1. Move its folder to `machines/<id>/` and rename every `local_` prefix in
+   `panel.svg.fragment` to `<id>_`.
+2. Keep its `machine.json`, or give it another free
    [identity](api.md#identity) ([fields](api.md#registration-boundary)). Names
    and IDs are saved in presets and projects, so they never change once
    published.
-3. Add `<id>` to `profiles/collection.json`. Remove machines you don't want;
-   all selected machines share 508 KiB ([memory and limits](api.md#memory-and-limits)).
+3. Add `<id>` to `profiles/collection.json`. All selected machines share
+   508 KiB ([memory and limits](api.md#memory-and-limits)) and the bundled ones
+   use most of it, Macro Osc about 300 KiB; remove machines you don't want to
+   make room.
 
 `python sdk.py compile --out <folder>` then builds the module alone, without
 stock files, and prints each machine's memory use: a quick check before the
-full build.
+full build. Like build outputs, keep `<folder>` outside the checkout.
 
 ## 4. Build
 
@@ -78,8 +81,8 @@ python sdk.py build --stock-os <stock-1.2.0>/os.ldr --stock-content <stock-1.2.0
 ```
 
 Use a new `--out` folder for every build, also outside the checkout; a failed
-build leaves none behind. The build prints a summary of its checks and fails
-on any check below. The installable files are in `<out>/candidate/`.
+build leaves none behind. The build fails on any check below; on success it
+prints its results as JSON, then the files to install from `<out>/candidate/`.
 
 ## 5. Install
 
