@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createWizard} from '../builder/wizard.mjs';
 import * as Visuals from '../builder/visuals.mjs';
+import {sha256} from '../builder/core.mjs';
+import {fakeDevice} from './fixtures/mtp.mjs';
 
 // Minimal DOM for exercising the real wizard's navigation and device guards.
 class Element {
@@ -15,6 +17,94 @@ class Element {
   addEventListener() {}
   focus() {}
 }
+
+function sourceFlow(t, {fake, bytes, hash, usb = true}) {
+  const html = readFileSync(new URL('../builder/index.html', import.meta.url), 'utf8');
+  const elements = new Map([...html.matchAll(/<[^>]*\bid="([^"]+)"[^>]*>/g)].map(([tag, id]) =>
+    [id, Object.assign(new Element(), {hidden: /\bhidden\b/.test(tag)})]));
+  const $ = id => { assert.ok(elements.has(id), id); return elements.get(id); };
+  let requests = 0, accepted = [];
+  const globals = {
+    document: {getElementById: $, createElement: () => new Element(), createElementNS: () => new Element(),
+      querySelector: () => new Element()},
+    window: {addEventListener() {}}, matchMedia: () => ({matches: true}), isSecureContext: true,
+    navigator: {usb: usb ? {requestDevice: async () => { requests++; return fake.device; }} : undefined},
+  };
+  for (const [name, value] of Object.entries(globals)) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, {value, configurable: true});
+    t.after(() => previous ? Object.defineProperty(globalThis, name, previous) : delete globalThis[name]);
+  }
+  const wizard = createWizard({getKit: () => ({profile: {stock_bytes: bytes.length, stock_sha256: hash}, machines: []}),
+    getSelected: () => [], hasDownload: () => true, getFiles: () => ({}),
+    onFirmware: async (file, isCurrent) => { assert.equal(isCurrent(), true); accepted.push(new Uint8Array(await file.arrayBuffer())); return true; }});
+  const click = label => {
+    const button = $('flow-actions').children.find(b => b.id === label || b.textContent === label);
+    assert.ok(button, `Missing action: ${label}`); assert.equal(button.disabled, false); return button.onclick();
+  };
+  const reachTransfer = computer => {
+    $('source-' + computer).onclick(); $('source-device').onclick();
+    click('version-yes'); click('Connected and at te-boot'); click('menu-yes');
+    assert.equal($('device-flow').dataset.stage, 'open-dev-menu');
+    click('Factory menu is open'); click('I see "mtp mode active"');
+  };
+  return {$, wizard, click, reachTransfer, accepted, requests: () => requests};
+}
+
+test('Mac reads and verifies the original OS, then remembers transfer mode for installation', async t => {
+  const bytes = Uint8Array.from({length: 2048}, (_, i) => i * 7);
+  const fake = fakeDevice({files: {'upgrade/firmware/blackfin/bin/os.ldr': bytes, 'os.ldr': Uint8Array.of(99)}, split: true});
+  const f = sourceFlow(t, {fake, bytes, hash: await sha256(bytes)}), {$, click} = f;
+  assert.equal($('computer-choice').hidden, false); assert.equal($('source-start').hidden, true);
+  f.reachTransfer('mac');
+  assert.equal($('flow-title').textContent, 'Quit Field Kit and OpenMTP.');
+  assert.equal(f.requests(), 0); assert.equal($('flow-install-reminder').hidden, true);
+  click('field-kit-closed'); await click('mtp-read');
+  assert.deepEqual(f.accepted, [bytes]); assert.equal(fake.state.opened, false);
+  assert.equal($('file-panel').hidden, false); assert.equal($('device-flow').hidden, true);
+  assert.equal($('source-backup').hidden, false); assert.match($('source-backup').href, /^blob:/);
+  assert.deepEqual(new Uint8Array(await (await fetch($('source-backup').href)).arrayBuffer()), bytes);
+  f.wizard.clearSourceBackup(); assert.equal($('source-backup').hidden, true);
+  assert.ok(!fake.state.ops.some(op => ['100b', '100c', '100d'].includes(op)));
+  f.wizard.navigate(3);
+  assert.equal($('download').hidden, true); assert.equal($('route-mac').hidden, false);
+  $('route-mac').onclick({preventDefault() {}});
+  assert.equal($('device-flow').dataset.stage, 'close-field-kit');
+  click('field-kit-closed'); assert.equal($('flow-title').textContent, 'Send the files to your OP–XY.');
+  assert.equal($('flow-install-reminder').hidden, false);
+});
+
+test('wrong stock hash, missing original and busy apps never load an OS', async t => {
+  const bytes = Uint8Array.of(1, 2, 3), hash = await sha256(bytes);
+  for (const options of [{files: {'upgrade/firmware/blackfin/bin/os.ldr': Uint8Array.of(4, 5, 6)}},
+    {files: {'os.ldr': bytes}}, {busy: true}]) await t.test(JSON.stringify(options), async t => {
+    const fake = fakeDevice(options), f = sourceFlow(t, {fake, bytes, hash});
+    f.reachTransfer('mac'); f.click('field-kit-closed'); await f.click('mtp-read');
+    assert.deepEqual(f.accepted, []); assert.equal(f.$('dev-status').dataset.error, 'true');
+    assert.equal(f.$('device-flow').dataset.stage, 'transfer'); assert.equal(fake.state.opened, false);
+    assert.ok(!fake.state.ops.some(op => ['100b', '100c', '100d'].includes(op)));
+  });
+});
+
+test('Windows and browsers without WebUSB keep the manual source path', async t => {
+  for (const [computer, usb] of [['windows', true], ['mac', false]]) await t.test(computer, t => {
+    const f = sourceFlow(t, {fake: fakeDevice(), bytes: new Uint8Array(1), hash: '', usb});
+    f.reachTransfer(computer);
+    assert.equal(f.$('device-flow').dataset.stage, 'transfer');
+    assert.equal(f.$('flow-title').textContent, 'Copy the OS file.');
+    assert.equal(f.requests(), 0); assert.equal(f.$('flow-install-reminder').hidden, true);
+  });
+});
+
+test('stopping a Mac read discards it and releases USB before a retry', async t => {
+  const bytes = new Uint8Array(32), fake = fakeDevice({files: {'upgrade/firmware/blackfin/bin/os.ldr': bytes}, hang: 0x1009});
+  const f = sourceFlow(t, {fake, bytes, hash: await sha256(bytes)});
+  f.reachTransfer('mac'); f.click('field-kit-closed'); const reading = f.click('mtp-read');
+  while (!fake.state.abort) await new Promise(resolve => setTimeout(resolve, 0));
+  f.$('dev-cancel').onclick(); await reading;
+  assert.deepEqual(f.accepted, []); assert.equal(fake.state.opened, false);
+  assert.equal(f.$('dev-cancel').hidden, true);
+});
 
 test('installation links preview the edited steps without a build or device access', async t => {
   const html = readFileSync(new URL('../builder/index.html', import.meta.url), 'utf8');
@@ -82,6 +172,12 @@ test('installation links preview the edited steps without a build or device acce
     assert.equal(wizard.previewLink('#preview/mac/' + stage), true);
     assert.equal($('flow-install-reminder').hidden, true);
   }
+  assert.equal(wizard.previewLink('#preview/source/mac/transfer'), true);
+  assert.equal(wizard.previewPage(), 1);
+  assert.equal($('flow-install-reminder').hidden, true);
+  assert.equal(action('mtp-read').disabled, true);
+  await action('mtp-read').onclick();
+  assert.equal(deviceRequests, 0);
   wizard.previewLink('#preview/mac/menu');
   action('menu-no').onclick();
   assert.equal(action('dev-connect').disabled, true);
@@ -124,4 +220,10 @@ test('installation links preview the edited steps without a build or device acce
   assert.equal($('risk-gate').hidden, false);
   assert.equal($('builder-workspace').inert, true);
   assert.equal(deviceRequests, 0);
+  location.hash = '#preview/source/mac/transfer';
+  listeners.get('hashchange')();
+  assert.equal($('device-flow').dataset.stage, 'transfer');
+  assert.equal($('risk-gate').hidden, true);
+  assert.equal(action('mtp-read').disabled, true);
+  assert.equal(pages[0].hidden, false);
 });

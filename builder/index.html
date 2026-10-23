@@ -35,10 +35,16 @@
   <p id="status" role="status" aria-live="polite">Loading machines…</p>
   <section data-page="1" class="input-page" aria-labelledby="input-title">
     <div class="page-header"><div><span class="eyebrow">Step 1 of 3 · OS</span><h1 id="input-title" tabindex="-1">Choose OS</h1><p>open-xy supports only OP–XY OS 1.2.0. Update your OP–XY to 1.2.0 before you start.</p></div></div>
-    <section id="source-start" class="panel flow-shell" aria-labelledby="source-title">
+    <section id="computer-choice" class="panel flow-shell" aria-labelledby="computer-title">
+      <h2 id="computer-title" tabindex="-1">Which computer are you using?</h2>
+      <p>Choose your computer so we can show the right file transfer steps.</p>
+      <div class="flow-actions"><button id="source-mac" class="primary">Mac</button><button id="source-windows">Windows</button></div>
+    </section>
+    <section id="source-start" class="panel flow-shell" aria-labelledby="source-title" hidden>
       <h2 id="source-title" class="sr-only" tabindex="-1">Choose an OS source</h2>
       <div id="source-device-art" class="device-art"></div>
       <div class="flow-actions"><button id="source-local" class="primary">Choose OS</button><button id="source-device">I don’t have the OS file</button></div>
+      <button id="source-computer-change" class="text-button">Change computer</button>
       <p class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
     </section>
     <div id="source-flow-host" class="flow-shell"></div>
@@ -46,6 +52,7 @@
     <h2 id="files-title" class="sr-only">Choose files</h2>
     <label class="drop" id="firmware-drop"><span class="file-icon" data-icon="firmware" aria-hidden="true"></span><strong>Choose OS</strong><span>or drop os.ldr here</span><input id="firmware" type="file" accept=".ldr" aria-label="Choose OS"></label>
     <p id="firmware-result" class="file-result">OP–XY OS 1.2.0 · original or open-xy</p>
+    <a id="source-backup" class="file-button" download="os.ldr" hidden>Save a backup of the original OS</a>
     <p class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
     <details><summary>Load a saved selection</summary><input id="restore" type="file" accept=".json" aria-label="Load a saved selection"></details>
     </section>
@@ -64,10 +71,10 @@
     <div class="page-header"><div><span class="eyebrow">Step 3 of 3 · Install</span><h1 id="download-title" tabindex="-1">Install</h1><p id="download-summary"></p></div></div>
     <div id="download-overview" class="download-overview flow-shell">
     <div class="download-card"><div id="bundle-art"></div><h2>Ready to install</h2>
-      <div id="route-choice" class="route-choice"><p>Which computer will you install from?</p><div class="route-options">
+      <div id="route-choice" class="route-choice"><p id="route-title">Which computer will you install from?</p><div class="route-options">
         <button type="button" id="route-mac" class="route-option"><strong>Mac <span aria-hidden="true">→</span></strong><span id="route-mac-note"></span></button>
         <a id="download" class="route-option" download="open-xy.zip"><strong>Windows <span aria-hidden="true">↓</span></strong><span>Downloads the ZIP. Copy it with File Explorer.</span></a>
-      </div></div></div>
+      </div><button id="route-change" class="text-button" hidden>Change computer</button></div></div>
     <p class="qualification">Checks passed. This combination hasn’t been tested on a device, so CPU load and recovery aren’t guaranteed.</p>
     <details><summary>What was checked</summary><ul><li>Your OS file matched OP–XY OS 1.2.0 exactly</li><li>Only the reviewed changes were made, and the machines fit their memory</li><li>The original OS can be rebuilt from the new one</li></ul><p id="output-hash" class="hash"></p></details>
     </div>

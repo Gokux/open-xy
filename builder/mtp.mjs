@@ -1,5 +1,5 @@
 // MTP over WebUSB for an OP–XY in "mtp file transfer (mac)" mode. Sends files
-// to paths below the device's top level, creating missing folders. The only
+// to paths below the device's top level, or reads existing files. The only
 // deletion is a same-named file the caller agreed to replace; folders are never
 // replaced or deleted. Windows binds its own MTP driver, so WebUSB cannot open
 // the device there; Windows keeps the File Explorer steps.
@@ -8,7 +8,7 @@ const VENDOR = 0x2367, VENDOR_CLASS = 0xff, ROOT = 0xffffffff;
 const COMMAND = 1, DATA = 2, RESPONSE = 3;
 const OK = 0x2001, SESSION_ALREADY_OPEN = 0x201e;
 const OPEN_SESSION = 0x1002, CLOSE_SESSION = 0x1003, STORAGE_IDS = 0x1004, OBJECT_HANDLES = 0x1007,
-  OBJECT_INFO = 0x1008, DELETE_OBJECT = 0x100b, SEND_OBJECT_INFO = 0x100c, SEND_OBJECT = 0x100d;
+  OBJECT_INFO = 0x1008, GET_OBJECT = 0x1009, DELETE_OBJECT = 0x100b, SEND_OBJECT_INFO = 0x100c, SEND_OBJECT = 0x100d;
 const UNDEFINED_FORMAT = 0x3000, FOLDER_FORMAT = 0x3001;
 // A multiple of every bulk packet size, so only the final transfer can be short.
 const CHUNK = 1 << 20;
@@ -132,10 +132,30 @@ export class Device {
     const files = new Map();
     for (const handle of readWords(payload)) {
       const info = this.#expect(await this.#run(OBJECT_INFO, [handle]), 'list its files').payload;
-      files.set(readString(info, 52), {handle, folder: view(info).getUint16(4, true) === FOLDER_FORMAT});
+      if (!info || info.length < 53 || 53 + info[52] * 2 > info.length) throw new Error('Unexpected file information from your OP–XY.');
+      const name = readString(info, 52);
+      if (files.has(name)) throw new Error(`Your OP–XY has more than one file named ${name}.`);
+      files.set(name, {handle, size: view(info).getUint32(8, true), folder: view(info).getUint16(4, true) === FOLDER_FORMAT});
     }
     this.#listings.set(parent, files);
     return files;
+  }
+  // Resolve an existing path without creating folders or changing device files.
+  async read(path, {maxBytes = 16 * 1024 ** 2, onProgress = () => {}} = {}) {
+    const names = segments(path);
+    let parent = ROOT, file;
+    for (const [index, name] of names.entries()) {
+      file = (await this.#children(parent)).get(name);
+      if (!file) throw new Error(`Your OP–XY does not have ${path}. Copy the OS manually instead.`);
+      if (file.folder !== (index < names.length - 1)) throw new Error(`Unexpected file or folder at ${path}.`);
+      parent = file.handle;
+    }
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || file.size > maxBytes) throw new Error('That file is too large to read.');
+    const {payload} = this.#expect(await this.#run(GET_OBJECT, [file.handle], null, () => {},
+      {maxBytes, onProgress}), 'read ' + path);
+    if (!payload || payload.length !== file.size) throw new Error('The OS file transfer was incomplete. Try again.');
+    onProgress(1);
+    return payload;
   }
   // The handle of a folder path, creating missing folders on the way.
   async #folder(names, onStep) {
@@ -175,7 +195,7 @@ export class Device {
     const {params} = this.#expect(await this.#run(SEND_OBJECT_INFO, [this.#storage, parent],
       objectInfo(this.#storage, name, bytes.length, parent)), 'accept ' + path);
     this.#expect(await this.#run(SEND_OBJECT, [], bytes, onProgress), 'save ' + path);
-    siblings.set(name, {handle: params[2], folder: false});
+    siblings.set(name, {handle: params[2], size: bytes.length, folder: false});
     return true;
   }
   // Safe to call at any time. A pending transfer is cancelled with the MTP class
@@ -218,14 +238,17 @@ export class Device {
     }
     return result;
   }
-  async #run(code, params = [], data = null, onProgress = () => {}) {
+  async #run(code, params = [], data = null, onProgress = () => {}, receiveOptions = {}) {
     const id = this.#current = this.#transaction++;
     this.#running = true;
     try {
       await this.#send(container(COMMAND, code, id, words(params)));
       if (data) await this.#send(container(DATA, code, id, data), onProgress);
-      let reply = await this.#receive(), payload = null;
-      if (reply.type === DATA) { payload = reply.payload; reply = await this.#receive(); }
+      let reply = await this.#receive(receiveOptions), payload = null;
+      if (reply.type === DATA) {
+        if (reply.id !== id || reply.code !== code) throw new Error('Unexpected data from your OP–XY.');
+        payload = reply.payload; reply = await this.#receive();
+      }
       if (reply.type !== RESPONSE || reply.id !== id) throw new Error('Unexpected reply from your OP–XY.');
       return {code: reply.code, payload, params: readParams(reply.payload)};
     } catch (error) {
@@ -247,15 +270,20 @@ export class Device {
     if (result.status !== 'ok') throw new Error(STOPPED);
     return new Uint8Array(result.data.buffer, result.data.byteOffset, result.data.byteLength);
   }
-  async #receive() {
+  async #receive({maxBytes = 16 * 1024 ** 2, onProgress = () => {}} = {}) {
     let first;
     do first = await this.#read(); while (!first.length);  // skip a trailing zero-length packet
     if (first.length < 12) throw new Error('Unexpected reply from your OP–XY.');
     const v = view(first), length = v.getUint32(0, true), parts = [first];
+    if (length < 12 || length > maxBytes + 12 || first.length > length) throw new Error('Unexpected transfer size from your OP–XY.');
+    const progress = have => { if (v.getUint16(4, true) === DATA) onProgress(length === 12 ? 1 : (have - 12) / (length - 12)); };
+    progress(first.length);
     for (let have = first.length; have < length;) {
       const more = await this.#read();
       if (!more.length) throw new Error('Unexpected reply from your OP–XY.');
       parts.push(more); have += more.length;
+      if (have > length) throw new Error('Unexpected transfer size from your OP–XY.');
+      progress(have);
     }
     const whole = concat(...parts).subarray(0, length);
     return {type: v.getUint16(4, true), code: v.getUint16(6, true), id: v.getUint32(8, true), payload: whole.subarray(12)};

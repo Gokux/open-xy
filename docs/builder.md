@@ -7,16 +7,24 @@ leaves the browser.
 ## Using the builder
 
 1. Acknowledge the risk notice (asked again on every load).
-2. Choose the OS: the decrypted OP-XY OS 1.2.0 file `os.ldr`, or an Open-XY
+2. Choose Mac or Windows, then choose the OS: the decrypted OP-XY OS 1.2.0 file `os.ldr`, or an Open-XY
    build to change. Only OS 1.2.0 is supported; the `.tfw` update files teenage
    engineering hosts are a different, encrypted format. The stock file is in a
    device capture at `/upgrade/firmware/blackfin/bin/os.ldr`; a previously
-   installed Open-XY build is at `/os.ldr`. A guide first confirms the device
-   runs OS 1.2.0, then walks through enabling the dev menu and copying the file.
+   installed Open-XY build is at `/os.ldr`. On a Mac with WebUSB (desktop Chrome
+   or Edge), select **Read OS from OP-XY**. The guide confirms OS 1.2.0, opens
+   Mac file transfer mode and asks you to quit Field Kit and OpenMTP. It reads
+   the original firmware path, checks the exact stock hash and loads the OS
+   directly into the builder, with an optional backup download. It does not change device files or fall back to
+   the patched root OS. Keep file transfer open to resume installation later.
+   Windows and browsers without WebUSB use the manual copy guide; Mac users
+   can also choose **Copy it myself instead**.
 3. Select machines. Synth rows have a playable preview of their C++ sound and
    display code; each row shows its code, data and state size against the
    memory meter.
-4. Download the ZIP and follow the installation guide for Windows or Mac.
+4. Follow the installation guide using the remembered computer choice. Mac
+   browsers with WebUSB send the files directly; Windows downloads a ZIP to
+   copy with File Explorer. The OS write step on the device is still manual.
 
 The ZIP contains:
 
@@ -45,7 +53,8 @@ enables or disables the dev menu after an explicit click and browser MIDI
 permission. It sets or removes only the `bootloader.dev` flag; it never
 transfers firmware. Refresh the menu with track 8 twice to see the result. MIDI
 needs a desktop browser and a secure context; otherwise the helper links to
-hosted Ferret. Installing firmware is a manual file copy.
+hosted Ferret. The separate WebUSB MTP client reads or sends files only after
+an explicit click and USB permission, and releases the connection afterwards.
 
 ## Capacity and identity
 
@@ -72,7 +81,9 @@ npm run test:web
 
 Installation screens have direct preview links, such as
 `http://127.0.0.1:8918/#preview/mac/transfer`, `#preview/mac/exit-transfer`
-and `#preview/mac/write-os`. Replace `mac` with `windows` to see the manual
+and `#preview/mac/write-os`. The original-OS flow uses
+`#preview/source/mac/close-field-kit` and `#preview/source/mac/transfer`.
+Replace `mac` with `windows` to see the manual
 copy route. These developer links open the selected step immediately, skipping
 the disclaimer and requiring no OS file or build. Device actions are disabled in previews;
 **Preview next step** continues past the send screen. These URLs are developer
