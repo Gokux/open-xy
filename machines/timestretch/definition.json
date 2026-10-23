@@ -23,7 +23,7 @@
         "minimum": -1,
         "maximum": 1
       },
-      "display": "percent"
+      "display": "bipolar"
     },
     {
       "id": "end",
@@ -34,7 +34,7 @@
         "minimum": -1,
         "maximum": 1
       },
-      "display": "percent"
+      "display": "bipolar"
     },
     {
       "id": "play",
@@ -69,10 +69,10 @@
       "default": 0.5,
       "mapping": {
         "kind": "linear",
-        "minimum": -140,
-        "maximum": 140
+        "minimum": -1,
+        "maximum": 1
       },
-      "display": "ratio"
+      "display": "bipolar"
     },
     {
       "id": "mode",

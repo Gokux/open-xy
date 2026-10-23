@@ -78,7 +78,7 @@ ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
 # A sample engine's optional services: integer 0/1 flags and the analysis budget.
 SAMPLE_FLAGS = ('chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput')
 SAMPLE_OPTIONS = ('sampleAnalysis', *SAMPLE_FLAGS)
-DISPLAY_FORMATS = ('ratio', 'percent', 'duration', 'semitones', 'enum')
+DISPLAY_FORMATS = ('ratio', 'percent', 'bipolar', 'duration', 'semitones', 'enum')
 # Synths fill the four-control page; sample engines and effects use up to the
 # stock eight-word parameter vector.
 CONTROLS = {'synth': (4, 4), 'sample': (1, 8), 'effect': (1, 8)}
