@@ -1,4 +1,6 @@
 // Host contract checks for the actual GUI policy with stock-boundary doubles.
+// One translation unit, so the doubles take the platform declarations' symbol names on every host.
+#include <sample_progress.cpp>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -16,7 +18,6 @@ extern "C" int sdk_sample_popup_matches(const char* text, unsigned size) {
 extern "C" void sdk_sample_popup_publish(const char* text, unsigned seconds) {
     std::strcpy(popup, text); active = true; duration = seconds; ++publications;
 }
-extern "C" void sdk_sample_progress_update(unsigned, unsigned, unsigned);
 static void require(bool value) { if (!value) std::abort(); }
 
 int main() {

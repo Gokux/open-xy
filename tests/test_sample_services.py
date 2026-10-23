@@ -65,7 +65,7 @@ class SampleServices(unittest.TestCase):
         self.run_fixture('sample_cache')
 
     def test_progress_never_takes_over_another_notification(self):
-        self.run_fixture('sample_progress', ('sdk/platform/opxy-1.2.0/sample_progress.cpp',))
+        self.run_fixture('sample_progress')
 
     def test_saved_settings_tuning_and_trim_bounds(self):
         self.run_fixture("stock_sample")

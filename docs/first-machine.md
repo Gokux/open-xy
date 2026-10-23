@@ -20,8 +20,11 @@ python -m venv .venv
 .venv/Scripts/python.exe sdk.py doctor --preview --cxx "C:/Program Files/LLVM/bin/clang++.exe"
 ```
 
-On macOS or Linux, use `.venv/bin/python` instead of `.venv/Scripts/python.exe`,
-and `--cxx /path/to/clang++` for your LLVM installation. The commands below use
+On macOS or Linux, create it with `python3 -m venv .venv`, use `.venv/bin/python`
+instead of `.venv/Scripts/python.exe`, and pass `--cxx /path/to/clang++` for your
+LLVM installation. Apple's Xcode Clang has no `wasm32` linker: on macOS install
+Homebrew's `llvm` and `lld` and pass `--cxx "$(brew --prefix llvm)/bin/clang++"`.
+The commands below use
 `python` for that environment's interpreter; substitute its full path if you
 have not activated it. Omit `--cxx` when the correct Clang is already on PATH.
 
