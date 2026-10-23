@@ -1,7 +1,7 @@
 """Relocated engine-record and screen-slot tables: profile, layout and templates.
 
 No Blackfin code is compiled here. These checks keep the profile edits, the
-linker layout and the generated registration consistent with the audited
+linker layout and the stock side of registration consistent with the audited
 constants in opxy_sdk/stock_tables.py.
 """
 import copy
@@ -11,8 +11,7 @@ import tempfile
 import unittest
 
 from opxy_sdk import stock_tables as tables
-from opxy_sdk.adapters import generate_registration
-from opxy_sdk.machines import machine
+from opxy_sdk.adapters import generate_registration_stock
 from opxy_sdk.firmware import hooks
 from opxy_sdk.pipeline import config
 
@@ -71,17 +70,16 @@ class Layout(unittest.TestCase):
                              tables.RESERVATION_END)
 
 
-class Templates(unittest.TestCase):
-    def generated(self, leaf):
+class Registration(unittest.TestCase):
+    def test_stock_side_names_only_relocated_tables(self):
         with tempfile.TemporaryDirectory() as directory:
-            return generate_registration(directory, leaf, machine=machine('macroosc'), screen_bytes=320).read_text(encoding='utf-8')
-
-    def test_expansion_names_only_relocated_tables(self):
-        for leaf in ('register', 'readiness', 'screen_register'):
-            text = self.generated(leaf)
-            self.assertNotIn('%#x' % tables.STOCK_ENGINE_RECORDS, text)
-            self.assertNotIn('%#x' % tables.STOCK_SCREEN_SLOTS, text)
-            self.assertNotIn('= 81;', text)
+            text = generate_registration_stock(directory).read_text(encoding='utf-8')
+        self.assertIn('const Registry kEngines = {%#x, %d, %d,' % (tables.ENGINE_RECORDS, tables.ENGINE_COUNT,
+                                                                     tables.ENGINE_SENTINEL), text)
+        self.assertIn('const Pages kPages = {%d,' % tables.SCREEN_COUNT, text)
+        self.assertIn('%#x' % tables.SCREEN_SLOTS, text)
+        self.assertNotIn('%#x' % tables.STOCK_ENGINE_RECORDS, text)
+        self.assertNotIn('%#x' % tables.STOCK_SCREEN_SLOTS, text)
 
 
 if __name__ == '__main__':

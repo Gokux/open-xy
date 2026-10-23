@@ -1,45 +1,33 @@
-"""Generated startup continuations for any number of curated engines."""
+"""Generated startup glue: its inputs and how it reaches stock.
+
+Its behavior runs on the host in test_sample_services.py (fixtures/startup.cpp).
+"""
 import re
 import unittest
 
+from opxy_sdk.native import DEFINITIONS
 from opxy_sdk.startup import MAX_ENGINES, render
 
 
-def calls(text):
-    return re.findall(r'(?:CALL|JUMP\.L) (\w+);', text)
-
-
 class Startup(unittest.TestCase):
-    def test_each_engine_registers_on_both_paths_in_ledger_order(self):
-        text = render(['fm2op', 'macroosc', 'third'])
-        synth, rest = text.split('.Lsynth_done:')
-        screen, catalog = rest.split('extensions_catalog_checked:')
-        self.assertEqual([c for c in calls(synth) if c.endswith('_draft')],
-                         ['fm2op_register_checked_draft', 'macroosc_register_checked_draft', 'third_register_checked_draft'])
-        self.assertEqual([c for c in calls(screen) if c.endswith('screen_register_checked')],
-                         ['fm2op_screen_register_checked', 'macroosc_screen_register_checked', 'third_screen_register_checked'])
-        # A failed page guard skips only that engine's GUI-side registration.
-        self.assertIn('    IF !CC JUMP .Lscreen_macroosc;', screen)
-        self.assertIn('    IF !CC JUMP .Lscreen_done;', screen)
-        self.assertEqual(screen.count('    CALL third_register_checked_draft;'), 1)
+    def test_stock_is_reached_only_through_link_time_definitions(self):
+        # Browser kits relink this object, so it names stock and machine IDs as symbols.
+        text = render(['fm2op', 'macroosc', 'timestretch'], ['decimate'], ['timestretch'])
+        self.assertIsNone(re.search(r'0x[0-9a-fA-F]+', text))
+        stock = set(re.findall(r'__asm__\("(stock_\w+)"\)', text))
+        self.assertEqual(stock, {'stock_catalog_insert', 'stock_gui_role'})
+        self.assertLessEqual(stock, set(DEFINITIONS))
+        for prefix in ('fm2op', 'macroosc', 'timestretch'):
+            self.assertIn(f'__asm__("{prefix}_engine_id")', text)
+        self.assertNotIn('timestretch_screen_register', text)
 
-    def test_first_engine_delegates_and_others_route_by_name(self):
-        catalog = render(['fm2op', 'macroosc', 'third']).split('extensions_catalog_checked:')[1]
-        self.assertEqual([c for c in calls(catalog) if c.endswith('_name_matches')],
-                         ['third_name_matches', 'macroosc_name_matches'])
-        self.assertEqual([c for c in calls(catalog) if c.endswith('_catalog_checked')],
-                         ['fm2op_catalog_checked', 'third_catalog_checked', 'macroosc_catalog_checked'])
-        self.assertNotIn('fm2op_name_matches', catalog)
-
-    def test_single_engine_has_no_routes(self):
-        text = render(['fm2op'])
-        self.assertNotIn('_name_matches', text)
-        self.assertIn('    JUMP.L fm2op_catalog_checked;', text)
-
-    def test_rejects_invalid_engine_lists(self):
+    def test_rejects_invalid_machine_lists(self):
         for prefixes in ([], ['fm2op', 'fm2op'], ['Bad'], ['x%d' % i for i in range(MAX_ENGINES + 1)]):
             with self.subTest(prefixes=prefixes[:3]), self.assertRaises(ValueError):
                 render(prefixes)
+        for effects, stock_page in ((['fm2op'], ()), ((), ['other'])):
+            with self.subTest(effects=effects), self.assertRaises(ValueError):
+                render(['fm2op'], effects, stock_page)
 
 
 if __name__ == '__main__':

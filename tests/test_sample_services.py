@@ -1,4 +1,4 @@
-"""Native qualification executes the real sample services with host boundary doubles."""
+"""Native qualification executes the real SDK services with host boundary doubles."""
 import os
 from pathlib import Path
 import subprocess
@@ -7,6 +7,7 @@ import unittest
 from dataclasses import replace
 from opxy_sdk.adapters import generate_sample_callbacks
 from opxy_sdk.machines import machine
+from opxy_sdk.startup import generate as generate_startup
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,6 +38,8 @@ class SampleServices(unittest.TestCase):
             if name == 'sample_callbacks':
                 probe = replace(machine('timestretch'), id='probe', identity=dict(engine=46, page=7))
                 generate_sample_callbacks(folder, [probe])
+            if name == 'startup':
+                generate_startup(folder, ['first', 'second', 'sampled'], ['effect'], ['sampled'])
             command = [HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror',
                        '-I' + str(folder), '-I' + str(ROOT / 'sdk/include'),
                        '-I' + str(ROOT / 'sdk/platform/opxy-1.2.0'), str(ROOT / 'tests/fixtures' / (name + '.cpp')),
@@ -57,3 +60,9 @@ class SampleServices(unittest.TestCase):
 
     def test_callbacks_work_for_another_engine_and_preserve_stock_fields(self):
         self.run_fixture('sample_callbacks')
+
+    def test_registration_never_overwrites_and_rechecks_stock_state(self):
+        self.run_fixture('registration')
+
+    def test_startup_registers_in_order_and_gates_the_catalog(self):
+        self.run_fixture('startup')

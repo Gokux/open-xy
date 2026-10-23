@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT))
 from opxy_sdk.formats import elf32, ldr, mapped_offset, require, sha
 from opxy_sdk import screen, startup_label
 from opxy_sdk.adapters import catalog_defaults
-from opxy_sdk.firmware import assemble, decode_branch, hook_instruction
+from opxy_sdk.firmware import assemble, hook_instruction
 
 
 def check_startup_label(module, symbols, base):
@@ -24,23 +24,16 @@ def check_startup_label(module, symbols, base):
             'Unexpected startup label')
 
 
-# sdk/platform/opxy-1.2.0/fallback.s: kit_absent returns 0; kit_catalog_stock
-# returns 0 for the missing-engine ID 33 and otherwise tail-jumps to stock.
-FALLBACK_BEFORE_JUMP = bytes.fromhex('0060 1000 0b61 1a08 0318')
-FALLBACK_AFTER_JUMP = bytes.fromhex('0060 1000')
+# Unselected machines' callbacks resolve to kit_absent (startup.cpp.in): R0 = 0; RTS.
+ABSENT = bytes.fromhex('0060 1000')
 
 
-def check_fallbacks(module, symbols, base, stock_catalog_insert):
-    """Linked absent-machine stubs are the reviewed bytes; their one jump reaches stock catalog insertion."""
-    start = symbols['kit_absent']['value']
-    require(symbols['kit_absent']['size'] == 4 and symbols['kit_catalog_stock'] ==
-            dict(symbols['kit_catalog_stock'], value=start + 4, size=14), 'Unexpected absent-machine stub layout')
-    at, jump = start - base, start + len(FALLBACK_BEFORE_JUMP)
-    code = module[at:at + len(FALLBACK_BEFORE_JUMP) + 4 + len(FALLBACK_AFTER_JUMP)]
-    require(code.startswith(FALLBACK_BEFORE_JUMP) and code.endswith(FALLBACK_AFTER_JUMP),
-            'Absent-machine stubs differ from their source')
-    require(decode_branch(jump, code[len(FALLBACK_BEFORE_JUMP):len(FALLBACK_BEFORE_JUMP) + 4]) == (stock_catalog_insert, False),
-            'Absent-machine stub does not delegate to stock catalog insertion')
+def check_fallbacks(module, symbols, base):
+    """The linked absent-machine callback declines without side effects."""
+    absent = symbols['kit_absent']
+    at = absent['value'] - base
+    require(absent['size'] == len(ABSENT) and module[at:at + len(ABSENT)] == ABSENT,
+            'Absent-machine callback differs from its source')
 
 
 def main():
@@ -69,7 +62,7 @@ def main():
         module = prefix.with_suffix('.bin').read_bytes()
         require(sha(module) == result['module_sha256'], 'GNU module digest differs')
         low = kit['profile']['module_base']
-        check_fallbacks(module, symbols, low, kit['definitions']['stock_catalog_insert'])
+        check_fallbacks(module, symbols, low)
         check_startup_label(module, symbols, low)
         require(symbols['__extensions_initialized_end']['value'] - low == result['sizes']['initialized'] and
                 symbols['__extensions_module_end']['value'] - low == result['sizes']['allocated'] and
