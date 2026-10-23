@@ -81,7 +81,7 @@ a note, and unchanged stock defaults for the rest (see
 [`voice.cpp.in`](../sdk/platform/opxy-1.2.0/voice.cpp.in)). One adapter serves
 every synth.
 Render receives 64 output words and 8 parameter words. The SDK adds the stock
-per-sample pitch increments. Output is mono Q31 at half-scale peak. Stock
+per-sample pitch increments. Output is mono Q31 peaking at most at half scale. Stock
 velocity, envelope, filter and mixing run afterwards.
 
 ## Screens

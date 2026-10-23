@@ -89,7 +89,7 @@
     "voiceAlignment": 4,
     "voiceCapacity": 256,
     "sharedBytes": 0,
-    "outputPeakQ31": 1073741824,
+    "outputPeakQ31": 268435456,
     "display": {
       "kind": "drawing",
       "stateBytes": 60,

@@ -24,7 +24,7 @@ fails the build or, for the artwork rule, halts the device's SVG parser.
 | C++ | Freestanding C++11: no exceptions, RTTI, static constructors, allocation, OS headers, `#if`, inline assembly or platform macros |
 | Callbacks | Bounded work per 64-sample block; no blocking, logging, file access or graphics from audio callbacks |
 | Synth controls | Four control positions, plus up to four alternates; values arrive as Q31 and the stock menu stores Q15 defaults |
-| Audio | 64 frames at 44.1 kHz, Q31 output at half-scale peak; mono by default, optional stereo for sample engines |
+| Audio | 64 frames at 44.1 kHz, Q31 output peaking at most at half scale; mono by default, optional stereo for sample engines |
 | Identity | Name and IDs follow the [identity rules](#identity); they never change once published |
 | Sample engines | The sample is read-only and borrowed for the voice's lifetime |
 | Effects | State fits in 476 bytes and holds no resources (no destructor ever runs) |

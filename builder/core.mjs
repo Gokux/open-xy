@@ -393,7 +393,8 @@ function defaultPreset(machine) {
     Object.entries(amp).every(([key, value]) => ['attack', 'decay', 'release', 'sustain'].includes(key) &&
       Number.isInteger(value) && value >= 0 && value <= 32767), 'Invalid preset amp defaults');
   // Authored init settings in the device's version-4 preset structure. Engine
-  // controls come from its catalog, never from a copied factory sound.
+  // controls come from its catalog, never from a copied factory sound. Volume
+  // 16384 is half scale: the device's gain readout shows 50.
   return {
     engine: {
       bendrange: 8191, highpass: 0,
@@ -401,7 +402,7 @@ function defaultPreset(machine) {
         .map(source => [source, {amount: 16384, target: 0}])),
       params: [...entry.default_params], playmode: 'poly',
       'portamento.amount': 0, 'portamento.type': 0, transpose: 0,
-      'tuning.root': 0, 'tuning.scale': 0, 'velocity.sensitivity': 0, volume: 8192, width: 0,
+      'tuning.root': 0, 'tuning.scale': 0, 'velocity.sensitivity': 0, volume: 16384, width: 0,
     },
     envelope: {
       // Match a device-saved minimum amp release: the stored endpoint is 32767.

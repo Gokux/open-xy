@@ -16,6 +16,8 @@ encoder edits. Timbre, Color and FM Depth show 0.0–100.0 without a percent
 suffix. Shift + turn gives finer adjustment of continuous values.
 FM Ratio interpolates between its harmonic anchors, including intermediate
 ratios; the model selector stays discrete.
+Output is 6.8 dB below half scale (`kOutputLevel`), so a stock volume readout
+sounds about as loud as on stock instruments and 2op FM.
 
 ```sh
 python sdk.py preview --engine macroosc --out local/macro-preview-001
