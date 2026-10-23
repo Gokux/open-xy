@@ -337,13 +337,14 @@ export async function patchFirmware(kit, linked, stock) {
 
 // Recover only an exact output of this curated collection. The uploaded module
 // is compared with freshly linked code, never executed or reused for a build.
+const RECOVERABLE_MACHINES = 10;
 export async function recoverFirmware(kit, input) {
   const p = kit.profile;
   if (input.length === p.stock_bytes && await sha256(input) === p.stock_sha256) {
     readLdr(input);
     return {stock: input.slice(), selected: null};
   }
-  check(kit.machines.length <= 4, 'This open-xy OS can’t be recognized. Choose the original OP–XY OS 1.2.0.');
+  check(kit.machines.length <= RECOVERABLE_MACHINES, 'This open-xy OS can’t be recognized. Choose the original OP–XY OS 1.2.0.');
   const blocks = readLdr(input), first = blocks[0], module = blocks.at(-2), final = blocks.at(-1);
   check(blocks.length === p.stock_records + 1 && first.count === 0 &&
     (first.code & 0xffff) === 0x5004 && first.argument === input.length - 16 &&
@@ -360,7 +361,8 @@ export async function recoverFirmware(kit, input) {
     'Only OP–XY OS 1.2.0 is supported. This open-xy OS was not made from OS 1.2.0.');
   const payload = input.subarray(module.offset + 16, final.offset);
   // Reconstruct every selection's entire image; never trust the uploaded
-  // module or infer ownership from its label. At most 15 deterministic links.
+  // module or infer ownership from its label. At most 1,023 deterministic links,
+  // each under a millisecond.
   // Yield between candidates so file changes and navigation remain responsive;
   // the caller discards stale results.
   for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {

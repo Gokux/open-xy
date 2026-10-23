@@ -102,7 +102,9 @@ The firmware writer reads `/os.ldr`, not the upgrade directory. The browser
 builder's packages also add an init preset for each instrument
 (`content/presets/<machine>/default.json`); command-line packages do not.
 `module.elf` and `module.bin` are development artifacts, not installable
-images. The SDK's commands never write to a device.
+images. The SDK's commands never write to a device. To select machines and
+install through the browser builder's guide instead, export a
+[personal kit](builder.md#export-a-kit) of your collection.
 
 ## What a build checks
 
