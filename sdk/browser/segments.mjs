@@ -1,6 +1,10 @@
 // SDK backend for a retained segment display with bounded inline text.
 // Frame words: masks[characters], label[16 bytes], values[4][8 bytes], key,
 // dials[4] as Q10 cos/sin pairs.
+import { inputWords } from './controls.mjs';
+
+// segments::Input: parameters[4], shown[4 bytes], slots[8].
+const INPUT_BYTES = 52;
 export class SegmentDisplay {
   constructor(module) {
     if (WebAssembly.Module.imports(module).length) throw new Error('Unexpected display imports');
@@ -9,23 +13,20 @@ export class SegmentDisplay {
     this.characters = e.opxy_segment_characters();
     const frameBytes = 4 * this.characters + 84;
     if (!Number.isInteger(this.characters) || this.characters < 1 || this.characters > 8 ||
-        e.opxy_segment_input_bytes() !== 20 || e.opxy_segment_frame_bytes() !== frameBytes) {
+        e.opxy_segment_input_bytes() !== INPUT_BYTES || e.opxy_segment_frame_bytes() !== frameBytes) {
       throw new Error('Unsupported segment frame');
     }
     const bytes = e.memory.buffer.byteLength, input = e.opxy_segment_input(), at = e.opxy_segment_frame();
-    if (input % 4 || input <= 0 || input + 20 > bytes || at % 4 || at <= 0 || at + frameBytes > bytes ||
-        (input < at + frameBytes && at < input + 20)) throw new Error('Invalid segment storage');
-    this.input = new Int32Array(e.memory.buffer, input, 5);
+    if (input % 4 || input <= 0 || input + INPUT_BYTES > bytes || at % 4 || at <= 0 || at + frameBytes > bytes ||
+        (input < at + frameBytes && at < input + INPUT_BYTES)) throw new Error('Invalid segment storage');
+    this.input = new Uint32Array(e.memory.buffer, input, INPUT_BYTES / 4);
     this.frame = new Uint32Array(e.memory.buffer, at, frameBytes / 4);
     this.stateBytes = 0; // Stateless author callback; the SDK owns the output frame/cache.
   }
   reset() {}
-  // parameters: the value each control position shows; shown: which declared
-  // parameter that is, one byte per position (shownControls in controls.mjs).
-  tick(parameters, shown = 0x03020100) {
-    if (!Array.isArray(parameters) || parameters.length !== 4 || parameters.some(v => !Number.isInteger(v) || v < 0 || v > 0x7fffffff)) throw new Error('Invalid segment parameters');
-    if (!Number.isInteger(shown) || shown < 0 || shown > 0x07070707 || shown & 0xf8f8f8f8) throw new Error('Invalid shown controls');
-    this.input.set([...parameters, shown]);
+  // input: shownControls(words, shown) from controls.mjs.
+  tick(input) {
+    this.input.set(inputWords(input));
     if (this.api.opxy_segment_render() !== 1) throw new Error('Invalid segment output');
     return this.frame;
   }

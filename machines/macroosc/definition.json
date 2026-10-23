@@ -86,25 +86,25 @@
     {
       "id": "fm_ratio",
       "label": "FM Ratio",
-      "default": 0.125,
+      "default": 0.09090909090909091,
       "mapping": {
-        "kind": "enum",
-        "labels": [
-          "x0.5",
-          "x1",
-          "x1.5",
-          "x2",
-          "x2.5",
-          "x3",
-          "x3.5",
-          "x4",
-          "x5",
-          "x6",
-          "x7",
-          "x8"
+        "kind": "anchors",
+        "values": [
+          0.5,
+          1,
+          1.5,
+          2,
+          2.5,
+          3,
+          3.5,
+          4,
+          5,
+          6,
+          7,
+          8
         ]
       },
-      "display": "enum"
+      "display": "ratio"
     },
     {
       "id": "fm_depth",
@@ -140,7 +140,7 @@
     "voiceAlignment": 4,
     "voiceCapacity": 128,
     "sharedBytes": 131332,
-    "outputPeakQ31": 1073741824,
+    "outputPeakQ31": 488570880,
     "display": {
       "kind": "segments",
       "characters": 4,
@@ -148,6 +148,8 @@
       "dials": 4,
       "textControls": [
         0,
+        1,
+        2,
         3
       ]
     }

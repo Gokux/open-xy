@@ -180,7 +180,7 @@ class Definitions(unittest.TestCase):
         sample['parameters'][-1]['control'] = 0
         with self.assertRaisesRegex(ValueError, 'parameter fields'): validate_definition(sample, 'sample')
 
-    def test_alternate_table_lists_only_synths_with_alternates(self):
+    def test_control_table_owns_all_synths_and_preserves_alternates(self):
         alternates = copy.deepcopy(self.engine)
         alternates['parameters'].append(self.alternate(2))
         machines = [SimpleNamespace(kind='synth', prefix='plain', identity=dict(engine=5), definition=self.engine),
@@ -188,8 +188,9 @@ class Definitions(unittest.TestCase):
                     machine('timestretch'), machine('decimate')]
         with tempfile.TemporaryDirectory() as directory:
             text = generate_synth_controls(directory, machines).read_text(encoding='utf-8')
-        self.assertEqual(re.findall(r'^    \{(\d+), (\w+)_ready, \{([\d, ]+)\}\},$', text, re.M),
-                         [('9', 'alt', '0, 1, 4, 3, 2, 5, 6, 7')])
+        self.assertEqual(re.findall(r'^    \{(\d+), (\w+)_ready, \{([\d, ]+)\},', text, re.M),
+                         [('5', 'plain', '0, 1, 2, 3, 4, 5, 6, 7'), ('9', 'alt', '0, 1, 4, 3, 2, 5, 6, 7'),
+                          ('11', 'decimate', '0, 1, 2, 3, 4, 5, 6, 7')])
 
     def test_renderers_generate_for_every_declared_shape(self):
         """Each shape's renderer is data for the SDK renderer: artwork IDs in binding order, and an

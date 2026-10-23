@@ -43,7 +43,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
             entry['icon'] = m.icon
         # An unselected machine's startup and catalog callbacks decline.
         if m.kind == 'effect':
-            entry['absent'] = {m.prefix + '_fx_register': 'kit_absent'}
+            entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_fx_register', '_ready')}
         else:
             entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_register', '_name_matches', '_ready')}
             if m.display == 'stock':
@@ -107,13 +107,16 @@ def write_builder(kit, output):
     exports = ('requireThat decode64 sha256 equal readObject identities moduleBytes openKit linkKit readLdr '
                'patchFirmware recoverFirmware presetPath buildAssets zipFiles').split()
     bundled = 'const Core = (() => {\n' + script + '\nreturn {' + ','.join(exports) + '};\n})();\n'
+    bundled += 'const {shownControls, inputWords} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode(
+        'utf-8').replace('export ', '') + '\nreturn {shownControls, inputWords};\n})();\n'
+    controls_import = "import { inputWords } from './controls.mjs';\n"
     for namespace, file, classes in (
         ('Retained', 'display.mjs', 'PreviewDisplay,SvgDisplay'),
         ('Segments', 'segments.mjs', 'SegmentDisplay,SegmentSvg')):
-        bundled += 'const ' + namespace + '= (() => {\n' + read(ROOT / 'sdk/browser' / file).decode('utf-8').replace(
+        source = read(ROOT / 'sdk/browser' / file).decode('utf-8')
+        require(source.count(controls_import) == 1, 'Unexpected display imports')
+        bundled += 'const ' + namespace + '= (() => {\n' + source.replace(controls_import, '').replace(
             'export ', '') + '\nreturn {' + classes + '};\n})();\n'
-    bundled += 'const {shownControls} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode('utf-8').replace(
-        'export ', '') + '\nreturn {shownControls};\n})();\n'
     bundled += 'const Ferret = (() => {\n'+ read(ROOT / 'builder/ferret.mjs').decode('utf-8').replace(
         'export ', '') + '\nreturn {Session};\n})();\n'
     bundled += 'const Visuals = (() => {\n' + read(ROOT / 'builder/visuals.mjs').decode('utf-8').replace(

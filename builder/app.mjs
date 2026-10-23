@@ -156,8 +156,7 @@ async function inspect(id) {
       const reduced = matchMedia('(prefers-reduced-motion: reduce)');
       function frame(dt = 34) {
         const input = shownControls(parameters, shown);
-        renderer.apply(segmented ? display.tick(input.parameters, input.shown)
-          : display.tick(input.parameters, dt, serial, heldNotes, reduced.matches, input.shown));
+        renderer.apply(segmented ? display.tick(input) : display.tick(input, dt, serial, heldNotes, reduced.matches));
       }
       const controls = m.controls.map((name, i) => {
         const label = node('label', name, 'preview-control'), input = node('input');

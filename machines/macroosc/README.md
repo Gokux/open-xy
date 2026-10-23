@@ -9,8 +9,15 @@ fourth switches it to **FM Depth** and back. Timbre/Color retain each model's
 upstream meaning. FM retunes the oscillator with a sine modulator at 0.5 to 8
 times the note frequency; depth 0 is the unmodulated model. The complete
 model/code/label list is in [models.hpp](models.hpp). The screen shows the
-model code on four glowing 14-segment characters and one knob per encoder; the
-Model knob steps between models and the fourth value reads `x2` or `40%`.
+model code on four glowing 14-segment characters and knobs for Timbre, Color
+and, joined on the right, FM Ratio and FM Depth; each knob always shows its
+own parameter, and the fourth value reads `2.0` or `40.0` for whichever the
+encoder edits. Timbre, Color and FM Depth show 0.0–100.0 without a percent
+suffix. Shift + turn gives finer adjustment of continuous values.
+FM Ratio interpolates between its harmonic anchors, including intermediate
+ratios; the model selector stays discrete.
+Output is 6.8 dB below half scale (`kOutputLevel`), so a stock volume readout
+sounds about as loud as on stock instruments and 2op FM.
 
 ```sh
 python sdk.py preview --engine macroosc --out local/macro-preview-001
@@ -23,7 +30,7 @@ python sdk.py check
 | [definition.json](definition.json) | Controls, resource declarations and the segment display shape |
 | [core.h](core.h), [engine.cpp](engine.cpp) | Voice/shared state, lifecycle and sound |
 | [display.cpp](display.cpp), [models.hpp](models.hpp) | Model-to-segment frame and model table |
-| [fm.h](fm.h) | FM ratio steps shared by sound and screen |
+| [fm.h](fm.h) | FM ratio interpolation shared by sound and screen |
 | [pitch.h](pitch.h), [vendor/braids/resources.cc](vendor/braids/resources.cc) | 44.1 kHz pitch and Braids tables |
 | [machine.json](machine.json) | Kind, identity, builder glyph and the vendored translation units |
 
@@ -47,8 +54,10 @@ the browser has a simple audition gate.
 ## Native notes
 
 Model selects `((q31 >> 16) * 47) >> 15`, clamped to 0..46. Timbre and Color
-use 0..32767. FM Ratio selects `((q31 >> 16) * 12) >> 15` of 0.5, 1, 1.5, 2,
+use 0..32767. FM Ratio interpolates in Q16 through 0.5, 1, 1.5, 2,
 2.5, 3, 3.5, 4, 5, 6, 7 and 8; FM Depth (parameter slot 4) uses 0..32767.
+Saved normalized ratio settings now use this continuous mapping rather than
+the former twelve bins. The default still targets a 1:1 ratio.
 Changing model restrikes the oscillator. At depth 0, render produces
 24 + 24 + 16 Braids samples per 64-sample block. Otherwise it renders eight
 8-sample chunks, each at the note's phase increment scaled by

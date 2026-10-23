@@ -8,6 +8,11 @@ namespace {
 using opxy::q31::multiply;
 using opxy::q31::half;
 
+// Output level, Q31: one eighth of full-scale sine (-18 dB). Stock volume
+// readouts then match stock instruments' loudness; the declared output peak
+// in definition.json is this level.
+const i32 FM2_OUTPUT_LEVEL = 0x10000000;
+
 inline i32 nonnegative(i32 value) { return value < 0 ? 0 : value; }
 
 inline i32 sine(u32 phase) {
@@ -76,7 +81,7 @@ inline void render(Voice& voice, Shared&, u32, opxy::Output output,
         v->last_modulator = modulator;
         const u32 offset = static_cast<u32>(
             multiply(multiply(modulator, v->brightness), v->amount)) << 3;
-        output[i] = half(sine(v->carrier_phase + offset));
+        output[i] = multiply(sine(v->carrier_phase + offset), FM2_OUTPUT_LEVEL);
         v->brightness = multiply(v->brightness, v->decay);
         const u32 increment = pitch[i];
         v->carrier_phase += increment;

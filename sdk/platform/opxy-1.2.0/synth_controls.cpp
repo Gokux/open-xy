@@ -1,13 +1,14 @@
-// Stock OS 1.2.0 track-page encoders for synths with alternate controls. Both
-// hooks replace a CALL.A of a C function, so stock calls them with the C ABI.
-// A press of an owned synth's encoder selects the position's next parameter; a
-// turn edits the selected one. Everything else reaches stock as before.
+// Stock OS 1.2.0 instrument-track encoders for synths with alternate controls.
+// Both hooks replace a CALL.A of a C function, so stock calls them with the C
+// ABI. A press of an owned synth's encoder selects the position's next
+// parameter; a turn edits the selected one. Everything else reaches stock as before.
 #include "synth_controls.hpp"
 #include "stock.hpp"
 
 extern "C" {
 void sdk_synth_press(opxy::u32) __asm__("sdk_synth_press");
 opxy::u32 sdk_synth_turn(opxy::u32, opxy::u32, opxy::u32, opxy::u32) __asm__("sdk_synth_turn");
+opxy::u32 sdk_effect_turn(opxy::u32, opxy::u32, opxy::u32, opxy::u32) __asm__("sdk_effect_turn");
 }
 
 namespace {
@@ -16,17 +17,17 @@ using opxy::u8;
 using opxy::platform::SynthControls;
 using namespace opxy::platform;
 
-// Track page bank: 0 for the engine page, 1..3 for the other three pages.
-u32 page_bank() { return stock<u32()>(0x8c08ff3c)(); }
-// The controller on top of the GUI stack, which receives key events, and the
-// track page controller's vtable.
-const u32 kTrackPageVtable = 0x0803fa28;
+// Tracks 0..7 show the instrument track controller (GUI screen 0); its page
+// word is 0 on the engine page and 1..3 on the other three pages.
+const u32 kInstrumentController = 0x8400b208;  // its vtable
+const u32 kInstrumentPage = 0x08023c74;
+// The controller on top of the GUI stack, which receives key events.
 u32 top_controller_vtable() { return *stock<const u32*()>(0x8c095008)(); }
 
-const SynthControls* owned(u32 engine) {
+const SynthControls* owned(u32 engine, bool effect = false) {
     for (u32 i = 0; i < sdk_synth_control_count; ++i) {
         const SynthControls& m = sdk_synth_controls[i];
-        if (m.engine == engine) return m.ready() == 1 ? &m : nullptr;
+        if (m.engine == engine && m.effect == effect) return m.ready() == 1 ? &m : nullptr;
     }
     return nullptr;
 }
@@ -74,26 +75,80 @@ u32 sdk_synth_title_slot(u32 engine, u32 index) {
     return tracks[track].slots[index];
 }
 
-// 8c0b66d2: the GUI's key dispatcher records a press of encoder 0..3 (key
-// codes 10..13, without shift) before passing it to the top controller, whose
-// engine page does nothing with it. On the track page of an owned synth the
-// press also selects the position's next parameter.
+// 8c0b66d2: the GUI's key dispatcher records the click of encoder 0..3 (key
+// codes 10..13, released without a turn and without shift) before passing it
+// to the top controller; the instrument controller's engine page ignores it
+// for every engine with alternates. On that page of an owned synth the click
+// also selects the position's next parameter.
 void sdk_synth_press(u32 encoder) {
     stock<void(u32)>(0x8d51e634)(encoder);
     Track* t;
     const SynthControls* m;
-    if (encoder < opxy::page_controls && top_controller_vtable() == kTrackPageVtable && page_bank() == 0 &&
-        (m = machine(byte(kSelectedTrack), t))) {
+    if (encoder < opxy::page_controls && top_controller_vtable() == kInstrumentController &&
+        word(kInstrumentPage) == 0 && (m = machine(byte(kSelectedTrack), t))) {
         const u32 next = m->next[t->slots[encoder]];
         if (next < opxy::parameter_slots) t->slots[encoder] = static_cast<u8>(next);
     }
 }
 
-// 8c090636: an encoder turn on a track page edits parameter `index` (encoder
-// plus eight per page bank) of the selected track through stock, which owns
-// stepping, parameter locks and publication. An owned synth's engine-page
-// encoder edits the parameter its position shows.
+// 8c0b210a: the instrument controller's encoder turn edits parameter `index`
+// of the selected track through stock, which owns stepping, parameter locks
+// and publication. Indices 0..3 come only from the engine page's unshifted
+// encoders, so an owned synth's position edits the parameter it shows.
 u32 sdk_synth_turn(u32 project, u32 track, u32 index, u32 event) {
-    if (index < opxy::page_controls) index = shown(track, index);
+    Track* t;
+    // The instrument controller maps Shift's engine-page row to slots 4..7.
+    // Reinterpret it as fine editing of the same visible position, including
+    // an alternate selected by a click. Other pages keep stock routing.
+    const bool fine_turn = index >= 4 && index < 8 && word(kInstrumentPage) == 0 && shift_held();
+    const u32 original_index = index;
+    if (fine_turn) index -= 4;
+    const SynthControls* m = index < opxy::page_controls ? machine(track, t) : nullptr;
+    if (m) {
+        index = t->slots[index];
+        if (event && (m->continuous & (1u << index)) && fine_turn) {
+            // Stock consumes all three words synchronously; keep detents and
+            // acceleration intact for its parameter-lock/quantized paths.
+            const opxy::i32* source = reinterpret_cast<const opxy::i32*>(event);
+            const opxy::i32 fine[3] = {source[0] / 10, source[1], source[2]};
+            return stock<u32(u32, u32, u32, const opxy::i32*)>(0x8d5ab8ec)(project, track, index, fine);
+        }
+    } else index = original_index;
     return stock<u32(u32, u32, u32, u32)>(0x8d5ab8ec)(project, track, index, event);
 }
+
+// Auxiliary-track page, including send FX tracks 14/15. Its controller folds
+// Shift into the same 0..3 positions before this call, unlike instruments.
+u32 sdk_effect_turn(u32 project, u32 track, u32 index, u32 event) {
+    const SynthControls* m = (track == 14 || track == 15) && index < 4 ? owned(track_engine(track), true) : nullptr;
+    if (m && event && (m->continuous & (1u << index)) && shift_held()) {
+        const opxy::i32* source = reinterpret_cast<const opxy::i32*>(event);
+        const opxy::i32 fine[3] = {source[0] / 10, source[1], source[2]};
+        return stock<u32(u32, u32, u32, const opxy::i32*)>(0x8d5ab8ec)(project, track, index, fine);
+    }
+    return stock<u32(u32, u32, u32, u32)>(0x8d5ab8ec)(project, track, index, event);
+}
+
+bool sdk_synth_value(u32 track, u32 slot, opxy::i32 value, char* text) {
+    Track* t;
+    const SynthControls* m = machine(track, t);
+    return m && m->format(slot, value, text);
+}
+
+namespace opxy { namespace platform {
+void control_tenths(char* text, u32 tenths, const char* suffix) {
+    u32 n = 0, whole = tenths / 10;
+    char reverse[10];
+    do { reverse[n++] = static_cast<char>('0' + whole % 10); whole /= 10; } while (whole);
+    while (n) *text++ = reverse[--n];
+    *text++ = '.';
+    *text++ = static_cast<char>('0' + tenths % 10);
+    while (*suffix) *text++ = *suffix++;
+    *text = 0;
+}
+u32 control_ratio(i32 value, const u32* anchors, u32 count) {
+    const u32 q15 = value < 0 ? 0 : static_cast<u32>(value) >> 16;
+    const u32 position = q15 * (count - 1), index = position >> 15;
+    return anchors[index] + ((anchors[index + 1] - anchors[index]) * (position & 32767) + 16384) / 32768;
+}
+}}

@@ -110,7 +110,8 @@ u32 sdk_sample_region_control(u32 key, u32 control, const u32* event, u32 fine) 
         if (!region || !event[1]) return static_cast<u32>(reinterpret_cast<Address>(region));
         // Keep the engine paired with the active track used for this region.
         // The renderer's cached sample-page track can lag track navigation.
-        if (sdk_sample_edit(region, control, static_cast<i32>(event[1]), id)) return publish(key);
+        const u32 index = control | (encoder_held(control & 3) ? 16u : 0u);
+        if (sdk_sample_edit(region, index, static_cast<i32>(event[1]), id)) return publish(key);
         return 0;
     }
     return region_control(key, control, event, fine);

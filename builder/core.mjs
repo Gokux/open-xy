@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = '7bc13c7f99a83e720e2fcec9efbd7af397ae1ef2eb507e6d01e81e1a8f167aec';
+export const PROFILE_SHA256 = 'ae5a66aab260d9da2f1277fe624e912868ee30745e3d6e656ed0d9652cf2b08b';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -393,7 +393,8 @@ function defaultPreset(machine) {
     Object.entries(amp).every(([key, value]) => ['attack', 'decay', 'release', 'sustain'].includes(key) &&
       Number.isInteger(value) && value >= 0 && value <= 32767), 'Invalid preset amp defaults');
   // Authored init settings in the device's version-4 preset structure. Engine
-  // controls come from its catalog, never from a copied factory sound.
+  // controls come from its catalog, never from a copied factory sound. Volume
+  // 16384 is half scale: the device's gain readout shows 50.
   return {
     engine: {
       bendrange: 8191, highpass: 0,
@@ -401,7 +402,7 @@ function defaultPreset(machine) {
         .map(source => [source, {amount: 16384, target: 0}])),
       params: [...entry.default_params], playmode: 'poly',
       'portamento.amount': 0, 'portamento.type': 0, transpose: 0,
-      'tuning.root': 0, 'tuning.scale': 0, 'velocity.sensitivity': 0, volume: 8192, width: 0,
+      'tuning.root': 0, 'tuning.scale': 0, 'velocity.sensitivity': 0, volume: 16384, width: 0,
     },
     envelope: {
       // Match a device-saved minimum amp release: the stored endpoint is 32767.

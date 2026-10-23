@@ -237,7 +237,7 @@
     <path id="macroosc_seg_3_n" d="M261.089,103.431 L268.926,90.653 L269.504,83.976 L261.669,96.752 Z" fill="#6E6E6E" stroke="#6E6E6E" stroke-width="2" stroke-linejoin="bevel"/>
     <path id="macroosc_seg_3_p" d="M270.665,76.528 L271.913,77.776 L271.913,78.276 L270.665,79.524 L262.671,79.524 L261.423,78.276 L261.423,77.776 L262.671,76.528 Z" fill="#6E6E6E" stroke="#6E6E6E" stroke-width="2" stroke-linejoin="bevel"/>
     <circle cx="296.411" cy="106.395" r="2.998" fill="#6E6E6E"/>
-    <!-- Control 1 knob. -->
+    <!-- Timbre knob. -->
     <circle cx="103.53" cy="176" r="34.89" fill="#191919"/>
     <circle cx="103.53" cy="176" r="27.64" fill="#262626"/>
     <circle cx="103.53" cy="176" r="23.788" fill="#191919"/>
@@ -247,7 +247,7 @@
     <path d="M82.67,165.054 L80.22,172.595 L79.142,172.245 L81.593,164.703 Z" fill="#262626" stroke="#252525" stroke-width="2.719"/>
     <path id="macroosc_dial_0" transform="matrix(1 0 0 1 103.53 176)" d="M5.098,-34.89 L4.078,-14.083 L-4.078,-14.083 L-5.098,-34.89 Z" fill="#363636" stroke="#363636" stroke-width="0.5"/>
     <circle cx="103.53" cy="176" r="18.125" fill="#363636"/>
-    <!-- Control 2 knob. -->
+    <!-- Color knob. -->
     <circle cx="236.53" cy="176" r="34.89" fill="#191919"/>
     <circle cx="236.53" cy="176" r="27.64" fill="#262626"/>
     <circle cx="236.53" cy="176" r="23.788" fill="#191919"/>
@@ -257,7 +257,7 @@
     <path d="M215.67,165.054 L213.22,172.595 L212.142,172.245 L214.593,164.703 Z" fill="#262626" stroke="#252525" stroke-width="2.719"/>
     <path id="macroosc_dial_1" transform="matrix(1 0 0 1 236.53 176)" d="M5.098,-34.89 L4.078,-14.083 L-4.078,-14.083 L-5.098,-34.89 Z" fill="#AAAAAA" stroke="#AAAAAA" stroke-width="0.5"/>
     <circle cx="236.53" cy="176" r="18.125" fill="#AAAAAA"/>
-    <!-- Control 3 knob. -->
+    <!-- FM Ratio knob, linked by the dotted line to FM Depth above. -->
     <circle cx="370.53" cy="176" r="34.89" fill="#191919"/>
     <circle cx="370.53" cy="176" r="27.64" fill="#262626"/>
     <circle cx="370.53" cy="176" r="23.788" fill="#191919"/>
@@ -267,7 +267,7 @@
     <path d="M349.67,165.054 L347.22,172.595 L346.142,172.245 L348.593,164.703 Z" fill="#262626" stroke="#252525" stroke-width="2.719"/>
     <path id="macroosc_dial_2" transform="matrix(1 0 0 1 370.53 176)" d="M5.098,-34.89 L4.078,-14.083 L-4.078,-14.083 L-5.098,-34.89 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="0.5"/>
     <circle cx="370.53" cy="176" r="18.125" fill="#FFFFFF"/>
-    <!-- Control 4 knob. -->
+    <!-- FM Depth knob. -->
     <circle cx="370.53" cy="78" r="34.89" fill="#191919"/>
     <circle cx="370.53" cy="78" r="27.64" fill="#262626"/>
     <circle cx="370.53" cy="78" r="23.788" fill="#191919"/>

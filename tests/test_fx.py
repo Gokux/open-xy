@@ -30,7 +30,8 @@ class Generation(unittest.TestCase):
         self.assertIn('static_assert(sizeof(State) <= opxy::effect_state_bytes', text)
         self.assertIn('static_assert(sizeof(Object) <= 480', text)
         self.assertIn('const void* const decimate_fx_vtable[8]', text)
-        self.assertIn('{"rate", "mix"}', text)
+        labels = ', '.join('"%s"' % p['label'].lower() for p in machine('decimate').definition['parameters'])
+        self.assertIn('{%s}' % labels, text)
 
     def test_catalog_entry_is_appended_to_fx_types_only(self):
         catalog = stock_like_catalog()

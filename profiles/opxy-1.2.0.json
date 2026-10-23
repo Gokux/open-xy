@@ -549,6 +549,15 @@
       "file_offset": "0xc79f6",
       "length": 8,
       "before": "00de5a8decb80000",
+      "symbol": "sdk_effect_turn",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0b210a",
+      "file_offset": "0xe94ca",
+      "length": 8,
+      "before": "00de5a8decb80000",
       "symbol": "sdk_synth_turn",
       "call": true
     },
