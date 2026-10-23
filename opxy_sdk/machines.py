@@ -138,6 +138,18 @@ def discovered():
     return [machine(path.parent.name) for path in sorted((ROOT / 'machines').glob('*/machine.json'))]
 
 
+def free_synth_identity():
+    """The lowest synth engine ID and page that the identity rules allow and no machine here uses."""
+    rules = config()['identities']
+    machines = discovered()
+    engines = {m.identity.get('engine') for m in machines}
+    pages = {m.identity['page'] for m in machines}
+    engine = next(n for n in range(1, rules['engines'])
+                  if n != rules['engine_none'] and n not in rules['stock_engines'] and n not in engines)
+    page = next(p for p in range(rules['page_none'] + 1, rules['pages']) if p not in pages)
+    return {'engine': engine, 'page': page}
+
+
 def collection():
     """Machines in firmware order: the order sets startup, catalog and link layout."""
     value = json.loads(COLLECTION.read_text(encoding='utf-8'))

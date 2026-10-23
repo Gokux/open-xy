@@ -19,9 +19,8 @@ native identity still needs SDK work.
 ## Checks
 
 Keep firmware, stock content, extracted firmware and firmware-containing build
-outputs **outside every checkout**, including ignored `local/`. On this
-workstation, private storage is `%LOCALAPPDATA%/OPXY-SDK/private/`; pass those
-external paths to build commands. `local/` is only for non-firmware development
+outputs **outside every checkout**, including ignored `local/`. The docs use
+`%LOCALAPPDATA%/OPXY-SDK/private/`; pass those external paths to build commands. `local/` is only for non-firmware development
 artifacts. Do not force-add private inputs or generated firmware packages.
 
 `python tools/check_private_files.py --staged` checks the actual index before
@@ -39,7 +38,7 @@ python sdk.py check
 SDK checks cover declared interfaces, storage, generated bindings and packaging.
 Sound correctness is the machine maintainer's responsibility: keep sound tests
 with the machine's own project, not in this repository. Native
-changes also require the complete [build verification](docs/build.md); its
+changes also require the complete [release verification](docs/build.md#release-verification); its
 required checks and private fixtures cannot be skipped. Keep all firmware,
 user data and generated packages outside every checkout.
 

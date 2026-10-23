@@ -53,7 +53,7 @@ def custom_identity(identity):
 
 
 def metadata(files):
-    from .native import drawing_ids
+    from .native import check_outlines, drawing_ids, panel_root
     from .preview import drawing_bindings
     definition = validate_definition(json.loads(files['definition.json']), 'synth')
     display = definition['resources']['display']
@@ -62,12 +62,11 @@ def metadata(files):
     graphics = drawing_bindings(drawing_ids(PREFIX, display), display)
     artwork = files['panel.svg.fragment']
     require(len(artwork) <= 65536 and not re.search(br'<!DOCTYPE|<!ENTITY', artwork, re.I), 'Invalid drawing asset')
-    root = ET.fromstring(b'<svg>' + artwork + b'</svg>')
+    # The native build's rules, so a machine that previews also builds for the device.
+    root = panel_root(artwork, 'panel.svg.fragment')
     elements = {}
     allowed = {'id', 'd', 'cx', 'cy', 'r', 'transform', 'fill', 'stroke', 'stroke-width', 'stroke-linejoin'}
     for node in root.iter():
-        if node is root:
-            continue
         require(node.tag in {'g', 'path', 'circle'} and set(node.attrib) <= allowed, 'Unsupported drawing element or attribute')
         for key in ('fill', 'stroke'):
             require(key not in node.attrib or re.fullmatch(r'none|#[0-9a-fA-F]{6}', node.attrib[key]),
@@ -79,6 +78,7 @@ def metadata(files):
     for i, identity in enumerate(graphics['nodes']):
         require(identity in elements and elements[identity].tag in ({'path'} if i in graphics['paths'] else {'path', 'circle'}),
                 'Missing retained drawing node: ' + identity)
+    check_outlines(elements, PREFIX, display)
     for identity in graphics['palette']:
         node = elements.get(identity)
         require(node is not None and node.tag in {'path', 'circle'} and
@@ -146,23 +146,42 @@ def scaffold(out, identity, name):
     display = json.loads((out / 'definition.json').read_text(encoding='utf-8'))['resources']['display']
     ids = drawing_ids(PREFIX, display)
     nodes, palette = ids[:display['nodes']], ids[display['nodes']:]
-    artwork = [f'<path id="{identity}" d="M-32 -32 L32 -32 L32 32 L-32 32 Z" fill="none" stroke="#ffffff" stroke-width="1"/>'
-               for identity in nodes[:display['paths']]]
-    artwork += [f'<circle id="{identity}" cx="0" cy="0" r="2" fill="#ffffff"/>' for identity in nodes[display['paths']:]]
+    outline = square_outline(display['points'])
+    artwork = [f'<g id="{PREFIX}_panel">']
+    artwork += [f'  <path id="{identity}" d="{outline}" fill="none" stroke="#ffffff" stroke-width="1"/>'
+                for identity in nodes[:display['paths']]]
+    artwork += [f'  <circle id="{identity}" cx="0" cy="0" r="2" fill="#ffffff"/>' for identity in nodes[display['paths']:]]
     for i, identity in enumerate(palette):
         color = '#' + f'{i * 17:02x}' * 3
-        artwork.append(f'<circle id="{identity}" cx="640" cy="0" r="1" fill="{color}" stroke="{color}" stroke-width="1"/>')
+        artwork.append(f'  <circle id="{identity}" cx="640" cy="0" r="1" fill="{color}" stroke="{color}" stroke-width="1"/>')
+    artwork.append('</g>')
     (out / 'panel.svg.fragment').write_text('\n'.join(artwork) + '\n', encoding='utf-8')
     metadata(source_files(out))
+    from .machines import free_synth_identity
     print('Created local machine: ' + str(out))
-    print('No native identity was allocated. Preview with: python sdk.py preview --source "' + str(out) + '" --out local/my-preview-001')
+    print('Preview with: python sdk.py preview --source "' + str(out) + '" --out local/my-preview-001'
+          ' (add --cxx <clang++> if doctor --preview needed one)')
+    print('To build it for the device (docs/build.md, step 3), its machine.json can be:')
+    print(json.dumps({'schema': 1, 'kind': 'synth', 'description': name,
+                      'identity': free_synth_identity()}, indent=2))
+
+
+def square_outline(points, half=32):
+    """A square traced through exactly `points` vertices, as drawing paths require."""
+    corners = [(-half, -half), (half, -half), (half, half), (-half, half)]
+    vertices = []
+    for i in range(points):
+        side, fraction = divmod(4 * i / points, 1)
+        (x0, y0), (x1, y1) = corners[int(side)], corners[(int(side) + 1) % 4]
+        vertices.append((round(x0 + (x1 - x0) * fraction, 2), round(y0 + (y1 - y0) * fraction, 2)))
+    return 'M' + ' L'.join(f'{x:g} {y:g}' for x, y in vertices) + ' Z'
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Create a browser-only machine with portable C++ sound and display callbacks')
-    parser.add_argument('--id', required=True)
-    parser.add_argument('--name', required=True)
-    parser.add_argument('--out', required=True, type=Path)
+    parser.add_argument('--id', required=True, help='lower-case machine ID, also its folder name in machines/')
+    parser.add_argument('--name', required=True, help='name shown on the OP-XY')
+    parser.add_argument('--out', required=True, type=Path, help='new folder for the machine source, such as local/mymachine')
     args = parser.parse_args(argv)
     try:
         scaffold(args.out, args.id, args.name)

@@ -34,7 +34,7 @@ test('dev server serves browser sources and rejects private paths and writes', a
       assert.equal((await fetch(url + path)).status, 200, path);
     }
     for (const path of ['/kit.json','/.env.local','/local/inputs/os.ldr','/builder/../local/inputs/os.ldr',
-      '/%2e%2e/local/inputs/os.ldr','/@fs/C:/Users/ericx/.codex/config.toml','/@fs/etc/passwd','/@fs//etc/passwd','/vite.config.mjs','/__open-in-editor?file=README.md']) {
+      '/%2e%2e/local/inputs/os.ldr','/@fs/C:/Windows/win.ini','/@fs/etc/passwd','/@fs//etc/passwd','/vite.config.mjs','/__open-in-editor?file=README.md']) {
       const response = await fetch(url+path); assert.equal(response.status,404,path);
     }
     assert.equal((await fetch(url+'/style.css',{method:'POST',body:'x'})).status,405);

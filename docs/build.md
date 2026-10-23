@@ -1,38 +1,107 @@
-# Native builds and verification
+# Build your own firmware
 
-Native integration is a maintainer task. `sdk.py build` statically links every
-machine in the curated collection into exact stock 1.2.0, using the
-[firmware ABI](abi-1.2.0.md). External-engine discovery and arbitrary ID
-assignment are not implemented.
+`sdk.py build` statically links every machine in the collection into exact
+stock OS 1.2.0, using the [firmware ABI](abi-1.2.0.md), and checks the result.
+It runs on Windows x86_64 and Apple-silicon macOS. To choose among the curated
+machines without building, use the [browser builder](builder.md) instead.
+External-engine discovery and dynamic loading are not implemented: a machine
+reaches the firmware by joining the collection.
 
-For browser-only selection and download of curated modules, see the
-[machine builder](builder.md). Its exporter runs these native checks before
-validating the browser linker and packager.
+This firmware is unofficial and experimental. Native code is not sandboxed,
+and host checks cannot guarantee a recoverable device.
 
-## Inputs
+Commands use `python`; on macOS it is usually `python3`. Building needs only
+Python 3.11+, no virtual environment or packages; the browser preview in
+[your first machine](first-machine.md) has its own prerequisites.
 
-Use the pinned [toolchains](toolchain.md), decrypted stock `os.ldr` and stock
-content. An encrypted `.tfw` is not interchangeable. Keep private inputs and
-firmware outputs outside every checkout, such as `%LOCALAPPDATA%/OPXY-SDK/private/`.
-Tools and source-image hashes are checked before use. Every build uses a fresh
-output directory. Commands below perform no device operations.
+## 1. Install the tools
 
-## Build
-
-```powershell
-$private = "$env:LOCALAPPDATA/OPXY-SDK/private"
-python sdk.py build --toolchain local/toolchain/bin --compiler local/toolchain-gcc --stock-os "$private/stock-1.2.0/os.ldr" --stock-content "$private/stock-1.2.0/content" --out "$private/builds/collection-001"
-python sdk.py check --native-package "$private/builds/collection-001" --toolchain local/toolchain/bin --compiler local/toolchain-gcc --host-cxx g++ --stock-os "$private/stock-1.2.0/os.ldr" --stock-content "$private/stock-1.2.0/content"
+```sh
+python sdk.py toolchain fetch
 ```
 
-The collection is the ordered machine list in `profiles/collection.json`; each
-machine's `machine.json` declares its kind, identity and any extra C++ sources,
-and `definition.json` its controls, resources and display. The build uses the
-512 KiB reservation with [relocated engine and screen tables](abi-1.2.0.md#identities).
-`sdk.py compile` builds the module alone and needs no stock firmware;
-`sdk.py verify --package` rebuilds and compares an existing package.
+It downloads the pinned [toolchain](toolchain.md) for this computer, checks it
+and installs it in `local/toolchain`, which every native command uses when
+`--toolchain` and `--compiler` are omitted. If you downloaded the zip from the
+`toolchain-1` release yourself, install it with
+`python sdk.py toolchain fetch --archive <zip>`.
 
-## What verification establishes
+## 2. Copy the stock files
+
+On an OP-XY running OS 1.2.0, hold COM while switching it on to open te-boot.
+It must show "3. dev menu"; if not, enable it with the
+[builder's dev menu helper](builder.md#dev-menu). Then:
+
+1. Press track 3 for "3. dev menu"; the next screen is the factory menu.
+2. Press track 3 for "3. mtp file transfer (windows)", or track 2 for
+   "2. mtp file transfer (mac)", and wait for "mtp mode active". Open the
+   device in File Explorer, or in OpenMTP on a Mac (quit Field Kit first).
+3. Copy these files into one folder outside every checkout:
+
+```text
+stock-1.2.0/
+  os.ldr               from /upgrade/firmware/blackfin/bin/os.ldr
+  content/
+    op1_factory.json   from /content/op1_factory.json
+```
+
+4. Press track 2 for "2. exit".
+
+For example, keep the folder in `%LOCALAPPDATA%/OPXY-SDK/private/` on Windows or
+`~/Library/Application Support/OPXY-SDK/private/` on macOS. The build accepts
+only the exact stock files: an encrypted `.tfw` is a different format, and an
+installed Open-XY build replaces `/content/op1_factory.json`.
+
+## 3. Add your machine
+
+Start from [your first machine](first-machine.md). `sdk.py new` prints a
+`machine.json` with an engine ID and page no machine in this repository uses.
+To build it for the device:
+
+1. Move its folder to `machines/<id>/` and rename its artwork IDs from
+   `local_` to `<id>_` in `panel.svg.fragment`.
+2. Save the printed `machine.json` there, or write one with another free
+   [identity](api.md#identity) ([fields](api.md#registration-boundary)). Names
+   and IDs are saved in presets and projects, so they never change once
+   published.
+3. Add `<id>` to `profiles/collection.json`. Remove machines you don't want;
+   all selected machines share 508 KiB ([memory and limits](api.md#memory-and-limits)).
+
+`python sdk.py compile --out <folder>` then builds the module alone, without
+stock files, and prints each machine's memory use: a quick check before the
+full build.
+
+## 4. Build
+
+```sh
+python sdk.py build --stock-os <stock-1.2.0>/os.ldr --stock-content <stock-1.2.0>/content --out <builds>/mine-001
+```
+
+Use a new `--out` folder for every build, also outside the checkout; a failed
+build leaves none behind. The build prints a summary of its checks and fails
+on any check below. The installable files are in `<out>/candidate/`.
+
+## 5. Install
+
+| File under `candidate/` | Device path |
+| --- | --- |
+| `os.ldr` | `/os.ldr` |
+| `content/op1_factory.json` | `/content/op1_factory.json` |
+| `content/display/<machine>.svg`, one per synth | `/content/display/<machine>.svg` |
+
+1. Open file transfer as in step 2 and copy the files to the paths above,
+   replacing existing files. Keep the device's other content.
+2. Press track 2 for "2. exit".
+3. Press track 5 for "5. write os to boot partition", keeping the OP-XY on power.
+   When "firmware written ok!" appears, switch it off and on.
+
+The firmware writer reads `/os.ldr`, not the upgrade directory. The browser
+builder's packages also add an init preset for each instrument
+(`content/presets/<machine>/default.json`); command-line packages do not.
+`module.elf` and `module.bin` are development artifacts, not installable
+images. The SDK's commands never write to a device.
+
+## What a build checks
 
 | Check | Responsibility |
 | --- | --- |
@@ -41,25 +110,23 @@ and `definition.json` its controls, resources and display. The build uses the
 | Callback layout, registration/name ownership, artwork format | SDK adapters and integration checks |
 | Audio arithmetic, sound references, animation sequences and port fidelity | Selected engine's checks |
 
-Native verification independently rebuilds the package and runs required private
-fixtures under normal Python and `python -O`; missing inputs or skipped required
-tests fail. A changed source requires a new package, not a manually changed
-manifest. Public `check` ignores inherited private-fixture variables.
-The native sample-service fixtures require a host C++11 compiler (`--host-cxx`,
-default `g++`) on PATH, including its runtime DLLs when applicable.
-
 Host checks do not model device scheduling, interrupts, caches, stock graphics
 or recovery, and do not guarantee a recoverable device.
 
-## Package files
+## Release verification
 
-| File under `candidate/` | Device path |
-| --- | --- |
-| `os.ldr` | `/os.ldr` |
-| `content/op1_factory.json` | `/content/op1_factory.json` |
-| `content/display/<machine>.svg`, one per synth | `/content/display/<machine>.svg` |
+Published packages and browser kits come from the release host named in
+[`profiles/toolchains.json`](../profiles/toolchains.json), whose compiler
+reproduces the reference bytes ([hosts](toolchain.md#hosts)). There, the
+maintainer runs:
 
-The dev-menu firmware writer reads `/os.ldr`, not the upgrade directory.
-`module.elf` and `module.bin` are development artifacts, not installable images.
-Installing a candidate is a separate device action; these commands only build
-and verify local files.
+```sh
+python sdk.py check --native-package <builds>/mine-001 --stock-os <stock-1.2.0>/os.ldr --stock-content <stock-1.2.0>/content
+```
+
+It independently rebuilds the package (`sdk.py verify`) and runs the fixture
+tests that need the package and stock files, under normal Python and
+`python -O`; missing inputs or skipped tests fail. The sample-service fixtures
+need a host C++11 compiler (`--host-cxx`, default `g++`) on PATH. A changed
+source requires a new package, not a manually changed manifest. Public `check`
+ignores inherited fixture variables. A personal build doesn't need this step.

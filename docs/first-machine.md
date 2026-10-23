@@ -20,8 +20,11 @@ python -m venv .venv
 .venv/Scripts/python.exe sdk.py doctor --preview --cxx "C:/Program Files/LLVM/bin/clang++.exe"
 ```
 
-On macOS or Linux, use `.venv/bin/python` instead of `.venv/Scripts/python.exe`,
-and `--cxx /path/to/clang++` for your LLVM installation. The commands below use
+On macOS or Linux, create it with `python3 -m venv .venv`, use `.venv/bin/python`
+instead of `.venv/Scripts/python.exe`, and pass `--cxx /path/to/clang++` for your
+LLVM installation. Apple's Xcode Clang lacks `wasm-ld`: on macOS install
+Homebrew's `llvm` and `lld` and pass `--cxx "$(brew --prefix llvm)/bin/clang++"`.
+The commands below use
 `python` for that environment's interpreter; substitute its full path if you
 have not activated it. Omit `--cxx` when the correct Clang is already on PATH.
 
@@ -126,8 +129,5 @@ directory, and use the SDK server rather than serving the checkout root.
 
 Local authoring permits different sounds and drawings while running the shared
 callback checks described in the [preview guide](preview.md). It does not
-allocate a native engine ID or produce an installable machine. To build it for
-the device, move the folder to `machines/<id>/`, rename its artwork IDs from
-`local_` to `<id>_`, add a [`machine.json`](api.md#registration-boundary) with a
-free [identity](api.md#identity), add it to `profiles/collection.json` and run
-the full [native build verification](build.md).
+allocate a native engine ID or produce an installable machine. To put it on
+the device, [build your own firmware](build.md#3-add-your-machine).

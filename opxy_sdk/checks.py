@@ -7,7 +7,7 @@ import subprocess
 import sys
 import unittest
 from .formats import require
-from .pipeline import require_release_host
+from .pipeline import require_release_host, resolve_toolchain
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = {
@@ -56,6 +56,8 @@ def main(argv=None):
     parser.add_argument('--host-cxx', default='g++')
     args = parser.parse_args(argv)
     try:
+        if any(getattr(args, key) for key in FIXTURES):  # tools default to the fetched toolchain
+            args.toolchain, args.compiler = resolve_toolchain(args.toolchain, args.compiler)
         env, native = fixture_environment(args, os.environ)
         if native:
             require_release_host()

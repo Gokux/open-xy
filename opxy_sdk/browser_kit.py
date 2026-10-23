@@ -13,7 +13,7 @@ import sys
 from .adapters import catalog_entry, sample_callbacks
 from .definitions import control_positions
 from .formats import require, sha
-from .pipeline import ROOT, child, fresh_output, read, require_release_host, tool_paths
+from .pipeline import ROOT, child, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
 from . import native, preview, screen
 
 
@@ -154,12 +154,15 @@ def write_builder(kit, output):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('toolchain', 'compiler', 'stock-os', 'stock-content', 'out'):
+    for name in ('stock-os', 'stock-content', 'out'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--toolchain', help='pinned binutils directory (default: local/toolchain/bin)')
+    parser.add_argument('--compiler', help='pinned Blackfin GCC bundle root (default: local/toolchain)')
     parser.add_argument('--preview-cxx', default='clang++', help='Clang++ with wasm32/wasm-ld')
     args = parser.parse_args(argv)
     try:
         require_release_host()
+        args.toolchain, args.compiler = resolve_toolchain(args.toolchain, args.compiler)
     except ValueError as error:
         parser.exit(1, 'ERROR: ' + str(error) + '\n')
     out = fresh_output(args.out)

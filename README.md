@@ -22,7 +22,8 @@ This is an unofficial, experimental SDK. Native integration patches exact stock
 OS 1.2.0 with a curated collection of machines; arbitrary engine installation
 and dynamic loading are not implemented. Native code is not sandboxed, and build
 checks cannot guarantee recovery from a faulty image. Browser previews work on
-any OS; native firmware builds currently need Windows ([toolchains](docs/toolchain.md)).
+any OS; native firmware builds need Windows x86_64 or Apple-silicon macOS, where
+`python sdk.py toolchain fetch` installs the compiler ([toolchains](docs/toolchain.md)).
 
 ## Try an example
 
@@ -54,7 +55,7 @@ previews, firmware builds and packaging.
 - [Engine API](docs/api.md): platform rules, schemas, callbacks for each kind, buffers and ownership.
 - [Display API](docs/display.md): retained drawing frames and asset constraints.
 - [Contributing](CONTRIBUTING.md): code ownership and checks.
-- [Native builds](docs/build.md): toolchains, integration and package validation.
+- [Build your own firmware](docs/build.md): toolchain, stock files, adding a machine, build, install and release verification.
 
 ## Repository layout
 

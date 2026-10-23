@@ -3,7 +3,7 @@
 Every machine in profiles/collection.json is compiled and linked into one module
 inside the 512 KiB reservation with relocated engine and screen tables. Object
 names are part of the published browser kit (its linker orders objects by name),
-so they follow the fixed scheme below.
+so their naming scheme is fixed.
 """
 import argparse
 import copy
@@ -11,6 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -27,7 +28,7 @@ from .firmware import assemble, hook_instruction, hook_target
 from .formats import elf32, elf_sections, require, sha
 from .machines import by_kind, collection
 from .pipeline import (PROFILE, ROOT, check_patch_boundaries, child, config, document, execute, fresh_output, host_pins, host_platform,
-                       read, require_release_host, save_json, tool_paths)
+                       read, require_release_host, resolve_toolchain, save_json, tool_paths)
 from .startup import generate as generate_startup
 
 LINKER = 'linker/opxy-1.2.0.ld'
@@ -493,10 +494,30 @@ def segment_ids(prefix, display):
                 label=f'{prefix}_label')
 
 
+def panel_root(fragment, source):
+    """An artwork fragment: one well-formed root element, such as <g id="<prefix>_panel">."""
+    try:
+        return ET.fromstring(fragment)
+    except ET.ParseError as error:
+        raise ValueError(f'{source} must be one SVG element, such as <g id="..._panel">...</g> ({error})') from None
+
+
+def check_outlines(by_id, prefix, display):
+    """Drawing paths are the first nodes: exactly M, (points - 1) L and Z, unfilled."""
+    points = display['points']
+    for name in drawing_ids(prefix, display)[:display['paths']]:
+        node = by_id.get(name)
+        commands = re.findall(r'[A-Za-z]', node.get('d', '')) if node is not None else []
+        coordinates = re.findall(NUMBER, node.get('d', '')) if node is not None else []
+        require(node is not None and node.tag == 'path' and commands == ['M'] + ['L'] * (points - 1) + ['Z'] and
+                len(coordinates) == 2 * points and node.get('fill') == 'none',
+                'Mutable outline must contain exactly M, %d L and Z, with no fill: %s' % (points - 1, name))
+
+
 def validate_panel(m, fragment=None):
     """The authored SVG subset plus the display contract's required node bindings."""
     fragment = read(m.root / 'panel.svg.fragment') if fragment is None else fragment
-    nodes = list(ET.fromstring(fragment).iter())
+    nodes = list(panel_root(fragment, f'machines/{m.id}/panel.svg.fragment').iter())
     ids = [node.get('id') for node in nodes if node.get('id')]
     require(len(ids) == len(set(ids)), 'Duplicate authored SVG ID')
     by_id = {node.get('id'): node for node in nodes if node.get('id')}
@@ -515,17 +536,10 @@ def validate_panel(m, fragment=None):
 
     display = m.definition['resources']['display']
     if m.display == 'drawing':
-        # Paths are the first nodes: exactly M, (points - 1) L and Z, unfilled. Palette entries donate paint.
+        # Palette entries donate paint.
         ids = drawing_ids(m.prefix, display)
         bound, palette = ids[:display['nodes']], ids[display['nodes']:]
-        points = display['points']
-        for name in bound[:display['paths']]:
-            node = by_id.get(name)
-            commands = re.findall(r'[A-Za-z]', node.get('d', '')) if node is not None else []
-            coordinates = re.findall(NUMBER, node.get('d', '')) if node is not None else []
-            require(node is not None and node.tag == 'path' and commands == ['M'] + ['L'] * (points - 1) + ['Z'] and
-                    len(coordinates) == 2 * points and node.get('fill') == 'none',
-                    'Mutable outline must contain exactly M, %d L and Z, with no fill: %s' % (points - 1, name))
+        check_outlines(by_id, m.prefix, display)
         for name in bound[display['paths']:]:
             require(name in by_id and by_id[name].tag in ('path', 'circle'), 'Authored SVG is missing node ' + name)
         for name in palette:
@@ -647,10 +661,18 @@ def build(out, toolchain, compiler, stock_os, stock_content):
     return output, result
 
 
+COMMANDS = {
+    'compile': 'Compile and link the collection into the native module alone; needs no stock files.',
+    'build': 'Build firmware: link the collection into stock OP-XY 1.2.0 and check the result.',
+    'verify': 'Rebuild an existing package independently and compare it (release host only).',
+}
+
+
 def main(argv=None, command=None):
-    parser = argparse.ArgumentParser(prog='sdk.py ' + (command or 'build'), description=__doc__)
-    parser.add_argument('--toolchain', type=Path, required=True, help='pinned binutils directory')
-    parser.add_argument('--compiler', type=Path, required=True, help='pinned Blackfin GCC bundle root')
+    command = command or 'build'
+    parser = argparse.ArgumentParser(prog='sdk.py ' + command, description=COMMANDS[command] + ' No device operations.')
+    parser.add_argument('--toolchain', type=Path, help='pinned binutils directory (default: local/toolchain/bin)')
+    parser.add_argument('--compiler', type=Path, help='pinned Blackfin GCC bundle root (default: local/toolchain)')
     if command == 'verify':
         parser.add_argument('--package', type=Path, required=True)
     else:
@@ -659,13 +681,19 @@ def main(argv=None, command=None):
         parser.add_argument('--stock-os', type=Path, required=True)
         parser.add_argument('--stock-content', type=Path, required=True)
     args = parser.parse_args(argv)
+    # A failed command removes only the --out folder it created itself.
+    created = command != 'verify' and not args.out.exists()
     try:
         if command == 'verify':
             require_release_host()  # only its tools reproduce published package bytes
+        if command != 'compile':
+            require((args.stock_content / 'op1_factory.json').is_file(),
+                    f'--stock-content must be the folder holding op1_factory.json '
+                    f'(a copy of the device\'s /content): {args.stock_content}')
         profile, machines, definitions = configuration()
-        tool_paths(args.toolchain)
-        compiler_paths(args.compiler)
-        tools = (args.toolchain, args.compiler)
+        tools = resolve_toolchain(args.toolchain, args.compiler)
+        tool_paths(tools[0])
+        compiler_paths(tools[1])
         if command == 'compile':
             output = fresh_output(args.out)
             _module, report, _patches = compile_collection(output, *tools, profile, machines, definitions)
@@ -687,4 +715,6 @@ def main(argv=None, command=None):
         for stream in ('output', 'stderr'):
             if isinstance(error, subprocess.CalledProcessError) and getattr(error, stream, None):
                 print(getattr(error, stream), file=sys.stderr)
+        if created and args.out.exists():
+            shutil.rmtree(args.out)
         return 1
