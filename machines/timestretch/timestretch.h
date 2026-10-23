@@ -59,7 +59,7 @@ opxy::u32 synced_source_position(opxy::u32 frames, opxy::u32 rate, opxy::u32 sou
 void bind_analysis(Voice&, const opxy::SampleAnalysis*);
 // Half-open source frame range. Invalid/empty ranges render silence.
 void region(Voice&, opxy::u32 begin, opxy::u32 end, bool reverse = false);
-// Stock sample volume is unsigned Q27 (1.0 = 0x08000000).
+// Scale by a SampleRegion level (unsigned Q27; opxy::sample_unity_level is unity).
 void gain(opxy::i32* output, opxy::u32 value, opxy::u32 channels = 1);
 void render(Voice&, opxy::i32* output, const opxy::i32* parameters, const opxy::u32* increments,
             const opxy::Transport&, opxy::u32 output_channels = 1);

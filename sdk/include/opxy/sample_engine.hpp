@@ -5,62 +5,62 @@
 #include <opxy/transport.hpp>
 
 namespace opxy {
-// A snapshot of the current audio voice, never the GUI-selected pad.
-// The SDK clamps half-open bounds to the borrowed sample. An empty interval
-// means silence. Level is unsigned Q27, unity = 0x08000000.
+// A 16-bit value the machine defines and the SDK saves with each pad
+// (padSettings). Its meaning belongs to the machine.
+typedef u16 PadSettings;
+// SampleRegion.level is unsigned Q27: this is unity gain.
+const u32 sample_unity_level = 1u << 27;
+
+// The playing voice's pad region, read once per block. Bounds are half-open,
+// clamped to the sample; an empty interval means silence.
 struct SampleRegion {
     u32 begin;
     u32 end;
-    u32 level;
+    u32 level;        // unsigned Q27 gain; sample_unity_level is unity
     bool reverse;
-    i32 root_cents;
-    u32 fade_q31;
+    i32 pitch_cents;  // the pad's saved tuning, in cents from the sample's root
 };
 
-// Per-pad extension storage. The platform serializes 16 bits exactly, including
-// stock's float conversion on project save. Uninitialized regions retain their
-// stock tuning/fade metadata so a machine can migrate an earlier saved format.
-struct SampleSettings { u32 value; bool initialized; };
-struct SampleControl { u32 knob; i32 direction; bool pressed; bool shifted; };
+// A sample being assigned to a pad, before stock publishes the new region.
 struct SampleAssignment {
-    const char* filename;
+    const char* filename;  // the file's path, filename_bytes long, not NUL-terminated; may be null
     u32 filename_bytes;
-    u32 frames;
-    u32 rate;
-    Transport transport;
-    // Settings of the pad being replaced, when it held an assigned sample.
-    // The machine decides which values survive the new sample's metadata.
-    SampleSettings previous;
+    u32 frames;            // loaded frames
+    u32 rate;              // source sample rate
+    u32 bpm_x10;           // project tempo, as Transport::bpm_x10
+    // Whether the pad already held a sample with saved settings, which the
+    // machine may keep. Otherwise previous is sample_defaults().
+    bool replacing;
+    PadSettings previous;
 };
-// The stock drum page supplies pitch/play/trim graphics and reverse/volume
-// glyphs. Given the saved settings and eight live Q31 parameters, a machine
-// supplies a live pitch offset, effective play mode and two short Shift
-// captions. The SDK adds the stock region's saved pad pitch for painting.
-struct SamplePanel {
+
+// Drum page (drumControls). A machine-routed encoder event: zero-based knob,
+// turn direction, press, and whether Shift is held.
+struct DrumControl { u32 knob; i32 direction; bool pressed; bool shifted; };
+// What the drum page shows for the selected pad: a live pitch offset in cents
+// (the SDK adds the pad's saved pitch), loop (true) or play once (false), and
+// two NUL-terminated Shift captions of at most 15 characters.
+struct DrumPanel {
     i32 pitch_cents;
-    u32 repeat; // 0 = play once, 1 = loop
+    bool repeat;
     char shifted[2][16];
 };
 
-// All pointers are borrowed for this call. Analysis is immutable and can be
-// absent while preparation is pending, unsupported or out of cache budget.
-// It belongs to the same retained PCM as the voice, through its destruction.
+// One audio block. All pointers are borrowed for this call. Analysis is
+// immutable and can be absent while preparation is pending, unsupported or out
+// of cache budget; it belongs to the same retained PCM as the voice.
 struct SampleBlock {
-    Output output;
-    Parameters parameters;
+    Output output;          // 64 words, or 64 interleaved L/R frames when output_channels is 2
+    Parameters parameters;  // the track's eight live Q31 parameters
     Pitch pitch;
     Transport transport;
     SampleRegion region;
     const SampleAnalysis* analysis;
-    SampleSettings settings;
-    // 1: 64 mono words; 2: 64 interleaved L/R frames (128 words).
-    // Zero from an older aggregate initializer retains the mono contract.
-    u32 output_channels;
-    // Track settings transpose in semitones (-36..36), independent of the
-    // pad key, saved region tuning and live parameter-zero pitch offset.
-    i32 track_transpose;
-    // Drum note's octave displacement from its canonical pad, in semitones.
-    // Captured at note start; changing keyboard octave does not retune a voice.
-    i32 key_transpose;
+    PadSettings settings;   // the pad's saved settings or sample_defaults(); 0 without padSettings
+    u32 output_channels;    // 1 or 2 (stereoOutput)
+    i32 track_transpose;    // track settings transpose, -36..36 semitones
+    // Page 7: semitones from the note's canonical pad to the played note (a
+    // multiple of 12), captured at note start. 0 on page 2.
+    i32 drum_transpose;
 };
 }

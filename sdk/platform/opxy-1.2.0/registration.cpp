@@ -6,7 +6,6 @@
 namespace opxy { namespace platform { namespace registry {
 namespace {
 u32 value(const void* symbol) { return static_cast<u32>(reinterpret_cast<Address>(symbol)); }
-template <class T> T* at(Address address) { return reinterpret_cast<T*>(address); }
 
 const u32 kRecordWords = 12, kNameAt = 16, kNameBytes = 32;
 

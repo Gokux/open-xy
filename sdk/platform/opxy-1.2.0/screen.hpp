@@ -5,10 +5,11 @@
 // everything here has internal linkage.
 #pragma once
 #include "opxy/types.hpp"
+#include "stock.hpp"
 
 namespace opxy { namespace screen { namespace {
 
-template <class Function> Function* stock(u32 address) { return reinterpret_cast<Function*>(address); }
+using platform::stock;
 typedef u32 __attribute__((may_alias)) word;
 
 const u32 kPathLeaf = 0x840c1a40;  // vtable of a stock SVG path leaf
@@ -59,16 +60,16 @@ inline void base_construct(Base* o, u32 page, const char* asset) {
 inline void base_destroy(Base* o) { stock<void(Base*)>(0x8d51f1f0)(o); }
 // Binds child i of the template's `values` group to values[i] and of `titles` to titles[i].
 inline void bind_controls(Base* o) { stock<void(Leaf**, Base*, u32)>(0x8d520b3c)(o->values, o, 0); }
-inline void* find(Base* o, const char* id) { return stock<void*(Base*, const char*, u32)>(0x8d51f740)(o, id, 1); }
+inline void* find(Base* o, const char* id) { return platform::find_node(o, id); }
 inline void draw(Base* o) { stock<void(Base*, u32)>(0x8d51f254)(o, 0); }
-inline u32 selected_track() { return stock<u32()>(0x8d4d78cc)(); }
+inline u32 selected_track() { return platform::selected_track(); }
 inline const Parameters* parameters() { return stock<const Parameters*()>(0x8d4d7c60)(); }
 inline void update_controls(Base* o, u32 track, const Parameters* p) {
     stock<void(Leaf**, u32, const Parameters*)>(0x8d545ae4)(o->values, track, p);
 }
 inline u32 note_serial(u32 track) { return stock<u32(u32)>(0x8d4d75c0)(track); }
 inline void set_matrix(Leaf* node, const i32* matrix) { stock<void(Leaf*, const i32*)>(0x8d5ee7de)(node, matrix); }
-inline void set_text(Leaf* node, const char* text) { stock<void(Leaf*, const char*)>(0x8d5ff080)(node, text); }
+inline void set_text(Leaf* node, const char* text) { platform::set_text(node, text); }
 inline void set_fill(PathNode* node, u32 id) { stock<void(PathNode*, u32)>(0x8d5f8abe)(node, id); }
 inline void set_stroke(PathNode* node, u32 id) { stock<void(PathNode*, u32)>(0x8d5f8a9e)(node, id); }
 inline void invalidate(PathNode* node) { stock<void(PathNode*)>(0x8d5f8afc)(node); }

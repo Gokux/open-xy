@@ -6,9 +6,11 @@ import {buildAssets, presetPath, sha256} from '../builder/core.mjs';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 // Catalog entries as the Python SDK writes them (any valid Q15 defaults).
 const entry = (id, params) => ',\n        ' + JSON.stringify({type:id, default_params:params});
-const machines = ['fm2op', 'macroosc', 'timestretch'].map((id, i) => ({id,
-  kind: id === 'timestretch' ? 'sample' : 'synth', catalog: entry(id, [i, 1000 * i, 32767, 0, 0, 0, 0, 0]),
-  presetDefaults: JSON.parse(read(`machines/${id}/machine.json`)).presetDefaults ?? {}}));
+const machines = ['fm2op', 'macroosc', 'timestretch'].map((id, i) => {
+  const machine = JSON.parse(read(`machines/${id}/machine.json`));
+  return {id, kind: machine.kind, catalog: entry(id, [i, 1000 * i, 32767, 0, 0, 0, 0, 0]),
+    presetDefaults: machine.presetDefaults ?? {}};
+});
 machines.push({id:'decimate', kind:'effect', catalog:entry('decimate', [0, 32767, 0, 0, 0, 0, 0, 0])});
 
 async function fixture(selectedMachines = machines) {
@@ -32,12 +34,12 @@ test('all selections include only their instrument presets with native names and
       assert.equal(p.version,4); assert.equal(p.platform,'OP-XY');
       assert.deepEqual(p.engine.params,JSON.parse(m.catalog.slice(1)).default_params);
       assert.equal(p.engine.playmode,'poly');
-      assert.deepEqual(p.regions,[]); // Timestretch never points into a user's sample library.
+      assert.deepEqual(p.regions,[]); // A preset never points into a user's sample library.
       assert.equal(p.fx.active,false); assert.equal(p.lfo.active,false);
       assert.ok(p.engine.volume>0 && p.engine.volume<=32767);
       assert.ok(p.envelope.amp.sustain>0);
       assert.equal(p.envelope.amp.release,32767); // Device-saved minimum release.
-      if (m.id === 'timestretch') assert.equal(p.envelope.amp.decay,0);
+      for (const [key, value] of Object.entries(m.presetDefaults.amp ?? {})) assert.equal(p.envelope.amp[key], value);
       assert.equal(p.mtime,undefined);
     }
     const menu=JSON.parse(new TextDecoder().decode(files['content/op1_factory.json']));

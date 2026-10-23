@@ -4,12 +4,11 @@
 
 namespace timestretch {
 void render_sample(Voice& voice, const opxy::SampleBlock& block) {
-    const EffectiveControls effective = effective_controls(
-        block.settings.initialized ? block.settings.value : sample_migrate(block.region), block.parameters);
+    const EffectiveControls effective = effective_controls(block.settings, block.parameters);
     const Controls c = effective.pad;
-    const int saved_pitch = 6000 - block.region.root_cents;
+    const int saved_pitch = block.region.pitch_cents;
     voice.pitch = block.track_transpose < -36 ? -36 : block.track_transpose > 36 ? 36 : block.track_transpose;
-    voice.pitch += block.key_transpose < -48 ? -48 : block.key_transpose > 48 ? 48 : block.key_transpose;
+    voice.pitch += block.drum_transpose < -48 ? -48 : block.drum_transpose > 48 ? 48 : block.drum_transpose;
     voice.live_pitch_cents = (saved_pitch < -1200 ? -1200 : saved_pitch > 1200 ? 1200 : saved_pitch) +
                              effective.pitch_cents;
     if (voice.play_once != c.once) { voice.play_once = c.once; voice.finished = false; voice.sync_pending = true; }
@@ -137,7 +136,7 @@ void start(Voice& voice) {
 }
 
 void gain(opxy::i32* output, opxy::u32 value, opxy::u32 channels) {
-    if (value == 0x08000000u) return;
+    if (value == opxy::sample_unity_level) return;
     for (unsigned i = 0; i < kBlock * (channels == 2 ? 2u : 1u); ++i) {
         const bool negative = output[i] < 0;
         const opxy::u32 magnitude = negative ? 0u - static_cast<opxy::u32>(output[i]) :

@@ -4,34 +4,35 @@
 #include <initializer_list>
 static unsigned selected = 46, edits;
 static bool owned = true;
-static opxy::SampleControl received;
+static opxy::DrumControl received;
 extern "C" unsigned sdk_sample_selected_engine() { return selected; }
-extern "C" unsigned extensions_sample_controls_kind(unsigned engine) { return engine == 46 && owned ? 7 : 0; }
 extern "C" int probe_ready() { return owned; }
-// The probe also declares analysis; these callbacks are not exercised here.
-extern "C" unsigned probe_sample_prepare_begin(const opxy::SampleView*, unsigned*, unsigned) { return 0; }
-extern "C" unsigned probe_sample_prepare_step(unsigned, unsigned*) { return 0; }
-extern "C" unsigned probe_sample_prepare_words() { return 0; }
-extern "C" unsigned probe_sample_prepare_result(opxy::SampleAnalysis*) { return 0; }
+// The probe also declares analysis; its callbacks are not exercised here.
+extern "C" unsigned probe_analysis_words(const opxy::SampleView*) { return 0; }
+extern "C" unsigned probe_prepare_begin(const opxy::SampleView*, unsigned*, unsigned) { return 0; }
+extern "C" unsigned probe_prepare_step(unsigned, unsigned*) { return 0; }
+extern "C" unsigned probe_prepared(opxy::SampleAnalysis*) { return 0; }
 static opxy::SampleAssignment assigned;
-extern "C" unsigned probe_sample_assign(const opxy::SampleAssignment* input) { assigned = *input; return input->frames; }
-extern "C" unsigned probe_sample_migrate(const opxy::SampleRegion* input) { return input->root_cents; }
-extern "C" void probe_sample_control(unsigned* value, const opxy::SampleControl* event) {
+extern "C" opxy::PadSettings probe_sample_defaults() { return 77; }
+extern "C" opxy::PadSettings probe_sample_assign(const opxy::SampleAssignment* input) {
+    assigned = *input; return opxy::PadSettings(input->frames);
+}
+extern "C" void probe_drum_control(opxy::PadSettings* value, const opxy::DrumControl* event) {
     ++edits; received = *event; ++*value;
 }
 static const opxy::i32* expected_parameters;
-extern "C" void probe_sample_panel(unsigned value, const opxy::i32* parameters, opxy::SamplePanel* frame) {
+extern "C" void probe_drum_panel(opxy::PadSettings value, const opxy::i32* parameters, opxy::DrumPanel* frame) {
     if (parameters != expected_parameters) std::abort();
     frame->pitch_cents = int(value) - 1200; frame->repeat = value & 1;
     std::memcpy(frame->shifted[0], "first", 6); std::memcpy(frame->shifted[1], "second", 7);
 }
 static void check(bool value) { if (!value) std::abort(); }
 int main() {
-    const opxy::SampleAssignment replacement{"095_loop.wav", 12, 1234, 48000,
-        opxy::Transport{1200, 0, false}, opxy::SampleSettings{0xabcd, true}};
-    check(assign(46, &replacement) == 1234 && assigned.previous.initialized &&
-          assigned.previous.value == 0xabcd && assigned.filename == replacement.filename &&
+    const opxy::SampleAssignment replacement{"095_loop.wav", 12, 1234, 48000, 1200, true, 0xabcd};
+    check(sdk_sample_machine(46)->assign(&replacement) == 1234 && assigned.replacing &&
+          assigned.previous == 0xabcd && assigned.filename == replacement.filename &&
           assigned.filename_bytes == 12 && assigned.rate == 48000);
+    check(sdk_sample_machine(46)->defaults() == 77);
     unsigned raw[8] = {1000, 0, 1000, 0, 1000, 0, 60, 0};
     auto* bytes = reinterpret_cast<unsigned char*>(raw);
     // An unassigned, zero-initialized pad has neutral tuning. Painting must
@@ -58,6 +59,10 @@ int main() {
         unsigned before[8]; std::memcpy(before, raw, sizeof(raw));
         check(sdk_sample_edit(raw, index, -4, 46) == 1);
         check(opxy::platform::sample_settings(raw[5]).value == 124);
+        // A pad without saved settings starts from the machine's defaults.
+        raw[5] = 0;
+        check(sdk_sample_edit(raw, index, -4, 46) == 1 && opxy::platform::sample_settings(raw[5]).value == 78);
+        raw[5] = opxy::platform::sample_store_settings(124);
         check(received.knob == (index & 3) && received.shifted == bool(index & 4) &&
               received.pressed == bool(index & 8) && received.direction == -4);
         before[5] = raw[5]; check(std::memcmp(before, raw, sizeof(raw)) == 0);
@@ -70,13 +75,13 @@ int main() {
         for (int step = 1; step <= 140; ++step) {
             unsigned before[8]; std::memcpy(before, raw, sizeof(raw));
             check(sdk_sample_edit(raw, 0, direction * 7, 46) == 1);
-            check(6000 - opxy::platform::sample_gui_region(raw).root_cents == direction * (step > 120 ? 1200 : step * 10));
+            check(opxy::platform::sample_gui_region(raw).pitch_cents == direction * (step > 120 ? 1200 : step * 10));
             auto* old_bytes = reinterpret_cast<unsigned char*>(before);
             old_bytes[24] = bytes[24]; old_bytes[28] = bytes[28];
             check(std::memcmp(before, raw, sizeof(raw)) == 0 && edits == pitch_edits);
         }
         check(sdk_sample_edit(raw, 8, 0, 46) == 1);
-        check(opxy::platform::sample_gui_region(raw).root_cents == 6000);
+        check(opxy::platform::sample_gui_region(raw).pitch_cents == 0);
     }
     // Active-track edits remain valid when the renderer still caches a stock
     // track. Conversely its cached custom track cannot authorize a stock edit.
