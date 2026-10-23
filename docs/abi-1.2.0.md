@@ -144,8 +144,8 @@ parameter-vector getter (`0x8d4d7c60`) takes the selected track in R0; the
 adapter passes it explicitly after refreshing alternate-control selection.
 The adapter's callback names the shown parameter, and the screen shell passes stock a copy
 of the vector with each position's shown word in place. Generated metadata
-then supplies one-decimal percentage and bounded positive anchor-ratio
-captions on custom synth screens; enums and machine text overrides remain
+then supplies one-decimal amounts (0.0–100.0 without a suffix) and bounded positive
+anchor-ratio captions on custom synth screens; enums and machine text overrides remain
 discrete. FX pages retain their stock captions.
 
 ## Sample engines

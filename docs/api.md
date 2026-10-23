@@ -77,7 +77,7 @@ Controls are finite numbers in [0, 1]. Mappings support `linear`
 (`minimum + (maximum - minimum) * value`), three or more increasing `anchors`
 interpolated evenly, `power` (`maximum * value^exponent`, exponent other than 1),
 `exponential` (`minimum * (maximum/minimum)^value`) and `enum`. Display formats
-are `ratio`, `percent` (of the normalized value), `bipolar` (a -1..1 value as a signed
+are `ratio`, `percent` (the normalized value scaled to 0.0–100.0, without a suffix), `bipolar` (a -1..1 value as a signed
 percentage), `duration`, `semitones` and `enum`. Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
 Parameter order and mapping changes affect saved sounds. The stock parameter
@@ -102,8 +102,8 @@ switches between FM ratio and depth.
 
 On custom synth engine pages, Shift + turn edits the same visible parameter
 at one tenth of the normal rate. Enum choices keep their ordinary stepping.
-Synth percentage and bounded positive anchor-ratio captions show one decimal
-place; a machine's text controls can override them. Custom send effects also
+Synth amounts and bounded positive anchor-ratio captions show one decimal
+place; amounts omit the percent suffix. A machine's text controls can override them. Custom send effects also
 use the slower Shift rate for continuous controls, with stock FX captions.
 
 A sample engine declares `voiceCapacity` (1..256) and the optional

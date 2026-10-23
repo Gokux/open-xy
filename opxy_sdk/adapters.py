@@ -361,7 +361,7 @@ def generate_synth_controls(directory, machines):
                              f'        control_tenths(text, control_ratio(value, anchors, {len(mapping["values"])}), ":1");',
                              '        return true;', '    }'])
             else:
-                body.extend([f'    case {i}:', '        control_tenths(text, value < 0 ? 0 : ((static_cast<opxy::u32>(value) >> 10) * 1000 + (1u << 20)) >> 21, "%");',
+                body.extend([f'    case {i}:', '        control_tenths(text, value < 0 ? 0 : ((static_cast<opxy::u32>(value) >> 10) * 1000 + (1u << 20)) >> 21, "");',
                              '        return true;'])
         body.extend(['    default: return false;', '    }', '}'])
         formatters.append('\n'.join(body))
