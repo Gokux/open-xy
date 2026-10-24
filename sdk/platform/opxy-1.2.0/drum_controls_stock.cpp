@@ -43,8 +43,12 @@ void publish_octave(u32 track, i32 octave) {
 
 // 8c0b1e76 and the recorder's target selection, release and save completion
 // ask which engine the track uses. Owned sample engines borrow the
-// multisampler's branch; the track keeps its real engine.
-u32 sdk_sample_ui_engine(u32 track) { return sdk_sample_alias(track_engine(track)); }
+// multisampler's branch; the track keeps its real engine. A send track's ID is
+// its effect's, which may equal an SDK engine's number: leave it to stock.
+u32 sdk_sample_ui_engine(u32 track) {
+    const u32 id = track_engine(track);
+    return track < kTracks ? sdk_sample_alias(id) : id;
+}
 
 // 8d58d9ca: after stock clamps the octave, mirror its stored value immediately.
 // SDK IDs use stock's single-octave keyboard spacing. No engine/project getter:
@@ -61,7 +65,7 @@ u32 sdk_sample_octave_store(u32 track, i32 octave) {
 // a valid project context, so it also publishes the octave for audio. Returns
 // kNotOwned to let stock continue.
 u32 sdk_sample_key(u32 track, u32 key) {
-    if (sample_page(track_engine(track)) != 7) return kNotOwned;
+    if (track >= kTracks || sample_page(track_engine(track)) != 7) return kNotOwned;
     const i32 octave = stock<i32(u32)>(0x8d58da64)(track);
     publish_octave(track, octave);
     return stock<u32(u32, i32)>(0x8d5b6800)(key, octave) + 53;
@@ -117,4 +121,7 @@ u32 sdk_sample_region_control(u32 key, u32 control, const u32* event, u32 fine) 
     return region_control(key, control, event, fine);
 }
 
-u32 sdk_sample_selected_engine() { return track_engine(selected_track()); }
+u32 sdk_sample_selected_engine() {
+    const u32 track = selected_track();
+    return track < kTracks ? track_engine(track) : kNoEngine;
+}
