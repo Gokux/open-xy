@@ -49,8 +49,8 @@ def main():
     # one pixel per glyph. The existing draw call centers it at x=240.
     offset = mapped_offset(ldr(stock), 0x840131c4, 96)
     widths = stock[offset:offset + 96]
-    expected = startup_label.label(kit['version'])
-    label = expected[:-1]
+    boot_label = startup_label.label(kit['version'])
+    label = boot_label[:-1]
     require(all(32 <= c < 128 for c in label), 'Startup label outside stock font')
     width = sum(widths[c - 32] + 1 for c in label)
     left = 240 - width // 2
@@ -67,7 +67,7 @@ def main():
         require(sha(module) == result['module_sha256'], 'GNU module digest differs')
         low = kit['profile']['module_base']
         check_fallbacks(module, symbols, low)
-        check_startup_label(module, symbols, low, expected)
+        check_startup_label(module, symbols, low, boot_label)
         require(symbols['__extensions_initialized_end']['value'] - low == result['sizes']['initialized'] and
                 symbols['__extensions_module_end']['value'] - low == result['sizes']['allocated'] and
                 sections.get('.bss', {}).get('size', 0) == result['sizes']['bss'], 'GNU memory allocation differs')
