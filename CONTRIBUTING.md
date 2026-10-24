@@ -1,5 +1,24 @@
 # Contributing
 
+## Branch workflow
+
+Start SDK and builder changes from the latest `staging`, the default development
+branch, and open your pull request with **`staging` as its base branch**:
+
+```sh
+git fetch origin
+git switch -c my-change origin/staging
+```
+
+When contributing from a fork, use `upstream/staging` after fetching the Open-XY
+repository as `upstream`. Target `etcetc000/open-xy:staging` in the pull request.
+Merged work is tested at beta.open-xy.com. Maintainers promote reviewed work
+with a `staging` → `main` release pull request; `main` is reserved for releases.
+CI rejects feature pull requests aimed directly at `main`.
+See [Cloudflare deployment](docs/builder.md#cloudflare-deployment).
+
+## Where changes belong
+
 Start with [Your first machine](docs/first-machine.md), then the
 [engine API](docs/api.md) and either bundled example. Keep changes
 in the layer that owns the behavior:
@@ -50,11 +69,6 @@ in the machine's `tests/`, where `python sdk.py test --machine <folder>` compile
 and runs them with the machine's other checks. Native
 changes also require the complete [release verification](docs/build.md#release-verification); its
 required checks and private fixtures cannot be skipped.
-
-Open pull requests against `staging`, the default branch. Merged work is
-deployed to beta.open-xy.com for testing; a release is a pull request from
-`staging` to `main`, and CI rejects pull requests to `main` from any other
-branch. See [Cloudflare deployment](docs/builder.md#cloudflare-deployment).
 
 Work is tracked as issues. Each release has a milestone and a matching
 [project board](https://github.com/etcetc000/open-xy/projects) named after its
