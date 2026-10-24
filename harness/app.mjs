@@ -19,7 +19,8 @@ import { createControls, shownControls, VIEWS } from '../sdk/browser/controls.mj
 const controls = createControls(previewManifest.definition);
 const { definition, parameters, positions, defaults, presets, displayValue, makePatch, readPatch, validateParameters, q31 } = controls;
 import { renderScreen as renderBase } from './screen.mjs';
-import { PreviewDisplay, SvgDisplay } from '../sdk/browser/display.mjs';
+import { PreviewDisplay, SvgDisplay, NoteActivity } from '../sdk/browser/display.mjs';
+const noteActivity = new NoteActivity();
 const renderScreen = (...args) => renderBase(...args, controls, shown, scene?.header);
 const $ = id => document.getElementById(id);
 const controlId = id => customPreview ? `custom-control-${parameters.findIndex(p => p.id === id)}` : id;
@@ -69,7 +70,7 @@ function draw(elapsed = 0) {
   if (display) {
     const input = shownControls(parameterWords(), shown);
     try {
-      scene.apply(display.tick(input, elapsed, visualNotes, 0, reducedMotion.matches));
+      scene.apply(display.tick(input, elapsed, visualNotes, 0, reducedMotion.matches, noteActivity));
     }
     catch (error) { display = scene = displayBackend = null; status(`Display stopped: ${error.message}`); }
   }
@@ -177,6 +178,7 @@ function noteOn(source, note, velocity = 0.8) {
   held.set(source, note);
   if (!existing) {
     send({ type: 'on', note, velocity });
+    noteActivity.noteOn(note);
     visualNotes = (visualNotes + 1) >>> 0;
     draw();
   }
@@ -186,13 +188,17 @@ function noteOn(source, note, velocity = 0.8) {
 function noteOff(source) {
   const note = held.get(source);
   held.delete(source);
-  if (note !== undefined && ![...held.values()].includes(note)) send({ type: 'off', note });
+  if (note !== undefined && ![...held.values()].includes(note)) {
+    send({ type: 'off', note });
+    noteActivity.noteOff(note);
+    draw();
+  }
   paintKeys();
 }
 function panic() {
   for (const timer of timers) clearTimeout(timer);
   timers.clear(); held.clear(); send({ type: 'panic' });
-  display?.reset(); draw();
+  noteActivity.panic(); draw();
   paintKeys(); $('phrase').textContent = 'Play phrase';
 }
 for (const [i, key] of keys.entries()) {
@@ -273,7 +279,7 @@ window.machineLab = Object.freeze({
   noteOff: note => noteOff(`api-${note}`), panic,
   getStatus: () => ({ audio: context?.state || 'off', heldNotes: held.size, sampleRate: context?.sampleRate || null,
     audioBackend, displayBackend,
-    visualNotes,
+    visualNotes, noteActivity: { held_notes: display?.input[17] ?? null, note_off_serial: display?.input[18] ?? null },
     rms: samples ? Math.sqrt(samples.reduce((sum, x) => sum + x * x, 0) / samples.length) : 0 }),
 });
 update();

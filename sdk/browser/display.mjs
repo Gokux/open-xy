@@ -3,12 +3,39 @@
 import { inputWords } from './controls.mjs';
 
 // draw::Input: parameters[4], elapsed, track, note_serial, reduced_motion,
-// shown[4 bytes], slots[8].
-const INPUT_BYTES = 68;
+// shown[4 bytes], slots[8], held_notes, note_off_serial. ABI 1 ends after slots.
+const INPUT_BYTES = 76;
 const integer = (value, low, high, name) => {
   if (!Number.isInteger(value) || value < low || value > high) throw new Error(`Invalid ${name}`);
   return value;
 };
+
+// Main-thread note gates, independent of audition voices and their release tails.
+// One instance per track. Multiple input sources for one pitch are combined by
+// the caller before publishing noteOn/noteOff, just like stock's per-pitch map.
+export class NoteActivity {
+  constructor() {
+    this.held = new Set();
+    this.note_on_serial = 0;
+    this.note_off_serial = 0;
+  }
+  get held_notes() { return this.held.size; }
+  noteOn(note) {
+    if (!Number.isInteger(note) || note < 0 || note > 127) return false;
+    this.held.add(note);
+    this.note_on_serial = this.note_on_serial + 1 >>> 0;
+    return true;
+  }
+  noteOff(note) {
+    if (!this.held.delete(note)) return false;
+    this.note_off_serial = this.note_off_serial + 1 >>> 0;
+    return true;
+  }
+  panic() {
+    this.note_off_serial = this.note_off_serial + this.held.size >>> 0;
+    this.held.clear();
+  }
+}
 
 export class PreviewDisplay {
   constructor(module) {
@@ -17,13 +44,15 @@ export class PreviewDisplay {
     }
     this.api = new WebAssembly.Instance(module).exports;
     const e = this.api;
-    if (e.opxy_display_abi() !== 1 || e.opxy_display_input_bytes() !== INPUT_BYTES) throw new Error('Unsupported drawing ABI');
+    const abi = e.opxy_display_abi(), inputBytes = e.opxy_display_input_bytes();
+    if (!(abi === 1 && inputBytes === 68 || abi === 2 && inputBytes === INPUT_BYTES)) throw new Error('Unsupported drawing ABI');
+    this.noteActivity = abi === 2;
     this.stateBytes = integer(e.opxy_display_state_bytes(), 4, e.memory.buffer.byteLength, 'display state size');
     // Largest declared frame: 4 paths of 64 points, 256 nodes, 4 texts and the header.
     const frameBytes = integer(e.opxy_display_frame_bytes(), 32, 4 * 516 + 256 * 28 + 4 * 36 + 32, 'drawing frame size');
     this.memory = e.memory.buffer;
     const ranges = [
-      [e.opxy_display_state(), this.stateBytes], [e.opxy_display_input(), INPUT_BYTES], [e.opxy_display_frame(), frameBytes],
+      [e.opxy_display_state(), this.stateBytes], [e.opxy_display_input(), inputBytes], [e.opxy_display_frame(), frameBytes],
     ];
     for (let i = 0; i < ranges.length; i++) {
       const [at, size] = ranges[i];
@@ -33,21 +62,24 @@ export class PreviewDisplay {
         if (at < ranges[j][0] + ranges[j][1] && ranges[j][0] < at + size) throw new Error('Overlapping drawing storage');
       }
     }
-    this.input = new Uint32Array(this.memory, ranges[1][0], INPUT_BYTES / 4);
+    this.input = new Uint32Array(this.memory, ranges[1][0], inputBytes / 4);
     this.frame = new Int32Array(this.memory, ranges[2][0], frameBytes / 4);
     this.reset();
   }
   reset() { this.api.opxy_display_reset(); }
   // input: shownControls(words, shown) from controls.mjs.
-  tick(input, elapsed, serial, track = 0, reducedMotion = false) {
+  tick(input, elapsed, serial, track = 0, reducedMotion = false, activity = null) {
     if (typeof reducedMotion !== 'boolean') throw new Error('Invalid display input');
     // Validate the complete snapshot before mutating input/state.
     const [p0, p1, p2, p3, shown, ...slots] = inputWords(input);
     integer(elapsed, -0x80000000, 0x7fffffff, 'elapsed Q10 seconds');
     integer(serial, 0, 0xffffffff, 'note serial');
     integer(track, 0, 0xffffffff, 'track identity');
+    const held = activity === null ? 0xffffffff : integer(activity.held_notes, 0, 128, 'held note count');
+    const released = activity === null ? 0 : integer(activity.note_off_serial, 0, 0xffffffff, 'note-off serial');
     if (this.api.memory.buffer !== this.memory) throw new Error('Display memory changed');
     this.input.set([p0, p1, p2, p3, elapsed >>> 0, track, serial, Number(reducedMotion), shown, ...slots]);
+    if (this.noteActivity) this.input.set([held, released], 17);
     this.api.opxy_display_render();
     if (this.api.opxy_display_valid() !== 1) throw new Error('Display emitted an invalid drawing frame');
     return this.frame;

@@ -4,6 +4,7 @@
 // frame shape.
 #pragma once
 #include "screen.hpp"
+#include "note_activity.hpp"
 
 namespace opxy { namespace screen { namespace {
 // One typed GUI state, input and frame; never accessed by audio callbacks.
@@ -110,6 +111,7 @@ template <class Machine> struct Drawing {
         display_input.elapsed = o->delta;
         display_input.track = controls.track;
         display_input.note_serial = controls.track < 8 ? note_serial(controls.track) : 0;
+        sdk_display_note_activity(controls.track, &display_input);
         display_input.reduced_motion = 0;
         binding::display_render(&display_state, &display_input, &display_frame);
         if (!binding::display_valid(&display_frame)) return;

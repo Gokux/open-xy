@@ -226,6 +226,7 @@ async function inspect(id) {
       // Eight parameter words; each control position shows the parameter last edited there.
       const parameters = Object.assign(Array(8).fill(0), m.preview.defaults), shown = [0, 1, 2, 3];
       let serial = 0, previous = 0, handle, cancelled = false;
+      const noteActivity = new Retained.NoteActivity();
       // A small keyboard from middle C: a key plays its note while held. The preview plays
       // one note at a time, the newest held key; letting it go returns to the one before.
       const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'], held = [];
@@ -237,13 +238,14 @@ async function inspect(id) {
         key.type = 'button'; key.setAttribute('aria-label', name);
         const press = () => {
           if (key.dataset.down === 'true') return;
-          key.dataset.down = 'true'; held.push(note); trigger(); audio.play(note);
+          key.dataset.down = 'true'; held.push(note); noteActivity.noteOn(note); trigger(); audio.play(note);
         };
         const lift = () => {
           if (key.dataset.down !== 'true') return;
           key.dataset.down = 'false';
           const sounding = held.at(-1) === note;
           held.splice(held.indexOf(note), 1);
+          noteActivity.noteOff(note); frame(0);
           if (sounding && held.length) audio.play(held.at(-1)); else audio.release(note);
         };
         key.onpointerdown = e => { e.preventDefault(); key.setPointerCapture(e.pointerId); key.focus(); press(); };
@@ -260,14 +262,18 @@ async function inspect(id) {
         if (!cancelled) frame(0);
         if (error && ticket === previewRevision) $('art-caption').textContent = 'Audio unavailable: ' + error;
       });
-      stopAudio = () => audio.stop();
+      stopAudio = () => {
+        held.length = 0;
+        for (const key of keyboard.children) key.dataset.down = 'false';
+        noteActivity.panic(); frame(0); audio.stop();
+      };
       level.oninput = () => audio.setVolume(Number(level.value) / 100);
       $('audition-controls').append(keyboard, volume);
       const reduced = matchMedia('(prefers-reduced-motion: reduce)');
       function frame(dt = 34) {
         const input = shownControls(parameters, shown);
         // The preview is one track: a changing track would tell the machine to start over.
-        renderer.apply(display.tick(input, dt, serial, 0, reduced.matches));
+        renderer.apply(display.tick(input, dt, serial, 0, reduced.matches, noteActivity));
         // The machine's header text, or the stock percentage of the shown parameter.
         header.innerHTML = Retained.headerSvg(shown.map(slot => m.controls[slot].toLowerCase()),
           shown.map((slot, i) => renderer.header[i] || String(Math.round(parameters[slot] / 0x7fffffff * 100))));
