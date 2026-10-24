@@ -1,5 +1,6 @@
 import copy
 import json
+import tempfile
 import unittest
 
 from tooling import startup_label as label
@@ -7,6 +8,14 @@ from tooling.pipeline import ROOT, check_patch_boundaries
 
 
 class StartupLabelTests(unittest.TestCase):
+    def test_the_label_is_the_release_version(self):
+        version = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
+        self.assertEqual(label.LABEL, f'OPEN {version}-1.2.0'.encode('ascii') + b'\0')
+        with tempfile.TemporaryDirectory() as directory:
+            source = label.generate(directory).read_text(encoding='utf-8')
+        self.assertIn(f'.asciz "OPEN {version}-1.2.0"', source)
+        self.assertNotIn('@LABEL@', source)
+
     def test_label_edit_is_exactly_the_reviewed_one(self):
         profile = json.loads((ROOT / f'profiles/{label.PROFILE}.json').read_text())
         count = len(profile['patches'])

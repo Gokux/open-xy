@@ -1,7 +1,10 @@
 """The boot-screen version label: one display-only edit in stock OS startup."""
+from pathlib import Path
+import re
 import struct
 
 from .formats import require
+from .pipeline import ROOT
 
 PROFILE = 'opxy-1.2.0'
 SITE = 0x8c0b9114
@@ -10,7 +13,20 @@ DRAW = 0x8c0b7ba8
 BEFORE = bytes.fromhex('32e414000207ffe347f5')
 OBJECT = 'sdk/startup_label.o'
 SYMBOL = 'kit_startup_label'
-LABEL = b'OPEN 0.0.1-1.2.0\0'
+# The release version, which the builder shows too; the label adds the stock OS it extends.
+VERSION = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
+require(re.fullmatch(r'\d+\.\d+\.\d+', VERSION) is not None, 'VERSION is <major>.<minor>.<patch>')
+LABEL = f'OPEN {VERSION}-1.2.0'.encode('ascii') + b'\0'
+TEMPLATE = 'sdk/platform/opxy-1.2.0/startup_label.s.in'
+
+
+def generate(directory):
+    """The label unit's assembly, with this release's label."""
+    source = (ROOT / TEMPLATE).read_text(encoding='utf-8')
+    require(source.count('@LABEL@') == 1, 'Startup label template placeholder missing')
+    destination = Path(directory) / 'startup_label.s'
+    destination.write_text(source.replace('@LABEL@', LABEL[:-1].decode('ascii')), encoding='utf-8', newline='\n')
+    return destination
 
 
 def jump(destination):

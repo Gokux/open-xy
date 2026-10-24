@@ -271,6 +271,8 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
                 return assemble_unit(ROOT / RUNTIME_ASM, obj)
             if step == 'memory':
                 return cxx(RUNTIME_CXX, obj)
+            if step == 'startup_label':
+                return assemble_unit(startup_label.generate(folder), obj)
             if step == 'startup':
                 prefixes = [x.prefix for x in by_kind(machines, 'synth', 'sample')]
                 return cxx(str(generate_startup(folder, prefixes, [x.prefix for x in effects],

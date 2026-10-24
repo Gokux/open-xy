@@ -325,7 +325,7 @@ async function build() {
     const nextLayout = {format: 'opxy-layout/1', profile: kit.profile.id, selected: selection, machines: result.numbers};
     const encode = value => new TextEncoder().encode(JSON.stringify(value, null, 2) + '\n');
     files['layout.json'] = encode(nextLayout);
-    files['build.json'] = encode({format: 'opxy-kit-build/1', source_sha256: kit.profile.stock_sha256,
+    files['build.json'] = encode({format: 'opxy-kit-build/1', version: kit.version, source_sha256: kit.profile.stock_sha256,
       sizes: result.sizes, files: hashes, hardware_qualified: false, cpu_measured: false});
     const zip = Core.zipFiles(files);
     if (ticket !== revision) return;
@@ -370,6 +370,7 @@ try {
   const data = $('kit-data').textContent.trim();
   Core.requireThat(data, 'The machines couldn’t load. Reload this page.');
   kit = await Core.openKit(JSON.parse(data));
+  $('builder-version').textContent = 'v' + kit.version;
   selected = kit.machines.map(machine => machine.id);
   try {
     const remembered = JSON.parse(localStorage.getItem(NUMBERS_KEY) ?? 'null');
