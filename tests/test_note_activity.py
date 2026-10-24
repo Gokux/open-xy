@@ -19,13 +19,13 @@ class NoteActivity(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='note-activity-') as directory:
             folder = Path(directory)
             # Substitute only the stock-address boundary, as other SDK fixtures do.
-            stock = (platform / 'stock.hpp').read_text()
+            stock = (platform / 'stock.hpp').read_text(encoding='utf-8')
             stock = stock.replace('typedef __UINTPTR_TYPE__ Address;',
                                   'typedef __UINTPTR_TYPE__ Address;\nAddress host_stock_address(Address);')
             for pointer in ('T*', 'const volatile u32*', 'const volatile unsigned char*'):
                 stock = stock.replace('reinterpret_cast<' + pointer + '>(address)',
                                       'reinterpret_cast<' + pointer + '>(host_stock_address(address))')
-            (folder / 'stock.hpp').write_text(stock)
+            (folder / 'stock.hpp').write_text(stock, encoding='utf-8')
             (folder / 'note_activity.cpp').write_bytes((platform / 'note_activity.cpp').read_bytes())
             binary = folder / ('test.exe' if os.name == 'nt' else 'test')
             hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
@@ -50,7 +50,7 @@ class NoteActivity(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='note-activity-builder-') as directory:
             folder = Path(directory)
             write_builder(dict(screenTemplate=template().decode('utf-8'), notices=''), folder)
-            html = (folder / 'builder.pending.html').read_text()
+            html = (folder / 'builder.pending.html').read_text(encoding='utf-8')
             script = re.search(r'<script type="module">(.*?)</script>', html, re.S).group(1)
             # Run the exported SDK namespaces from the actual offline bundle,
             # before the page's DOM/application layer. No firmware is embedded.
