@@ -150,19 +150,48 @@ function node(tag, text, className) {
 function facts(target, values) {
   target.replaceChildren(...Object.entries(values).flatMap(([name, value]) => [node('dt', name), node('dd', value)]));
 }
+function sourceLinks(source) {
+  const link = (text, url) => {
+    const anchor = node('a', text);
+    anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer';
+    return anchor;
+  };
+  return ['Maintained by ', link('@' + source.maintainer, 'https://github.com/' + source.maintainer),
+    ' · ', link(Core.sourceName(source), source.repository),
+    ' · ', link('Source at ' + source.tag, Core.sourceUrl(source))];
+}
+function describeMachine(target, m) {
+  const field = name => target.querySelector('.' + name);
+  field('detail-kind').textContent = {synth: 'Synthesizer', effect: 'Send effect', sample: 'Sample engine'}[m.kind];
+  field('detail-name').textContent = m.name; field('detail-description').textContent = m.description;
+  field('community-notice').hidden = m.origin !== 'catalog';
+  // Credit the catalog's maintainer and repository, with the exact release source;
+  // Open-XY's own catalog machines (Core.ORIGINS) name the project instead.
+  if (m.origin === 'catalog') {
+    field('detail-source').replaceChildren(...sourceLinks(m.source));
+  } else if (m.origin === 'official') {
+    field('detail-source').replaceChildren('Open-XY machine', ...sourceLinks(m.source).slice(2));
+  } else field('detail-source').textContent = m.origin === 'bundled' ? 'Bundled with Open-XY' : 'Your machine, from this kit';
+}
+function sizeMachineSummary() {
+  // Overlapping, inert copies let CSS reserve the tallest summary in this kit,
+  // including wrapped attribution and the notice, at any window or font size.
+  const summary = $('machine-summary');
+  for (const m of kit.machines) {
+    const sizing = summary.cloneNode(true);
+    sizing.removeAttribute('id');
+    sizing.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+    sizing.classList.add('summary-sizing');
+    sizing.inert = true; sizing.setAttribute('aria-hidden', 'true');
+    describeMachine(sizing, m);
+    summary.parentElement.append(sizing);
+  }
+}
 async function inspect(id) {
   stopPreview();
   const ticket = ++previewRevision;
   inspected = id; const m = kit.machines.find(x => x.id === id);
-  $('detail-kind').textContent = {synth: 'Synthesizer', effect: 'Send effect', sample: 'Sample engine'}[m.kind];
-  $('detail-name').textContent = m.name; $('detail-description').textContent = m.description;
-  // Who makes it and where its code lives: a catalog machine links to its pinned commit.
-  if (m.origin === 'catalog' || m.origin === 'official') {
-    const link = node('a', Core.sourceName(m.source) + ' ' + m.source.tag);
-    link.href = Core.sourceUrl(m.source); link.target = '_blank'; link.rel = 'noopener noreferrer';
-    $('detail-source').replaceChildren((m.origin === 'official' ? 'Open-XY machine' : 'Community machine by ' +
-      m.source.maintainer) + ' · ', link);
-  } else $('detail-source').textContent = m.origin === 'bundled' ? 'Bundled with Open-XY' : 'Your machine, from this kit';
+  describeMachine($('machine-summary'), m);
   $('art-preview').replaceChildren();
   $('audition-controls').replaceChildren();
   stopAudio = () => {};
@@ -244,7 +273,9 @@ async function inspect(id) {
           shown.map((slot, i) => renderer.header[i] || String(Math.round(parameters[slot] / 0x7fffffff * 100))));
       }
       const controls = m.controls.map((name, i) => {
-        const label = node('label', name, 'preview-control'), input = node('input');
+        const label = node('label', undefined, 'preview-control'), input = node('input');
+        label.title = name;
+        label.append(node('span', name));
         input.type = 'range'; input.min = '0'; input.max = '1000'; input.step = '1';
         input.value = String(parameters[i] / 0x7fffffff * 1000); input.setAttribute('aria-label', name + ' preview');
         input.oninput = () => {
@@ -276,6 +307,7 @@ function renderMachines(filter = 'all') {
   kit.machines.forEach((m, index) => {
     if (filter !== 'all' && m.kind !== filter) return;
     const row = node('article', undefined, 'machine' + (selected.includes(m.id) ? ' selected' : ''));
+    row.dataset.origin = m.origin;
     row.style.setProperty('--machine', colors[index % colors.length]);
     const label = node('label'), input = node('input'); input.type = 'checkbox'; input.checked = selected.includes(m.id);
     input.setAttribute('aria-label', 'Include ' + m.name); label.append(input);
@@ -393,6 +425,6 @@ try {
   catalog = Core.decode64(kit.stockCatalog);
   $('notices').textContent = kit.notices;
   $('notices').closest('details').hidden = false;
-  renderMachines(); inspect(kit.machines[0].id); recalculate();
+  sizeMachineSummary(); renderMachines(); inspect(kit.machines[0].id); recalculate();
 } catch (error) { fail(error); }
 openPreviewLink();
