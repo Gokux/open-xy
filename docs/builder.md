@@ -109,6 +109,12 @@ npm run dev        # http://127.0.0.1:8918/
 npm run test:web
 ```
 
+Open `http://127.0.0.1:8918/#preview/machines` to browse and audition the machine
+collection without uploading an OS file. Append a machine ID, for example
+`#preview/machines/fm2op`, to open its details directly. Installation stays disabled;
+the **OS** button returns to the normal builder entry. A configured collection is
+required for machine previews.
+
 Installation screens have direct preview links, such as
 `http://127.0.0.1:8918/#preview/mac/transfer`, `#preview/mac/exit-transfer`
 and `#preview/mac/write-os`. The original-OS flow uses

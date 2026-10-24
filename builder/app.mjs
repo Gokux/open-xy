@@ -11,6 +11,7 @@ document.querySelectorAll('[data-icon]').forEach(el => el.append(Visuals.icon(el
 document.querySelectorAll('[data-device-art]').forEach(el => el.append(Visuals.device()));
 // Preview links can show the guide immediately; using the builder still needs acknowledgement.
 let acknowledged = false;
+let machinePreview = false, loadCollection;
 const browserAllowed = supportsDeviceApis();
 $('browser-blocked').hidden = browserAllowed;
 $('risk-acknowledgement').checked = false;
@@ -46,6 +47,12 @@ function invalidate() {
 }
 function navigate(step) {
   stopAudio();
+  if (machinePreview && step !== 2) {
+    machinePreview = false;
+    history.replaceState(null, '', location.pathname + location.search);
+    ready();
+    if (!acknowledged) { showEntryGate(); return; }
+  }
   wizard.navigate(step);
   document.querySelectorAll('[data-page]').forEach(p => p.hidden = Number(p.dataset.page) !== step);
   document.querySelectorAll('.steps button').forEach(b => {
@@ -56,8 +63,8 @@ function navigate(step) {
 }
 function ready() {
   $('choose').disabled = !(kit && stock);
-  document.querySelector('.steps [data-step="2"]').disabled = $('choose').disabled;
-  $('build').disabled = !(stock && linked);
+  document.querySelector('.steps [data-step="2"]').disabled = !(kit && (stock || machinePreview));
+  $('build').disabled = machinePreview || !(stock && linked);
 }
 
 const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => selected, hasDownload: () => !!downloadUrl, getFiles: () => built,
@@ -68,6 +75,8 @@ const wizard = Wizard.createWizard({getKit: () => kit, getSelected: () => select
   },
 });
 function showEntryGate() {
+  stopPreview();
+  ++previewRevision;
   wizard.navigate(1);
   $('browser-gate').hidden = browserAllowed;
   $('risk-gate').hidden = !browserAllowed;
@@ -76,20 +85,38 @@ function showEntryGate() {
   $('builder-workspace').inert = true;
 }
 function openPreviewLink() {
-  if (wizard.previewLink(location.hash)) {
+  const match = /^#preview\/machines(?:\/([a-z0-9_-]+))?$/.exec(location.hash);
+  const leavingMachines = machinePreview && !match;
+  machinePreview = !!match;
+  if (machinePreview || wizard.previewLink(location.hash)) {
     $('browser-gate').hidden = true;
     $('risk-gate').hidden = true;
     $('builder-workspace').hidden = false;
     $('builder-workspace').inert = false;
     if (!acknowledged) $('status').textContent = '';
-    navigate(wizard.previewPage());
+    if (machinePreview) {
+      loadCollection?.();
+      $('phase-nav').hidden = false;
+      navigate(2);
+      if (kit) {
+        inspect(kit.machines.find(m => m.id === match[1])?.id ?? kit.machines[0].id);
+        recalculate();
+      }
+    } else {
+      $('phase-nav').hidden = !acknowledged;
+      navigate(wizard.previewPage());
+    }
   } else if (!acknowledged) showEntryGate();
+  else if (leavingMachines) navigate(1);
+  if (machinePreview || leavingMachines) ready();
 }
 window.addEventListener('hashchange', openPreviewLink);
 openPreviewLink();
-// Keep the full builder paused while browsing preview links. Leaving a preview
-// returns to this unchecked notice instead of treating the preview as consent.
+// Machine previews may load the collection without acknowledging the notice.
+// Leaving a preview still returns to the gate; installing requires acknowledgement.
 await new Promise(resolve => {
+  loadCollection = resolve;
+  if (machinePreview) resolve();
   $('risk-acknowledgement').onchange = () => {
     $('risk-continue').disabled = !browserAllowed || !$('risk-acknowledgement').checked;
   };
@@ -358,6 +385,7 @@ function recalculate() {
   ready();
 }
 async function build() {
+  if (machinePreview || !acknowledged) return;
   const ticket = revision; $('build').disabled = true; status('Linking and checking your build…');
   try {
     const selection = [...selected], result = Core.linkKit(kit, selection, numbers);
