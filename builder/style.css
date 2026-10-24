@@ -137,7 +137,11 @@ details input { max-width:100%; }
 .detail-source { font-size:12px; color:var(--muted); margin:-4px 0 12px; overflow-wrap:anywhere; }
 .detail-source a { color:inherit; text-underline-offset:2px; }
 .detail-source a:hover { color:var(--ink); }
-.inspector { padding:8px 0 0; }
+.inspector { padding:8px 0 0; container-type:inline-size; }
+.summary-space { display:grid; }
+.summary-space>* { grid-area:1 / 1; min-width:0; display:flow-root; }
+.summary-sizing { visibility:hidden; pointer-events:none; }
+.detail-name,.detail-description { overflow-wrap:anywhere; }
 .inspector-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
 .inspector-top .eyebrow { margin:0; }
 .tag { font-size:10px; color:var(--muted); border:1px solid var(--line); padding:2px 7px; border-radius:4px; }
@@ -148,10 +152,10 @@ details input { max-width:100%; }
 .art-preview>* { position:absolute; inset:0; width:100%; height:100%; }
 .art-preview svg { display:block; width:100%; height:100%; cursor:pointer; }
 .art-placeholder { display:grid; place-items:center; padding:20px; text-align:center; font:12px Consolas,monospace; }
-#detail-description { min-height:3lh; }
+.detail-description { min-height:3lh; }
 #art-caption { min-height:2lh; }
 .caption { font-size:11px!important; margin:8px 0 18px; }
-.audition-controls { display:flex; align-items:center; gap:18px; min-height:44px; margin:10px 0; }
+.audition-controls { display:flex; align-items:center; gap:18px; min-height:56px; margin:10px 0; }
 /* The preview keyboard: white keys in a row, black keys overlapping their neighbours. */
 .preview-keys { display:flex; align-items:flex-start; flex:none; touch-action:none; user-select:none; }
 .preview-key { position:relative; width:24px; height:56px; min-height:0; padding:0 0 4px; display:flex; align-items:flex-end; justify-content:center;
@@ -164,14 +168,20 @@ details input { max-width:100%; }
 .preview-key:focus-visible { outline-offset:2px; z-index:2; }
 .audition-volume { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--muted); min-width:0; }
 .audition-volume input { width:100%; min-width:32px; max-width:100px; accent-color:var(--ink); }
-.controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; min-height:50px; align-content:start; }
+@container(max-width:440px) {
+  .audition-controls { flex-wrap:wrap; align-content:start; row-gap:12px; min-height:92px; }
+  .audition-volume { flex-basis:100%; min-height:24px; }
+}
+.controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; grid-template-rows:repeat(2,minmax(calc(2lh + 32px),auto)); font-size:11px; align-content:start; }
 .control { color:var(--muted); font-size:11px; }
 .preview-control { display:flex; flex-direction:column; gap:8px; color:var(--muted); font-size:11px; min-width:0; }
+.preview-control>span { min-height:2lh; overflow-wrap:anywhere; }
 .preview-control input { width:100%; accent-color:var(--accent); margin:0; height:24px; }
 .preview-control:focus-within { color:var(--ink); }
 .machine-facts { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; font-size:12px; margin:16px 0 0; }
 .machine-facts dt { color:var(--muted); }
 .machine-facts dd { margin:0; font-family:Consolas,monospace; }
+.inspector .machine-facts { min-height:calc(6lh + 40px); align-content:start; }
 .capacity { margin-top:32px; padding-top:24px; border-top:1px solid var(--line); }
 .capacity-heading { display:flex; justify-content:space-between; gap:12px; margin-bottom:14px; }
 .capacity-heading h2 { font-size:14px; margin:0; }
@@ -351,7 +361,6 @@ footer details[open] { flex-basis:100%; }
   .art-preview { width:288px; max-width:100%; }
   .inspector>details { margin:8px 0; }
   .audition-controls { margin:6px 0; }
-  .controls { height:52px; min-height:52px; }
   .filters button { min-height:36px; }
   footer { margin-top:16px; }
   .inspector-top { margin-bottom:8px; }
@@ -365,8 +374,7 @@ footer details[open] { flex-basis:100%; }
   .memory-legend { margin-top:8px; gap:4px 12px; }
 }
 @media(min-width:1200px) {
-  #detail-description { min-height:2lh; }
-  #art-caption { min-height:1lh; }
+  .detail-description { min-height:2lh; }
 }
 
 /* A compact navigation rail: each step's icon above its name. */
@@ -380,9 +388,8 @@ footer details[open] { flex-basis:100%; }
   .steps b { display:none; }
   .nav-icon { width:26px; }
 }
-/* Machines on a desktop window: the page fills the window, with its header and
-   actions in view. Only the machine list scrolls inside it; the details set the
-   row's height and the list takes what is left, beside memory usage. */
+/* On desktop, the list fills the space beside the stable details panel.
+   More machines scroll inside the list instead of making the page taller. */
 @media(min-width:1000px) and (min-height:600px) {
   main:has([data-page="2"]:not([hidden])) { align-items:stretch; }
   main:has([data-page="2"]:not([hidden])) .main-stage { display:flex; flex-direction:column; min-height:calc(100dvh - 48px); }
@@ -397,7 +404,7 @@ footer details[open] { flex-basis:100%; }
   [data-page="2"] .actions { flex:none; }
 }
 /* Compact machine rows. */
-.machine-list { --machine-row:52px; --machine-gap:4px; min-height:0; }
+.machine-list { --machine-row:52px; --machine-gap:4px; min-height:0; height:clamp(280px,50dvh,448px); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-gutter:stable; }
 .machine { grid-template-columns:22px 26px minmax(0,1fr); gap:10px; padding:6px 10px; }
 .machine label { min-height:32px; }
 .machine input { width:16px; height:16px; }
