@@ -9,6 +9,19 @@ using opxy::u32;
 using namespace opxy::draw;
 const i32 expired = 8192;
 
+// Round only the screen caption; the parameter keeps its full Q31 precision.
+inline void amount(char* out, unsigned capacity, opxy::i32 value) {
+    const unsigned p = value < 0 ? 0 : ((static_cast<unsigned>(value) >> 10) * 100 + (1u << 20)) >> 21;
+    char text[4];
+    unsigned n = 0;
+    if (p >= 100) text[n++] = '1';
+    if (p >= 10) text[n++] = static_cast<char>('0' + p / 10 % 10);
+    text[n++] = static_cast<char>('0' + p % 10);
+    text[n] = 0;
+    opxy::draw::copy(out, capacity, text);
+}
+
+
 inline void clear_pulses(DisplayState& state) {
     for (u32 i = 0; i < 4; ++i) {
         state.ages[i] = expired;
@@ -47,6 +60,8 @@ inline void display_reset(DisplayState& state) {
 // a fresh event immediately replaces the oldest pulse, never waits for it.
 inline void display(DisplayState& state, const opxy::draw::Input& input, Frame& frame) {
     using namespace opxy::draw;
+    for (u32 i = 1; i < 4; ++i)
+        amount(frame.header[i], sizeof(frame.header[i]), input.parameters[i]);
     const i32 ratio = clamp(input.parameters[0], 0, opxy::q31::maximum);
     const i32 amount = clamp(input.parameters[1], 0, opxy::q31::maximum);
     const i32 feedback = clamp(input.parameters[2], 0, opxy::q31::maximum);
