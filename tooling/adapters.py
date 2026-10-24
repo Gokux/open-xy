@@ -324,8 +324,28 @@ def generate_synth_controls(directory, machines):
                   Path(directory) / 'synth_control_table.cpp')
 
 
+# A send slot's stock scratch memory: scratch(slot, bytes) (0x8d50d9c8), as stock
+# delay and reverb use it, only for the two send slots (docs/abi-1.2.0.md).
+FX_BUFFER_INIT = '''    // Stock's per-send scratch memory, which stock delay and reverb use the same way.
+    object->buffer = slot == 14 || slot == 15
+        ? opxy::platform::stock<opxy::i32*(opxy::u32, opxy::u32)>(0x8d50d9c8)(slot, {bytes}u) : nullptr;'''
+
+
 def generate_fx_object(directory, m):
-    return expand('fx_object.cpp.in', dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'],
+    bytes_ = m.definition['resources'].get('bufferBytes')
+    if bytes_ is None:
+        values = dict(OBJECT='struct Object { const void* const* vtable; State state; };\n'
+                             'static_assert(sizeof(State) <= opxy::effect_state_bytes, "Effect state exceeds the stock FX slot");',
+                      INIT='    (void)slot;', BUFFER='', RESET='')
+    else:
+        values = dict(OBJECT='#include "stock.hpp"\n'
+                             'struct Object { const void* const* vtable; State state; opxy::i32* buffer; };\n'
+                             'static_assert(sizeof(State) <= opxy::effect_buffered_state_bytes,\n'
+                             '              "Effect state exceeds the stock FX slot beside its buffer address");',
+                      INIT=FX_BUFFER_INIT.format(bytes=bytes_),
+                      BUFFER=f'opxy::Buffer{{object->buffer, object->buffer ? {bytes_ // 4}u : 0u}}, ',
+                      RESET='    object->buffer = nullptr;')
+    return expand('fx_object.cpp.in', dict(values, PREFIX=m.prefix, NAMESPACE=m.definition['id'],
                                            NAME=m.native_name, LABELS=stock_labels(m),
                                            DRY_LEVEL='0x7fffffff' if m.dry_parameter is None else
                                            f'parameters[{m.dry_parameter}]'),

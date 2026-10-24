@@ -247,12 +247,23 @@ the canonical pad; the raw note minus the canonical pad is `drum_transpose`.
 
 ## Send effects
 
-Effects live in a separate 19-entry registry. Stock constructs an effect in
-place inside the FX slot's **480-byte** storage on the audio thread, calls
-`init`, then `process(left, right, parameters)` once per 64-sample block on
-in-place stereo buffers. **No destructor ever runs**, so an effect may hold no
-resources. The first slot word is the object's method table, which leaves 476
-bytes of effect state.
+Effects live in a separate 19-entry registry. The audio mixer keeps one
+**480-byte** slot per track (`0x84c6e3b8 + 480 * slot`); the two sends are
+slots 14 and 15, and either may hold any effect, including the same one. When a
+send's effect changes, the old object fades out over a few blocks and only
+then is the new one constructed in place, so a slot never holds two live
+effects. The mixer calls `init(object, slot)` after construction and again on
+an engine reset, then `process(left, right, parameters)` once per 64-sample
+block on in-place stereo buffers. **No destructor ever runs**, so an effect may
+hold no resources. The first slot word is the object's method table, which
+leaves 476 bytes of effect state.
+
+Stock delay, reverb and chorus keep their delay lines in a static per-send
+scratchpad, two 1 MiB regions that `scratch(slot, bytes)` (`0x8d50d9c8`)
+returns for slots 14 and 15, at most 512 KiB per request; it is never cleared
+or freed. An effect that declares `bufferBytes` gets the same memory: the
+adapter's `init` asks `scratch` for its slot, only for slots 14 and 15, and
+keeps the address in the slot's last word, which leaves 472 bytes of state.
 
 Each effect also answers a dry-level query, `(object, parameters) -> Q31`;
 stock delay and reverb return parameter word 3. The stock mixer reduces the

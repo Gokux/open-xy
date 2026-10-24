@@ -73,6 +73,9 @@ ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
 # A sample engine's optional services: integer 0/1 flags and the analysis budget.
 SAMPLE_FLAGS = ('chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput')
 SAMPLE_OPTIONS = ('sampleAnalysis', *SAMPLE_FLAGS)
+# An effect's optional delay memory (SDK 1.1): stock's per-send scratch, at most 512 KiB.
+EFFECT_OPTIONS = ('bufferBytes',)
+EFFECT_BUFFER_LIMIT = 524288
 DISPLAY_FORMATS = ('ratio', 'percent', 'bipolar', 'duration', 'semitones', 'enum')
 # Every kind's parameters occupy the stock eight-word parameter vector in order.
 # A synth's first four fill the four-control page; up to four more are alternates
@@ -98,7 +101,8 @@ def validate_definition(value, kind):
     require(type(value['schema']) is int and value['schema'] == 1, 'Unknown definition schema')
     stock_name(value['id']); label(value['name'])
     resources = value['resources']
-    optional = tuple(k for k in SAMPLE_OPTIONS if kind == 'sample' and isinstance(resources, dict) and k in resources)
+    options = SAMPLE_OPTIONS if kind == 'sample' else EFFECT_OPTIONS if kind == 'effect' else ()
+    optional = tuple(k for k in options if isinstance(resources, dict) and k in resources)
     keys(resources, (*RESOURCES[kind], *optional), 'resources')
     require(all(type(v) is int for k, v in resources.items() if k != 'display'),
             'Numeric resource requirements must be integers')
@@ -118,6 +122,11 @@ def validate_definition(value, kind):
             require(resources.get(flag, 0) in (0, 1), flag + ' must be 0 or 1')
         require(resources.get('padSettings', 0) or not resources.get('drumControls', 0),
                 'drumControls edits pad settings: it needs padSettings')
+    if kind == 'effect' and 'bufferBytes' in resources:
+        size = resources['bufferBytes']
+        require(4 <= size <= EFFECT_BUFFER_LIMIT and size % 4 == 0,
+                'bufferBytes is whole words, at most %d: the per-send scratch memory stock gives an effect'
+                % EFFECT_BUFFER_LIMIT)
     if kind == 'synth':
         validate_synth_resources(resources)
     parameters = value['parameters']

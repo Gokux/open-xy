@@ -11,8 +11,7 @@ const char* @PREFIX@_fx_parameter_name(opxy::u32) __asm__("@PREFIX@_fx_parameter
 extern const char @PREFIX@_fx_name[] __asm__("@PREFIX@_fx_name");
 }
 using State = @NAMESPACE@::State;
-struct Object { const void* const* vtable; State state; };
-static_assert(sizeof(State) <= opxy::effect_state_bytes, "Effect state exceeds the stock FX slot");
+@OBJECT@
 static_assert(alignof(State) <= opxy::effect_state_alignment, "Effect state alignment exceeds the FX object header");
 static_assert(sizeof(Object) <= 480, "Stock FX slots hold 480 bytes");
 static_assert(__builtin_offsetof(Object, state) == 4, "FX object header mismatch");
@@ -21,19 +20,23 @@ extern const void* const @PREFIX@_fx_vtable[];
 static void* destroy(void* self) { return self; }
 static int zero() { return 0; }
 static void noop() {}
-// +0x14: called once after construction with the stock slot index, which
-// effects do not need.
-static void init(void* self, opxy::u32) {
-    @NAMESPACE@::initialize(static_cast<Object*>(self)->state);
+// +0x14: called after construction, and again on an engine reset, with the
+// stock slot index: the track's, so 14 and 15 are the two sends.
+static void init(void* self, opxy::u32 slot) {
+    Object* object = static_cast<Object*>(self);
+@INIT@
+    @NAMESPACE@::initialize(object->state);
 }
 // +0x10: one 64-sample block, left and right processed in place.
 static void process(void* self, opxy::i32* left, opxy::i32* right, const opxy::i32* parameters) {
-    @NAMESPACE@::process(static_cast<Object*>(self)->state, left, right, parameters);
+    Object* object = static_cast<Object*>(self);
+    @NAMESPACE@::process(object->state, @BUFFER@left, right, parameters);
 }
 void* @PREFIX@_fx_factory(void* storage) {
     if (!storage) return nullptr;
     Object* object = static_cast<Object*>(storage);
     object->state = State();
+@RESET@
     object->vtable = @PREFIX@_fx_vtable;
     return object;
 }
