@@ -72,7 +72,7 @@ of known Blackfin instruction count (about 590 per block), so the figure is
 about the same on any computer:
 
 ```text
-CPU estimate (host-timed; not measured on the device): Pluck about 7,700 Blackfin instructions per voice block at its heaviest setting. Aim for at most 15,000; for scale, 2op FM about 14,000, Macro Osc (Braids) about 9,000
+CPU estimate (host-timed; not measured on the device): Karplus about 7,700 Blackfin instructions per voice block at its heaviest setting. Aim for at most 15,000; for scale, 2op FM about 14,000, Macro Osc (Braids) about 9,000
 ```
 
 | Per 64-sample block | Aim for at most | Likely to drop audio above | Bundled machines |
