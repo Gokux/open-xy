@@ -211,7 +211,8 @@ function catalogEntry(m, numbers) {
 // Where a machine comes from (tooling.browser_kit): bundled with Open-XY, published
 // in the catalog, or a personal kit's own folder. A catalog machine's source is its
 // GitHub repository, release tag, commit and maintainer, matching tooling.catalog's patterns.
-export const ORIGINS = ['bundled', 'catalog', 'personal'];
+// Official catalog machines are Open-XY's own (tooling.catalog.OFFICIAL); the rest are community.
+export const ORIGINS = ['bundled', 'official', 'catalog', 'personal'];
 const RELEASE = {repository: /^https:\/\/github\.com\/[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9._-]+$/,
   tag: /^[A-Za-z0-9._/-]{1,64}$/, commit: /^[0-9a-f]{40}$/, maintainer: /^[A-Za-z0-9-]{1,39}$/};
 export function validSource(source) {
@@ -219,7 +220,10 @@ export function validSource(source) {
     Object.keys(source).sort().join() === Object.keys(RELEASE).sort().join() &&
     Object.entries(RELEASE).every(([key, pattern]) => typeof source[key] === 'string' && pattern.test(source[key]));
 }
-export const validOrigin = m => ORIGINS.includes(m.origin) && (m.origin === 'catalog' ? validSource(m.source) : m.source === undefined);
+const released = m => m.origin === 'catalog' || m.origin === 'official';
+export const validOrigin = m => ORIGINS.includes(m.origin) && (released(m) ? validSource(m.source) : m.source === undefined);
+// A first selection leaves community machines for the user to choose.
+export const chosenByDefault = m => m.origin !== 'catalog';
 // The machine's code at the commit the catalog pins, and its owner/repository name.
 export const sourceUrl = source => source.repository + '/tree/' + source.commit;
 export const sourceName = source => source.repository.slice('https://github.com/'.length);

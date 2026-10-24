@@ -157,10 +157,11 @@ async function inspect(id) {
   $('detail-kind').textContent = {synth: 'Synthesizer', effect: 'Send effect', sample: 'Sample engine'}[m.kind];
   $('detail-name').textContent = m.name; $('detail-description').textContent = m.description;
   // Who makes it and where its code lives: a catalog machine links to its pinned commit.
-  if (m.origin === 'catalog') {
+  if (m.origin === 'catalog' || m.origin === 'official') {
     const link = node('a', Core.sourceName(m.source) + ' ' + m.source.tag);
     link.href = Core.sourceUrl(m.source); link.target = '_blank'; link.rel = 'noopener noreferrer';
-    $('detail-source').replaceChildren('Community machine by ' + m.source.maintainer + ' · ', link);
+    $('detail-source').replaceChildren((m.origin === 'official' ? 'Open-XY machine' : 'Community machine by ' +
+      m.source.maintainer) + ' · ', link);
   } else $('detail-source').textContent = m.origin === 'bundled' ? 'Bundled with Open-XY' : 'Your machine, from this kit';
   $('art-preview').replaceChildren();
   $('audition-controls').replaceChildren();
@@ -178,7 +179,7 @@ async function inspect(id) {
     // The numbers this selection gives it, or those it asks for.
     ...(own => ({[m.kind === 'effect' ? 'Effect number' : 'Engine number']: own.effect ?? own.engine, 'Page': own.page}))(
       linked?.numbers?.[m.id] ?? m.identity),
-    ...(m.origin === 'catalog' ? {'Release': m.source.tag, 'Commit': m.source.commit.slice(0, 12)} : {})});
+    ...(m.source ? {'Release': m.source.tag, 'Commit': m.source.commit.slice(0, 12)} : {})});
   document.querySelectorAll('.machine button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
   if (m.preview) {
     try {
@@ -287,7 +288,8 @@ function renderMachines(filter = 'all') {
     const memory = node('span', kib(ownBytes), 'machine-memory');
     memory.title = 'Code, data and working memory. Shared code is counted separately below.';
     meta.append(memory);
-    if (m.origin !== 'bundled') meta.append(node('span', m.origin === 'catalog' ? 'Community' : 'Yours', 'machine-origin'));
+    if (m.origin === 'catalog' || m.origin === 'personal')
+      meta.append(node('span', m.origin === 'catalog' ? 'Community' : 'Yours', 'machine-origin'));
     button.append(meta); button.onclick = () => inspect(m.id);
     input.onchange = () => {
       selected = input.checked ? [...selected, m.id] : selected.filter(id => id !== m.id);
@@ -383,7 +385,7 @@ try {
   // A tap opens the memory breakdown on screens without hover.
   document.querySelector('.memory-bar').onclick = e => e.currentTarget.classList.toggle('open');
   $('builder-version').textContent = 'v' + kit.version;
-  selected = kit.machines.map(machine => machine.id);
+  selected = kit.machines.filter(Core.chosenByDefault).map(machine => machine.id);
   try {
     const remembered = JSON.parse(localStorage.getItem(NUMBERS_KEY) ?? 'null');
     if (remembered) numbers = Core.readLayout(kit, {format: 'opxy-layout/1', ...remembered}).machines;
