@@ -26,7 +26,7 @@ from .adapters import (catalog_entry, generate_display, generate_fx_object, gene
 from .contributors import validate_source_boundary
 from .firmware import active_services, assemble, hook_instruction, hook_target, patch_active
 from .formats import elf32, elf_sections, require, sha
-from .machines import COLLECTION, by_kind, collection, read_collection, tree
+from .machines import COLLECTION, by_kind, collection, discovered, layout_document, read_collection, read_layout, tree
 from .pipeline import (PROFILE, ROOT, check_patch_boundaries, child, config, document, execute, fresh_output, host_pins, host_platform,
                        read, require_release_host, resolve_toolchain, save_json, tool_paths)
 from .startup import generate as generate_startup
@@ -54,13 +54,13 @@ NUMBER = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)'
 SVG_INHERITED = {'fill', 'stroke', 'stroke-width', 'font-family', 'font-size', 'style'}
 
 
-def configuration(entries=None):
-    """The profile, the collection's machines and their link-time IDs. Entries are
-    machines.read_collection's; the default is profiles/collection.json."""
+def configuration(entries=None, layout=None):
+    """The profile, the collection's machines numbered by the layout, and their link-time
+    IDs. Entries are machines.read_collection's; the default is profiles/collection.json."""
     profile = config()
     stock_tables.check_profile(profile)
     require([p['kind'] for p in profile['patches']].count('startup') == 1, 'Expected one startup label edit')
-    machines = collection(entries)
+    machines = collection(entries, layout)
     definitions = dict(DEFINITIONS)
     for m in machines:
         if m.kind == 'effect':
@@ -631,10 +631,25 @@ def package_collection(package):
     return entries
 
 
+def package_layout(package):
+    """The layout a package's machines were numbered from, as its manifest records it."""
+    layout = document(Path(package) / 'manifest.json').get('layout')
+    require(layout is None or isinstance(layout, dict), 'Invalid package layout')
+    return layout
+
+
+def numbers_after(layout, machines):
+    """Every number a layout holds once these machines are built: its own, the bundled
+    machines' and the machines'."""
+    numbers = dict(layout or {})
+    numbers.update({m.id: m.identity for m in (*discovered(), *machines)})
+    return numbers
+
+
 def verification(stock, catalog, package, toolchain, compiler, *, require_record=True):
     manifest = document(package / 'manifest.json')
     require(manifest.get('schema') == 1 and manifest.get('target') == TARGET, 'Unexpected manifest')
-    profile, machines, definitions = configuration(package_collection(package))
+    profile, machines, definitions = configuration(package_collection(package), package_layout(package))
     with tempfile.TemporaryDirectory(prefix='opxy-verify-') as temporary:
         temporary = Path(temporary)
         module, report, patch_profile = compile_collection(temporary, toolchain, compiler, profile, machines,
@@ -665,9 +680,11 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
     return result
 
 
-def build(out, toolchain, compiler, stock_os, stock_content, entries=None):
+def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layout=None):
+    """A firmware package. Its machines take their numbers from `layout` (by machine ID);
+    the package's layout.json is that layout after this build, for the next one."""
     entries = read_collection() if entries is None else entries
-    profile, machines, definitions = configuration(entries)
+    profile, machines, definitions = configuration(entries, layout)
     require(not any(m.contains(out) for m in machines), 'Keep build output outside every machine folder')
     stock = read(stock_os)
     require(sha(stock) == profile['stock_sha256'], 'Stock OS hash mismatch')
@@ -686,7 +703,9 @@ def build(out, toolchain, compiler, stock_os, stock_content, entries=None):
         path.write_bytes(data)
     tracked = ['candidate/' + name for name in prepared] + ['analysis/module.bin', 'analysis/module.elf'] + ANALYSIS
     save_json(output / 'manifest.json', dict(schema=1, target=TARGET, collection=entries,
+                                             **({'layout': layout} if layout else {}),
                                              files={name: sha(read(output / name)) for name in tracked}))
+    save_json(output / 'layout.json', layout_document(numbers_after(layout, machines)))
     result = verification(stock, catalog, output, toolchain, compiler, require_record=False)
     save_json(output / 'verification.json', result)
     return output, result
@@ -697,6 +716,8 @@ def add_collection_arguments(parser):
                         help='collection file: bundled machine IDs and {"path": ...} folders (default: profiles/collection.json)')
     parser.add_argument('--machine', type=Path, action='append', default=[],
                         help='a machine folder outside this repository to add to the collection; repeatable')
+    parser.add_argument('--layout', type=Path,
+                        help="the machine numbers your OP-XY's projects use: the layout.json of your last build")
 
 
 def selected_collection(args):
@@ -735,7 +756,8 @@ def main(argv=None, command=None):
                     f'--stock-content must be the folder holding op1_factory.json '
                     f'(a copy of the device\'s /content): {args.stock_content}')
         entries = None if command == 'verify' else selected_collection(args)
-        profile, machines, definitions = configuration(entries)
+        layout = read_layout(args.layout) if command != 'verify' and args.layout else None
+        profile, machines, definitions = configuration(entries, layout)
         tools = resolve_toolchain(args.toolchain, args.compiler)
         tool_paths(tools[0])
         compiler_paths(tools[1])
@@ -752,13 +774,14 @@ def main(argv=None, command=None):
             require(sha(stock) == profile['stock_sha256'], 'Stock OS hash mismatch')
             print(json.dumps(verification(stock, catalog, args.package.resolve(), *tools), indent=2))
         else:
-            output, result = build(args.out, *tools, args.stock_os, args.stock_content, entries)
+            output, result = build(args.out, *tools, args.stock_os, args.stock_content, entries, layout)
             print(json.dumps(result, indent=2))
             print('Local experimental package: ' + str(output))
             candidate = output / 'candidate'
             print('Files to install (docs/build.md, step 5), in ' + str(candidate) + ':')
             for path in sorted(p for p in candidate.rglob('*') if p.is_file()):
                 print('  ' + path.relative_to(candidate).as_posix())
+            print('Machine numbers: ' + str(output / 'layout.json') + ' (pass it as --layout to your next build)')
         return 0
     except (ValueError, OSError, KeyError, ET.ParseError, subprocess.SubprocessError) as error:
         print('ERROR: ' + str(error), file=sys.stderr)

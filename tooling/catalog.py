@@ -1,15 +1,15 @@
-"""The catalog: machines published from their own repositories, and every identity
-reserved for one.
+"""The catalog: machines published from their own repositories, by ID.
 
 catalog/machines.json lists each machine once, for good:
 
-- reserved: an ID and identity held for a machine being written;
+- reserved: an ID held for a machine being written;
 - published: also a repository, the release tag and its commit, and the
   machine's folder in that repository. Builds fetch exactly that commit;
-- retired: no longer built, but its ID and identity are never given to
-  another machine, so old projects never load a different one.
+- retired: no longer built, but its ID is never given to another machine.
 
-Bundled machines (machines/) hold their IDs and identities the same way.
+Bundled machines (machines/) hold their IDs the same way. A machine's engine,
+effect and page numbers are not the catalog's: each firmware's layout gives them
+(tooling.machines.assign_numbers).
 """
 import argparse
 import json
@@ -22,14 +22,14 @@ import sys
 
 from .definitions import stock_name
 from .formats import require
-from .machines import COLLECTION, check_identity, discovered, machine_at, read_collection, relative_path
-from .pipeline import NO_WINDOW, ROOT, config
+from .machines import COLLECTION, discovered, machine_at, read_collection, relative_path
+from .pipeline import NO_WINDOW, ROOT
 
 CATALOG = ROOT / 'catalog/machines.json'
 # Fetched machine sources: third-party code, never firmware, so it may live in local/.
 CACHE = ROOT / 'local/catalog'
 STATUSES = ('reserved', 'published', 'retired')
-COMMON = {'id', 'kind', 'identity', 'maintainer', 'status'}
+COMMON = {'id', 'kind', 'maintainer', 'status'}
 RELEASE = {'repository', 'tag', 'commit', 'path'}
 # A release's fields; builder/core.mjs validSource checks kits with the same patterns
 # (tests/test_catalog.py compares them).
@@ -39,22 +39,12 @@ COMMIT = r'[0-9a-f]{40}'
 MAINTAINER = r'[A-Za-z0-9-]{1,39}'
 
 
-def identity_key(kind, identity):
-    """What an identity occupies: its engine or effect ID, and a synth's own page."""
-    keys = {('effect', identity['effect'])} if kind == 'effect' else {('engine', identity['engine'])}
-    if kind == 'synth':
-        keys.add(('page', identity['page']))
-    return keys
-
-
 def validate(value, bundled=None):
     """A catalog document's entries, checked against each other and the bundled machines."""
     require(isinstance(value, dict) and set(value) == {'schema', 'machines'} and value['schema'] == 1 and
             isinstance(value['machines'], list), 'Unsupported catalog')
-    rules = config()['identities']
     bundled = discovered() if bundled is None else bundled
     names = {m.id: 'bundled' for m in bundled}
-    held = {key: m.id for m in bundled for key in identity_key(m.kind, m.identity)}
     for entry in value['machines']:
         require(isinstance(entry, dict) and isinstance(entry.get('id'), str), 'Catalog entries need an id')
         name = entry['id']
@@ -70,10 +60,6 @@ def validate(value, bundled=None):
         require(name not in names, f'{name}: the ID is already {names.get(name)}')
         names[name] = 'listed in the catalog'
         require(entry['kind'] in ('synth', 'sample', 'effect'), f'{name}: unknown kind')
-        check_identity(rules, entry['kind'], entry['identity'])
-        for key in identity_key(entry['kind'], entry['identity']):
-            require(key not in held, f'{name}: {key[0]} {key[1]} is held by {held.get(key)}')
-            held[key] = name
         require(isinstance(entry['maintainer'], str) and re.fullmatch(MAINTAINER, entry['maintainer']),
                 f'{name}: maintainer is a GitHub user name')
         if 'repository' in entry:
@@ -94,15 +80,14 @@ MOVES = {'reserved': {'reserved', 'published', 'retired'}, 'published': {'publis
 
 
 def changes(before, after):
-    """An updated catalog keeps every machine it held, with its kind and identity, and only
-    moves a status forward."""
+    """An updated catalog keeps every machine it held, with its kind, and only moves a
+    status forward."""
     current = {e['id']: e for e in after}
     for entry in before:
         name = entry['id']
         require(name in current, f'{name}: catalog entries are never removed; retire the machine instead')
         now = current[name]
-        require(now['kind'] == entry['kind'] and now['identity'] == entry['identity'],
-                f'{name}: a published ID keeps its kind and identity; release a new machine instead')
+        require(now['kind'] == entry['kind'], f'{name}: a published ID keeps its kind; release a new machine instead')
         # A new repository or maintainer is a handover, which a maintainer of the
         # catalog approves on its own, never as part of an update.
         for key in ('repository', 'maintainer'):
@@ -163,12 +148,6 @@ def load(path=CATALOG):
     return validate(json.loads(Path(path).read_text(encoding='utf-8')))
 
 
-def held_identities(path=CATALOG, bundled=None):
-    """Every identity the catalog holds, whatever its status, by kind."""
-    entries = validate(json.loads(Path(path).read_text(encoding='utf-8')), bundled)
-    return [(entry['kind'], entry['identity']) for entry in entries]
-
-
 # Remote machine repositories are public: never ask for credentials, which would
 # wait invisibly for input, and check files out exactly as committed on every host.
 GIT_ENVIRONMENT = dict(os.environ, GIT_TERMINAL_PROMPT='0', GCM_INTERACTIVE='never')
@@ -205,7 +184,7 @@ def fetch(entry, cache=CACHE):
     require(head(folder) == entry['commit'], f"{entry['id']}: the fetched commit differs from the catalog's")
     require(untouched(folder), f"{entry['id']}: the fetched folder {folder} was changed; delete it to fetch again")
     m = machine_at(folder / entry['path'])
-    require(m.id == entry['id'] and m.kind == entry['kind'] and m.identity == entry['identity'],
+    require(m.id == entry['id'] and m.kind == entry['kind'],
             f"{entry['id']}: the machine at the pinned commit differs from its catalog entry")
     return m
 
@@ -265,13 +244,18 @@ def main(argv=None):
                 # A base without a catalog held nothing yet.
                 listed = git('ls-tree', '--name-only', args.base, 'catalog/machines.json', cwd=ROOT).strip()
                 before = json.loads(git('show', f'{args.base}:catalog/machines.json', cwd=ROOT)) if listed else None
+                if before:
+                    # Entries before layouts gave machine numbers also listed an identity.
+                    for entry in before.get('machines', []):
+                        if isinstance(entry, dict):
+                            entry.pop('identity', None)
                 before = validate(before) if before else []
                 changes(before, entries)
                 # A moved release is fetched at both commits to compare its controls.
                 for line in release_controls(before, entries, args.cache, args.allow_control_changes):
                     print(line)
             print(f'PASS: {len(entries)} catalog entr{"y" if len(entries) == 1 else "ies"}; '
-                  'IDs and identities are unique, including against the bundled machines.')
+                  'IDs are unique, including against the bundled machines.')
             return 0
         published = [e for e in entries if e['status'] == 'published']
         folders = []

@@ -107,7 +107,7 @@ does not change your machine.
 | `core.h`, `engine.cpp` | `Voice` and `Shared` state, lifecycle callbacks and the 64-sample render |
 | `display.h`, `display.cpp` | Display state and drawing callback |
 | `panel.svg.fragment` | Artwork; IDs carry the machine's ID (`<id>_panel`, `<id>_node_N`, `<id>_palette_N`) |
-| `machine.json` | Kind, SDK version and a free engine ID and page, used by a [firmware build](build.md#3-add-your-machine) of the folder |
+| `machine.json` | Kind, SDK version and the engine number and page it asks for, used by a [firmware build](build.md#3-add-your-machine) of the folder |
 | `tests/sound.cpp` | The machine's own host checks; extend them as the sound grows |
 
 `python sdk.py test --machine local/mymachine` checks a machine folder the way
@@ -136,7 +136,7 @@ directory, and use the SDK server rather than serving the checkout root.
 2. **Its own repository:** move the folder into a repository started from the
    [machine template](https://github.com/etcetc000/open-xy-machine-template),
    whose CI runs `sdk.py test` and a firmware compile on every push.
-3. **The Open-XY builder:** reserve the machine's identity in the
+3. **The Open-XY builder:** reserve the machine's ID in the
    [catalog](catalog.md), tag a release and submit it, as the template's
    [submission guide](https://github.com/etcetc000/open-xy-machine-template/blob/main/SUBMITTING.md)
    describes. Published machines appear in the builder as **Community**

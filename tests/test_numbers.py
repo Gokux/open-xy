@@ -1,13 +1,16 @@
-"""Machine numbers (engine, effect and page IDs) reach compiled code only through link-time
-symbols, so one set of objects serves any numbering a layout assigns."""
+"""Machine numbers (engine, effect and page IDs): layouts give them, and they reach compiled
+code only through link-time symbols, so one set of objects serves any numbering."""
 from dataclasses import replace
+import json
 from pathlib import Path
 import tempfile
 import unittest
 
 from tooling.adapters import (generate_display, generate_fx_object, generate_registration, generate_sample_callbacks,
                               generate_sample_voice, generate_screen, generate_synth_controls, generate_voice)
-from tooling.machines import by_kind, collection
+from tooling.machines import (LAYOUT_FORMAT, ROOT, by_kind, collection, discovered, layout_document, number_layout,
+                              read_layout)
+from tooling.pipeline import config
 from tooling.startup import generate as generate_startup
 
 
@@ -57,6 +60,44 @@ class LinkTimeNumbers(unittest.TestCase):
         for name in before:
             with self.subTest(source=name):
                 self.assertEqual(before[name], after[name])
+
+
+class Layouts(unittest.TestCase):
+    def test_numbering_cases_shared_with_the_builder(self):
+        cases = json.loads((ROOT / 'tests/fixtures/numbers.json').read_text(encoding='utf-8'))
+        rules = config()['identities']
+        fixed = cases['fixed']
+        # The cases' fixed machines are this repository's bundled ones.
+        self.assertEqual({name: identity for name, _kind, identity in fixed}, {m.id: m.identity for m in discovered()})
+        for case in cases['cases']:
+            with self.subTest(case=case['name']):
+                run = lambda: number_layout(rules, fixed, case.get('layout'), case['machines'])
+                if 'error' in case:
+                    with self.assertRaisesRegex(ValueError, case['error']):
+                        run()
+                else:
+                    numbers = run()
+                    self.assertEqual({k: v for k, v in numbers.items() if k not in {f[0] for f in fixed}},
+                                     case['numbers'])
+
+    def test_layout_files_round_trip_and_name_their_profile(self):
+        numbers = {m.id: m.identity for m in discovered()} | {'pluck': {'engine': 36, 'page': 84}}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'layout.json'
+            document = dict(layout_document(numbers), selected=['pluck'])  # the builder adds its selection
+            path.write_text(json.dumps(document), encoding='utf-8')
+            self.assertEqual(read_layout(path), numbers)
+            for broken in (dict(document, format='opxy-kit/1'), dict(document, profile='opxy-9.9.9'),
+                           dict(document, machines={'pluck': {'engine': '36', 'page': 84}})):
+                with self.subTest(broken=broken):
+                    path.write_text(json.dumps(broken), encoding='utf-8')
+                    with self.assertRaises(ValueError):
+                        read_layout(path)
+        self.assertEqual(layout_document({})['format'], LAYOUT_FORMAT)
+
+    def test_a_collection_takes_its_numbers_from_the_layout(self):
+        machines = collection(layout={'gone': {'engine': 40, 'page': 90}})
+        self.assertEqual({m.id: m.identity for m in machines}, {m.id: m.identity for m in discovered()})
 
 
 if __name__ == '__main__':

@@ -15,6 +15,7 @@ import sys
 from .adapters import catalog_entry, sample_callbacks
 from .definitions import control_positions
 from .formats import require, sha
+from .machines import discovered
 from .pipeline import ROOT, child, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
 from . import native, preview, screen
 
@@ -48,8 +49,9 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
     owners, services = native.object_owners(machines, profile), native.object_services(machines, profile)
     kit_machines = []
     for m in machines:
+        # The numbers it asks for; the builder numbers each selection (core.mjs assignNumbers).
         entry = dict(id=m.id, name=m.name, kind=m.kind, prefix=m.prefix, description=m.description,
-                     identity=m.identity, controls=[p['label'] for p in m.definition['parameters']],
+                     identity=m.requested or m.identity, controls=[p['label'] for p in m.definition['parameters']],
                      positions=control_positions(m.definition))
         entry['catalog'] = catalog_entry(m)
         # Where the machine comes from, for the builder to show (core.mjs validOrigin).
@@ -93,9 +95,12 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
         if name in services:
             entry['service'] = services[name]
         objects.append(entry)
+    # Stock addresses only: each selection's machine numbers are the builder's.
+    stock = {key: value for key, value in definitions.items() if key in native.DEFINITIONS}
     kit = dict(format='opxy-browser-kit/1', profile=profile,
                profileSource=base64.b64encode(read(ROOT / ('profiles/' + profile['id'] + '.json'))).decode('ascii'),
-               definitions=definitions, machines=kit_machines, objects=objects, notices=notices(machines),
+               definitions=stock, fixed={m.id: m.identity for m in discovered()},
+               machines=kit_machines, objects=objects, notices=notices(machines),
                stockCatalog=base64.b64encode(stock_catalog).decode('ascii'),
                screenTemplate=screen.template().decode('utf-8'))
     kit_path = output / 'kit.json'
@@ -125,7 +130,7 @@ def write_builder(kit, output):
                "import {supportsDeviceApis} from './browser.mjs';\n")
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
-    exports = ('requireThat decode64 sha256 equal readObject identities moduleBytes openKit linkKit readLdr '
+    exports = ('requireThat decode64 sha256 equal readObject readLayout assignNumbers moduleBytes openKit linkKit readLdr '
                'patchFirmware recoverFirmware presetPath buildAssets zipFiles sourceUrl sourceName').split()
     bundled = 'const Core = (() => {\n' + script + '\nreturn {' + ','.join(exports) + '};\n})();\n'
     bundled += 'const {shownControls, inputWords} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode(

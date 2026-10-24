@@ -59,7 +59,8 @@ class Identity(unittest.TestCase):
         def clash(name):
             m = original(name)
             return m if name != 'timestretch' else machines.Machine(**dict(m.__dict__, identity=dict(engine=34, page=2)))
-        with mock.patch.object(machines, 'machine', clash), self.assertRaisesRegex(ValueError, 'Conflicting'):
+        # Bundled machines' numbers are fixed, so two may never share one.
+        with mock.patch.object(machines, 'machine', clash), self.assertRaisesRegex(ValueError, 'both hold engine 34'):
             machines.collection()
 
     def test_unknown_fields_kinds_and_abi_combinations_are_rejected(self):
@@ -139,9 +140,10 @@ class OutsideMachines(unittest.TestCase):
         self.assertEqual([m.id for m in machines.collection(entries)], ['fm2op', 'fmcopy'])
         extra = machines.read_collection(machines.COLLECTION, [self.folder])
         self.assertEqual([m.id for m in machines.collection(extra)][-1], 'fmcopy')
+        # A machine asking for a bundled machine's number is given the lowest free one.
         self.rename('fmcopy', dict(self.free, engine=34))
-        with self.assertRaisesRegex(ValueError, 'Conflicting'):
-            machines.collection(entries)
+        fmcopy = machines.collection(entries)[-1]
+        self.assertEqual((fmcopy.identity, fmcopy.requested), (self.free, dict(self.free, engine=34)))
 
     def test_sdk_version_and_bundled_names_are_checked(self):
         for version in ('0.9', '2.0', '1.1', '1', 'latest', None):

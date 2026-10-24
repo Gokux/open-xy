@@ -39,7 +39,7 @@ jobs:
           BASE: ${{ github.base_ref }}
           CONTROLS: ${{ contains(github.event.pull_request.labels.*.name, 'controls-changed') && '--allow-control-changes' || '' }}
         shell: bash
-        # A pull request keeps every machine's identity from its target branch, and a moved
+        # A pull request keeps every machine's ID and kind from its target branch, and a moved
         # release keeps its controls unless a catalog maintainer labels it controls-changed.
         run: python sdk.py catalog check ${BASE:+--base origin/$BASE} $CONTROLS
       - name: Fetch the pinned machines, confirming their tags, and check them

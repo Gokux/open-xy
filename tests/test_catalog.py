@@ -1,4 +1,4 @@
-"""The catalog: unique IDs and identities, and fetching exactly the pinned commit."""
+"""The catalog: unique IDs, and fetching exactly the pinned commit."""
 import contextlib
 import copy
 import io
@@ -11,9 +11,9 @@ import tempfile
 import unittest
 
 from tooling import catalog
-from tooling.machines import ROOT, discovered
+from tooling.machines import ROOT
 
-PUBLISHED = dict(id='probe', kind='synth', identity=dict(engine=5, page=85), maintainer='someone',
+PUBLISHED = dict(id='probe', kind='synth', maintainer='someone',
                  status='published', repository='https://github.com/someone/opxy-probe', tag='v1.0.0',
                  commit='0' * 40, path='.')
 
@@ -39,7 +39,7 @@ class Validation(unittest.TestCase):
                 catalog.validate(document(broken))
 
     def test_fields_are_checked(self):
-        for change in (dict(id='Bad'), dict(id='sdk_probe'), dict(kind='player'), dict(identity=dict(engine=33, page=85)),
+        for change in (dict(id='Bad'), dict(id='sdk_probe'), dict(kind='player'), dict(identity=dict(engine=36, page=85)),
                        dict(maintainer='not a user'), dict(repository='https://example.com/a/b'),
                        dict(repository='https://github.com/someone/..'),
                        dict(repository='git@github.com:a/b'), dict(commit='abc'), dict(tag='v 1'),
@@ -47,22 +47,12 @@ class Validation(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 catalog.validate(document(dict(PUBLISHED, **change)))
 
-    def test_ids_and_identities_are_held_once(self):
-        other = dict(PUBLISHED, id='other', identity=dict(engine=8, page=86))
+    def test_ids_are_held_once(self):
+        other = dict(PUBLISHED, id='other')
         catalog.validate(document(PUBLISHED, other))
-        for clash in (dict(other, id='probe'), dict(other, identity=dict(engine=5, page=86)),
-                      dict(other, identity=dict(engine=8, page=85)), dict(other, status='retired', id='probe')):
-            with self.subTest(clash=clash), self.assertRaisesRegex(ValueError, 'already|held'):
-                catalog.validate(document(PUBLISHED, clash))
-        # Bundled machines hold theirs too.
-        fm2op = next(m for m in discovered() if m.id == 'fm2op')
-        for clash in (dict(PUBLISHED, id='fm2op'), dict(PUBLISHED, identity=dict(engine=fm2op.identity['engine'], page=85)),
-                      dict(PUBLISHED, identity=dict(engine=5, page=fm2op.identity['page']))):
-            with self.subTest(clash=clash), self.assertRaises(ValueError):
-                catalog.validate(document(clash))
-        # A synth's page is its own; an effect's ID is its own.
-        effect = dict(PUBLISHED, id='fx', kind='effect', identity=dict(effect=2, page=21))
-        catalog.validate(document(effect, dict(effect, id='fx2', identity=dict(effect=3, page=21))))
+        for clash in (dict(other, id='probe'), dict(other, status='retired', id='probe'), dict(PUBLISHED, id='fm2op')):
+            with self.subTest(clash=clash), self.assertRaisesRegex(ValueError, 'already'):
+                catalog.validate(document(PUBLISHED, clash) if clash['id'] == 'probe' else document(clash))
 
 
 class BuilderPatterns(unittest.TestCase):
@@ -76,13 +66,13 @@ class BuilderPatterns(unittest.TestCase):
 
 
 class Changes(unittest.TestCase):
-    def test_entries_keep_their_identity_and_only_move_forward(self):
+    def test_entries_keep_their_kind_and_only_move_forward(self):
         reserved = {k: PUBLISHED[k] for k in catalog.COMMON} | {'status': 'reserved'}
         catalog.changes([reserved], [PUBLISHED])
         catalog.changes([PUBLISHED], [dict(PUBLISHED, tag='v1.1.0', commit='1' * 40)])
         catalog.changes([PUBLISHED], [dict(PUBLISHED, status='retired')])
         catalog.changes([], [PUBLISHED])
-        for after in ([], [dict(PUBLISHED, identity=dict(engine=8, page=85))], [dict(PUBLISHED, kind='effect')],
+        for after in ([], [dict(PUBLISHED, kind='effect')],
                       [dict(reserved)], [dict(PUBLISHED, id='other')],
                       [dict(PUBLISHED, repository='https://github.com/other/opxy-probe')],
                       [dict(PUBLISHED, maintainer='other')]):
@@ -137,7 +127,7 @@ class Fetching(unittest.TestCase):
         self.assertEqual(catalog.fetch(self.entry, self.cache).root, broken)
 
     def test_fetch_refuses_a_machine_that_differs_from_its_entry(self):
-        for change in (dict(identity=dict(engine=8, page=85)), dict(kind='effect', identity=dict(effect=2, page=21))):
+        for change in (dict(kind='effect'), dict(kind='sample')):
             with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'differs'):
                 catalog.fetch(dict(self.entry, **change), self.cache / str(len(change)))
 

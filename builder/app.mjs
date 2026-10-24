@@ -19,6 +19,15 @@ $('risk-continue').disabled = true;
 const colors = ['var(--machine-1)', 'var(--machine-2)', 'var(--machine-3)', 'var(--machine-4)'];
 const kib = n => (n / 1024).toFixed(1) + ' KiB';
 let kit, stock, catalog, selected = [], inspected, linked, downloadUrl, built, layout, revision = 0;
+// The machine numbers of this person's firmware (core.mjs assignNumbers): from their
+// last build here, or a layout.json they load. Kept in this browser as a convenience;
+// the layout.json in every download is the record.
+const NUMBERS_KEY = 'open-xy-machine-numbers';
+let numbers = null;
+function rememberNumbers(value) {
+  numbers = value;
+  try { localStorage.setItem(NUMBERS_KEY, JSON.stringify({profile: kit.profile.id, machines: value})); } catch {}
+}
 let stopPreview = () => {}, previewRevision = 0;
 let stopAudio = () => {};
 window.addEventListener('blur', () => stopAudio());
@@ -110,7 +119,7 @@ async function acceptFirmware(file, isCurrent = () => true) {
   wizard.setFirmwareState('checking');
   $('firmware-result').textContent = 'Verifying ' + file.name + '…';
   try {
-    const recovered = await Core.recoverFirmware(kit, await readBounded(file, 16 * 1024 ** 2));
+    const recovered = await Core.recoverFirmware(kit, await readBounded(file, 16 * 1024 ** 2), numbers);
     if (current !== ticket || !isCurrent()) return false;
     stock = recovered.stock;
     if (recovered.selected) {
@@ -166,7 +175,9 @@ async function inspect(id) {
   const own = kit.objects.filter(o => o.owner === id).flatMap(o => o.sections.filter(s => s.group));
   facts($('machine-facts'), {'Code and data': kib(own.filter(s => s.type !== 8).reduce((n, s) => n + s.size, 0)),
     'Working memory': kib(own.filter(s => s.type === 8).reduce((n, s) => n + s.size, 0)),
-    [m.kind === 'effect' ? 'Effect ID' : 'Engine ID']: m.identity.effect ?? m.identity.engine, 'Page': m.identity.page,
+    // The numbers this selection gives it, or those it asks for.
+    ...(own => ({[m.kind === 'effect' ? 'Effect number' : 'Engine number']: own.effect ?? own.engine, 'Page': own.page}))(
+      linked?.numbers?.[m.id] ?? m.identity),
     ...(m.origin === 'catalog' ? {'Release': m.source.tag, 'Commit': m.source.commit.slice(0, 12)} : {})});
   document.querySelectorAll('.machine button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
   if (m.preview) {
@@ -274,7 +285,7 @@ function recalculate() {
   $('memory-map').replaceChildren(); $('memory-legend').replaceChildren();
   try {
     if (!selected.length) { $('room-value').textContent = 'Choose at least one machine'; $('capacity-details').replaceChildren(); ready(); return; }
-    linked = Core.linkKit(kit, selected);
+    linked = Core.linkKit(kit, selected, numbers);
     const allocations = kit.machines.filter(m => selected.includes(m.id)).map(m => ({name: m.name,
       size: linked.segments.filter(s => s.owner === m.id).reduce((n, s) => n + s.size, 0),
       color: colors[kit.machines.indexOf(m) % colors.length]}));
@@ -297,19 +308,20 @@ function recalculate() {
 async function build() {
   const ticket = revision; $('build').disabled = true; status('Linking and checking your build…');
   try {
-    const selection = [...selected], result = Core.linkKit(kit, selection);
-    const files = await Core.buildAssets(kit, selection, catalog);
+    const selection = [...selected], result = Core.linkKit(kit, selection, numbers);
+    const files = await Core.buildAssets(kit, selection, catalog, result.numbers);
     files['os.ldr'] = await Core.patchFirmware(kit, result, stock);
     const hashes = {};
     for (const [name, bytes] of Object.entries(files)) hashes[name] = await Core.sha256(bytes);
-    const nextLayout = {format: 'opxy-kit/1', profile: kit.profile.id, selected: selection, identities: Core.identities(kit)};
+    // Every number this firmware has given out, for the next build (Core.readLayout).
+    const nextLayout = {format: 'opxy-layout/1', profile: kit.profile.id, selected: selection, machines: result.numbers};
     const encode = value => new TextEncoder().encode(JSON.stringify(value, null, 2) + '\n');
     files['layout.json'] = encode(nextLayout);
     files['build.json'] = encode({format: 'opxy-kit-build/1', source_sha256: kit.profile.stock_sha256,
       sizes: result.sizes, files: hashes, hardware_qualified: false, cpu_measured: false});
     const zip = Core.zipFiles(files);
     if (ticket !== revision) return;
-    layout = nextLayout; built = files; downloadUrl = URL.createObjectURL(new Blob([zip], {type: 'application/zip'}));
+    layout = nextLayout; built = files; rememberNumbers(result.numbers); downloadUrl = URL.createObjectURL(new Blob([zip], {type: 'application/zip'}));
     $('download').href = $('flow-download').href = downloadUrl;
     $('download-summary').textContent = kit.machines.filter(m => selection.includes(m.id)).map(m => m.name).join(' + ');
     $('bundle-art').replaceChildren(Visuals.bundle(Object.keys(files)));
@@ -334,20 +346,27 @@ document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => {
 $('restore').onchange = async e => {
   try {
     const saved = JSON.parse(new TextDecoder().decode(await readBounded(e.target.files[0], 65536)));
-    Core.identities(kit, saved); selected = [...saved.selected]; invalidate(); renderMachines(); recalculate();
-    status('Selection loaded.');
+    const loaded = Core.readLayout(kit, saved);
+    rememberNumbers(loaded.machines);
+    if (loaded.selected) selected = [...loaded.selected];
+    invalidate(); renderMachines(); recalculate();
+    status('Layout loaded: your machines keep their numbers.');
   } catch (error) { fail(error); }
 };
 $('save-layout').onclick = () => {
   if (!layout) return;
   const url = URL.createObjectURL(new Blob([JSON.stringify(layout, null, 2)], {type: 'application/json'}));
-  const a = node('a'); a.href = url; a.download = 'open-xy-selection.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const a = node('a'); a.href = url; a.download = 'layout.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 try {
   const data = $('kit-data').textContent.trim();
   Core.requireThat(data, 'The machines couldn’t load. Reload this page.');
   kit = await Core.openKit(JSON.parse(data));
   selected = kit.machines.map(machine => machine.id);
+  try {
+    const remembered = JSON.parse(localStorage.getItem(NUMBERS_KEY) ?? 'null');
+    if (remembered) numbers = Core.readLayout(kit, {format: 'opxy-layout/1', ...remembered}).machines;
+  } catch { numbers = null; }
   catalog = Core.decode64(kit.stockCatalog);
   $('notices').textContent = kit.notices;
   $('notices').closest('details').hidden = false;

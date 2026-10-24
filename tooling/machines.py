@@ -8,7 +8,7 @@ and build inputs. Saved presets and Open-XY layouts refer to the name and IDs,
 so they never change once published; the SDK checks them against the stock
 tables and the collection.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
 from pathlib import Path
@@ -56,6 +56,7 @@ class Machine:
     root: Path = None
     icon: str = ''
     dry_parameter: int | None = None
+    requested: dict = None  # the numbers machine.json asks for, when a layout gave others
 
     # The stock name and the symbol prefix are the machine's name.
     @property
@@ -206,24 +207,103 @@ def discovered():
     return [machine(path.parent.name) for path in sorted((ROOT / 'machines').glob('*/machine.json'))]
 
 
-def held():
-    """(kind, identity) of every bundled machine and every machine the catalog lists."""
-    from .catalog import held_identities
-    bundled = discovered()
-    return [(m.kind, m.identity) for m in bundled] + held_identities(bundled=bundled)
+# Machine numbers. Projects store a track's engine, effect and page numbers, so a
+# machine keeps its numbers in a firmware for good. Bundled machines' numbers are
+# fixed. Every other machine is given numbers by a layout: the firmware's record of
+# every number it has given out, including to machines since dropped, which stay
+# held so an old project never opens another machine. A machine new to a layout
+# gets the numbers it asks for when they are free, else the lowest free ones.
+# builder/core.mjs assignNumbers applies the same rules (tests/fixtures/numbers.json).
+LAYOUT_FORMAT = 'opxy-layout/1'
+
+
+def number_pools(rules):
+    """The numbers a machine new to a layout may be given, lowest first. Engines come only
+    from the relocated table above stock's "none" value: the gaps in stock's own table
+    below it are left for stock."""
+    engines = [n for n in range(rules['engine_none'] + 1, rules['engines']) if n not in rules['stock_engines']]
+    return dict(engine=engines, page=list(range(rules['page_none'] + 1, rules['pages'])), effect=list(rules['effects']))
+
+
+def occupied(rules, identity):
+    """What an identity holds: its engine or effect number, and its own page. Effects share
+    the FX page and sample engines a stock sample page."""
+    keys = [(slot, identity[slot]) for slot in ('engine', 'effect') if slot in identity]
+    if 'effect' not in identity and identity['page'] not in rules['sample_pages']:
+        keys.append(('page', identity['page']))
+    return keys
+
+
+def read_layout(path):
+    """A layout file's numbers by machine ID. The builder's saved selection is a layout too."""
+    value = json.loads(Path(path).read_text(encoding='utf-8'))
+    profile = config()
+    require(isinstance(value, dict) and value.get('format') == LAYOUT_FORMAT and isinstance(value.get('machines'), dict),
+            f'{path} is not a machine layout ({LAYOUT_FORMAT})')
+    require(value.get('profile') == profile['id'], f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
+    for name, identity in value['machines'].items():
+        stock_name(name)
+        require(isinstance(identity, dict) and set(identity) in ({'engine', 'page'}, {'effect', 'page'}) and
+                all(type(n) is int for n in identity.values()), f'{name}: invalid numbers in the layout')
+    return value['machines']
+
+
+def layout_document(numbers):
+    return {'format': LAYOUT_FORMAT, 'profile': config()['id'], 'machines': dict(sorted(numbers.items()))}
+
+
+def number_layout(rules, fixed, layout, machines):
+    """The layout after numbering `machines`: every number `layout` held, the fixed
+    machines' and any given out now. Machines are (id, kind, requested identity), fixed
+    ones (id, kind, identity); a sample engine's stock page is its own."""
+    pools = number_pools(rules)
+    numbers, holders = {}, {}
+
+    def hold(name, identity):
+        for key in occupied(rules, identity):
+            require(holders.setdefault(key, name) == name,
+                    f'{name} and {holders[key]} both hold {key[0]} {key[1]} in this layout')
+        numbers[name] = dict(identity)
+
+    for name, _kind, identity in fixed:
+        hold(name, identity)
+    for name, identity in (layout or {}).items():
+        if name in numbers:
+            require(numbers[name] == identity, f'{name} is bundled with fixed numbers; the layout gives it others')
+        else:
+            hold(name, identity)
+    for name, kind, requested in machines:
+        if name in numbers:
+            check_identity(rules, kind, numbers[name])
+            require(kind != 'sample' or numbers[name]['page'] == requested['page'],
+                    f'{name} now asks for stock page {requested["page"]}; the layout holds another')
+            continue
+        identity = dict(requested)
+        for slot in ('effect',) if kind == 'effect' else ('engine', 'page') if kind == 'synth' else ('engine',):
+            choices = ([requested[slot]] if requested[slot] in pools[slot] else []) + pools[slot]
+            identity[slot] = next((n for n in choices if (slot, n) not in holders), None)
+            require(identity[slot] is not None, f'No free {slot} number for {name}: every one is held in this layout')
+        hold(name, check_identity(rules, kind, identity))
+    return numbers
+
+
+def assign_numbers(machines, layout=None, fixed=None):
+    """The machines with their numbers in this layout, and the layout after. `fixed` are
+    the bundled machines, by default this repository's."""
+    numbers = number_layout(config()['identities'],
+                            [(m.id, m.kind, m.identity) for m in (discovered() if fixed is None else fixed)],
+                            layout, [(m.id, m.kind, m.identity) for m in machines])
+    assigned = [m if numbers[m.id] == m.identity else replace(m, identity=numbers[m.id], requested=m.identity)
+                for m in machines]
+    return assigned, numbers
 
 
 def free_synth_identity():
-    """The lowest synth engine ID and page that the identity rules allow and neither a bundled
-    machine nor the catalog holds."""
+    """Numbers to ask for in a new synth's machine.json: the lowest that no bundled machine holds."""
     rules = config()['identities']
-    identities = held()
-    engines = {identity.get('engine') for _kind, identity in identities}
-    pages = {identity['page'] for kind, identity in identities if kind == 'synth'}
-    engine = next(n for n in range(1, rules['engines'])
-                  if n != rules['engine_none'] and n not in rules['stock_engines'] and n not in engines)
-    page = next(p for p in range(rules['page_none'] + 1, rules['pages']) if p not in pages)
-    return {'engine': engine, 'page': page}
+    held = {key for m in discovered() for key in occupied(rules, m.identity)}
+    pools = number_pools(rules)
+    return {slot: next(n for n in pools[slot] if (slot, n) not in held) for slot in ('engine', 'page')}
 
 
 def read_collection(path=COLLECTION, extra=()):
@@ -246,23 +326,24 @@ def read_collection(path=COLLECTION, extra=()):
 
 
 def free_effect_identity():
-    """The lowest effect ID that the identity rules allow and no bundled or catalog machine
-    holds, on the FX page."""
+    """Numbers to ask for in a new effect's machine.json: the lowest effect number no bundled machine holds."""
     rules = config()['identities']
-    used = {identity.get('effect') for _kind, identity in held()}
+    used = {m.identity.get('effect') for m in discovered()}
     free = [n for n in rules['effects'] if n not in used]
-    require(free, 'Every effect ID is held: an effect needs one released by another machine')
+    require(free, 'Every effect number is held by a bundled machine')
     return {'effect': free[0], 'page': rules['effect_page']}
 
 
-def collection(entries=None):
-    """Machines in firmware order: the order sets startup, catalog and link layout.
+def collection(entries=None, layout=None):
+    """Machines in firmware order, with their numbers in the layout: the order sets
+    startup, catalog and link layout, and which machine new to the layout is numbered first.
     Entries come from read_collection; the default is profiles/collection.json."""
     entries = read_collection() if entries is None else entries
     require(isinstance(entries, list) and entries, 'Collection needs machines')
     machines = [machine_at(e['path']) if isinstance(e, dict) else machine(e) for e in entries]
     identities = [m.id for m in machines]
     require(len(set(identities)) == len(identities), 'Collection needs distinct machines')
+    machines, _numbers = assign_numbers(machines, layout)
     engines = [m.identity['engine'] for m in machines if 'engine' in m.identity]
     effects = [m.identity['effect'] for m in machines if 'effect' in m.identity]
     pages = [m.identity['page'] for m in machines if m.display != 'stock']

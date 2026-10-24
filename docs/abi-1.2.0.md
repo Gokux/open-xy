@@ -74,7 +74,10 @@ and then completes the stock epilogue it replaced.
 
 Presets store the engine **name**. Projects store the engine **number**.
 Firmware without the relocated tables opens a project that uses an engine above
-32 with Prism (18) instead. Published IDs therefore never change.
+32 with Prism (18) instead. A firmware's numbers therefore never change: layouts
+keep them ([identity](api.md#identity)), and engine and page IDs reach the
+module only as absolute link-time symbols, so one set of objects serves any
+numbering.
 
 ## Synth voices
 

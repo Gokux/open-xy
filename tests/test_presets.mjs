@@ -11,7 +11,10 @@ const machines = ['fm2op', 'macroosc', 'timestretch'].map((id, i) => {
   return {id, kind: machine.kind, catalog: entry(id, [i, 1000 * i, 32767, 0, 0, 0, 0, 0]),
     presetDefaults: machine.presetDefaults ?? {}};
 });
-machines.push({id:'ringmod', kind:'effect', catalog:entry('ringmod', [0, 32767, 0, 0, 0, 0, 0, 0])});
+machines.push({id:'ringmod', kind:'effect',
+  catalog:entry('ringmod', [0, 32767, 0, 0, 0, 0, 0, 0]).replace('"type":"ringmod"', '"type":"ringmod","id":1')});
+// The numbers a layout gave: the effect's menu entry carries its own.
+const numbers = {ringmod: {effect: 6, page: 21}};
 
 async function fixture(selectedMachines = machines) {
   // Authored menu fixture with its own insertion points; no captured firmware or factory content.
@@ -25,7 +28,7 @@ test('all selections include only their instrument presets with native names and
   const {kit,catalog} = await fixture(), original = structuredClone(machines);
   for (let mask=1; mask<16; mask++) {
     const selected=machines.filter((_,i)=>mask & 2**i);
-    const files=await buildAssets(kit,selected.map(m=>m.id),catalog);
+    const files=await buildAssets(kit,selected.map(m=>m.id),catalog,numbers);
     assert.deepEqual(Object.keys(files).sort(),['content/op1_factory.json',
       ...selected.filter(m=>m.kind!=='effect').map(m=>`content/presets/${m.id}/default.json`)].sort());
     for(const m of selected.filter(m=>m.kind!=='effect')) {
@@ -44,6 +47,7 @@ test('all selections include only their instrument presets with native names and
     }
     const menu=JSON.parse(new TextDecoder().decode(files['content/op1_factory.json']));
     assert.deepEqual(menu.engine_types[0],{type:'existing'});
+    if (selected.some(m=>m.id==='ringmod')) assert.equal(menu.fx_types.at(-1).id,6);
     assert.deepEqual(Object.keys(files).filter(p=>p.startsWith('user/')),[]);
   }
   assert.deepEqual(machines,original);
@@ -55,8 +59,8 @@ test('preset generation rejects unsafe paths, foreign kinds and invalid engine p
   for(const params of [[0],Array(8).fill(-1),Array(8).fill(32768),Array(8).fill(.5),Array(8).fill(null)]) {
     const m={id:'example',kind:'synth',catalog:', '+JSON.stringify({type:'example',default_params:params})};
     const {kit,catalog}=await fixture([m]);
-    await assert.rejects(buildAssets(kit,['example'],catalog),/preset engine or defaults/);
+    await assert.rejects(buildAssets(kit,['example'],catalog,numbers),/preset engine or defaults/);
   }
   const {kit,catalog}=await fixture([{id:'example',kind:'synth',catalog:',{"type":"../bad","default_params":[0,0,0,0,0,0,0,0]}'}]);
-  await assert.rejects(buildAssets(kit,['example'],catalog),/preset engine or defaults/);
+  await assert.rejects(buildAssets(kit,['example'],catalog,numbers),/preset engine or defaults/);
 });
