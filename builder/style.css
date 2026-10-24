@@ -337,8 +337,7 @@ footer details[open] { flex-basis:100%; }
   .boot-hardware { max-width:560px; }
   .lcd-closeup { max-width:360px; }
   .boot-guide { gap:10px; }
-  .art-preview { height:132px; aspect-ratio:auto; }
-  .art-preview svg { height:132px; }
+  .art-preview { width:288px; max-width:100%; }
   .inspector>details { margin:8px 0; }
   .audition-controls { margin:6px 0; }
   .controls { height:52px; min-height:52px; }
