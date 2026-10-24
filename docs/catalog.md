@@ -46,6 +46,10 @@ python sdk.py compile --collection local/catalog/collection.json --out <folder>
 
 ## Pull requests
 
+A machine submission from a fork changes only `catalog/machines.json`; CI
+refuses one that changes anything else. Changes the SDK needs for a machine are
+a separate pull request.
+
 The [Catalog workflow](../.github/workflows/catalog.yml) runs on every pull
 request that changes `catalog/` or anything published machines build against
 (the SDK, tooling, profiles, linker script or bundled machines). It validates the catalog, fetches each
