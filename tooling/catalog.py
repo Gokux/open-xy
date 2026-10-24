@@ -111,6 +111,54 @@ def changes(before, after):
         require(now['status'] in MOVES[entry['status']], f"{name}: {entry['status']} cannot become {now['status']}")
 
 
+def control_changes(before, after):
+    """How a release changes a machine's parameters, which projects save by index: changes
+    that alter what a saved value means, and notes on those that do not."""
+    changed, notes = [], []
+    ids = [p['id'] for p in after]
+    for index, old in enumerate(before):
+        name = f"parameter {index} ({old['id']})"
+        new = after[index] if index < len(after) else None
+        if new is None or new['id'] != old['id']:
+            if old['id'] in ids:
+                changed.append(f"{name}: moved to parameter {ids.index(old['id'])}")
+            elif new is not None and new['id'] not in {p['id'] for p in before}:
+                changed.append(f"{name}: id changed to {new['id']}")
+            else:
+                changed.append(f'{name}: removed')
+            continue
+        if new['mapping'] != old['mapping']:
+            changed.append(f"{name}: mapping changed from {json.dumps(old['mapping'])} to {json.dumps(new['mapping'])}")
+        if new.get('control') != old.get('control'):
+            changed.append(f"{name}: control position changed from {old.get('control')} to {new.get('control')}")
+        for key in ('label', 'display', 'default'):
+            if new[key] != old[key]:
+                notes.append(f'{name}: {key} {old[key]} -> {new[key]}')
+    notes += [f"parameter {index} ({p['id']}): added" for index, p in enumerate(after) if index >= len(before)]
+    return changed, notes
+
+
+def release_controls(before, after, cache=CACHE, allow=False):
+    """Fetches both releases of every published machine whose commit moved and compares
+    their parameters. Control changes fail unless `allow` (a catalog maintainer's approval);
+    returns the lines to report."""
+    previous = {e['id']: e for e in before if 'commit' in e}
+    report, refused = [], []
+    for entry in after:
+        old = previous.get(entry['id'])
+        if entry['status'] != 'published' or old is None or old['commit'] == entry['commit']:
+            continue
+        changed, notes = control_changes(fetch(old, cache).definition['parameters'],
+                                         fetch(entry, cache).definition['parameters'])
+        release = f"{entry['id']} {old['tag']} -> {entry['tag']}"
+        report += [f'{release}: {line}' for line in changed + notes]
+        refused += [f'{release}: {line}' for line in changed]
+    require(allow or not refused, 'saved projects would load different controls:\n  ' + '\n  '.join(refused) +
+            '\nKeep each parameter at its index with its id and mapping, or have a catalog maintainer '
+            'approve the change with the controls-changed label')
+    return report
+
+
 def load(path=CATALOG):
     return validate(json.loads(Path(path).read_text(encoding='utf-8')))
 
@@ -199,6 +247,9 @@ def main(argv=None):
     command = parser.add_subparsers(dest='command', required=True)
     checking = command.add_parser('check', help='validate catalog/machines.json against itself and the bundled machines')
     checking.add_argument('--base', help='a git revision to compare with, such as the pull request target')
+    checking.add_argument('--allow-control-changes', action='store_true',
+                          help="accept releases that change what saved parameter values mean (a catalog maintainer's approval)")
+    checking.add_argument('--cache', type=Path, default=CACHE, help='fetched machines (default: local/catalog)')
     fetching = command.add_parser('fetch', help='fetch every published machine at its pinned commit')
     testing = command.add_parser('test', help='fetch, then check every published machine with sdk.py test')
     for sub in (fetching, testing):
@@ -214,7 +265,11 @@ def main(argv=None):
                 # A base without a catalog held nothing yet.
                 listed = git('ls-tree', '--name-only', args.base, 'catalog/machines.json', cwd=ROOT).strip()
                 before = json.loads(git('show', f'{args.base}:catalog/machines.json', cwd=ROOT)) if listed else None
-                changes(validate(before) if before else [], entries)
+                before = validate(before) if before else []
+                changes(before, entries)
+                # A moved release is fetched at both commits to compare its controls.
+                for line in release_controls(before, entries, args.cache, args.allow_control_changes):
+                    print(line)
             print(f'PASS: {len(entries)} catalog entr{"y" if len(entries) == 1 else "ies"}; '
                   'IDs and identities are unique, including against the bundled machines.')
             return 0

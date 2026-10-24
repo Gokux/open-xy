@@ -30,7 +30,7 @@ IDs and identities are unique across the catalog and the bundled machines.
 
 | Command | Does |
 | --- | --- |
-| `python sdk.py catalog check [--base <ref>]` | Validates the catalog against itself and the bundled machines. With `--base`, also against an earlier catalog: every entry stays, with its kind and identity, and its status only moves forward |
+| `python sdk.py catalog check [--base <ref>] [--allow-control-changes]` | Validates the catalog against itself and the bundled machines. With `--base`, also against an earlier catalog: every entry stays, with its kind and identity, and its status only moves forward; a published machine whose commit moved is fetched at both commits and its [controls compared](#controls) |
 | `python sdk.py catalog fetch [--tags]` | Fetches every published machine at exactly its commit into `local/catalog/`, checks it matches its entry and writes `local/catalog/collection.json`: the bundled machines, then every published one. `--tags` also confirms each tag still names its commit |
 | `python sdk.py catalog test [--tags]` | Fetches, then runs [`sdk.py test`](first-machine.md#what-you-own) on every published machine |
 
@@ -66,3 +66,17 @@ compares the catalog with the pull request's target branch: a change of `kind`
 or `identity` is refused, and a removed machine becomes `retired`, never deleted.
 A new `repository` or `maintainer` is a handover: it fails the check, and a
 catalog maintainer approves it in a pull request of its own.
+
+### Controls
+
+Projects save a machine's parameter values by index in its `definition.json`
+`parameters`, so an update keeps what each saved value means. Compared with
+the previous release, each parameter keeps its index, `id`, `mapping` and, for
+an alternate, `control`. A removed, moved or renamed parameter, or a changed
+mapping (its kind, range, values or enum labels), fails the check, which names
+each by index. Parameters added after the last one and new `label`, `display`
+or `default` values are reported and allowed.
+
+A catalog maintainer approves a control change by adding the
+`controls-changed` label to the pull request; the workflow runs again and
+passes `--allow-control-changes`.

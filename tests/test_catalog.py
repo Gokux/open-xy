@@ -1,5 +1,7 @@
 """The catalog: unique IDs and identities, and fetching exactly the pinned commit."""
+import contextlib
 import copy
+import io
 import json
 from pathlib import Path
 import re
@@ -147,6 +149,85 @@ class Fetching(unittest.TestCase):
         self.assertTrue(catalog.pinned(m, catalog.load(listing)))
         listing.write_text(json.dumps(document(dict(listed, commit='1' * 40))), encoding='utf-8')
         self.assertFalse(catalog.pinned(m, catalog.load(listing)))
+
+
+class Controls(unittest.TestCase):
+    """A moved release keeps what each saved parameter value means."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        root = Path(self.temporary.name).resolve()
+        self.repository = root / 'opxy-probe'
+        shutil.copytree(ROOT / 'machines/fm2op', self.repository)
+        record = json.loads((self.repository / 'machine.json').read_text(encoding='utf-8'))
+        record['identity'] = dict(engine=5, page=85)
+        (self.repository / 'machine.json').write_text(json.dumps(record), encoding='utf-8')
+        self.definition = json.loads((self.repository / 'definition.json').read_text(encoding='utf-8'))
+        self.definition['id'] = 'probe'
+        # Four positions and one alternate, so a release can remove a parameter.
+        self.parameters = self.definition['parameters'] + [self.alternate('spread')]
+        subprocess.run(['git', 'init', '-q', '-b', 'main'], cwd=self.repository, check=True, capture_output=True,
+                       creationflags=catalog.NO_WINDOW)
+        self.before = dict(PUBLISHED, repository=self.repository.as_uri(), commit=self.release(self.parameters))
+        self.cache = root / 'cache'
+
+    @staticmethod
+    def alternate(name):
+        return dict(id=name, label=name.title(), default=0.5, mapping=dict(kind='linear', minimum=0, maximum=1),
+                    display='percent', control=0)
+
+    def release(self, parameters):
+        definition = dict(self.definition, parameters=parameters,
+                          presets={'Init': {p['id']: p['default'] for p in parameters}})
+        (self.repository / 'definition.json').write_text(json.dumps(definition), encoding='utf-8')
+        for command in (['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q',
+                                        '--allow-empty', '-m', 'release']):
+            subprocess.run(['git', *command], cwd=self.repository, check=True, capture_output=True,
+                           creationflags=catalog.NO_WINDOW)
+        return catalog.git('rev-parse', 'HEAD', cwd=self.repository).strip()
+
+    def update(self, parameters, allow=False):
+        after = dict(self.before, tag='v1.1.0', commit=self.release(parameters))
+        return catalog.release_controls([self.before], [after], self.cache, allow)
+
+    def test_unchanged_controls_pass_and_new_text_is_reported(self):
+        self.assertEqual(self.update(copy.deepcopy(self.parameters)), [])
+        relabelled = copy.deepcopy(self.parameters)
+        relabelled[0].update(label='Harmonic', default=0.5)
+        self.assertEqual(self.update(relabelled), ['probe v1.0.0 -> v1.1.0: parameter 0 (ratio): label Ratio -> Harmonic',
+                                                   'probe v1.0.0 -> v1.1.0: parameter 0 (ratio): default 0.3333333333333333 -> 0.5'])
+        # A release that keeps its commit is not fetched.
+        self.assertEqual(catalog.release_controls([self.before], [dict(self.before, repository='file:///missing')]), [])
+
+    def test_an_appended_parameter_passes(self):
+        report = self.update(self.parameters + [self.alternate('width')])
+        self.assertEqual(report, ['probe v1.0.0 -> v1.1.0: parameter 5 (width): added'])
+
+    def test_control_changes_fail_naming_the_parameter(self):
+        reordered = copy.deepcopy(self.parameters)
+        reordered[1], reordered[2] = reordered[2], reordered[1]
+        remapped = copy.deepcopy(self.parameters)
+        remapped[3]['mapping']['maximum'] = 8000
+        renamed = copy.deepcopy(self.parameters)
+        renamed[3]['id'] = 'release'
+        moved = copy.deepcopy(self.parameters)
+        moved[4]['control'] = 2
+        for parameters, message in ((self.parameters[:4], r'parameter 4 \(spread\): removed'),
+                                    (reordered, r'parameter 1 \(amount\): moved to parameter 2'),
+                                    (remapped, r'parameter 3 \(decay\): mapping changed'),
+                                    (renamed, r'parameter 3 \(decay\): id changed to release'),
+                                    (moved, r'parameter 4 \(spread\): control position changed from 0 to 2')):
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, '(?s)' + message + '.*controls-changed'):
+                    self.update(parameters)
+                # A catalog maintainer's approval lets it through, still reported.
+                self.assertTrue(any(re.search(message, line) for line in self.update(parameters, allow=True)))
+
+    def test_the_check_command_compares_with_the_base_catalog(self):
+        # Without a moved release, check --base needs no network or flag.
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(catalog.main(['check', '--base', 'HEAD', '--cache', str(self.cache)]), 0)
 
 
 if __name__ == '__main__':

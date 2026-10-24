@@ -4,6 +4,8 @@ name: Catalog
 # module with the bundled machines and all of them. No stock files or device.
 on:
   pull_request:
+    # Adding or removing the controls-changed label runs the check again.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     paths: ['catalog/**', 'sdk/**', 'tooling/**', 'linker/**', 'profiles/**', 'machines/**', 'sdk.py',
             '.github/workflows/catalog.yml']
   push:
@@ -35,9 +37,11 @@ jobs:
       - name: Catalog entries
         env:
           BASE: ${{ github.base_ref }}
+          CONTROLS: ${{ contains(github.event.pull_request.labels.*.name, 'controls-changed') && '--allow-control-changes' || '' }}
         shell: bash
-        # A pull request keeps every machine's identity from its target branch.
-        run: python sdk.py catalog check ${BASE:+--base origin/$BASE}
+        # A pull request keeps every machine's identity from its target branch, and a moved
+        # release keeps its controls unless a catalog maintainer labels it controls-changed.
+        run: python sdk.py catalog check ${BASE:+--base origin/$BASE} $CONTROLS
       - name: Fetch the pinned machines, confirming their tags, and check them
         run: python sdk.py catalog test --tags --cxx clang++ --host-cxx g++
   firmware:
