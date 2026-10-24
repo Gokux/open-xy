@@ -320,8 +320,8 @@ function renderMachines(filter = 'all') {
     const memory = node('span', kib(ownBytes), 'machine-memory');
     memory.title = 'Code, data and working memory. Shared code is counted separately below.';
     meta.append(memory);
-    if (m.origin === 'catalog' || m.origin === 'personal')
-      meta.append(node('span', m.origin === 'catalog' ? 'Community' : 'Yours', 'machine-origin'));
+    const originLabel = {bundled: 'Core', official: 'Core', catalog: 'Community', personal: 'Yours'}[m.origin];
+    meta.append(node('span', originLabel, 'machine-origin'));
     button.append(meta); button.onclick = () => inspect(m.id);
     input.onchange = () => {
       selected = input.checked ? [...selected, m.id] : selected.filter(id => id !== m.id);
