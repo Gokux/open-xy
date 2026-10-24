@@ -17,7 +17,7 @@ from .definitions import control_positions
 from .formats import require, sha
 from .machines import discovered
 from .pipeline import ROOT, child, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
-from . import native, preview, screen, startup_label
+from . import native, preview, screen
 
 
 def notices(machines):
@@ -98,7 +98,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
     # Stock addresses only: each selection's machine numbers are the builder's.
     stock = {key: value for key, value in definitions.items() if key in native.DEFINITIONS}
     # The release version, as the firmware's boot label shows it.
-    kit = dict(format='opxy-browser-kit/1', version=startup_label.VERSION, profile=profile,
+    kit = dict(format='opxy-browser-kit/1', version=native.package_version(package), profile=profile,
                profileSource=base64.b64encode(read(ROOT / ('profiles/' + profile['id'] + '.json'))).decode('ascii'),
                definitions=stock, fixed={m.id: m.identity for m in discovered()},
                machines=kit_machines, objects=objects, notices=notices(machines),

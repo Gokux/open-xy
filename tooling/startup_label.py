@@ -13,19 +13,36 @@ DRAW = 0x8c0b7ba8
 BEFORE = bytes.fromhex('32e414000207ffe347f5')
 OBJECT = 'sdk/startup_label.o'
 SYMBOL = 'kit_startup_label'
-# The release version, which the builder shows too; the label adds the stock OS it extends.
-VERSION = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
-require(re.fullmatch(r'\d+\.\d+\.\d+', VERSION) is not None, 'VERSION is <major>.<minor>.<patch>')
-LABEL = f'OPEN {VERSION}-1.2.0'.encode('ascii') + b'\0'
 TEMPLATE = 'sdk/platform/opxy-1.2.0/startup_label.s.in'
+# Packages built before releases were versioned showed this label's version.
+UNVERSIONED = '0.0.1'
 
 
-def generate(directory):
-    """The label unit's assembly, with this release's label."""
+def release_version():
+    """The release version in VERSION, which the builder shows too. Read when a build
+    needs it, so a missing or malformed file fails only that build."""
+    path = ROOT / 'VERSION'
+    require(path.is_file(), 'Missing VERSION: the release version, <major>.<minor>.<patch>')
+    return checked(path.read_text(encoding='utf-8').strip())
+
+
+def checked(version):
+    require(isinstance(version, str) and re.fullmatch(r'\d+\.\d+\.\d+', version) is not None,
+            'A release version is <major>.<minor>.<patch>: ' + repr(version))
+    return version
+
+
+def label(version):
+    """The boot label's terminated text: the release and the stock OS it extends."""
+    return f'OPEN {checked(version)}-1.2.0'.encode('ascii') + b'\0'
+
+
+def generate(directory, version):
+    """The label unit's assembly, showing this release."""
     source = (ROOT / TEMPLATE).read_text(encoding='utf-8')
     require(source.count('@LABEL@') == 1, 'Startup label template placeholder missing')
     destination = Path(directory) / 'startup_label.s'
-    destination.write_text(source.replace('@LABEL@', LABEL[:-1].decode('ascii')), encoding='utf-8', newline='\n')
+    destination.write_text(source.replace('@LABEL@', label(version)[:-1].decode('ascii')), encoding='utf-8', newline='\n')
     return destination
 
 
