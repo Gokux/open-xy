@@ -25,6 +25,10 @@ effect and page numbers are not the catalog's: each firmware's
 
 IDs are unique across the catalog and the bundled machines.
 
+The builder's machine details panel links to the catalog's maintainer profile,
+repository and source at the pinned release commit. Community machines also
+show a short notice about support and possible instability or unexpected audio.
+
 ## Commands
 
 | Command | Does |
