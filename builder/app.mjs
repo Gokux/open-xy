@@ -331,7 +331,11 @@ async function inspect(id) {
 function renderMachines(filter = 'all') {
   $('machines').style.setProperty('--machine-count', kit.machines.length);
   $('machines').replaceChildren();
-  kit.machines.forEach((m, index) => {
+  const priority = m => m.origin === 'bundled' || m.origin === 'official' ? 0 : 1;
+  // Preserve collection order within each group and the memory-map color indexes.
+  const rows = kit.machines.map((m, index) => ({m, index}))
+    .sort((a, b) => priority(a.m) - priority(b.m));
+  rows.forEach(({m, index}) => {
     if (filter !== 'all' && m.kind !== filter) return;
     const row = node('article', undefined, 'machine' + (selected.includes(m.id) ? ' selected' : ''));
     row.dataset.origin = m.origin;
