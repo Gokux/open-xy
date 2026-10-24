@@ -195,7 +195,7 @@ async function inspect(id) {
       canvas.append(renderer.root, header); $('art-preview').replaceChildren(canvas);
       // Eight parameter words; each control position shows the parameter last edited there.
       const parameters = Object.assign(Array(8).fill(0), m.preview.defaults), shown = [0, 1, 2, 3];
-      let serial = 0, previous = 0, handle, cancelled = false, heldNotes = 0;
+      let serial = 0, previous = 0, handle, cancelled = false;
       const play = node('button', 'Play', 'secondary'); play.id = 'preview-play'; play.setAttribute('aria-pressed', 'false');
       const pitch = node('select'); pitch.id = 'preview-note'; pitch.setAttribute('aria-label', 'Preview note');
       for (let note = 48; note <= 72; note++) {
@@ -206,7 +206,6 @@ async function inspect(id) {
       level.type = 'range'; level.min = '0'; level.max = '100'; level.value = '50'; level.setAttribute('aria-label', 'Preview volume');
       volume.append(level);
       const audio = new Audition(compiled, parameters, (playing, error) => {
-        heldNotes = playing ? 1 : 0;
         if (!cancelled) frame(0);
         play.textContent = playing ? 'Stop' : 'Play'; play.setAttribute('aria-pressed', String(playing));
         if (error && ticket === previewRevision) $('art-caption').textContent = 'Audio unavailable: ' + error;
@@ -219,7 +218,8 @@ async function inspect(id) {
       const reduced = matchMedia('(prefers-reduced-motion: reduce)');
       function frame(dt = 34) {
         const input = shownControls(parameters, shown);
-        renderer.apply(display.tick(input, dt, serial, heldNotes, reduced.matches));
+        // The preview is one track: a changing track would tell the machine to start over.
+        renderer.apply(display.tick(input, dt, serial, 0, reduced.matches));
         // The machine's header text, or the stock percentage of the shown parameter.
         header.innerHTML = Retained.headerSvg(shown.map(slot => m.controls[slot].toLowerCase()),
           shown.map((slot, i) => renderer.header[i] || String(Math.round(parameters[slot] / 0x7fffffff * 100))));
