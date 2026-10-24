@@ -197,17 +197,4 @@ inline bool valid(const F& frame) {
         if (!terminated(frame.header[i], header_capacity)) return false;
     return true;
 }
-// The first path that repeats a point, or Paths when every point of every path
-// is distinct. The stock parser merges repeated points, so an outline needs
-// distinct points. The previews check frames with it; valid() does not, keeping
-// the device's per-frame check linear.
-template <class F>
-inline u32 repeated(const F& frame) {
-    for (u32 p = 0; p < F::path_count; ++p)
-        for (u32 i = 1; i < F::point_count; ++i)
-            for (u32 j = 0; j < i; ++j)
-                if (frame.paths[p].points[i].x == frame.paths[p].points[j].x &&
-                    frame.paths[p].points[i].y == frame.paths[p].points[j].y) return p;
-    return F::path_count;
-}
 }} // namespace opxy::draw

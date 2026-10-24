@@ -60,7 +60,7 @@ element. Both renderers apply only what changed.
 
 | Part | Contents |
 | --- | --- |
-| `paths[i]` | A nonzero geometry `key` and `points` distinct points relative to the node's origin. Change the key whenever the points change; renderers cache the keys they applied. |
+| `paths[i]` | A nonzero geometry `key` and `points` points relative to the node's origin. Change the key whenever the points change; renderers cache the keys they applied. |
 | `nodes[i]` | The element's whole transform, `x`, `y` (origin), `scale` (uniform) and `cos`, `sin` (a clockwise turn), plus `shade`, a palette entry, and `paint`: keep, stroke, or fill and stroke. |
 | `texts[i]` | `x`, `y`, `scale` like a node's, without turning, and up to 23 characters. |
 | `header[i]` | Text for control position `i` in place of the stock value, at its position and size: keep it to about five characters. An empty string keeps the stock value. |
@@ -85,10 +85,6 @@ reaches more than 160 pixels left and more than 100 pixels up from its origin.
 `sweep(value, half)` maps a control onto `half` tenths of a degree either side
 of upright (at most 1800). `text` and `header` copy bounded strings. `valid`
 checks the complete frame before painting; an invalid frame is not applied.
-The OP-XY's SVG parser merges repeated points, leaving an outline with fewer
-points than its path, which the device then no longer reshapes. The browser
-preview therefore also rejects a frame whose path repeats a point
-(`repeated`); `valid` does not check this on the device.
 
 ## Artwork
 
@@ -96,7 +92,7 @@ Elements bind by index and the machine's symbol prefix:
 
 | Frame part | Artwork |
 | --- | --- |
-| Node `i` | `<prefix>_node_<i>`: a `path` or `circle`. Path nodes are a `path` of exactly `M`, `points - 1` `L` and `Z` with no fill, every point distinct. |
+| Node `i` | `<prefix>_node_<i>`: a `path` or `circle`. Path nodes are a `path` of exactly `M`, `points - 1` `L` and `Z` with no fill, every point distinct: the OP-XY's SVG parser merges repeated points, leaving fewer than the frame binds, and the device then no longer reshapes the outline. |
 | Text slot `i` | `<prefix>_text_<i>`: a `text` with explicit font, positioned by its transform, with no `x` or `y` |
 | Palette entry `i` | `<prefix>_palette_<i>`: a `path` or `circle` with explicit `#RRGGBB` fill and stroke and a stroke width; it lends them to the nodes that select it. Park entries off screen. |
 

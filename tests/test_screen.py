@@ -10,8 +10,7 @@ from tooling import native, screen
 from tooling.pipeline import ROOT
 from test_sample_services import HOST_CXX
 
-# hide() parks off screen and keeps the frame valid; repeated() finds the first
-# path with a repeated point, which valid() leaves to the previews.
+# hide() parks off screen and keeps the frame valid.
 DRAWING = r'''
 #include "opxy/draw.hpp"
 using namespace opxy::draw;
@@ -23,12 +22,8 @@ int main() {
         for (opxy::u32 i = 0; i < 4; ++i) frame.paths[p].points[i] = Point{static_cast<opxy::i32>(i) * unit, 0};
     }
     for (opxy::u32 i = 0; i < 3; ++i) hide(frame, i);
-    if (!valid(frame) || repeated(frame) != 2) return 1;
-    if (frame.nodes[0].x - 160 * unit < 480 * unit || frame.nodes[0].y - 100 * unit < 220 * unit) return 2;
-    frame.paths[1].points[3] = frame.paths[1].points[1];
-    if (!valid(frame) || repeated(frame) != 1) return 3;
-    frame.paths[0].points[2] = frame.paths[0].points[0];
-    return repeated(frame) == 0 ? 0 : 4;
+    if (!valid(frame)) return 1;
+    return frame.nodes[0].x - 160 * unit < 480 * unit || frame.nodes[0].y - 100 * unit < 220 * unit ? 2 : 0;
 }
 '''
 
@@ -64,7 +59,7 @@ class PlatformScreenTests(unittest.TestCase):
 
 
 class DrawingContract(unittest.TestCase):
-    def test_hidden_nodes_park_off_screen_and_repeated_points_are_found(self):
+    def test_hidden_nodes_park_off_screen(self):
         if not HOST_CXX:
             self.skipTest('No working host C++ compiler (set OPXY_TEST_HOST_CXX)')
         hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
