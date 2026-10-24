@@ -83,6 +83,8 @@ DISPLAY_FORMATS = ('ratio', 'percent', 'bipolar', 'duration', 'semitones', 'enum
 # A synth's first four fill the four-control page; up to four more are alternates
 # (see control_positions). Sample engines and effects use one to eight.
 CONTROLS = {'synth': (4, 8), 'sample': (1, 8), 'effect': (1, 8)}
+# Stock voice indices: a voice object for each, 0..255.
+STOCK_VOICES = 256
 SYNTH_POSITIONS = 4
 
 
@@ -107,6 +109,12 @@ def validate_definition(value, kind):
             'Numeric resource requirements must be integers')
     if 'voiceCapacity' in resources:
         require(1 <= resources['voiceCapacity'] <= 256, 'Voice capacity must be 1..256')
+    # Stock creates a voice object for every index 0..255 and never checks for a
+    # missing one. Synth voices are shared out to notes as they start (voice.cpp.in);
+    # a sample engine's voice is bound to its sample when created, so it needs all 256.
+    if kind == 'sample':
+        require(resources['voiceCapacity'] == STOCK_VOICES,
+                'A sample engine needs voiceCapacity 256: stock creates a voice for every one of its 256 indices')
     if kind == 'sample':
         heap = resources.get('sampleAnalysis', 0)
         require(type(heap) is int and (heap == 0 or (4096 <= heap <= ANALYSIS_HEAP_LIMIT and heap % 4 == 0)),
