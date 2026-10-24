@@ -52,7 +52,7 @@ The ZIP contains:
 | `content/op1_factory.json` | Replaces the menu file |
 | `content/display/*.svg` | New screens for the selected machines; keep the stock files |
 | `content/presets/<machine>/default.json` | One init preset in each selected instrument's own folder |
-| `layout.json`, hashes | Optional; for your records |
+| `layout.json`, hashes | Keep `layout.json`: it holds your machines' numbers, and loading it into the builder next time keeps them for your projects |
 
 Every build shows `OPEN 0.0.1-1.2.0` at boot. Timestretch starts without a sample;
 choose one on its sample page. Ring Mod is a send effect and has no preset.
@@ -79,18 +79,21 @@ needs a desktop browser and a secure context; otherwise the helper links to
 hosted Ferret. The separate WebUSB MTP client reads or sends files only after
 an explicit click and USB permission, and releases the connection afterwards.
 
-## Capacity and identity
+## Capacity and machine numbers
 
 The firmware reserves **2 MiB** of the application heap: 2044 KiB that every
 selected machine shares for code, data and state, and 4 KiB for relocated stock
 tables. The memory meter shows each machine's share; see
 [memory and limits](api.md#memory-and-limits). CPU headroom is not measured.
 
-Each machine has a fixed engine (or FX) and page ID, declared in its
-`machine.json` ([identity](api.md#identity)), so a project never changes
-instruments when the selection changes. Adding a machine to
-the collection means adding it to the native build; the builder is not a
-plugin loader and does not raise the voice limit.
+Projects save each track's machine by number, so a machine keeps its numbers
+in your firmware for good ([layouts](api.md#identity)). The builder remembers
+your layout in this browser and writes it to `layout.json` in every download;
+load that file under the machine list to build from another browser or
+computer. Numbers given to a machine you drop stay held, so its projects never
+open another machine. Adding a machine to the collection means adding it to
+the native build; the builder is not a plugin loader and does not raise the
+voice limit.
 
 ## Web development
 

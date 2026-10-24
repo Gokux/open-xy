@@ -84,6 +84,11 @@ class CustomPreviewTests(unittest.TestCase):
         bad = panel_root(f'<g><path id="local_node_0" d="{custom.square_outline(4)}" fill="none"/></g>'.encode(), 'test')
         with self.assertRaisesRegex(ValueError, 'exactly M, 63 L and Z'):
             check_outlines({n.get('id'): n for n in bad.iter() if n.get('id')}, 'local', display)
+        # The device merges repeated points, even ones written differently.
+        repeated = custom.square_outline(64).replace('M-32 -32 ', 'M-32 -32 L-32.0 -32 ', 1).replace(' L-28 -32', '', 1)
+        bad = panel_root(f'<g><path id="local_node_0" d="{repeated}" fill="none"/></g>'.encode(), 'test')
+        with self.assertRaisesRegex(ValueError, 'repeats a point; the device merges repeated points'):
+            check_outlines({n.get('id'): n for n in bad.iter() if n.get('id')}, 'local', display)
 
     def test_tampered_artwork_is_rejected(self):
         out, _ = self.fixture()

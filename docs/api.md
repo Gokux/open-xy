@@ -25,7 +25,7 @@ fails the build or, for the artwork rule, halts the device's SVG parser.
 | Callbacks | Bounded work per 64-sample block; no blocking, logging, file access or graphics from audio callbacks |
 | Synth controls | Four control positions, plus up to four alternates; values arrive as Q31 and the stock menu stores Q15 defaults |
 | Audio | 64 frames at 44.1 kHz, Q31 output peaking at most at half scale; mono by default, optional stereo for sample engines |
-| Identity | Name and IDs follow the [identity rules](#identity); they never change once published |
+| Identity | The name follows the [identity rules](#identity) and never changes once published; a firmware's [layout](#identity) gives the numbers |
 | Sample engines | The sample is read-only and borrowed for the voice's lifetime |
 | Effects | State fits in 476 bytes and holds no resources (no destructor ever runs) |
 | Artwork | At most four decimal places and no exponent notation in any number; explicit paint on every leaf; no `style`, events or external references |
@@ -347,7 +347,7 @@ preset entries, its screen file, its symbol prefix and its C++ namespace. It is 
 | `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.0 and builds 1.0 machines |
 | `kind` | `synth`, `sample` or `effect` |
 | `description` | Plain text of at most 160 characters, shown by the builder and preview |
-| `identity` | `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |
+| `identity` | The numbers it asks for: `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |
 | `sources`, `includes` | Optional extra translation units and include folders inside the machine folder; synths only, since the native plan compiles one source for the other kinds |
 | `icon` | Optional builder glyph: SVG path data in a 46 × 48 box, drawn as a stroke. The kind's glyph is used otherwise |
 | `presetDefaults` | Optional `{"amp": {...}}` overriding generated factory preset envelope values: `attack`, `decay`, `release` and `sustain`, each 0..32767. It does not rewrite existing projects or presets |
@@ -364,11 +364,28 @@ source dry mixer, as described under [effects](#effects).
 | `effect` | A free stock FX ID: 1–4, 6–8 or 11 | Stock FX page 21 |
 
 IDs above 32 and pages above 81 exist only in the relocated stock tables.
-Names and IDs are part of saved presets and projects, so they never change once
-published. The SDK also rejects conflicts within the collection. Generated
-adapters check record/name ownership and screen readiness before catalog
-admission; the packager authenticates firmware and constrains writes. See
-[native builds](build.md). Generated instrument presets use polyphonic voice mode.
+Presets save a machine's name and projects its numbers, so a name never changes
+once published, and neither do a firmware's numbers.
+
+`identity` holds the numbers a machine asks for. The four bundled machines'
+are fixed: 2op 34/82, Macro Osc 26/83, Ring Mod effect 1 and Timestretch 35 on
+sample page 7. No other machine may be bundled with fixed numbers, since a
+layout may already hold any free number: `tests/fixtures/numbers.json` pins
+these four.
+Every other machine is numbered by the firmware's **layout**: its record of
+every number it has given out, including to machines since dropped, which stay
+held so an old project never opens another machine. The builder and
+`sdk.py build` write the layout after each build to `layout.json`; give it to
+the next build so every machine keeps its numbers. A machine new to the layout
+gets the numbers it asks for when they are free, otherwise the lowest free
+ones. New numbers come from engines 34..62 and pages 82..127, never from the
+gaps in stock's own engine table; a sample engine keeps its stock page.
+
+Generated adapters check record/name ownership and screen readiness before
+catalog admission; the packager authenticates firmware and constrains writes.
+See [native builds](build.md). Generated instrument presets use polyphonic
+voice mode.
 
 Arbitrary external-engine loading is not implemented: a machine reaches the
-firmware by joining the collection in `profiles/collection.json`.
+firmware through the collection, bundled, from the [catalog](catalog.md), or as
+a folder passed to a build with `--machine`.

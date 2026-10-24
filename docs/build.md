@@ -55,10 +55,15 @@ is whichever folder holds `op1_factory.json`.
 Start from [your first machine](first-machine.md); `sdk.py new` needs no
 preview tools. A machine is a folder that can live anywhere, such as its own
 repository. Its `machine.json` names the SDK version it targets (`"sdk": "1.0"`)
-and holds an engine ID and page no machine in this repository uses. Keep it, or
-give it another free [identity](api.md#identity)
-([fields](api.md#registration-boundary)). Names and IDs are saved in presets and
-projects, so they never change once published.
+and the engine (or effect) number and page it asks for, which no machine in
+this repository uses ([identity](api.md#identity),
+[fields](api.md#registration-boundary)). Names are saved in presets and never
+change once published.
+
+Projects save machine numbers, which a build takes from a layout: every package
+holds `layout.json`, the numbers its firmware has given out. Pass it to your next
+build with `--layout <previous package>/layout.json`, and every machine keeps its
+numbers, even after you add or drop others.
 
 Every build command takes the collection:
 

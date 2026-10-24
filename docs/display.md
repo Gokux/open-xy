@@ -77,8 +77,11 @@ element. Both renderers apply only what changed.
 An element authored in place, with no transform, is drawn where the artwork
 puts it at `(0, 0)`, unit scale and no turn. `place` sets a node's transform
 and paint upright, `turn` rotates it, `shade` repaints it without moving it,
-and `hide` moves it to (`hidden_x`, `hidden_y`), outside the display, keeping a
-positive unit scale. `rotation(tenths)` turns by tenths of a degree and
+and `hide` moves it to (`hidden_x`, `hidden_y`), the bottom-right corner
+(640, 320), keeping a positive unit scale. That is 160 pixels right of and 100
+below the 480 × 220 screen, so a hidden element stays out of view unless it
+reaches more than 160 pixels left and more than 100 pixels up from its origin.
+`rotation(tenths)` turns by tenths of a degree and
 `sweep(value, half)` maps a control onto `half` tenths of a degree either side
 of upright (at most 1800). `text` and `header` copy bounded strings. `valid`
 checks the complete frame before painting; an invalid frame is not applied.
@@ -89,7 +92,7 @@ Elements bind by index and the machine's symbol prefix:
 
 | Frame part | Artwork |
 | --- | --- |
-| Node `i` | `<prefix>_node_<i>`: a `path` or `circle`. Path nodes are a `path` of exactly `M`, `points - 1` `L` and `Z` with no fill. |
+| Node `i` | `<prefix>_node_<i>`: a `path` or `circle`. Path nodes are a `path` of exactly `M`, `points - 1` `L` and `Z` with no fill, every point distinct: the OP-XY's SVG parser merges repeated points, leaving fewer than the frame binds, and the device then no longer reshapes the outline. |
 | Text slot `i` | `<prefix>_text_<i>`: a `text` with explicit font, positioned by its transform, with no `x` or `y` |
 | Palette entry `i` | `<prefix>_palette_<i>`: a `path` or `circle` with explicit `#RRGGBB` fill and stroke and a stroke width; it lends them to the nodes that select it. Park entries off screen. |
 
@@ -122,3 +125,22 @@ See [2op display.cpp](../machines/fm2op/display.cpp) (outlines and pulses) and
 [Macro display.cpp](../machines/macroosc/display.cpp) (segment characters,
 glow, dials and header text) for implementations.
 How screens reach stock is described in the [firmware ABI](abi-1.2.0.md#screens).
+
+## Migrating from before SDK 1.0
+
+Machines written for the earlier beta use two display contracts that SDK 1.0
+replaced with this one. To bring one up to date:
+
+- `machine.json` declares `"sdk": "1.0"`.
+- A `"kind": "drawing"` display drops its `kind` and declares `"texts": 0`.
+- `Frame<paths, points, nodes, palette>` becomes
+  `Frame<paths, points, nodes, 0, palette>`.
+- A `"kind": "segments"` display, or code that includes `opxy/segments.hpp`,
+  draws with this contract instead. Macro Osc keeps its own
+  [segments.hpp](../machines/macroosc/segments.hpp) and
+  [display.cpp](../machines/macroosc/display.cpp): copy the parts you need into
+  your machine and declare nodes for them.
+- Code that fills a `Node` directly also sets its rotation (`cos`, `sin`);
+  `place`, `shade` and `turn` do this for you.
+
+Then run `python sdk.py test --machine <folder>`.

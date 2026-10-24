@@ -2,35 +2,34 @@
 
 Machines published from their own repositories reach the Open-XY builder
 through [`catalog/machines.json`](../catalog/machines.json). The catalog pins
-one tagged commit of each; nothing is copied into this repository. It also
-holds every identity reserved for a machine, so no two machines ever share an
-ID, engine or effect ID or page. Authors follow the
+one tagged commit of each; nothing is copied into this repository. Each
+machine's ID is held for good, so no two machines ever share one. Engine,
+effect and page numbers are not the catalog's: each firmware's
+[layout](api.md#identity) gives them. Authors follow the
 [submission guide](https://github.com/etcetc000/open-xy-machine-template/blob/main/SUBMITTING.md).
 
 ## Entries
 
 ```json
-{"id": "pluck", "kind": "synth", "identity": {"engine": 1, "page": 84},
- "maintainer": "etcetc000", "status": "published",
+{"id": "pluck", "kind": "synth", "maintainer": "etcetc000", "status": "published",
  "repository": "https://github.com/etcetc000/open-xy-pluck", "tag": "v1.2.0",
  "commit": "12f4628ef0b5f9d05e7ceb19216807a1b146eff0", "path": "."}
 ```
 
 | Field | Contract |
 | --- | --- |
-| `id`, `kind`, `identity` | As in the machine's `definition.json` and `machine.json` ([identity rules](api.md#identity)) |
+| `id`, `kind` | As in the machine's `definition.json` and `machine.json` ([identity rules](api.md#identity)) |
 | `maintainer` | The GitHub user who maintains it |
-| `status` | `reserved`: the identity is held for a machine being written. `published`: built from its release. `retired`: no longer built; its ID and identity stay held |
+| `status` | `reserved`: the ID is held for a machine being written. `published`: built from its release. `retired`: no longer built; its ID stays held |
 | `repository`, `tag`, `commit`, `path` | A published machine's release: `https://github.com/<owner>/<repo>`, the tag, its full commit SHA, and the machine's folder in the repository (`.` at the root). A retired entry may keep them |
 
-IDs and identities are unique across the catalog and the bundled machines.
-`sdk.py new` suggests identities that neither holds.
+IDs are unique across the catalog and the bundled machines.
 
 ## Commands
 
 | Command | Does |
 | --- | --- |
-| `python sdk.py catalog check [--base <ref>]` | Validates the catalog against itself and the bundled machines. With `--base`, also against an earlier catalog: every entry stays, with its kind and identity, and its status only moves forward |
+| `python sdk.py catalog check [--base <ref>] [--allow-control-changes]` | Validates the catalog against itself and the bundled machines. With `--base`, also against an earlier catalog: every entry stays, with its kind, and its status only moves forward; a published machine whose commit moved is fetched at both commits and its [controls compared](#controls) |
 | `python sdk.py catalog fetch [--tags]` | Fetches every published machine at exactly its commit into `local/catalog/`, checks it matches its entry and writes `local/catalog/collection.json`: the bundled machines, then every published one. `--tags` also confirms each tag still names its commit |
 | `python sdk.py catalog test [--tags]` | Fetches, then runs [`sdk.py test`](first-machine.md#what-you-own) on every published machine |
 
@@ -58,11 +57,25 @@ A maintainer then reviews a new machine once, in full:
 
 - It uses only the public headers: no assembly, raw addresses or platform code.
 - Its audio callbacks never allocate, block, log or do I/O.
-- Its name and identity are sensible, and its licence allows redistribution.
+- Its name is sensible, and its licence allows redistribution.
 - It sounds right in the browser preview from its CI.
 
 An update moves `tag` and `commit` and is reviewed as a diff. The workflow
 compares the catalog with the pull request's target branch: a change of `kind`
-or `identity` is refused, and a removed machine becomes `retired`, never deleted.
+is refused, and a removed machine becomes `retired`, never deleted.
 A new `repository` or `maintainer` is a handover: it fails the check, and a
 catalog maintainer approves it in a pull request of its own.
+
+### Controls
+
+Projects save a machine's parameter values by index in its `definition.json`
+`parameters`, so an update keeps what each saved value means. Compared with
+the previous release, each parameter keeps its index, `id`, `mapping` and, for
+an alternate, `control`. A removed, moved or renamed parameter, or a changed
+mapping (its kind, range, values or enum labels), fails the check, which names
+each by index. Parameters added after the last one and new `label`, `display`
+or `default` values are reported and allowed.
+
+A catalog maintainer approves a control change by adding the
+`controls-changed` label to the pull request; the workflow runs again and
+passes `--allow-control-changes`.

@@ -13,9 +13,11 @@ namespace opxy { namespace draw {
 const i32 unit = q10_unit;
 // Bounds in pixels. Path points are relative to their node; node and text
 // positions cover the screen plus a margin, so an element can be parked out of view.
+// hide() parks at the bottom-right corner, 160 pixels right of and 100 below the
+// 480 x 220 screen: only an element reaching further both left and up still shows.
 const i32 path_extent = 64;
 const i32 node_left = -64, node_right = 640, node_top = -64, node_bottom = 320;
-const i32 hidden_x = 640, hidden_y = 120;
+const i32 hidden_x = node_right, hidden_y = node_bottom;
 // Terminated text: a text slot holds at most 23 characters, a header value 7.
 const u32 text_capacity = 24, header_capacity = 8;
 enum Paint : u32 { keep = 0, stroke = 1, fill_and_stroke = 2 };

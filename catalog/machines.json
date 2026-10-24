@@ -4,10 +4,6 @@
     {
       "id": "pluck",
       "kind": "synth",
-      "identity": {
-        "engine": 1,
-        "page": 84
-      },
       "maintainer": "etcetc000",
       "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-pluck",

@@ -67,7 +67,7 @@
     <button id="firmware-replace" class="file-button" hidden>Choose a different OS file</button>
     <a id="source-backup" class="file-button" download="os.ldr" hidden>Save a backup of the original OS</a>
     <p id="files-note" class="os-note"><strong>This is not the .tfw update file teenage engineering hosts on its site.</strong> It is the OS file, os.ldr, that your OP–XY keeps on itself. Copy it from your device.</p>
-    <details><summary>Load a saved selection</summary><input id="restore" type="file" accept=".json" aria-label="Load a saved selection"></details>
+    <details><summary>Load your layout.json</summary><input id="restore" type="file" accept=".json" aria-label="Load your layout.json: your machines keep their numbers"></details>
     </div></div>
     </section>
     <div id="file-actions" class="actions flow-shell" hidden><button id="files-back" class="secondary">← Back</button><button id="choose" class="primary" disabled>Choose machines <span aria-hidden="true">→</span></button></div>
@@ -93,7 +93,7 @@
     <details><summary>What was checked</summary><ul><li>Your OS file matched OP–XY OS 1.2.0 exactly</li><li>Only the reviewed changes were made, and the machines fit their memory</li><li>The original OS can be rebuilt from the new one</li></ul><p id="output-hash" class="hash"></p></details>
     </div>
     <div id="install-flow-host" class="flow-shell"></div>
-    <div id="download-actions" class="actions flow-shell"><button data-step="2" class="secondary">← Change machines</button><button id="save-layout" class="secondary">Save selection</button></div>
+    <div id="download-actions" class="actions flow-shell"><button data-step="2" class="secondary">← Change machines</button><button id="save-layout" class="secondary">Save layout</button></div>
   </section>
   </div>
   <footer>

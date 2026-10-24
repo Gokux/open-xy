@@ -27,7 +27,7 @@ u32 top_controller_vtable() { return *stock<const u32*()>(0x8c095008)(); }
 const SynthControls* owned(u32 engine, bool effect = false) {
     for (u32 i = 0; i < sdk_synth_control_count; ++i) {
         const SynthControls& m = sdk_synth_controls[i];
-        if (m.engine == engine && m.effect == effect) return m.ready() == 1 ? &m : nullptr;
+        if (m.engine() == engine && m.effect == effect) return m.ready() == 1 ? &m : nullptr;
     }
     return nullptr;
 }

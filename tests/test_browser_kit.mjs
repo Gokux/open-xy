@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {activeServices, readObject, identities, linkKit, moduleBytes, openKit, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
+import {activeServices, assignNumbers, numberLayout, readLayout, readObject, linkKit, moduleBytes, openKit, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
 
 // Tiny authored ELF fixture, independent of private firmware/toolchains.
 function elf() {
@@ -20,11 +20,11 @@ function elf() {
   section(4,[23,3,0,0,96,names.length,0,0,1,0]);
   return bytes;
 }
-function machine(id, engine, page) { return {id, kind:'synth', identity:{engine,page}, absent:{}, origin:'bundled'}; }
+function machine(id, engine, page, origin='bundled') { return {id, prefix:id, kind:'synth', identity:{engine,page}, absent:{}, origin}; }
 const profileBytes = readFileSync(new URL('../profiles/opxy-1.2.0.json',import.meta.url));
 function fixture() {
   const object = {...readObject(elf()), name:'a.o',owner:'a'};
-  return {profile:JSON.parse(profileBytes),definitions:{},machines:[machine('a',34,82)],objects:[object]};
+  return {profile:JSON.parse(profileBytes),definitions:{},fixed:{a:{engine:34,page:82}},machines:[machine('a',34,82)],objects:[object]};
 }
 test('ELF parsing reads symbols and little-endian instructions', () => {
   const o = readObject(elf()); assert.equal(o.symbols[1].name,'entry'); assert.equal(o.symbols[1].size,4);
@@ -83,21 +83,36 @@ test('code, data and state share one module limit that names each machine', () =
   assert.throws(()=>linkKit(k,['a']),/need more than the/);
 });
 // tests/test_profile_parity.py checks validIdentity against the Python rules.
-test('page and engine collisions and incompatible restored layouts fail', () => {
-  const k=fixture(), id=k.profile.id;
-  k.machines[0].identity.engine=k.profile.identities.engine_none; assert.throws(()=>identities(k),/stock slot/);
-  k.machines[0].identity.engine=34;
-  k.machines.push(machine('b',35,82)); assert.throws(()=>identities(k),/Conflicting page/); k.machines.pop();
-  k.machines.push(machine('b',34,83)); assert.throws(()=>identities(k),/Conflicting engine/); k.machines.pop();
-  const sample=page=>({id:'s'+page,kind:'sample',identity:{engine:40+page,page},absent:{}});
-  k.machines.push(sample(7),sample(2),{...sample(7),id:'t',identity:{engine:50,page:7}}); identities(k); k.machines.length=1;
-  assert.throws(()=>identities(k,{format:'opxy-kit/1',profile:'wrong',selected:[]}),/different OS version/);
-  assert.throws(()=>identities(k,{format:'opxy-kit/1',profile:id,selected:['a'],identities:{a:{engine:35,page:82}}}),/changed/);
-  assert.deepEqual(identities(k,{format:'opxy-kit/1',profile:id,selected:['a'],identities:{a:{page:82,engine:34}}}),{a:{engine:34,page:82}});
+test('machine numbering cases shared with tooling.machines', () => {
+  const cases=JSON.parse(readFileSync(new URL('./fixtures/numbers.json',import.meta.url))), rules=JSON.parse(profileBytes).identities;
+  const fixed=new Set(cases.fixed.map(([id])=>id));
+  for (const c of cases.cases) {
+    const run=()=>numberLayout(rules,cases.fixed,c.layout??null,c.machines);
+    if (c.error) { assert.throws(run,new RegExp(c.error),c.name); continue; }
+    assert.deepEqual(Object.fromEntries(Object.entries(run()).filter(([id])=>!fixed.has(id))),c.numbers,c.name);
+  }
 });
-test('IDs do not change when selection order changes', () => {
-  const k=fixture(); k.machines.push(machine('b',35,83)); const before=identities(k);
-  linkKit(k,['b','a']); linkKit(k,['a']); assert.deepEqual(identities(k),before);
+test('numbers follow the layout, not the selection order, and unselected machines link as 0', () => {
+  const k=fixture(); k.machines.push(machine('b',34,82,'personal'),machine('c',34,82,'personal'));
+  assert.deepEqual(assignNumbers(k,['c','b','a']),assignNumbers(k,['a','b','c']));
+  assert.deepEqual(assignNumbers(k,['a','c']).c,{engine:35,page:83});
+  // Once b has numbers, they stay held when b is dropped, and c takes the next free ones.
+  const numbers=assignNumbers(k,['a','b']);
+  assert.deepEqual(assignNumbers(k,['a','c'],numbers),{...numbers,c:{engine:36,page:84}});
+  const linked=linkKit(k,['a','c'],numbers);
+  assert.deepEqual([linked.definitions.a_engine_id,linked.definitions.b_engine_id,linked.definitions.c_engine_id,
+    linked.definitions.c_page_id],[34,0,36,84]);
+  assert.deepEqual(linked.numbers.b,{engine:35,page:83});
+});
+test('saved layouts restore numbers and selections, including older saved selections', () => {
+  const k=fixture(), id=k.profile.id;
+  assert.deepEqual(readLayout(k,{format:'opxy-layout/1',profile:id,selected:['a'],machines:{a:{engine:34,page:82},gone:{engine:40,page:90}}}),
+    {selected:['a'],machines:{a:{engine:34,page:82},gone:{engine:40,page:90}}});
+  assert.deepEqual(readLayout(k,{format:'opxy-kit/1',profile:id,selected:['a'],identities:{a:{page:82,engine:34}}}).machines,{a:{page:82,engine:34}});
+  assert.throws(()=>readLayout(k,{format:'opxy-layout/1',profile:'wrong',machines:{}}),/different OS version/);
+  assert.throws(()=>readLayout(k,{format:'opxy-layout/1',profile:id,selected:['missing'],machines:{}}),/doesn’t have/);
+  assert.throws(()=>readLayout(k,{format:'opxy-layout/1',profile:id,machines:{a:{engine:'34',page:82}}}),/Invalid numbers/);
+  assert.throws(()=>linkKit(k,['a'],{a:{engine:40,page:90}}),/bundled with fixed numbers/);
 });
 test('undefined imports never silently become zero', () => {
   const k=fixture(), o=k.objects[0];
@@ -155,7 +170,9 @@ test('a machine says where it comes from: bundled, a catalog release, or a perso
     assert.ok(!validOrigin(m), JSON.stringify(m));
   const k=fixture(); k.format='opxy-browser-kit/1'; k.profileSource=profileBytes.toString('base64');
   k.objects=[]; k.stockCatalog=''; k.screenTemplate=readFileSync(new URL('../sdk/platform/opxy-1.2.0/screen.svg',import.meta.url),'utf8');
-  Object.assign(k.machines[0], {origin:'catalog', source}); await openKit(k);
+  Object.assign(k.machines[0], {origin:'catalog', source}); k.fixed={}; await openKit(k);
+  // A bundled machine's numbers are the kit's fixed ones, and only bundled machines have them.
+  k.fixed={a:{engine:34,page:82}}; await assert.rejects(openKit(k), /Bundled machine numbers differ/); k.fixed={};
   k.machines[0].source = {...source, repository:'https://evil.example/a/b'};
   await assert.rejects(openKit(k), /Invalid machine origin/);
 });

@@ -1,10 +1,31 @@
 """Platform SVG contract; host structure checks are not hardware rendering."""
+import os
 import re
+import subprocess
+import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 
 from tooling import native, screen
 from tooling.pipeline import ROOT
+from test_sample_services import HOST_CXX
+
+# hide() parks off screen and keeps the frame valid.
+DRAWING = r'''
+#include "opxy/draw.hpp"
+using namespace opxy::draw;
+typedef Frame<2, 4, 3, 0, 1> F;
+int main() {
+    F frame = {};
+    for (opxy::u32 p = 0; p < 2; ++p) {
+        frame.paths[p].key = 1;
+        for (opxy::u32 i = 0; i < 4; ++i) frame.paths[p].points[i] = Point{static_cast<opxy::i32>(i) * unit, 0};
+    }
+    for (opxy::u32 i = 0; i < 3; ++i) hide(frame, i);
+    if (!valid(frame)) return 1;
+    return frame.nodes[0].x - 160 * unit < 480 * unit || frame.nodes[0].y - 100 * unit < 220 * unit ? 2 : 0;
+}
+'''
 
 
 class PlatformScreenTests(unittest.TestCase):
@@ -35,6 +56,20 @@ class PlatformScreenTests(unittest.TestCase):
     def test_fragment_cannot_shadow_platform_controls(self):
         with self.assertRaisesRegex(ValueError, 'Duplicate SVG binding IDs'):
             screen.compose(b'<g id="titles"/>')
+
+
+class DrawingContract(unittest.TestCase):
+    def test_hidden_nodes_park_off_screen(self):
+        if not HOST_CXX:
+            self.skipTest('No working host C++ compiler (set OPXY_TEST_HOST_CXX)')
+        hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
+        with tempfile.TemporaryDirectory() as folder:
+            source, binary = os.path.join(folder, 'drawing.cpp'), os.path.join(folder, 'drawing.exe')
+            with open(source, 'w', encoding='utf-8') as file:
+                file.write(DRAWING)
+            subprocess.run([HOST_CXX, '-std=c++11', '-I', str(ROOT / 'sdk/include'), source, '-o', binary],
+                           check=True, capture_output=True, timeout=120, **hidden)
+            self.assertEqual(subprocess.run([binary], timeout=30, **hidden).returncode, 0)
 
 
 class BrowserSubset(unittest.TestCase):

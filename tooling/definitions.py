@@ -150,6 +150,8 @@ def validate_synth_resources(resources):
 
 
 def validate_display(display):
+    require(not (isinstance(display, dict) and 'kind' in display),
+            'This display uses a contract from before SDK 1.0: see docs/display.md#migrating-from-before-sdk-10')
     keys(display, DISPLAY_FIELDS, 'display')
     for name, (low, high) in DISPLAY_LIMITS.items():
         require(type(display[name]) is int and low <= display[name] <= high,

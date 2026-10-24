@@ -44,7 +44,7 @@ start from the [machine template](https://github.com/etcetc000/open-xy-machine-t
 [Pluck](https://github.com/etcetc000/open-xy-pluck) is one such machine.
 
 A machine is a folder of source: `machine.json`, which declares its kind and
-stock identity, controls in `definition.json`, and C++ for its kind: a synth's
+the stock numbers it asks for, controls in `definition.json`, and C++ for its kind: a synth's
 sound (`engine.cpp`) and display (`display.cpp` and artwork), a sample engine's
 `sample.cpp` or an effect's `fx.cpp`. The SDK supplies adapters, storage,
 previews, firmware builds and packaging.
@@ -66,7 +66,7 @@ previews, firmware builds and packaging.
 | `harness/` | The local preview workbench |
 | `tooling/` | The Python behind `sdk.py`: definitions, builds, firmware container checks and packaging |
 | `profiles/`, `linker/` | The firmware profile, the machine collection and the memory layout |
-| `catalog/` | Published machines and reserved identities ([catalog](docs/catalog.md)) |
+| `catalog/` | Published and reserved machines ([catalog](docs/catalog.md)) |
 | `tests/` | SDK contracts and infrastructure tests |
 | `tools/` | Standalone scripts: the preview server, browser and firmware checkers, and compiler build and release scripts |
 | `local/` | Ignored non-firmware development outputs and tool binaries |

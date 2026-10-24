@@ -44,7 +44,7 @@ def voice_values(definition):
 def generate_voice(directory, m):
     """The native machine object, method table and voice pool for a synth."""
     values = dict(voice_values(m.definition), PREFIX=m.prefix, NAME=m.native_name, LABELS=stock_labels(m),
-                  CAPACITY=m.definition['resources']['voiceCapacity'], ENGINE=m.identity['engine'])
+                  CAPACITY=m.definition['resources']['voiceCapacity'])
     values.pop('PEAK')
     return expand('voice.cpp.in', values, Path(directory) / 'voice.cpp')
 
@@ -247,8 +247,7 @@ def generate_sample_voice(directory, m):
                   LABELS=stock_labels(m), CAPACITY=resources['voiceCapacity'],
                   ANALYSIS=resources.get('sampleAnalysis', 0), STEREO=resources.get('stereoOutput', 0),
                   CHOKE=resources.get('chokeSameKey', 0), DRUM_KEYS=int(m.identity['page'] == 7),
-                  PAD_SETTINGS=resources.get('padSettings', 0), DRUM_CONTROLS=resources.get('drumControls', 0),
-                  ENGINE=m.identity['engine'])
+                  PAD_SETTINGS=resources.get('padSettings', 0), DRUM_CONTROLS=resources.get('drumControls', 0))
     return expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
 
 
@@ -260,7 +259,9 @@ def generate_sample_callbacks(directory, machines):
             continue
         p, resources = m.prefix, m.definition['resources']
         declarations.append(f'int {p}_ready() __asm__("{p}_ready");')
-        fields = [str(m.identity['engine']), str(m.identity['page']), p + '_ready']
+        # The engine ID is an absolute symbol the linker supplies; the stock page is the machine's own.
+        declarations.append(f'extern const char {p}_engine_id[] __asm__("{p}_engine_id");')
+        fields = [p + '_engine_id', str(m.identity['page']), p + '_ready']
         for flag, entries in SAMPLE_SERVICES:
             declared = bool(resources.get(flag, 0))
             if flag == 'sampleAnalysis':
@@ -298,6 +299,9 @@ def generate_synth_controls(directory, machines):
         following = (not effect and control_cycles(m.definition)) or list(range(8))
         continuous = sum(1 << i for i, p in enumerate(m.definition['parameters']) if p['mapping']['kind'] != 'enum')
         declarations.append(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");')
+        # The engine or effect ID is an absolute symbol the linker supplies.
+        id_symbol = m.prefix + ('_fx_id' if effect else '_engine_id')
+        declarations.append(f'extern const char {id_symbol}[] __asm__("{id_symbol}");')
         body = [f'static bool {m.prefix}_format(opxy::u32 slot, opxy::i32 value, char* text) {{', '    switch (slot) {']
         for i, p in enumerate(m.definition['parameters']):
             mapping = p['mapping']
@@ -315,7 +319,7 @@ def generate_synth_controls(directory, machines):
                              '        return true;'])
         body.extend(['    default: return false;', '    }', '}'])
         formatters.append('\n'.join(body))
-        rows.append(f"    {{{m.identity['effect' if effect else 'engine']}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, {m.prefix}_format, {'true' if effect else 'false'}}},")
+        rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, {m.prefix}_format, {'true' if effect else 'false'}}},")
     return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows), FORMATTERS='\n'.join(formatters)),
                   Path(directory) / 'synth_control_table.cpp')
 
