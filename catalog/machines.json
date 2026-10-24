@@ -25,7 +25,11 @@
       "id": "hurdygurdy",
       "kind": "synth",
       "maintainer": "SammiBabe666",
-      "status": "reserved"
+      "status": "published",
+      "repository": "https://github.com/etcetc000/open-xy-hurdygurdy",
+      "tag": "v1.0.0",
+      "commit": "43df28f2cde2dd44b0bcadae57c30a1408b3bd73",
+      "path": "."
     }
   ]
 }
