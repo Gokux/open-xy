@@ -1,6 +1,6 @@
-"""Build, package and verify the curated collection for stock OP-XY 1.2.0. No device operations.
+"""Build, package and verify a collection of machines for stock OP-XY 1.2.0. No device operations.
 
-Every machine in profiles/collection.json is compiled and linked into one module
+Every machine in the collection is compiled and linked into one module
 inside the 2 MiB reservation with relocated engine and screen tables. Object
 names are part of the published browser kit (its linker orders objects by name),
 so their naming scheme is fixed.
@@ -26,7 +26,7 @@ from .adapters import (catalog_entry, generate_display, generate_fx_object, gene
 from .contributors import validate_source_boundary
 from .firmware import active_services, assemble, hook_instruction, hook_target, patch_active
 from .formats import elf32, elf_sections, require, sha
-from .machines import COLLECTION, by_kind, collection, discovered, layout_document, read_collection, read_layout, tree
+from .machines import FIXED_NUMBERS, by_kind, collection, layout_document, read_collection, read_layout, tree
 from .pipeline import (PROFILE, ROOT, check_patch_boundaries, child, config, document, execute, fresh_output, host_pins, host_platform,
                        read, require_release_host, resolve_toolchain, save_json, tool_paths)
 from .startup import generate as generate_startup
@@ -59,7 +59,7 @@ SVG_INHERITED = {'fill', 'stroke', 'stroke-width', 'font-family', 'font-size', '
 
 def configuration(entries=None, layout=None):
     """The profile, the collection's machines numbered by the layout, and their link-time
-    IDs. Entries are machines.read_collection's; the default is profiles/collection.json."""
+    IDs. Entries are machines.read_collection's."""
     profile = config()
     stock_tables.check_profile(profile)
     require([p['kind'] for p in profile['patches']].count('startup') == 1, 'Expected one startup label edit')
@@ -628,11 +628,8 @@ def prepare_assets(catalog, profile, machines):
 
 
 def package_collection(package):
-    """The collection a package was built from, as its manifest records it; a package
-    that records none was built from profiles/collection.json."""
+    """The collection a package was built from, as its manifest records it."""
     entries = document(Path(package) / 'manifest.json').get('collection')
-    if entries is None:
-        return read_collection()
     require(isinstance(entries, list) and entries, 'Invalid package collection')
     return entries
 
@@ -650,10 +647,11 @@ def package_layout(package):
 
 
 def numbers_after(layout, machines):
-    """Every number a layout holds once these machines are built: its own, the bundled
-    machines' and the machines'."""
+    """Every number a layout holds once these machines are built: its own, the fixed
+    numbers and the machines'."""
     numbers = dict(layout or {})
-    numbers.update({m.id: m.identity for m in (*discovered(), *machines)})
+    numbers.update(FIXED_NUMBERS)
+    numbers.update({m.id: m.identity for m in machines})
     return numbers
 
 
@@ -680,7 +678,7 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
         actual = {p.relative_to(package).as_posix() for p in (package / 'candidate').rglob('*') if p.is_file()}
         require(actual == {p for p in expected if p.startswith('candidate/')}, 'Unexpected deployment file')
     result = dict(target=TARGET, status='experimental-unqualified', os_sha256=sha(expected_assets['os.ldr']),
-                  machines=[m.id if m.bundled else m.source() for m in machines],
+                  machines=[m.source() for m in machines],
                   fresh_source_rebuild_matches=True, original_entry_preserved=True,
                   exact_edits=sum(patch_active(p, set(report['services'])) for p in profile['patches']),
                   single_shared_reservation_bytes=profile['reserved_bytes'],
@@ -694,7 +692,7 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
 def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layout=None):
     """A firmware package. Its machines take their numbers from `layout` (by machine ID);
     the package's layout.json is that layout after this build, for the next one."""
-    entries = read_collection() if entries is None else entries
+    entries = [] if entries is None else entries
     profile, machines, definitions = configuration(entries, layout)
     require(not any(m.contains(out) for m in machines), 'Keep build output outside every machine folder')
     stock = read(stock_os)
@@ -724,10 +722,11 @@ def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layou
 
 
 def add_collection_arguments(parser):
-    parser.add_argument('--collection', type=Path, default=COLLECTION,
-                        help='collection file: bundled machine IDs and {"path": ...} folders (default: profiles/collection.json)')
+    parser.add_argument('--collection', type=Path,
+                        help='collection file of {"path": ...} machine folders, such as local/catalog/collection.json '
+                             'from python sdk.py catalog fetch')
     parser.add_argument('--machine', type=Path, action='append', default=[],
-                        help='a machine folder outside this repository to add to the collection; repeatable')
+                        help='a machine folder to add to the collection; repeatable')
 
 
 def selected_collection(args):

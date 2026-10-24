@@ -198,7 +198,7 @@ function describeMachine(target, m) {
     field('detail-source').replaceChildren(...sourceLinks(m.source));
   } else if (m.origin === 'official') {
     field('detail-source').replaceChildren('Open-XY machine', ...sourceLinks(m.source).slice(2));
-  } else field('detail-source').textContent = m.origin === 'bundled' ? 'Bundled with Open-XY' : 'Your machine, from this kit';
+  } else field('detail-source').textContent = 'Your machine, from this kit';
 }
 function sizeMachineSummary() {
   // Overlapping, inert copies let CSS reserve the tallest summary in this kit,

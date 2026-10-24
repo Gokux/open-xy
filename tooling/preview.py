@@ -9,7 +9,7 @@ from xml.etree.ElementTree import ParseError
 
 from .formats import require, sha
 from .definitions import ROOT
-from .machines import machine, machine_at
+from .machines import machine_at
 from .pipeline import NO_WINDOW, fresh_output
 
 
@@ -98,7 +98,7 @@ def build(compiler, m, out):
     (out / 'panel.svg').write_bytes((m.root / 'panel.svg.fragment').read_bytes())
     require(source_hashes(m) == before, 'Source changed during preview build')
     version = subprocess.check_output([str(compiler), '--version'], text=True, timeout=30).splitlines()[0]
-    manifest = dict(schema=1, kind='cpp-browser-preview', engine=m.id, root=None if m.bundled else str(m.root),
+    manifest = dict(schema=1, kind='cpp-browser-preview', engine=m.id, root=str(m.root),
                     description=m.description,
                     definition=m.definition, sample_rate=44100,
                     wasm_sha256=sha((out / 'engine.wasm').read_bytes()), sources=before,
@@ -155,7 +155,6 @@ def main(argv=None):
     parser.add_argument('--cxx', default='clang++')
     parser.add_argument('--out', required=True, type=Path)
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument('--engine', help='Curated synth in machines/')
     source.add_argument('--machine', type=Path, help='Synth folder with machine.json, anywhere')
     source.add_argument('--source', type=Path, help='Local custom-machine directory')
     args = parser.parse_args(argv)
@@ -164,7 +163,7 @@ def main(argv=None):
             from .custom_preview import build as build_custom
             build_custom(args.cxx, args.source, args.out)
         else:
-            build(args.cxx, machine_at(args.machine) if args.machine else machine(args.engine), args.out)
+            build(args.cxx, machine_at(args.machine), args.out)
         return 0
     except (ValueError, OSError, ParseError, subprocess.SubprocessError) as error:
         print('FAIL: ' + str(error), file=sys.stderr)
