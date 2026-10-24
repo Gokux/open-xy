@@ -152,7 +152,7 @@ On the release host, after `npx wrangler login`, one command releases the
 catalog:
 
 ```powershell
-python sdk.py release --stock-os <stock-1.2.0>/os.ldr --stock-content <stock-1.2.0>/content --out <builds>/release-001 --deploy beta
+python sdk.py release --stock-os <stock-1.2.0>/os.ldr --out <builds>/release-001 --deploy beta
 ```
 
 It fetches every published [catalog](catalog.md) machine at its pinned commit
@@ -182,10 +182,10 @@ Domains & Routes → Add → Custom Domain**; see the
 With the [pinned native tools](build.md) and Clang++ for wasm32:
 
 ```powershell
-python sdk.py kit --preview-cxx clang++ --stock-os "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/os.ldr" --stock-content "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/content" --out "$env:LOCALAPPDATA/OPXY-SDK/private/builds/browser-kit-001"
+python sdk.py kit --preview-cxx clang++ --stock-os "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/os.ldr" --out "$env:LOCALAPPDATA/OPXY-SDK/private/builds/browser-kit-001"
 ```
 
-The stock content directory needs only `op1_factory.json`. The export runs the
+`--stock-content` defaults to the repository's copy of `op1_factory.json`. The export runs the
 full native build and its checks, then packages the native objects in link
 order with each machine's `machine.json` and definition. The HTML carries the
 authenticated stock menu and the SDK screen template; firmware stays

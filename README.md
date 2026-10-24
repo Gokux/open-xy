@@ -81,6 +81,8 @@ Timestretch, including its Capicola-derived analysis, is AGPL-3.0; see its
 [source and license notices](machines/timestretch/vendor/README.md). Shared
 SDK code carries no copyleft code, but firmware and builder kits that include
 Timestretch, as the default collection does, are distributed under the
-AGPL-3.0. Stock firmware and stock artwork are never included; they come from
-the user's own device. The [toolchain](docs/toolchain.md) release ships its
-GPL sources.
+AGPL-3.0. No firmware is included: all firmware comes from the user's own
+device. The one stock file in this repository is the instrument catalog every
+build extends, [`op1_factory.json`](profiles/opxy-1.2.0/content/op1_factory.json),
+kept for development; the builder distributes it too. The
+[toolchain](docs/toolchain.md) release ships its GPL sources.

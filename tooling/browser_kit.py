@@ -179,8 +179,10 @@ def write_builder(kit, output):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('stock-os', 'stock-content', 'out'):
+    for name in ('stock-os', 'out'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--stock-content', default=str(native.STOCK_CONTENT),
+                        help="the folder holding op1_factory.json (default: this repository's copy)")
     parser.add_argument('--toolchain', help='pinned binutils directory (default: local/toolchain/bin)')
     parser.add_argument('--compiler', help='pinned Blackfin GCC bundle root (default: local/toolchain)')
     parser.add_argument('--preview-cxx', default='clang++', help='Clang++ with wasm32/wasm-ld')

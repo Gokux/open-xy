@@ -33,6 +33,9 @@ from .startup import generate as generate_startup
 
 LINKER = 'linker/opxy-1.2.0.ld'
 TARGET = 'opxy-1.2.0'
+# The stock instrument catalog every build extends, kept in the repository for
+# development: the builder distributes it too. Firmware always comes from the device.
+STOCK_CONTENT = ROOT / 'profiles/opxy-1.2.0/content'
 DEFINITIONS = dict(stock_catalog_insert=0x8d5bbaa0, stock_gui_role=0x8d5c200c, stock_sample_classify_tail=0x8d5b5b3e,
                    stock_sample_key_tail=0x8d5878ac)
 TEMPLATES = 'sdk/platform/opxy-1.2.0/'
@@ -740,7 +743,8 @@ def main(argv=None, command=None):
         parser.add_argument('--out', type=Path, required=True)
     if command != 'compile':
         parser.add_argument('--stock-os', type=Path, required=True)
-        parser.add_argument('--stock-content', type=Path, required=True)
+        parser.add_argument('--stock-content', type=Path, default=STOCK_CONTENT,
+                            help="the folder holding op1_factory.json (default: this repository's copy)")
     if command != 'verify':  # a package records its own collection
         add_collection_arguments(parser)
         parser.add_argument('--layout', type=Path,
