@@ -33,6 +33,8 @@ It must show "3. dev menu"; if not, enable it with the
 2. Press track 3 for "3. mtp file transfer (windows)", or track 2 for
    "2. mtp file transfer (mac)", and wait for "mtp mode active". Open the
    device in File Explorer, or in OpenMTP on a Mac (quit Field Kit first).
+   On Linux, use track 3 and open the device in your file manager; GNOME
+   Files lists it as "OP XY".
 3. Copy the OS into a folder outside every checkout:
 
 ```text
@@ -42,8 +44,12 @@ stock-1.2.0/
 
 4. Press track 2 for "2. exit".
 
-For example, keep the folder in `%LOCALAPPDATA%/OPXY-SDK/private/` on Windows or
-`~/Library/Application Support/OPXY-SDK/private/` on macOS. All firmware comes
+If the OP-XY freezes on "mtp mode active" as soon as a computer connects,
+reinstall the official OS 1.2.0 update (`.tfw`) and try again.
+
+For example, keep the folder in `%LOCALAPPDATA%/OPXY-SDK/private/` on Windows,
+`~/Library/Application Support/OPXY-SDK/private/` on macOS or
+`~/.local/share/OPXY-SDK/private/` on Linux. All firmware comes
 from your device; the build accepts only the exact stock OS, and an encrypted
 `.tfw` is a different format. The stock instrument catalog the build extends,
 `op1_factory.json`, is in this repository
