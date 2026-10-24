@@ -716,8 +716,6 @@ def add_collection_arguments(parser):
                         help='collection file: bundled machine IDs and {"path": ...} folders (default: profiles/collection.json)')
     parser.add_argument('--machine', type=Path, action='append', default=[],
                         help='a machine folder outside this repository to add to the collection; repeatable')
-    parser.add_argument('--layout', type=Path,
-                        help="the machine numbers your OP-XY's projects use: the layout.json of your last build")
 
 
 def selected_collection(args):
@@ -745,6 +743,8 @@ def main(argv=None, command=None):
         parser.add_argument('--stock-content', type=Path, required=True)
     if command != 'verify':  # a package records its own collection
         add_collection_arguments(parser)
+        parser.add_argument('--layout', type=Path,
+                            help="the machine numbers your OP-XY's projects use: the layout.json of your last build")
     args = parser.parse_args(argv)
     # A failed command removes only the --out folder it created itself.
     created = command != 'verify' and not args.out.exists()
