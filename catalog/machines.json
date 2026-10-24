@@ -17,8 +17,48 @@
       "maintainer": "etcetc000",
       "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-karplus",
-      "tag": "v1.3.0",
-      "commit": "617e321f8037541f283cfe46fd39ff90d5e9db8c",
+      "tag": "v1.3.1",
+      "commit": "02684ff84cf77b9c0aa5fde938688f38c1d5025e",
+      "path": "."
+    },
+    {
+      "id": "drone",
+      "kind": "synth",
+      "maintainer": "Gokux",
+      "status": "published",
+      "repository": "https://github.com/Gokux/opxy-machines",
+      "tag": "v1.0.0",
+      "commit": "35aefa7235b71032fd858e58112a15e0560754f8",
+      "path": "drone"
+    },
+    {
+      "id": "solar",
+      "kind": "synth",
+      "maintainer": "Gokux",
+      "status": "published",
+      "repository": "https://github.com/Gokux/opxy-machines",
+      "tag": "v1.0.0",
+      "commit": "35aefa7235b71032fd858e58112a15e0560754f8",
+      "path": "solar"
+    },
+    {
+      "id": "papasrapa",
+      "kind": "synth",
+      "maintainer": "Gokux",
+      "status": "published",
+      "repository": "https://github.com/Gokux/opxy-machines",
+      "tag": "v1.0.0",
+      "commit": "35aefa7235b71032fd858e58112a15e0560754f8",
+      "path": "papasrapa"
+    },
+    {
+      "id": "hurdygurdy",
+      "kind": "synth",
+      "maintainer": "SammiBabe666",
+      "status": "published",
+      "repository": "https://github.com/etcetc000/open-xy-hurdygurdy",
+      "tag": "v1.0.0",
+      "commit": "43df28f2cde2dd44b0bcadae57c30a1408b3bd73",
       "path": "."
     }
   ]

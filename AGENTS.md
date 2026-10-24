@@ -1,5 +1,32 @@
 # Repository instructions
 
+## First, which task is this?
+
+- **Making a machine** (an instrument or effect, a "plugin"): it does not go in
+  this repository. Start a repository of your own from the
+  [machine template](https://github.com/etcetc000/open-xy-machine-template) and
+  follow its README and AGENTS.md. Use this checkout only as the SDK beside it,
+  for example `python ../open-xy/sdk.py test --machine machines/<id>`. Do not
+  add machines to `machines/`, or change `sdk/`, `tooling/` or tests, to make a
+  machine work. If the SDK lacks something it needs, that is a separate SDK
+  pull request.
+- **Submitting a machine to the builder:** a pull request against `staging` that
+  changes only `catalog/machines.json`, adding or updating that machine's one
+  entry ([submitting](https://github.com/etcetc000/open-xy-machine-template/blob/main/SUBMITTING.md),
+  [catalog](docs/catalog.md)). CI refuses a submission from a fork that changes
+  anything else.
+- **Changing the SDK, builder or docs:** branch from `origin/staging` and open the
+  pull request against `staging`. `main` only receives releases from `staging`;
+  never base work on it or target it.
+
+Examples to read before writing a machine: the bundled machines in `machines/`
+(synths `fm2op` and `macroosc`, effect `ringmod`, sample engine `timestretch`),
+the template's own examples, and
+[Karplus](https://github.com/etcetc000/open-xy-karplus), a machine in its own
+repository published through the catalog.
+
+## SDK changes
+
 Read README.md and CONTRIBUTING.md. For native changes also read
 [the firmware ABI](docs/abi-1.2.0.md) and [building firmware](docs/build.md).
 

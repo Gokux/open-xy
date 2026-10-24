@@ -25,6 +25,10 @@ effect and page numbers are not the catalog's: each firmware's
 
 IDs are unique across the catalog and the bundled machines.
 
+The builder's machine details panel links to the catalog's maintainer profile,
+repository and source at the pinned release commit. Community machines also
+show a short notice about support and possible instability or unexpected audio.
+
 ## Commands
 
 | Command | Does |
@@ -41,6 +45,10 @@ python sdk.py compile --collection local/catalog/collection.json --out <folder>
 ```
 
 ## Pull requests
+
+A machine submission from a fork changes only `catalog/machines.json`; CI
+refuses one that changes anything else. Changes the SDK needs for a machine are
+a separate pull request.
 
 The [Catalog workflow](../.github/workflows/catalog.yml) runs on every pull
 request that changes `catalog/` or anything published machines build against

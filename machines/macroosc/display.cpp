@@ -13,18 +13,16 @@ const opxy::i32 kSweep = 1440;
 const unsigned kModels = sizeof(models) / sizeof(models[0]);
 // Parameter slots (definition.json).
 const unsigned kModelSlot = 0, kTimbreSlot = 1, kColorSlot = 2, kRatioSlot = 3, kDepthSlot = 4;
-// One decimal place, matching fine turns and the browser preview.
+// Round only the screen caption; the parameter keeps its full Q31 precision.
 inline void amount(char* out, unsigned capacity, opxy::i32 value) {
-  unsigned p = value < 0 ? 0 : ((static_cast<unsigned>(value) >> 10) * 1000 + (1u << 20)) >> 21;
-  char text[6];
-  unsigned n = 0;
-  if (p >= 1000) text[n++] = '1';
-  if (p >= 100) text[n++] = static_cast<char>('0' + p / 100 % 10);
-  text[n++] = static_cast<char>('0' + p / 10 % 10);
-  text[n++] = '.';
-  text[n++] = static_cast<char>('0' + p % 10);
-  text[n] = 0;
-  opxy::draw::copy(out, capacity, text);
+    const unsigned p = value < 0 ? 0 : ((static_cast<unsigned>(value) >> 10) * 100 + (1u << 20)) >> 21;
+    char text[4];
+    unsigned n = 0;
+    if (p >= 100) text[n++] = '1';
+    if (p >= 10) text[n++] = static_cast<char>('0' + p / 10 % 10);
+    text[n++] = static_cast<char>('0' + p % 10);
+    text[n] = 0;
+    opxy::draw::copy(out, capacity, text);
 }
 // One decimal place; audio retains the full interpolated Q16 ratio.
 inline void ratio(char* out, unsigned capacity, unsigned q16) {
