@@ -9,12 +9,13 @@ namespace opxy { namespace platform {
 // and a slot no position reaches maps to itself. In a browser kit an
 // unselected machine's ready resolves to a function returning 0.
 struct SynthControls {
-    u32 engine;
+    const char* id;  // absolute symbol: the engine or effect ID, supplied at link time
     int (*ready)();
     u8 next[parameter_slots];
     u32 continuous;
     bool (*format)(u32 slot, i32 value, char* text);
     bool effect;
+    u32 engine() const { return static_cast<u32>(reinterpret_cast<__UINTPTR_TYPE__>(id)); }
 };
 // GUI-only, bounded one-decimal formatting. Caller provides 16 bytes.
 void control_tenths(char* text, u32 tenths, const char* suffix);

@@ -1,7 +1,7 @@
 """Build, package and verify the curated collection for stock OP-XY 1.2.0. No device operations.
 
 Every machine in profiles/collection.json is compiled and linked into one module
-inside the 512 KiB reservation with relocated engine and screen tables. Object
+inside the 2 MiB reservation with relocated engine and screen tables. Object
 names are part of the published browser kit (its linker orders objects by name),
 so their naming scheme is fixed.
 """
@@ -21,18 +21,21 @@ import xml.etree.ElementTree as ET
 from . import screen, startup_label, stock_tables
 from .adapters import (catalog_entry, generate_display, generate_fx_object, generate_registration,
                        generate_registration_stock, generate_sample_voice,
-                       generate_sample_callbacks, generate_screen, generate_screen_order, generate_segment_binding,
+                       generate_sample_callbacks, generate_screen, generate_screen_order,
                        generate_synth_controls, generate_voice)
 from .contributors import validate_source_boundary
 from .firmware import active_services, assemble, hook_instruction, hook_target, patch_active
 from .formats import elf32, elf_sections, require, sha
-from .machines import by_kind, collection
+from .machines import COLLECTION, by_kind, collection, discovered, layout_document, read_collection, read_layout, tree
 from .pipeline import (PROFILE, ROOT, check_patch_boundaries, child, config, document, execute, fresh_output, host_pins, host_platform,
                        read, require_release_host, resolve_toolchain, save_json, tool_paths)
 from .startup import generate as generate_startup
 
 LINKER = 'linker/opxy-1.2.0.ld'
 TARGET = 'opxy-1.2.0'
+# The stock instrument catalog every build extends, kept in the repository for
+# development: the builder distributes it too. Firmware always comes from the device.
+STOCK_CONTENT = ROOT / 'profiles/opxy-1.2.0/content'
 DEFINITIONS = dict(stock_catalog_insert=0x8d5bbaa0, stock_gui_role=0x8d5c200c, stock_sample_classify_tail=0x8d5b5b3e,
                    stock_sample_key_tail=0x8d5878ac)
 TEMPLATES = 'sdk/platform/opxy-1.2.0/'
@@ -54,11 +57,13 @@ NUMBER = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)'
 SVG_INHERITED = {'fill', 'stroke', 'stroke-width', 'font-family', 'font-size', 'style'}
 
 
-def configuration():
+def configuration(entries=None, layout=None):
+    """The profile, the collection's machines numbered by the layout, and their link-time
+    IDs. Entries are machines.read_collection's; the default is profiles/collection.json."""
     profile = config()
     stock_tables.check_profile(profile)
     require([p['kind'] for p in profile['patches']].count('startup') == 1, 'Expected one startup label edit')
-    machines = collection()
+    machines = collection(entries, layout)
     definitions = dict(DEFINITIONS)
     for m in machines:
         if m.kind == 'effect':
@@ -71,12 +76,17 @@ def configuration():
 
 
 def provenance(machines):
-    """Every authored, SDK and compiler-profile input; private artifacts never enter."""
-    paths = {PROFILE, LINKER, 'profiles/collection.json'}
-    for folder in ('sdk/include', 'sdk/platform', 'tooling', *('machines/' + m.id for m in machines)):
+    """Every authored, SDK and compiler-profile input; private artifacts never enter.
+    The collection is its machines, in order: their IDs and sources below."""
+    paths = {PROFILE, LINKER}
+    for folder in ('sdk/include', 'sdk/platform', 'tooling'):
         paths |= {p.relative_to(ROOT).as_posix() for p in (ROOT / folder).rglob('*')
                   if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.md'}
-    return {name: sha(read(child(ROOT, name))) for name in sorted(paths)}
+    hashes = {name: sha(read(child(ROOT, name))) for name in paths}
+    for m in machines:
+        hashes.update({name: sha(read(path)) for name, path in m.files().items()})
+    hashes['collection'] = sha(json.dumps([m.id for m in machines]).encode('utf-8'))
+    return dict(sorted(hashes.items()))
 
 
 def file_hash(path):
@@ -102,9 +112,9 @@ def compiler_paths(directory):
 
 def check_sources(machines):
     for m in machines:
-        for path in m.root.rglob('*'):
+        for path in tree(m.root):
             if path.suffix in ('.cpp', '.cc', '.h', '.hpp', '.inc') and 'vendor' not in path.relative_to(m.root).parts:
-                validate_source_boundary(path.read_text(encoding='utf-8'), path.relative_to(ROOT).as_posix())
+                validate_source_boundary(path.read_text(encoding='utf-8'), m.source(path.relative_to(m.root).as_posix()))
 
 
 def compile_cxx(cxx, assembler, source, obj, includes=()):
@@ -129,10 +139,10 @@ def includes(m=None):
     """Include path for firmware-compiler units: SDK headers, then the machine's own folders."""
     paths = ['.', 'sdk/include', 'sdk/platform/opxy-1.2.0']
     if m is not None:
-        paths.append('machines/' + m.id)
+        paths.append(m.source())
     paths.append('sdk/platform/blackfin/freestanding')
     if m is not None:
-        paths += ['machines/' + m.id + '/' + extra for extra in m.includes]
+        paths += [m.source(extra) for extra in m.includes]
     return paths
 
 
@@ -166,7 +176,7 @@ SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup'
              'hook', 'sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache', 'sample_cache_stock',
              'sample_cache_hooks', 'sample_progress', 'sample_progress_stock', 'pad_assignment',
              'pad_assignment_stock', 'drum_page', 'drum_controls_stock', 'drum_display_stock', 'screen_order',
-             'screen_hooks', 'synth_controls', 'synth_control_table')
+             'screen_hooks', 'synth_controls', 'synth_control_table', 'note_activity')
 # SDK units that exist only for a profile service, linked when a machine needs it.
 UNIT_SERVICES = dict.fromkeys(('sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache',
                                'sample_cache_stock', 'sample_cache_hooks', 'sample_progress',
@@ -222,8 +232,9 @@ def object_services(machines, profile=None):
             if m is None and step in UNIT_SERVICES}
 
 
-def compile_collection(directory, toolchain, compiler, profile, machines, definitions):
-    """Compile and link every machine; return the module bytes, report and patched profile."""
+def compile_collection(directory, toolchain, compiler, profile, machines, definitions, version):
+    """Compile and link every machine, labelled with the release version; return the
+    module bytes, report and patched profile."""
     directory = Path(directory)
     for m in machines:
         if m.display != 'stock':
@@ -242,10 +253,8 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         compile_cxx(gcc['cxx'], tools['as'], source, obj, includes(m))
 
     def display_unit(folder, m):
-        if m.display == 'drawing':
-            generate_display(folder, machine=m)
-            return folder / 'display_binding.cpp'
-        return generate_segment_binding(folder, m.definition, m.prefix)
+        generate_display(folder, machine=m)
+        return folder / 'display_binding.cpp'
 
     def build_unit(obj, m, step):
         folder = obj.parent
@@ -263,6 +272,8 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
                 return assemble_unit(ROOT / RUNTIME_ASM, obj)
             if step == 'memory':
                 return cxx(RUNTIME_CXX, obj)
+            if step == 'startup_label':
+                return assemble_unit(startup_label.generate(folder, version), obj)
             if step == 'startup':
                 prefixes = [x.prefix for x in by_kind(machines, 'synth', 'sample')]
                 return cxx(str(generate_startup(folder, prefixes, [x.prefix for x in effects],
@@ -271,7 +282,7 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
                 return cxx(TEMPLATES + step + '.cpp', obj)
             return assemble_unit(ROOT / TEMPLATES / (step + '.s'), obj)
         if step.startswith('source:'):
-            return cxx('machines/' + m.id + '/' + step.removeprefix('source:'), obj, m)
+            return cxx(m.source(step.removeprefix('source:')), obj, m)
         source = {'voice': lambda: generate_voice(folder, m), 'display': lambda: display_unit(folder, m),
                   'screen': lambda: generate_screen(folder, m), 'fx_object': lambda: generate_fx_object(folder, m),
                   'registration': lambda: generate_registration(folder, m),
@@ -493,23 +504,12 @@ def check_module(directory, tools, profile, machines):
     return module, sizes, patch_profile, hooks, stack, usage
 
 
-def drawing_ids(prefix, display):
-    """Artwork IDs of a drawing display: its nodes (the first are the mutable paths), then its palette."""
+def display_ids(prefix, display):
+    """Artwork IDs of a display: its nodes (the first are the mutable paths), its
+    text slots, then its palette entries."""
     return ([f'{prefix}_node_{i}' for i in range(display['nodes'])] +
+            [f'{prefix}_text_{i}' for i in range(display['texts'])] +
             [f'{prefix}_palette_{i}' for i in range(display['palette'])])
-
-
-def segment_ids(prefix, display):
-    """Artwork IDs of a segment display: its 14-segment characters, glow layers and dials, their
-    lit/unlit palettes, and an optional label."""
-    cells = [f'{d}_{s}' for d in range(display['characters']) for s in 'abcdefghjklmnp']
-    return dict(segments=[f'{prefix}_seg_{c}' for c in cells],
-                glow=[[f'{prefix}_glow_{layer}_{c}' for c in cells] for layer in range(display['glow'])],
-                dials=[f'{prefix}_dial_{i}' for i in range(display['dials'])],
-                palette=[f'{prefix}_lit', f'{prefix}_unlit'],
-                glow_palette=[[f'{prefix}_glow_{layer}_lit', f'{prefix}_glow_{layer}_unlit']
-                              for layer in range(display['glow'])],
-                label=f'{prefix}_label')
 
 
 def panel_root(fragment, source):
@@ -523,24 +523,48 @@ def panel_root(fragment, source):
 def check_outlines(by_id, prefix, display):
     """Drawing paths are the first nodes: exactly M, (points - 1) L and Z, unfilled."""
     points = display['points']
-    for name in drawing_ids(prefix, display)[:display['paths']]:
+    for name in display_ids(prefix, display)[:display['paths']]:
         node = by_id.get(name)
         commands = re.findall(r'[A-Za-z]', node.get('d', '')) if node is not None else []
         coordinates = re.findall(NUMBER, node.get('d', '')) if node is not None else []
         require(node is not None and node.tag == 'path' and commands == ['M'] + ['L'] * (points - 1) + ['Z'] and
                 len(coordinates) == 2 * points and node.get('fill') == 'none',
                 'Mutable outline must contain exactly M, %d L and Z, with no fill: %s' % (points - 1, name))
+        # The stock parser merges repeated points, leaving fewer than the frame
+        # binds, and the device then no longer reshapes the outline. Points are
+        # compared as the Q10 coordinates the device holds.
+        pairs = [(round(float(x) * 1024), round(float(y) * 1024)) for x, y in zip(coordinates[::2], coordinates[1::2])]
+        require(len(set(pairs)) == points,
+                'Mutable outline repeats a point; the device merges repeated points, so keep each distinct: ' + name)
+
+
+def check_bindings(by_id, prefix, display):
+    """The display's nodes, text slots and outlines in the artwork; returns its palette IDs.
+    Every frame sets a bound element's whole transform, so the authored one is a
+    plain translation or none: the pose before the first frame."""
+    ids = display_ids(prefix, display)
+    count = display['nodes'] + display['texts']
+    bound, texts, palette = ids[:display['nodes']], ids[display['nodes']:count], ids[count:]
+    check_outlines(by_id, prefix, display)
+    for name in bound + texts:
+        node = by_id.get(name)
+        kind = ('text',) if name in texts else ('path', 'circle')
+        require(node is not None and node.tag in kind, 'Authored SVG is missing %s %s' % ('/'.join(kind), name))
+        require(re.fullmatch(r'(matrix\(1 0 0 1 (%s) (%s)\))?' % (NUMBER, NUMBER), node.get('transform', '')),
+                'Bound elements take transform="matrix(1 0 0 1 x y)" or none: ' + name)
+    for name in texts:
+        node = by_id[name]
+        require(not {'x', 'y'} & node.keys() and len(node.text or '') < 24,
+                'Text slots are positioned by their transform and hold at most 23 characters: ' + name)
+    return palette
 
 
 def validate_panel(m, fragment=None):
     """The authored SVG subset plus the display contract's required node bindings."""
     fragment = read(m.root / 'panel.svg.fragment') if fragment is None else fragment
-    nodes = list(panel_root(fragment, f'machines/{m.id}/panel.svg.fragment').iter())
+    nodes = list(panel_root(fragment, m.source('panel.svg.fragment')).iter())
     ids = [node.get('id') for node in nodes if node.get('id')]
     require(len(ids) == len(set(ids)), 'Duplicate authored SVG ID')
-    require(m.prefix == 'local' or not any(i.startswith('local_') for i in ids),
-            f'machines/{m.id}/panel.svg.fragment still has local_ artwork IDs; '
-            f'rename every local_ prefix to {m.prefix}_ (docs/build.md, step 3)')
     by_id = {node.get('id'): node for node in nodes if node.get('id')}
 
     def visible(name, tags=('path', 'circle')):
@@ -555,33 +579,9 @@ def validate_panel(m, fragment=None):
         require(all(re.fullmatch(r'#[0-9A-Fa-f]{6}', by_id[name].get(k)) for k in ('fill', 'stroke')),
                 'Palette donors need #RRGGBB fill and stroke: ' + name)
 
-    display = m.definition['resources']['display']
-    if m.display == 'drawing':
-        # Palette entries donate paint.
-        ids = drawing_ids(m.prefix, display)
-        bound, palette = ids[:display['nodes']], ids[display['nodes']:]
-        check_outlines(by_id, m.prefix, display)
-        for name in bound[display['paths']:]:
-            require(name in by_id and by_id[name].tag in ('path', 'circle'), 'Authored SVG is missing node ' + name)
-        for name in palette:
-            visible(name)
-    else:
-        # Segment display: the declared characters and glow layers, their lit/unlit palettes,
-        # dials and an optional label.
-        ids = segment_ids(m.prefix, display)
-        for name in ids['segments'] + [name for layer in ids['glow'] for name in layer]:
-            visible(name, ('path',))
-        for name in ids['palette'] + [name for pair in ids['glow_palette'] for name in pair]:
-            donor(name)
-        for name in ids['dials']:
-            # The renderer replaces the linear part and keeps the authored translation.
-            node = by_id.get(name)
-            require(node is not None and node.tag == 'path' and node.get('fill') not in (None, 'none') and
-                    re.fullmatch(r'matrix\(1 0 0 1 (%s) (%s)\)' % (NUMBER, NUMBER), node.get('transform', '')),
-                    'Dial must be a filled path with transform="matrix(1 0 0 1 x y)": ' + name)
-        label = by_id.get(ids['label'])
-        require(label is None or (label.tag == 'text' and (label.text or '').strip() and len(label.text) <= 15),
-                'Label must be a text node of at most 15 characters')
+    palette = check_bindings(by_id, m.prefix, m.definition['resources']['display'])
+    for name in palette:
+        donor(name)
     for node in nodes:
         for attribute in SVG_NUMERIC.intersection(node.attrib):
             value = node.attrib[attribute]
@@ -627,14 +627,44 @@ def prepare_assets(catalog, profile, machines):
     return outputs
 
 
+def package_collection(package):
+    """The collection a package was built from, as its manifest records it; a package
+    that records none was built from profiles/collection.json."""
+    entries = document(Path(package) / 'manifest.json').get('collection')
+    if entries is None:
+        return read_collection()
+    require(isinstance(entries, list) and entries, 'Invalid package collection')
+    return entries
+
+
+def package_version(package):
+    """The release version a package was built as, as its manifest records it."""
+    return startup_label.checked(document(Path(package) / 'manifest.json').get('version', startup_label.UNVERSIONED))
+
+
+def package_layout(package):
+    """The layout a package's machines were numbered from, as its manifest records it."""
+    layout = document(Path(package) / 'manifest.json').get('layout')
+    require(layout is None or isinstance(layout, dict), 'Invalid package layout')
+    return layout
+
+
+def numbers_after(layout, machines):
+    """Every number a layout holds once these machines are built: its own, the bundled
+    machines' and the machines'."""
+    numbers = dict(layout or {})
+    numbers.update({m.id: m.identity for m in (*discovered(), *machines)})
+    return numbers
+
+
 def verification(stock, catalog, package, toolchain, compiler, *, require_record=True):
-    profile, machines, definitions = configuration()
     manifest = document(package / 'manifest.json')
     require(manifest.get('schema') == 1 and manifest.get('target') == TARGET, 'Unexpected manifest')
+    profile, machines, definitions = configuration(package_collection(package), package_layout(package))
     with tempfile.TemporaryDirectory(prefix='opxy-verify-') as temporary:
         temporary = Path(temporary)
         module, report, patch_profile = compile_collection(temporary, toolchain, compiler, profile, machines,
-                                                           definitions)
+                                                           definitions, package_version(package))
         expected_assets = prepare_assets(catalog, profile, machines)
         expected_assets['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
                                                set(report['services']))
@@ -650,6 +680,7 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
         actual = {p.relative_to(package).as_posix() for p in (package / 'candidate').rglob('*') if p.is_file()}
         require(actual == {p for p in expected if p.startswith('candidate/')}, 'Unexpected deployment file')
     result = dict(target=TARGET, status='experimental-unqualified', os_sha256=sha(expected_assets['os.ldr']),
+                  machines=[m.id if m.bundled else m.source() for m in machines],
                   fresh_source_rebuild_matches=True, original_entry_preserved=True,
                   exact_edits=sum(patch_active(p, set(report['services'])) for p in profile['patches']),
                   single_shared_reservation_bytes=profile['reserved_bytes'],
@@ -660,8 +691,12 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
     return result
 
 
-def build(out, toolchain, compiler, stock_os, stock_content):
-    profile, machines, definitions = configuration()
+def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layout=None):
+    """A firmware package. Its machines take their numbers from `layout` (by machine ID);
+    the package's layout.json is that layout after this build, for the next one."""
+    entries = read_collection() if entries is None else entries
+    profile, machines, definitions = configuration(entries, layout)
+    require(not any(m.contains(out) for m in machines), 'Keep build output outside every machine folder')
     stock = read(stock_os)
     require(sha(stock) == profile['stock_sha256'], 'Stock OS hash mismatch')
     catalog = read(Path(stock_content) / 'op1_factory.json')
@@ -669,8 +704,9 @@ def build(out, toolchain, compiler, stock_os, stock_content):
     output = fresh_output(out)
     analysis = output / 'analysis'
     analysis.mkdir()
+    version = startup_label.release_version()
     module, report, patch_profile = compile_collection(analysis, toolchain, compiler, profile, machines,
-                                                       definitions)
+                                                       definitions, version)
     prepared['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
                                   set(report['services']))
     for name, data in prepared.items():
@@ -678,11 +714,24 @@ def build(out, toolchain, compiler, stock_os, stock_content):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
     tracked = ['candidate/' + name for name in prepared] + ['analysis/module.bin', 'analysis/module.elf'] + ANALYSIS
-    save_json(output / 'manifest.json', dict(schema=1, target=TARGET,
+    save_json(output / 'manifest.json', dict(schema=1, target=TARGET, version=version, collection=entries,
+                                             **({'layout': layout} if layout else {}),
                                              files={name: sha(read(output / name)) for name in tracked}))
+    save_json(output / 'layout.json', layout_document(numbers_after(layout, machines)))
     result = verification(stock, catalog, output, toolchain, compiler, require_record=False)
     save_json(output / 'verification.json', result)
     return output, result
+
+
+def add_collection_arguments(parser):
+    parser.add_argument('--collection', type=Path, default=COLLECTION,
+                        help='collection file: bundled machine IDs and {"path": ...} folders (default: profiles/collection.json)')
+    parser.add_argument('--machine', type=Path, action='append', default=[],
+                        help='a machine folder outside this repository to add to the collection; repeatable')
+
+
+def selected_collection(args):
+    return read_collection(args.collection, args.machine)
 
 
 COMMANDS = {
@@ -703,7 +752,12 @@ def main(argv=None, command=None):
         parser.add_argument('--out', type=Path, required=True)
     if command != 'compile':
         parser.add_argument('--stock-os', type=Path, required=True)
-        parser.add_argument('--stock-content', type=Path, required=True)
+        parser.add_argument('--stock-content', type=Path, default=STOCK_CONTENT,
+                            help="the folder holding op1_factory.json (default: this repository's copy)")
+    if command != 'verify':  # a package records its own collection
+        add_collection_arguments(parser)
+        parser.add_argument('--layout', type=Path,
+                            help="the machine numbers your OP-XY's projects use: the layout.json of your last build")
     args = parser.parse_args(argv)
     # A failed command removes only the --out folder it created itself.
     created = command != 'verify' and not args.out.exists()
@@ -714,13 +768,17 @@ def main(argv=None, command=None):
             require((args.stock_content / 'op1_factory.json').is_file(),
                     f'--stock-content must be the folder holding op1_factory.json '
                     f'(a copy of the device\'s /content): {args.stock_content}')
-        profile, machines, definitions = configuration()
+        entries = None if command == 'verify' else selected_collection(args)
+        layout = read_layout(args.layout) if command != 'verify' and args.layout else None
+        profile, machines, definitions = configuration(entries, layout)
         tools = resolve_toolchain(args.toolchain, args.compiler)
         tool_paths(tools[0])
         compiler_paths(tools[1])
         if command == 'compile':
+            require(not any(m.contains(args.out) for m in machines), 'Keep build output outside every machine folder')
             output = fresh_output(args.out)
-            _module, report, _patches = compile_collection(output, *tools, profile, machines, definitions)
+            _module, report, _patches = compile_collection(output, *tools, profile, machines, definitions,
+                                                           startup_label.release_version())
             print(json.dumps(report['sizes'], indent=2))
             print('Memory ' + memory_summary(report['memory'], report['sizes']['allocated_span_bytes'],
                                             report['module_bytes']))
@@ -730,13 +788,14 @@ def main(argv=None, command=None):
             require(sha(stock) == profile['stock_sha256'], 'Stock OS hash mismatch')
             print(json.dumps(verification(stock, catalog, args.package.resolve(), *tools), indent=2))
         else:
-            output, result = build(args.out, *tools, args.stock_os, args.stock_content)
+            output, result = build(args.out, *tools, args.stock_os, args.stock_content, entries, layout)
             print(json.dumps(result, indent=2))
             print('Local experimental package: ' + str(output))
             candidate = output / 'candidate'
             print('Files to install (docs/build.md, step 5), in ' + str(candidate) + ':')
             for path in sorted(p for p in candidate.rglob('*') if p.is_file()):
                 print('  ' + path.relative_to(candidate).as_posix())
+            print('Machine numbers: ' + str(output / 'layout.json') + ' (pass it as --layout to your next build)')
         return 0
     except (ValueError, OSError, KeyError, ET.ParseError, subprocess.SubprocessError) as error:
         print('ERROR: ' + str(error), file=sys.stderr)

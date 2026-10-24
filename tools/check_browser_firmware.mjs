@@ -19,7 +19,7 @@ for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
   damagedLabel[Number(kit.profile.patches.at(-1).file_offset)] ^= 1;
   await assert.rejects(recoverFirmware(kit, damagedLabel));
   writeFileSync(target + '.ldr', firmware);
-  const files = await buildAssets(kit, selected, catalog);
+  const files = await buildAssets(kit, selected, catalog, linked.numbers);
   for (const [path, bytes] of Object.entries(files)) {
     const name = resolve(target, path); mkdirSync(resolve(name, '..'), {recursive: true}); writeFileSync(name, bytes);
   }

@@ -14,7 +14,7 @@ u32 sdk_sample_alias(u32) __asm__("sdk_sample_alias");
 const SampleMachine* sdk_sample_machine(u32 engine) {
     for (u32 i = 0; i < sdk_sample_machine_count; ++i) {
         const SampleMachine& m = sdk_sample_machines[i];
-        if (m.engine == engine) return m.ready() == 1 ? &m : nullptr;
+        if (m.engine() == engine) return m.ready() == 1 ? &m : nullptr;
     }
     return nullptr;
 }

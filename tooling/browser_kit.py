@@ -13,33 +13,54 @@ import subprocess
 import sys
 
 from .adapters import catalog_entry, sample_callbacks
+from .catalog import official
 from .definitions import control_positions
 from .formats import require, sha
+from .machines import discovered
 from .pipeline import ROOT, child, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
 from . import native, preview, screen
 
 
 def notices(machines):
     texts = ['OP-XY SDK modules\n\n' + read(ROOT / 'LICENSE').decode('utf-8')]
-    for machine in machines:
-        license_file = child(ROOT / 'machines', machine['id']) / 'vendor/LICENSE'
+    for m in machines:
+        license_file = child(m.root, 'vendor/LICENSE')
         if license_file.is_file():
-            texts.append(machine['name'] + '\n\n' + read(license_file).decode('utf-8'))
+            texts.append(m.name + '\n\n' + read(license_file).decode('utf-8'))
     return '\n\n'.join(texts)
 
 
-def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
-    recipe = json.loads(read(ROOT / 'profiles/collection.json'))
-    profile, machines, definitions = native.configuration()
-    require(recipe['schema'] == 1, 'Unsupported collection')
+def catalog_sources(machines, personal):
+    """The release of each catalog machine at its pinned commit, by ID. A published kit
+    holds reviewed machines only: bundled ones, and those. A personal kit may hold any folder."""
+    from .catalog import load, pinned
+    entries = load()
+    sources = {m.id: next(e for e in entries if e['id'] == m.id) for m in machines
+               if not m.bundled and pinned(m, entries)}
+    require(personal or all(m.bundled or m.id in sources for m in machines),
+            'A published kit holds the bundled machines and catalog machines at their pinned commits '
+            '(sdk.py catalog fetch); build other folders into a --personal kit')
+    return sources
+
+
+def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, personal=False):
+    profile, machines, definitions = native.configuration(native.package_collection(package))
+    sources = catalog_sources(machines, personal)
     require(sha(stock_catalog) == profile['stock_catalog_sha256'], 'Stock catalog hash mismatch')
     owners, services = native.object_owners(machines, profile), native.object_services(machines, profile)
     kit_machines = []
     for m in machines:
+        # The numbers it asks for; the builder numbers each selection (core.mjs assignNumbers).
         entry = dict(id=m.id, name=m.name, kind=m.kind, prefix=m.prefix, description=m.description,
-                     identity=m.identity, controls=[p['label'] for p in m.definition['parameters']],
+                     identity=m.requested or m.identity, controls=[p['label'] for p in m.definition['parameters']],
                      positions=control_positions(m.definition))
         entry['catalog'] = catalog_entry(m)
+        # Where the machine comes from, for the builder to show (core.mjs validOrigin): a
+        # catalog machine is Open-XY's own only when maintainers list it (catalog.OFFICIAL).
+        entry['origin'] = ('bundled' if m.bundled else 'personal' if m.id not in sources
+                           else 'official' if official(sources[m.id]) else 'catalog')
+        if m.id in sources:
+            entry['source'] = {key: sources[m.id][key] for key in ('repository', 'tag', 'commit', 'maintainer')}
         entry['presetDefaults'] = m.preset_defaults
         if m.icon:
             entry['icon'] = m.icon
@@ -57,7 +78,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
             entry['artwork'] = read(m.root / 'panel.svg.fragment').decode('utf-8')
             entry['asset'] = m.native_name + '.svg'
             preview_dir = output / ('preview-' + m.id)
-            preview.build(preview_cxx, m.id, preview_dir)
+            preview.build(preview_cxx, m, preview_dir)
             preview.preview_bundle(preview_dir, require_reference=True)
             wasm = read(preview_dir / 'engine.wasm')
             entry['preview'] = dict(wasm=base64.b64encode(wasm).decode('ascii'), sha256=sha(wasm),
@@ -77,9 +98,13 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog):
         if name in services:
             entry['service'] = services[name]
         objects.append(entry)
-    kit = dict(format='opxy-browser-kit/1', profile=profile,
+    # Stock addresses only: each selection's machine numbers are the builder's.
+    stock = {key: value for key, value in definitions.items() if key in native.DEFINITIONS}
+    # The release version, as the firmware's boot label shows it.
+    kit = dict(format='opxy-browser-kit/1', version=native.package_version(package), profile=profile,
                profileSource=base64.b64encode(read(ROOT / ('profiles/' + profile['id'] + '.json'))).decode('ascii'),
-               definitions=definitions, machines=kit_machines, objects=objects, notices=notices(kit_machines),
+               definitions=stock, fixed={m.id: m.identity for m in discovered()},
+               machines=kit_machines, objects=objects, notices=notices(machines),
                stockCatalog=base64.b64encode(stock_catalog).decode('ascii'),
                screenTemplate=screen.template().decode('utf-8'))
     kit_path = output / 'kit.json'
@@ -103,22 +128,19 @@ def write_builder(kit, output):
     app = read(ROOT / 'builder/app.mjs').decode('utf-8')
     imports = ("import * as Core from './core.mjs';\nimport * as Wizard from './wizard.mjs';\n"
                "import * as Retained from '../sdk/browser/display.mjs';\n"
-               "import * as Segments from '../sdk/browser/segments.mjs';\n"
                "import * as Visuals from './visuals.mjs';\n"
                "import {Audition} from './audition.mjs';\n"
                "import {shownControls} from '../sdk/browser/controls.mjs';\n"
                "import {supportsDeviceApis} from './browser.mjs';\n")
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
-    exports = ('requireThat decode64 sha256 equal readObject identities moduleBytes openKit linkKit readLdr '
-               'patchFirmware recoverFirmware presetPath buildAssets zipFiles').split()
+    exports = ('requireThat decode64 sha256 equal readObject readLayout assignNumbers chosenByDefault moduleBytes openKit linkKit readLdr '
+               'patchFirmware recoverFirmware presetPath buildAssets zipFiles sourceUrl sourceName').split()
     bundled = 'const Core = (() => {\n' + script + '\nreturn {' + ','.join(exports) + '};\n})();\n'
     bundled += 'const {shownControls, inputWords} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode(
         'utf-8').replace('export ', '') + '\nreturn {shownControls, inputWords};\n})();\n'
     controls_import = "import { inputWords } from './controls.mjs';\n"
-    for namespace, file, classes in (
-        ('Retained', 'display.mjs', 'PreviewDisplay,SvgDisplay'),
-        ('Segments', 'segments.mjs', 'SegmentDisplay,SegmentSvg')):
+    for namespace, file, classes in (('Retained', 'display.mjs', 'PreviewDisplay,SvgDisplay,headerSvg,NoteActivity'),):
         source = read(ROOT / 'sdk/browser' / file).decode('utf-8')
         require(source.count(controls_import) == 1, 'Unexpected display imports')
         bundled += 'const ' + namespace + '= (() => {\n' + source.replace(controls_import, '').replace(
@@ -161,13 +183,17 @@ def write_builder(kit, output):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('stock-os', 'stock-content', 'out'):
+    for name in ('stock-os', 'out'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--stock-content', default=str(native.STOCK_CONTENT),
+                        help="the folder holding op1_factory.json (default: this repository's copy)")
     parser.add_argument('--toolchain', help='pinned binutils directory (default: local/toolchain/bin)')
     parser.add_argument('--compiler', help='pinned Blackfin GCC bundle root (default: local/toolchain)')
     parser.add_argument('--preview-cxx', default='clang++', help='Clang++ with wasm32/wasm-ld')
+    parser.add_argument('--host-cxx', default='g++', help='host C++11 compiler for the release fixtures')
     parser.add_argument('--personal', action='store_true',
                         help='a kit for your own collection on any pinned host, without release verification')
+    native.add_collection_arguments(parser)
     args = parser.parse_args(argv)
     try:
         if not args.personal:
@@ -175,19 +201,24 @@ def main(argv=None):
         args.toolchain, args.compiler = resolve_toolchain(args.toolchain, args.compiler)
     except ValueError as error:
         parser.exit(1, 'ERROR: ' + str(error) + '\n')
+    try:
+        # Refuse an unreviewed machine before the long build, not after it.
+        catalog_sources(native.configuration(native.selected_collection(args))[1], args.personal)
+    except ValueError as error:
+        parser.exit(1, 'ERROR: ' + str(error) + '\n')
     out = fresh_output(args.out)
     try:
         package = out / 'source'
         native.build(package, Path(args.toolchain), Path(args.compiler),
-                     Path(args.stock_os), Path(args.stock_content))
+                     Path(args.stock_os), Path(args.stock_content), native.selected_collection(args))
         options = []
         for name in ('toolchain', 'compiler', 'stock_os', 'stock_content'):
             options += ['--' + name.replace('_', '-'), str(Path(getattr(args, name)).resolve())]
         if not args.personal:  # independent rebuild against the reference bytes
-            subprocess.run([sys.executable, str(ROOT / 'sdk.py'), 'check', '--native-package', str(package), *options],
-                           cwd=ROOT, check=True)
+            subprocess.run([sys.executable, str(ROOT / 'sdk.py'), 'check', '--native-package', str(package), *options,
+                            '--host-cxx', args.host_cxx], cwd=ROOT, check=True)
         export(package, out, tool_paths(args.toolchain), args.preview_cxx,
-               stock_catalog=read(Path(args.stock_content) / 'op1_factory.json'))
+               stock_catalog=read(Path(args.stock_content) / 'op1_factory.json'), personal=args.personal)
         # Validate firmware and content output against the independent Python writer.
         for mode in ([], ['-O']):
             subprocess.run([sys.executable, *mode, str(ROOT / 'tools/check_browser_firmware.py'), str(out),

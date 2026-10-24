@@ -23,7 +23,7 @@ and installs it in `local/toolchain`, which every native command uses when
 `toolchain-1` release yourself, install it with
 `python sdk.py toolchain fetch --archive <zip>`.
 
-## 2. Copy the stock files
+## 2. Copy the OS from your OP-XY
 
 On an OP-XY running OS 1.2.0, hold COM while switching it on to open te-boot.
 It must show "3. dev menu"; if not, enable it with the
@@ -33,49 +33,65 @@ It must show "3. dev menu"; if not, enable it with the
 2. Press track 3 for "3. mtp file transfer (windows)", or track 2 for
    "2. mtp file transfer (mac)", and wait for "mtp mode active". Open the
    device in File Explorer, or in OpenMTP on a Mac (quit Field Kit first).
-3. Copy these files into one folder outside every checkout:
+3. Copy the OS into a folder outside every checkout:
 
 ```text
 stock-1.2.0/
   os.ldr               from /upgrade/firmware/blackfin/bin/os.ldr
-  content/
-    op1_factory.json   from /content/op1_factory.json
 ```
 
 4. Press track 2 for "2. exit".
 
 For example, keep the folder in `%LOCALAPPDATA%/OPXY-SDK/private/` on Windows or
-`~/Library/Application Support/OPXY-SDK/private/` on macOS. The build accepts
-only the exact stock files: an encrypted `.tfw` is a different format, and an
-installed Open-XY build replaces `/content/op1_factory.json`. `--stock-content`
-is whichever folder holds `op1_factory.json`.
+`~/Library/Application Support/OPXY-SDK/private/` on macOS. All firmware comes
+from your device; the build accepts only the exact stock OS, and an encrypted
+`.tfw` is a different format. The stock instrument catalog the build extends,
+`op1_factory.json`, is in this repository
+([`profiles/opxy-1.2.0/content/op1_factory.json`](../profiles/opxy-1.2.0/content/op1_factory.json)) and is the
+default `--stock-content`; pass another folder holding the same file to use
+your own copy.
 
 ## 3. Add your machine
 
 Start from [your first machine](first-machine.md); `sdk.py new` needs no
-preview tools. Its `machine.json` holds an engine ID and page no machine in
-this repository uses. To build it for the device:
+preview tools. A machine is a folder that can live anywhere, such as its own
+repository. Its `machine.json` names the SDK version it targets (`"sdk": "1.0"`)
+and the engine (or effect) number and page it asks for, which no machine in
+this repository uses ([identity](api.md#identity),
+[fields](api.md#registration-boundary)). Names are saved in presets and never
+change once published.
 
-1. Move its folder to `machines/<id>/` and rename every `local_` prefix in
-   `panel.svg.fragment` to `<id>_`.
-2. Keep its `machine.json`, or give it another free
-   [identity](api.md#identity) ([fields](api.md#registration-boundary)). Names
-   and IDs are saved in presets and projects, so they never change once
-   published.
-3. Add `<id>` to `profiles/collection.json`. All selected machines share
-   508 KiB ([memory and limits](api.md#memory-and-limits)), and the bundled
-   ones use most of it; `compile` shows each machine's share. Remove machines
-   you don't want to make room.
+Projects save machine numbers, which a build takes from a layout: every package
+holds `layout.json`, the numbers its firmware has given out. Pass it to your next
+build with `--layout <previous package>/layout.json`, and every machine keeps its
+numbers, even after you add or drop others.
 
-`python sdk.py compile --out <folder>` then builds the module alone, without
-stock files, and prints each machine's memory use: a quick check before the
-full build. Like build outputs, keep `<folder>` outside the checkout.
+Every build command takes the collection:
+
+| Option | Machines built |
+| --- | --- |
+| (none) | `profiles/collection.json`: the bundled machines |
+| `--machine <folder>` | Those, then the machine in `<folder>`; repeatable |
+| `--collection <file>` | The file's list: bundled IDs and `{"path": "<folder>"}` entries, relative to the file. `sdk.py catalog fetch` writes one with every [published machine](catalog.md) |
+
+All selected machines share 2044 KiB ([memory and limits](api.md#memory-and-limits));
+`compile` shows each machine's share. To make room, list fewer machines in your
+own collection file.
+
+`python sdk.py compile --machine <folder> --out <out>` then builds the module
+alone, without stock files, and prints each machine's memory use: a quick check
+before the full build. Like build outputs, keep `<out>` outside the checkout.
+The SDK builds a machine whose `sdk` has its major version and an equal or
+older minor version; a machine's ID must differ from the bundled machines'.
 
 ## 4. Build
 
 ```sh
-python sdk.py build --stock-os <stock-1.2.0>/os.ldr --stock-content <stock-1.2.0>/content --out <builds>/mine-001
+python sdk.py build --machine <folder> --stock-os <stock-1.2.0>/os.ldr --out <builds>/mine-001
 ```
+
+The package records its collection, so verifying or exporting it needs no
+collection options.
 
 Use a new `--out` folder for every build, also outside the checkout; a failed
 build leaves none behind. The build fails on any check below; on success it
@@ -123,7 +139,7 @@ reproduces the reference bytes ([hosts](toolchain.md#hosts)). There, the
 maintainer runs:
 
 ```sh
-python sdk.py check --native-package <builds>/mine-001 --stock-os <stock-1.2.0>/os.ldr --stock-content <stock-1.2.0>/content
+python sdk.py check --native-package <builds>/mine-001 --stock-os <stock-1.2.0>/os.ldr --stock-content profiles/opxy-1.2.0/content
 ```
 
 It independently rebuilds the package (`sdk.py verify`) and runs the fixture

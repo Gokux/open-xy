@@ -12,6 +12,10 @@ Braids, are synths; [Ring Mod](machines/ringmod/README.md) is a send effect and
 owners pick from these machines and download firmware made from their own stock
 `os.ldr`, without installing anything.
 
+**Contributing? Start feature branches from `staging` and open pull requests
+against `staging`.** It is the development branch; `main` receives reviewed
+releases from `staging`. See the [contributor workflow](CONTRIBUTING.md#branch-workflow).
+
 This is an unofficial, experimental SDK. A build statically links a curated
 collection of machines into exact stock OS 1.2.0; arbitrary engine installation
 and dynamic loading are not implemented. Native code is not sandboxed, and
@@ -39,9 +43,12 @@ patches and automation.
 
 Start with [Your first machine](docs/first-machine.md): check the prerequisites,
 create a custom C++ machine, play it in the browser and make an audible edit.
+To keep a machine in a repository of your own and submit it to the builder,
+start from the [machine template](https://github.com/etcetc000/open-xy-machine-template);
+[Karplus](https://github.com/etcetc000/open-xy-karplus) is one such machine.
 
 A machine is a folder of source: `machine.json`, which declares its kind and
-stock identity, controls in `definition.json`, and C++ for its kind: a synth's
+the stock numbers it asks for, controls in `definition.json`, and C++ for its kind: a synth's
 sound (`engine.cpp`) and display (`display.cpp` and artwork), a sample engine's
 `sample.cpp` or an effect's `fx.cpp`. The SDK supplies adapters, storage,
 previews, firmware builds and packaging.
@@ -50,24 +57,27 @@ previews, firmware builds and packaging.
 - [Display API](docs/display.md): retained drawing frames and asset constraints.
 - [Build your own firmware](docs/build.md): toolchain, stock files, adding a machine, build and install.
 - [Open-XY builder](docs/builder.md): using the builder, web development and kit export.
+- [Catalog](docs/catalog.md): machines published from their own repositories, pinned by commit.
 - [Contributing](CONTRIBUTING.md): code ownership and checks.
 
 ## Repository layout
 
 | Path | Owns |
 | --- | --- |
-| `machines/<id>/` | Machine source, definition, `machine.json` and artwork |
+| `machines/<id>/` | Bundled machines: source, definition, `machine.json` and artwork. A machine can also live in its own folder or repository ([build](docs/build.md#3-add-your-machine)) |
 | `sdk/` | C++ interfaces, adapter templates and browser runners |
 | `builder/` | The Open-XY browser builder |
 | `harness/` | The local preview workbench |
 | `tooling/` | The Python behind `sdk.py`: definitions, builds, firmware container checks and packaging |
 | `profiles/`, `linker/` | The firmware profile, the machine collection and the memory layout |
+| `catalog/` | Published and reserved machines ([catalog](docs/catalog.md)) |
 | `tests/` | SDK contracts and infrastructure tests |
 | `tools/` | Standalone scripts: the preview server, browser and firmware checkers, and compiler build and release scripts |
 | `local/` | Ignored non-firmware development outputs and tool binaries |
 
-`python sdk.py check` checks the SDK. A machine's sound tests belong to its
-maintainer; adding an instrument does not add tests or Python modules to the SDK.
+`python sdk.py check` checks the SDK; `python sdk.py test --machine <folder>`
+checks a machine, including the sound tests in its own `tests/`. Adding an
+instrument does not add tests or Python modules to the SDK.
 
 The SDK and most machines are MIT ([LICENSE](LICENSE), Open-XY contributors);
 [Braids notices](machines/macroosc/vendor/LICENSE) apply to that port.
@@ -75,6 +85,8 @@ Timestretch, including its Capicola-derived analysis, is AGPL-3.0; see its
 [source and license notices](machines/timestretch/vendor/README.md). Shared
 SDK code carries no copyleft code, but firmware and builder kits that include
 Timestretch, as the default collection does, are distributed under the
-AGPL-3.0. Stock firmware and stock artwork are never included; they come from
-the user's own device. The [toolchain](docs/toolchain.md) release ships its
-GPL sources.
+AGPL-3.0. No firmware is included: all firmware comes from the user's own
+device. The one stock file in this repository is the instrument catalog every
+build extends, [`op1_factory.json`](profiles/opxy-1.2.0/content/op1_factory.json),
+kept for development; the builder distributes it too. The
+[toolchain](docs/toolchain.md) release ships its GPL sources.

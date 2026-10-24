@@ -8,7 +8,9 @@ import unittest
 
 from tooling import custom_preview as custom
 from tooling.formats import sha
+from tooling.machines import machine_at
 from tooling.preview import preview_bundle
+from test_sample_services import HOST_CXX
 
 
 class CustomPreviewTests(unittest.TestCase):
@@ -51,6 +53,22 @@ class CustomPreviewTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'stale'):
             preview_bundle(out)
 
+    def test_starters_are_machines_whose_own_checks_pass(self):
+        folder = self.root / 'effect'
+        with redirect_stdout(io.StringIO()):
+            custom.scaffold(folder, 'drive', 'Drive', 'effect')
+        m = machine_at(folder)
+        self.assertEqual((m.kind, m.dry_parameter, m.identity['page']), ('effect', 2, 21))
+        with self.assertRaises(ValueError):
+            custom.scaffold(self.root / 'other', 'drive', 'Drive', 'player')
+        self.assertTrue((folder / 'tests/sound.cpp').is_file() and (self.source / 'tests/sound.cpp').is_file())
+        if not HOST_CXX:
+            self.skipTest('No working host C++ compiler (set OPXY_TEST_HOST_CXX)')
+        # Each starter's own sound checks pass as generated.
+        from tooling.machine_test import host_tests
+        for m in (machine_at(folder), machine_at(self.source)):
+            self.assertEqual(host_tests(m, HOST_CXX, self.root), 1)
+
     def test_scaffold_artwork_meets_the_native_rules(self):
         # One root element and outlines with the declared point count, as the firmware build requires.
         from tooling.native import check_outlines, panel_root
@@ -60,11 +78,16 @@ class CustomPreviewTests(unittest.TestCase):
             outline = custom.square_outline(points)
             self.assertEqual(outline.count('L'), points - 1)
             self.assertTrue(outline.startswith('M') and outline.endswith(' Z') and 'e' not in outline)
-        display = {'paths': 1, 'nodes': 1, 'palette': 0, 'points': 64}
+        display = {'paths': 1, 'nodes': 1, 'texts': 0, 'palette': 0, 'points': 64}
         good = panel_root(f'<g><path id="local_node_0" d="{custom.square_outline(64)}" fill="none"/></g>'.encode(), 'test')
         check_outlines({n.get('id'): n for n in good.iter() if n.get('id')}, 'local', display)
         bad = panel_root(f'<g><path id="local_node_0" d="{custom.square_outline(4)}" fill="none"/></g>'.encode(), 'test')
         with self.assertRaisesRegex(ValueError, 'exactly M, 63 L and Z'):
+            check_outlines({n.get('id'): n for n in bad.iter() if n.get('id')}, 'local', display)
+        # The device merges repeated points, even ones written differently.
+        repeated = custom.square_outline(64).replace('M-32 -32 ', 'M-32 -32 L-32.0 -32 ', 1).replace(' L-28 -32', '', 1)
+        bad = panel_root(f'<g><path id="local_node_0" d="{repeated}" fill="none"/></g>'.encode(), 'test')
+        with self.assertRaisesRegex(ValueError, 'repeats a point; the device merges repeated points'):
             check_outlines({n.get('id'): n for n in bad.iter() if n.get('id')}, 'local', display)
 
     def test_tampered_artwork_is_rejected(self):

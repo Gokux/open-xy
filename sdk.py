@@ -5,11 +5,14 @@ import sys
 COMMANDS = '''Commands:
   check     Contributor checks: python sdk.py check [--help]
   preview   Browser audition build: python sdk.py preview --engine fm2op --out local/preview-001
-  new       New local machine: python sdk.py new --id mymachine --name "My Machine" --out local/mymachine
+  new       Start a machine: python sdk.py new [--kind synth|effect] --id mymachine --name "My Machine" --out ../mymachine
+  test      Check machine folders anywhere: python sdk.py test --machine ../mymachine [--firmware]
+  catalog   Published machines: python sdk.py catalog check | fetch | test [--tags]
   compile   Native module only: python sdk.py compile --help
-  build     Native firmware package for the curated collection: python sdk.py build --help
+  build     Native firmware package: python sdk.py build [--machine <folder>] --help
   verify    Rebuild and compare a native package: python sdk.py verify --help
   kit       Browser builder export: python sdk.py kit --help
+  release   Catalog kit and site: python sdk.py release --help
   toolchain Install the pinned Blackfin tools: python sdk.py toolchain fetch
   doctor    Check tools: python sdk.py doctor --preview | --toolchain [<dir>]
 Preview server: python tools/serve_harness.py --preview local/preview-001'''
@@ -21,6 +24,15 @@ if __name__ == '__main__':
         raise SystemExit(main(argv, command))
     if command == 'new':
         from tooling.custom_preview import main
+        raise SystemExit(main(argv))
+    if command == 'catalog':
+        from tooling.catalog import main
+        raise SystemExit(main(argv))
+    if command == 'test':
+        from tooling.machine_test import main
+        raise SystemExit(main(argv))
+    if command == 'release':
+        from tooling.release import main
         raise SystemExit(main(argv))
     if command == 'kit':
         from tooling.browser_kit import main

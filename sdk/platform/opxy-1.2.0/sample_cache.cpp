@@ -157,14 +157,14 @@ u32 used_bytes(u32 engine) {
 void prepare_for(const void* object, const SampleMachine& m) {
     Entry* free_entry = nullptr;
     for (u32 i = 0; i < kEntries; ++i) {
-        if (entries[i].owner == object && entries[i].engine == m.engine) return;
+        if (entries[i].owner == object && entries[i].engine == m.engine()) return;
         if (!entries[i].owner && !free_entry) free_entry = &entries[i];
     }
     if (!free_entry) {
         if (!full_reported) {
             full_reported = true;
             status(1, 0, true);
-            failed(nullptr, object, m.engine, 4);
+            failed(nullptr, object, m.engine(), 4);
         }
         return;
     }
@@ -173,18 +173,18 @@ void prepare_for(const void* object, const SampleMachine& m) {
     // The machine sizes its storage; bound it before converting to bytes.
     const u32 words = sample.data ? m.analysis_words(&sample) : 0;
     if (!words) {
-        failed(free_entry, object, m.engine, 3);
+        failed(free_entry, object, m.engine(), 3);
         return;
     }
-    const u32 budget = m.analysis_budget, used = used_bytes(m.engine);
+    const u32 budget = m.analysis_budget, used = used_bytes(m.engine());
     if (used > budget || words > budget / sizeof(u32) || words * sizeof(u32) > budget - used) {
-        failed(free_entry, object, m.engine, 4);
+        failed(free_entry, object, m.engine(), 4);
         return;
     }
     const u32 bytes = words * sizeof(u32);
     u32* storage = static_cast<u32*>(sdk_sample_cache_alloc(bytes));
     if (!storage) {
-        failed(free_entry, object, m.engine, 3);
+        failed(free_entry, object, m.engine(), 3);
         return;
     }
     opxy::SampleAnalysis result{};
@@ -197,10 +197,10 @@ void prepare_for(const void* object, const SampleMachine& m) {
     }
     if (step != opxy::prepare_done || !m.prepared(&result) || result.words != storage || result.word_count > words) {
         sdk_sample_cache_free(storage);
-        failed(free_entry, object, m.engine, 3);
+        failed(free_entry, object, m.engine(), 3);
         return;
     }
-    free_entry->engine = m.engine;
+    free_entry->engine = m.engine();
     free_entry->analysis = result;
     free_entry->ready = true;
     free_entry->failure = 0;

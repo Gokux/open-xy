@@ -13,7 +13,7 @@ const results = [];
 for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
   const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
   const linked = linkKit(kit, selected), prefix = resolve(destination, String(mask));
-  const definitions = [...Object.entries(kit.definitions), ...linked.aliases.entries()]
+  const definitions = [...Object.entries(linked.definitions), ...linked.aliases.entries()]
     .map(([key, value]) => `--defsym=${key}=0x${value.toString(16)}`);
   execFileSync(ld, ['-T', layout, '-e', 'extensions_synth_exit', '-o', prefix + '.elf', ...definitions,
     ...linked.objects.map(o => resolve(objectDir, o.name))], {stdio: 'pipe', windowsHide: true});

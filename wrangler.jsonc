@@ -6,5 +6,11 @@
   "routes": [{"pattern": "open-xy.com", "custom_domain": true}],
   "assets": {
     "not_found_handling": "none"
+  },
+  "env": {
+    "beta": {
+      "name": "open-xy-beta",
+      "routes": [{"pattern": "beta.open-xy.com", "custom_domain": true}]
+    }
   }
 }

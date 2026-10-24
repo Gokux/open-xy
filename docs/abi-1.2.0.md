@@ -23,7 +23,7 @@ version is rejected. The output differs from stock in exactly these places:
 
 | Change | Edits | Purpose |
 | --- | --- | --- |
-| Reservation | 2 | Shrinks the application heap by 512 KiB; the module lives in the freed tail |
+| Reservation | 2 | Shrinks the application heap by 2 MiB (20 MiB to 18 MiB); the module lives in the freed tail |
 | Hooks | 5 | Branches from the synth initializer, both screen factories and both catalog-insertion calls into SDK startup code |
 | Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock multisampler audio payload |
 | Sample analysis | 10 | Schedules bounded background work, snapshots committed assignments, releases cached analysis and reports progress |
@@ -32,7 +32,8 @@ version is rejected. The output differs from stock in exactly these places:
 | Relocated tables | 13 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
 | Synth and effect controls | 3 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit; scales fine turns on owned synth and send-effect pages |
-| Startup label | 1 | Shows `OPEN 0.0.1-1.2.0` at boot through the stock startup text renderer |
+| Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
+| Startup label | 1 | Shows `OPEN <version>-1.2.0` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
 The sample rows (sample dispatch, analysis, drum-page services and recorder)
@@ -74,15 +75,21 @@ and then completes the stock epilogue it replaced.
 
 Presets store the engine **name**. Projects store the engine **number**.
 Firmware without the relocated tables opens a project that uses an engine above
-32 with Prism (18) instead. Published IDs therefore never change.
+32 with Prism (18) instead. A firmware's numbers therefore never change: layouts
+keep them ([identity](api.md#identity)), and engine and page IDs reach the
+module only as absolute link-time symbols, so one set of objects serves any
+numbering.
 
 ## Synth voices
 
 Stock asks the factory for a voice object per voice index (0–255) and calls
 it through an 11-entry method table: render once per 64-sample block, start on
 a note, and unchanged stock defaults for the rest (see
-[`voice.cpp.in`](../sdk/platform/opxy-1.2.0/voice.cpp.in)). One adapter serves
-every synth.
+[`voice.cpp.in`](../sdk/platform/opxy-1.2.0/voice.cpp.in)). It never checks
+for a missing object, so the factory gives every index a small handle. A
+machine's `voiceCapacity` voices go to handles as their notes start: a free
+voice, or the one whose note started longest ago. A handle that has lost its
+voice renders silence. One adapter serves every synth.
 Render receives 64 output words and 8 parameter words. The SDK adds the stock
 per-sample pitch increments. Output is mono Q31 peaking at most at half scale. Stock
 velocity, envelope, filter and mixing run afterwards.
@@ -93,13 +100,23 @@ A synth's page is a stock screen object: 76 stock bytes, plus adapter state,
 plus an SVG asset named after the machine. The SDK screen shell
 ([`screen.hpp`](../sdk/platform/opxy-1.2.0/screen.hpp)) supplies the four
 control titles and values that stock fills in. The machine's artwork
-supplies the rest. Two display contracts exist, each sized by the machine's
-declaration (see the [display API](display.md)):
+supplies the rest. One drawing renderer
+([`screen_drawing.hpp`](../sdk/platform/opxy-1.2.0/screen_drawing.hpp)),
+sized by the machine's declaration (see the [display API](display.md)), binds
+the artwork's nodes, text slots and palette entries by ID and applies each
+frame through stock's own setters: matrix words for a node's transform, palette
+selectors for its paint, path commands rewritten in place for outlines, and
+text leaves. Nothing is created or freed.
 
-- **Drawing:** mutable outlines, transformable nodes and a palette, updated
-  with Q10 coordinates and matrices.
-- **Segments:** 14-segment characters, a lit/unlit palette, one label and text
-  in place of chosen control values.
+Drawing input reads the GUI's existing note-start counter at `8d4d75c0` and
+the per-track 128-pitch note map at `86be3f14` (the reader at `8d5b5e88`, set
+at `8d5b5ecc`, clear at `8d5b5ea4`). The calls to clear at `8d5937ea` and
+`8d59384c` route through `sdk_note_off`: it checks whether that pitch was held,
+delegates the unchanged clear exactly once, preserves its result, and counts
+the closure. The screen reads the held count and release serial on the GUI
+side; no audio callback or cross-role publication is added. The two calls are
+authenticated profile edits. Other stock instructions and note routing remain
+unchanged. This reports stock note activity, not audio-envelope state.
 
 Stock paints the screen slots in ascending page order each frame, so page
 numbers are layers. The compositor's loop advance is hooked: when the selected

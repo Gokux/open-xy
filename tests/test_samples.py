@@ -50,13 +50,14 @@ class Generation(unittest.TestCase):
         for bad in (valid[:-1], valid + b'\0', b'\1' + valid[1:], valid[:4] + b'\x61' + valid[5:], valid[:-1] + b'\1'):
             with self.assertRaises(ValueError): firmware.absolute_target(bad)
 
-    def test_dispatch_table_is_generated_for_arbitrary_sample_identities(self):
+    def test_dispatch_table_is_generated_for_any_sample_machines(self):
         first = machine('timestretch')
         second = replace(first, id='slicer', identity=dict(engine=46, page=2))
         with tempfile.TemporaryDirectory() as directory:
             text = adapters.generate_sample_callbacks(directory, [first, second, machine('fm2op')]).read_text()
-        self.assertIn('{35, 7, timestretch_ready, ', text)
-        self.assertIn('{46, 2, slicer_ready, ', text)
+        # Engine IDs are symbols the linker supplies; each machine keeps its stock page.
+        self.assertIn('{timestretch_engine_id, 7, timestretch_ready, ', text)
+        self.assertIn('{slicer_engine_id, 2, slicer_ready, ', text)
         self.assertNotIn('fm2op', text)
 
     def test_empty_collection_dispatch_remains_stock(self):

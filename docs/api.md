@@ -25,7 +25,7 @@ fails the build or, for the artwork rule, halts the device's SVG parser.
 | Callbacks | Bounded work per 64-sample block; no blocking, logging, file access or graphics from audio callbacks |
 | Synth controls | Four control positions, plus up to four alternates; values arrive as Q31 and the stock menu stores Q15 defaults |
 | Audio | 64 frames at 44.1 kHz, Q31 output peaking at most at half scale; mono by default, optional stereo for sample engines |
-| Identity | Name and IDs follow the [identity rules](#identity); they never change once published |
+| Identity | The name follows the [identity rules](#identity) and never changes once published; a firmware's [layout](#identity) gives the numbers |
 | Sample engines | The sample is read-only and borrowed for the voice's lifetime |
 | Effects | State fits in 476 bytes and holds no resources (no destructor ever runs) |
 | Artwork | At most four decimal places and no exponent notation in any number; explicit paint on every leaf; no `style`, events or external references |
@@ -34,8 +34,8 @@ The [firmware contract](abi-1.2.0.md) explains where each rule comes from.
 
 ## Memory and limits
 
-Every selected machine and the SDK share **one 508 KiB module region**: code,
-constant data and zero-initialized state together. It is the 512 KiB the
+Every selected machine and the SDK share **one 2044 KiB module region**: code,
+constant data and zero-initialized state together. It is the 2 MiB the
 firmware reserves from its heap, minus 4 KiB of relocated stock tables. There
 is no per-machine allowance: a build that does not fit names each machine's
 share, and `sdk.py compile` and the builder's memory meter report the same
@@ -44,19 +44,55 @@ figures. State usually dominates, since a synth's voice pool is
 
 | Limit | Value | Why |
 | --- | --- | --- |
-| Module memory | 508 KiB for the whole collection | Firmware heap reservation minus the relocated tables |
+| Module memory | 2044 KiB for the whole collection | Firmware heap reservation minus the relocated tables |
 | Voices | 1..256 per machine | Stock voice indices |
 | Effect state | 476 bytes | The 480-byte stock FX slot minus its object header |
 | Synth controls | 4 positions, at most 8 parameters | The stock four-knob page and eight-word parameter vector |
 | Sample and effect controls | 1..8 | The stock eight-word parameter vector |
 | Control labels | 8 characters | The stock parameter page |
-| Drawing shape | ≤ 4 paths of ≤ 64 points, ≤ 64 nodes, ≤ 16 palette entries | Fixed-size renderer object and frame |
-| Segment display | 1..8 characters, 0..3 glow layers, 0..4 dials | Fixed-size renderer object and frame |
+| Display shape | ≤ 4 paths of ≤ 64 points, ≤ 256 nodes, ≤ 4 text slots, ≤ 16 palette entries | Fixed-size renderer object and frame |
 
 `voiceBytes`, `sharedBytes` and display state have no limit of their own
 beyond whole words and module memory. Browser previews run 8 voices in
 512 KiB of WebAssembly memory; a machine that needs more still builds for the
 device.
+
+## CPU
+
+The OP-XY renders every voice and effect in 64-sample blocks, 1.45 ms each, on
+one Blackfin core that also runs its own engines, sequencer and effects. A
+machine's cost adds up per sounding voice and per track that uses it. The SDK
+sets no hard limit and does not yet measure device cycles.
+
+`python sdk.py test` prints an estimate for synths and effects in **Blackfin
+instructions per 64-sample block**, at the machine's heaviest control setting.
+It times the machine's render (or `process`) on your computer against a
+reference loop in the same run, a table oscillator through a one-pole filter
+of known Blackfin instruction count (about 590 per block), so the figure is
+about the same on any computer:
+
+```text
+CPU estimate (host-timed; not measured on the device): Karplus about 7,700 Blackfin instructions per voice block at its heaviest setting. Aim for at most 15,000; for scale, 2op FM about 14,000, Macro Osc (Braids) about 9,000
+```
+
+| Per 64-sample block | Aim for at most | Likely to drop audio above | Bundled machines |
+| --- | --- | --- | --- |
+| A synth voice | 15,000 | 24,000 | 2op FM about 14,000, Macro Osc (Braids) about 9,000 |
+| An effect, once per track | 30,000 | 48,000 | Ring Mod about 10,500 |
+
+Above the aim, make the machine lighter where you can; above the second limit,
+measure it on a device with many notes held across tracks. Instructions are
+not cycles: pipeline stalls add some. And the estimate understates what the
+host does fast and the Blackfin does not:
+
+- **Division** has no hardware instruction and costs tens of cycles on the
+  device. Divide once per block, or use a table or a reciprocal.
+- **Floating point** has no hardware either. Keep audio in integers;
+  [`q31.hpp`](../sdk/include/opxy/q31.hpp) has the fixed-point helpers.
+- **64-bit arithmetic** has no runtime helpers in the module: keep products
+  within 32 bits or split them, as `q31.hpp` does.
+- **Per-sample work that changes only per block**, such as coefficients and
+  increments, belongs outside the sample loop.
 
 ## Definition
 
@@ -67,7 +103,7 @@ Every machine kind keeps its controls in `definition.json` (for example
 | Field | Contract |
 | --- | --- |
 | `schema` | 1 |
-| `id` | The machine's name, equal to its folder name; also its C++ namespace |
+| `id` | The machine's name, equal to a bundled machine's folder name; also its C++ namespace |
 | `name` | Display name |
 | `parameters` | Ordered controls, each with `id`, `label`, `default`, `mapping`, `display`: four to eight for a synth (see [alternate controls](#alternate-controls)), one to eight for a sample engine or effect. Labels are at most eight letters, digits or spaces |
 | `presets` | Named maps containing exactly the declared controls; may be empty |
@@ -94,7 +130,7 @@ its own slot in the eight-word vector, so `render` receives all of them and
 presets, projects and the catalog's defaults store each one. The selection is
 per track, starts on the position's own parameter and is not saved. Display
 inputs carry each position's shown value, its parameter index (`shown`) and
-every parameter's value (`slots`), so a [text control](display.md#segment-display)
+every parameter's value (`slots`), so a [header value](display.md#frame)
 can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position. See
 [Macro Osc](../machines/macroosc/definition.json), whose fourth encoder
@@ -103,20 +139,22 @@ switches between FM ratio and depth.
 On custom synth engine pages, Shift + turn edits the same visible parameter
 at one tenth of the normal rate. Enum choices keep their ordinary stepping.
 Synth amounts and bounded positive anchor-ratio captions show one decimal
-place; amounts omit the percent suffix. A machine's text controls can override them. Custom send effects also
+place; amounts omit the percent suffix. A machine's display can replace them with
+its own [header text](display.md#frame). Custom send effects also
 use the slower Shift rate for continuous controls, with stock FX captions.
 
-A sample engine declares `voiceCapacity` (1..256) and the optional
-[sample services](#sample-engines) it uses. An effect declares no resources (`{}`).
+A sample engine declares `voiceCapacity`, which must be 256 (stock creates a
+voice for each of its 256 voice indices and binds each to its sample), and the
+optional [sample services](#sample-engines) it uses. An effect declares no resources (`{}`).
 A synth declares:
 
 | Field | Required value or meaning |
 | --- | --- |
 | `voiceBytes`, `voiceAlignment` | `Voice` size (whole words) and alignment, checked against the compiled type |
-| `voiceCapacity` | Voices the firmware may create, 1..256 |
+| `voiceCapacity` | Notes that sound at once, 1..256. Stock's 256 voice indices share these voices: a new note takes a free one, or the one whose note started longest ago |
 | `sharedBytes` | `Shared` size, or 0 when `Shared` is empty |
 | `outputPeakQ31` | Positive declared oscillator peak; the preview uses it for audition gain |
-| `display` | The screen's kind and shape; see the [display API](display.md) |
+| `display` | The screen's frame budget; see the [display API](display.md) |
 
 The SDK never runs constructors or destructors for `Voice`, `Shared` or
 `DisplayState`: their storage starts zeroed and the callbacks set it up.
@@ -158,9 +196,13 @@ void render(Voice& voice, Shared& shared, opxy::u32 owner,
             opxy::Output output, opxy::Parameters parameters, opxy::Pitch pitch);
 ```
 
-Storage begins zeroed; `owner` is a stable nonzero voice ID. `initialize` runs
-when the firmware creates the voice and establishes all sound state; `start`
-runs on each note; `destroy` releases anything the voice holds in `Shared`.
+Storage begins zeroed; `owner` is a stable nonzero voice ID, the stock voice
+index plus one. Each of the machine's `voiceCapacity` voices serves one owner at
+a time: `initialize` runs when a voice goes to an owner and establishes all
+sound state; `start` runs on each note; `destroy` releases anything the voice
+holds in `Shared`, when its note ends or another note takes the voice. A note
+whose voice was taken renders silence; no voice index ever fails, whatever the
+capacity.
 Callbacks run serially per voice. The browser preview's voice stealing and
 panic use the same lifecycle. The SDK adapter owns the firmware object header,
 method table and voice pool; none of that belongs in `Voice`.
@@ -327,9 +369,9 @@ Without `dryParameter`, the adapter returns unity to preserve the source dry.
 
 ## Registration boundary
 
-A machine's folder name is its stock name: the engine type the device lists,
-its catalog and preset entries, its screen file, its symbol prefix and its C++
-namespace. It is a lowercase letter followed by letters, digits or `_`, at most
+A machine's ID (`definition.json`'s `id`, and the folder name of a bundled
+machine) is its stock name: the engine type the device lists, its catalog and
+preset entries, its screen file, its symbol prefix and its C++ namespace. It is a lowercase letter followed by letters, digits or `_`, at most
 15 characters. It may not be a stock engine or effect type, a C++ keyword,
 `opxy` or `std`, or start with a reserved prefix (`extensions`, `sdk`, `kit`,
 `stock`, `local`).
@@ -339,9 +381,10 @@ namespace. It is a lowercase letter followed by letters, digits or `_`, at most
 | Field | Contract |
 | --- | --- |
 | `schema` | 1 |
+| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.0 and builds 1.0 machines |
 | `kind` | `synth`, `sample` or `effect` |
 | `description` | Plain text of at most 160 characters, shown by the builder and preview |
-| `identity` | `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |
+| `identity` | The numbers it asks for: `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |
 | `sources`, `includes` | Optional extra translation units and include folders inside the machine folder; synths only, since the native plan compiles one source for the other kinds |
 | `icon` | Optional builder glyph: SVG path data in a 46 × 48 box, drawn as a stroke. The kind's glyph is used otherwise |
 | `presetDefaults` | Optional `{"amp": {...}}` overriding generated factory preset envelope values: `attack`, `decay`, `release` and `sustain`, each 0..32767. It does not rewrite existing projects or presets |
@@ -353,16 +396,35 @@ source dry mixer, as described under [effects](#effects).
 
 | Kind | ID | Page |
 | --- | --- | --- |
-| `synth` | 1..62, except the stock sentinel 33 and the IDs stock registers (2–4, 6, 7, 18–20, 22, 29–32) | Its own screen: 82..127 |
+| `synth` | 34..62 | Its own screen: 82..127 |
 | `sample` | 34..62 | Stock sample page 2 or 7; `padSettings` requires 7 |
 | `effect` | A free stock FX ID: 1–4, 6–8 or 11 | Stock FX page 21 |
 
 IDs above 32 and pages above 81 exist only in the relocated stock tables.
-Names and IDs are part of saved presets and projects, so they never change once
-published. The SDK also rejects conflicts within the collection. Generated
-adapters check record/name ownership and screen readiness before catalog
-admission; the packager authenticates firmware and constrains writes. See
-[native builds](build.md). Generated instrument presets use polyphonic voice mode.
+Presets save a machine's name and projects its numbers, so a name never changes
+once published, and neither do a firmware's numbers.
+
+`identity` holds the numbers a machine asks for. The four bundled machines'
+are fixed: 2op 34/82, Macro Osc 26/83, Ring Mod effect 1 and Timestretch 35 on
+sample page 7. No other machine may be bundled with fixed numbers, since a
+layout may already hold any free number: `tests/fixtures/numbers.json` pins
+these four.
+Every other machine is numbered by the firmware's **layout**: its record of
+every number it has given out, including to machines since dropped, which stay
+held so an old project never opens another machine. The builder and
+`sdk.py build` write the layout after each build to `layout.json`; give it to
+the next build so every machine keeps its numbers. A machine new to the layout
+gets the numbers it asks for when they are free, otherwise the lowest free
+ones. New numbers come from engines 34..62 and pages 82..127, never from the
+gaps in stock's own engine table, so ask for numbers in those ranges; a
+sample engine keeps its stock page. Bundled Macro Osc predates this and keeps
+engine 26.
+
+Generated adapters check record/name ownership and screen readiness before
+catalog admission; the packager authenticates firmware and constrains writes.
+See [native builds](build.md). Generated instrument presets use polyphonic
+voice mode.
 
 Arbitrary external-engine loading is not implemented: a machine reaches the
-firmware by joining the collection in `profiles/collection.json`.
+firmware through the collection, bundled, from the [catalog](catalog.md), or as
+a folder passed to a build with `--machine`.

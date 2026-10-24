@@ -36,7 +36,12 @@ leaves the browser.
    **Try again** goes straight to enabling the dev menu for the same computer.
 3. Select machines. Synth rows have a playable preview of their C++ sound and
    display code; each row shows its code, data and state size against the
-   memory meter.
+   memory meter. Machines from the [catalog](catalog.md) are marked
+   **Community** and start unselected; their details name the maintainer and
+   link to the machine's code at the commit the catalog pins. Open-XY's own
+   example machines from the catalog are labelled as Open-XY machines. A
+   [personal kit](#export-a-kit)'s own machines are marked **Yours**; the rest
+   are bundled with Open-XY.
 4. Follow the installation guide using the remembered computer choice. Mac
    browsers with WebUSB send the files directly; Windows downloads a ZIP to
    copy with File Explorer. The OS write step on the device is still manual.
@@ -49,9 +54,11 @@ The ZIP contains:
 | `content/op1_factory.json` | Replaces the menu file |
 | `content/display/*.svg` | New screens for the selected machines; keep the stock files |
 | `content/presets/<machine>/default.json` | One init preset in each selected instrument's own folder |
-| `layout.json`, hashes | Optional; for your records |
+| `layout.json`, hashes | Keep `layout.json`: it holds your machines' numbers, and loading it into the builder next time keeps them for your projects |
 
-Every build shows `OPEN 0.0.1-1.2.0` at boot. Timestretch starts without a sample;
+Every build shows its release at boot, `OPEN 0.0.2-1.2.0` for 0.0.2, the version in
+[`VERSION`](../VERSION) that the builder also shows under its name and records in
+`build.json`. Timestretch starts without a sample;
 choose one on its sample page. Ring Mod is a send effect and has no preset.
 
 The builder accepts only the exact stock file or an exact Open-XY output of the
@@ -76,18 +83,21 @@ needs a desktop browser and a secure context; otherwise the helper links to
 hosted Ferret. The separate WebUSB MTP client reads or sends files only after
 an explicit click and USB permission, and releases the connection afterwards.
 
-## Capacity and identity
+## Capacity and machine numbers
 
-The firmware reserves **512 KiB** of the application heap: 508 KiB that every
+The firmware reserves **2 MiB** of the application heap: 2044 KiB that every
 selected machine shares for code, data and state, and 4 KiB for relocated stock
 tables. The memory meter shows each machine's share; see
 [memory and limits](api.md#memory-and-limits). CPU headroom is not measured.
 
-Each machine has a fixed engine (or FX) and page ID, declared in its
-`machine.json` ([identity](api.md#identity)), so a project never changes
-instruments when the selection changes. Adding a machine to
-the collection means adding it to the native build; the builder is not a
-plugin loader and does not raise the voice limit.
+Projects save each track's machine by number, so a machine keeps its numbers
+in your firmware for good ([layouts](api.md#identity)). The builder remembers
+your layout in this browser and writes it to `layout.json` in every download;
+load that file under the machine list to build from another browser or
+computer. Numbers given to a machine you drop stay held, so its projects never
+open another machine. Adding a machine to the collection means adding it to
+the native build; the builder is not a plugin loader and does not raise the
+voice limit.
 
 ## Web development
 
@@ -136,16 +146,37 @@ with no collection as a UI check and never consumes private inputs.
 ### Cloudflare deployment
 
 `wrangler.jsonc` names the site `open-xy` and binds `open-xy.com`. The site is
-static assets only, with no Worker script. With `.env.local` set as above:
+static assets only, with no Worker script. The `beta` environment is a separate
+`open-xy-beta` site at `beta.open-xy.com`, deployed from `staging`; production
+is deployed from `main`. Merge work, and catalog changes, into `staging`,
+release beta, then open a pull request from `staging` to `main` and release
+production.
 
-```sh
-npx wrangler login
-npm run test:web
-npm run deploy:cloudflare
+On the release host, after `npx wrangler login`, one command releases the
+catalog:
+
+```powershell
+python sdk.py release --stock-os <stock-1.2.0>/os.ldr --out <builds>/release-001 --deploy beta
 ```
 
+It fetches every published [catalog](catalog.md) machine at its pinned commit
+(confirming its tag), exports the release kit from the bundled machines plus
+those ([Export a kit](#export-a-kit), with release verification), runs the
+builder's web tests, builds the site around the kit and deploys it. It deploys
+beta only from `staging` and production only from `main`, and only when the
+checkout is exactly that branch on `origin`: no local edits, nothing unpushed or
+behind. With `--deploy`, `--dry-run` does everything except publish; without
+`--deploy` it stops after the kit. `--toolchain` and `--compiler` name the
+pinned tools when they are not in `local/toolchain`.
+`--out` must be a new folder outside every checkout; the kit and the site are
+written inside it.
+
 The deploy rebuilds in release mode, fails without a valid collection, and
-uploads only the release directory. To add a custom domain, make its parent an
+uploads only the release directory. `npm run deploy:beta` and
+`npm run deploy:cloudflare` remain for deploying an existing kit, with
+`.env.local` set as above and a fresh `OPEN_XY_OUT_DIR`.
+
+To add a custom domain, make its parent an
 active Cloudflare zone, then use **Workers & Pages → open-xy → Settings →
 Domains & Routes → Add → Custom Domain**; see the
 [custom-domain guide](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
@@ -155,17 +186,20 @@ Domains & Routes → Add → Custom Domain**; see the
 With the [pinned native tools](build.md) and Clang++ for wasm32:
 
 ```powershell
-python sdk.py kit --preview-cxx clang++ --stock-os "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/os.ldr" --stock-content "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/content" --out "$env:LOCALAPPDATA/OPXY-SDK/private/builds/browser-kit-001"
+python sdk.py kit --preview-cxx clang++ --stock-os "$env:LOCALAPPDATA/OPXY-SDK/private/stock-1.2.0/os.ldr" --out "$env:LOCALAPPDATA/OPXY-SDK/private/builds/browser-kit-001"
 ```
 
-The stock content directory needs only `op1_factory.json`. The export runs the
+`--stock-content` defaults to the repository's copy of `op1_factory.json`. The export runs the
 full native build and its checks, then packages the native objects in link
 order with each machine's `machine.json` and definition. The HTML carries the
 authenticated stock menu and the SDK screen template; firmware stays
 user-supplied. It is named only after every check passes.
 
 A published kit comes from the release host, after
-[release verification](build.md#release-verification). For your own machines,
+[release verification](build.md#release-verification). It holds the bundled
+machines and [catalog](catalog.md) machines fetched at their pinned commits
+(`--collection local/catalog/collection.json`), each with its repository, tag,
+commit and maintainer. For your own machines,
 add `--personal`: it runs on any pinned host, Windows or Apple-silicon macOS,
 and skips only that verification. Open the resulting `opxy-builder.html`, or
 serve it as in [web development](#web-development), to select machines,

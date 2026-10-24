@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = 'fb2e68b15a1a8a177dd5308d5d89d584c837903ba89d043bd011d263f0321d2c';
+export const PROFILE_SHA256 = '581cdbb263d417562bef2bae5bee41df74adfc0bc157f50218bbe9714c1f372d';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -107,33 +107,126 @@ export function validIdentity(rules, kind, identity) {
     : kind === 'synth' && page > rules.page_none && page < rules.pages;
 }
 
-// Assignments are catalog-wide, independent of selection order. New IDs are
-// curated once, then remain reserved even when their machine is deselected.
-export function identities(kit, saved = null) {
-  const seen = {engine: new Set(), effect: new Set(), page: new Set()}, result = {};
+// A kit's numbers: each machine asks for valid ones, and the bundled machines'
+// fixed numbers are their own and never shared.
+function checkNumbers(kit) {
+  const rules = kit.profile.identities;
+  check(kit.fixed && typeof kit.fixed === 'object', 'Missing bundled machine numbers');
+  check(new Set(kit.machines.map(m => m.id)).size === kit.machines.length, 'Duplicate machine');
   for (const m of kit.machines) {
-    check(!Object.hasOwn(result, m.id), 'Duplicate machine identity');
-    const id = m.identity;
-    check(validIdentity(kit.profile.identities, m.kind, id), 'Identity overlaps a stock slot or exceeds capacity');
-    // Sample engines and effects share stock pages; a synth's own page is unique.
-    for (const kind of m.kind === 'synth' ? ['engine', 'page'] : [m.kind === 'effect' ? 'effect' : 'engine']) {
-      check(!seen[kind].has(id[kind]), 'Conflicting ' + kind + ' assignment'); seen[kind].add(id[kind]);
-    }
-    result[m.id] = {...id};
+    check(validIdentity(rules, m.kind, m.identity), 'Machine numbers overlap a stock slot or exceed capacity: ' + m.id);
+    check((m.origin === 'bundled') === Object.hasOwn(kit.fixed, m.id) &&
+      (m.origin !== 'bundled' || sameNumbers(kit.fixed[m.id], m.identity)), 'Bundled machine numbers differ: ' + m.id);
   }
-  if (saved) {
-    check(saved.format === 'opxy-kit/1' && saved.profile === kit.profile.id && Array.isArray(saved.selected),
-      'This saved selection is for a different OS version.');
-    for (const [id, assigned] of Object.entries(saved.identities ?? {})) {
-      check(result[id] && assigned && Object.keys(assigned).length === Object.keys(result[id]).length &&
-        Object.entries(result[id]).every(([key, value]) => assigned[key] === value),
-        'A machine in this saved selection has changed: ' + id);
-    }
-    check(saved.selected.every(id => result[id] && Object.hasOwn(saved.identities, id)),
-      'This saved selection lists a machine this site doesn’t have.');
-  }
-  return result;
+  numberLayout(rules, Object.entries(kit.fixed).map(([id, identity]) => [id, null, identity]), null, []);
 }
+// Machine numbers, as tooling.machines.number_layout gives them (tests/fixtures/numbers.json
+// holds both). Projects store a track's engine, effect and page numbers, so a machine
+// keeps its numbers in a firmware for good. Bundled machines' are fixed (kit.fixed);
+// a layout keeps every number it has given out, including to machines since dropped,
+// and a machine new to it gets the numbers it asks for when free, else the lowest free.
+export const LAYOUT_FORMAT = 'opxy-layout/1';
+export function numberPools(rules) {
+  const range = (low, high) => Array.from({length: high - low}, (_, i) => low + i);
+  return {engine: range(rules.engine_none + 1, rules.engines).filter(n => !rules.stock_engines.includes(n)),
+    page: range(rules.page_none + 1, rules.pages), effect: [...rules.effects]};
+}
+export function occupied(rules, identity) {
+  const keys = ['engine', 'effect'].filter(slot => Object.hasOwn(identity, slot)).map(slot => slot + ' ' + identity[slot]);
+  if (!Object.hasOwn(identity, 'effect') && !rules.sample_pages.includes(identity.page)) keys.push('page ' + identity.page);
+  return keys;
+}
+const sameNumbers = (a, b) => Object.keys(a).length === Object.keys(b).length && Object.keys(a).every(k => a[k] === b[k]);
+// fixed and machines are [id, kind, identity] (requested, for machines); returns the layout after.
+export function numberLayout(rules, fixed, layout, machines) {
+  const pools = numberPools(rules), numbers = {}, holders = new Map();
+  const hold = (name, identity) => {
+    for (const key of occupied(rules, identity)) {
+      if (!holders.has(key)) holders.set(key, name);
+      check(holders.get(key) === name, `${name} and ${holders.get(key)} both hold ${key} in this layout`);
+    }
+    numbers[name] = {...identity};
+  };
+  for (const [name, , identity] of fixed) hold(name, identity);
+  for (const [name, identity] of Object.entries(layout ?? {})) {
+    if (Object.hasOwn(numbers, name))
+      check(sameNumbers(numbers[name], identity), `${name} is bundled with fixed numbers; the layout gives it others`);
+    else hold(name, identity);
+  }
+  for (const [name, kind, requested] of machines) {
+    if (Object.hasOwn(numbers, name)) {
+      check(validIdentity(rules, kind, numbers[name]), `${name}: the layout gives it numbers it cannot use`);
+      check(kind !== 'sample' || numbers[name].page === requested.page,
+        `${name} now asks for stock page ${requested.page}; the layout holds another`);
+      continue;
+    }
+    const identity = {...requested};
+    for (const slot of kind === 'effect' ? ['effect'] : kind === 'synth' ? ['engine', 'page'] : ['engine']) {
+      const choices = [...(pools[slot].includes(requested[slot]) ? [requested[slot]] : []), ...pools[slot]];
+      identity[slot] = choices.find(n => !holders.has(slot + ' ' + n));
+      check(identity[slot] !== undefined, `No free ${slot} number for ${name}: every one is held in this layout`);
+    }
+    check(validIdentity(rules, kind, identity), `${name}: no valid numbers`);
+    hold(name, identity);
+  }
+  return numbers;
+}
+// A saved layout (layout.json from a build, or a saved selection): its numbers and selection.
+// Saved selections from before layouts listed the selected machines' numbers as identities.
+export function readLayout(kit, saved) {
+  check(saved && typeof saved === 'object' && saved.profile === kit.profile.id,
+    'This layout is for a different OS version.');
+  const numbers = saved.format === LAYOUT_FORMAT ? saved.machines : saved.format === 'opxy-kit/1' ? saved.identities : null;
+  check(numbers && typeof numbers === 'object' && !Array.isArray(numbers), 'This file is not a machine layout.');
+  for (const [name, identity] of Object.entries(numbers))
+    check(/^[a-z][a-z0-9_]{0,14}$/.test(name) && identity && typeof identity === 'object' &&
+      [['engine', 'page'], ['effect', 'page']].some(keys => Object.keys(identity).sort().join() === keys.sort().join()) &&
+      Object.values(identity).every(Number.isInteger), 'Invalid numbers in this layout: ' + name);
+  const selected = saved.selected ?? null;
+  check(selected === null || Array.isArray(selected) && selected.every(id => kit.machines.some(m => m.id === id)),
+    'This layout lists a machine this site doesn’t have.');
+  return {machines: numbers, selected};
+}
+// The kit's machines numbered for this selection, in kit order, and the layout after.
+export function assignNumbers(kit, selection, layout = null) {
+  return numberLayout(kit.profile.identities, Object.entries(kit.fixed).map(([id, identity]) => [id, null, identity]),
+    layout, kit.machines.filter(m => selection.includes(m.id)).map(m => [m.id, m.kind, m.identity]));
+}
+// Each machine's link-time numbers: its own when selected, else 0, which no
+// startup, catalog or control lookup matches.
+function numberSymbols(kit, selection, numbers) {
+  const symbols = {};
+  for (const m of kit.machines) {
+    const own = selection.includes(m.id) ? numbers[m.id] : null;
+    if (m.kind === 'effect') Object.assign(symbols, {[m.prefix + '_fx_id']: own?.effect ?? 0, [m.prefix + '_fx_page_id']: own?.page ?? 0});
+    else Object.assign(symbols, {[m.prefix + '_engine_id']: own?.engine ?? 0, [m.prefix + '_page_id']: own?.page ?? 0});
+  }
+  return symbols;
+}
+// A machine's stock menu entry; an effect's carries its effect number.
+function catalogEntry(m, numbers) {
+  return m.kind === 'effect' ? m.catalog.replace(/"id":\s*\d+/, '"id": ' + numbers[m.id].effect) : m.catalog;
+}
+
+// Where a machine comes from (tooling.browser_kit): bundled with Open-XY, published
+// in the catalog, or a personal kit's own folder. A catalog machine's source is its
+// GitHub repository, release tag, commit and maintainer, matching tooling.catalog's patterns.
+// Official catalog machines are Open-XY's own (tooling.catalog.OFFICIAL); the rest are community.
+export const ORIGINS = ['bundled', 'official', 'catalog', 'personal'];
+const RELEASE = {repository: /^https:\/\/github\.com\/[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9._-]+$/,
+  tag: /^[A-Za-z0-9._/-]{1,64}$/, commit: /^[0-9a-f]{40}$/, maintainer: /^[A-Za-z0-9-]{1,39}$/};
+export function validSource(source) {
+  return source !== null && typeof source === 'object' &&
+    Object.keys(source).sort().join() === Object.keys(RELEASE).sort().join() &&
+    Object.entries(RELEASE).every(([key, pattern]) => typeof source[key] === 'string' && pattern.test(source[key]));
+}
+const released = m => m.origin === 'catalog' || m.origin === 'official';
+export const validOrigin = m => ORIGINS.includes(m.origin) && (released(m) ? validSource(m.source) : m.source === undefined);
+// A first selection leaves community machines for the user to choose.
+export const chosenByDefault = m => m.origin !== 'catalog';
+// The machine's code at the commit the catalog pins, and its owner/repository name.
+export const sourceUrl = source => source.repository + '/tree/' + source.commit;
+export const sourceName = source => source.repository.slice('https://github.com/'.length);
 
 // Memory every machine shares: the reservation below the relocated stock tables.
 export const moduleBytes = profile => profile.reserved_bytes - profile.table_bytes;
@@ -142,11 +235,14 @@ const screenTemplateOk = async kit => typeof kit.screenTemplate === 'string' &&
 export async function openKit(kit) {
   check(kit.format === 'opxy-browser-kit/1' && kit.machines.length > 0 && kit.machines.length <= 32,
     'Unsupported curated kit');
+  // The release version, which every build's boot label shows (tooling.startup_label).
+  check(typeof kit.version === 'string' && /^\d+\.\d+\.\d+$/.test(kit.version), 'Unsupported curated kit version');
   const profileBytes = decode64(kit.profileSource);
   check(await sha256(profileBytes) === PROFILE_SHA256 &&
     JSON.stringify(JSON.parse(decoder.decode(profileBytes))) === JSON.stringify(kit.profile),
     'Firmware edit profile is not the reviewed profile');
-  identities(kit);
+  checkNumbers(kit);
+  check(kit.machines.every(validOrigin), 'Invalid machine origin or source');
   // The bundled stock menu is authenticated where it is used (buildAssets).
   check(typeof kit.stockCatalog === 'string' && kit.stockCatalog.length <= 2 * 1024 ** 2, 'Missing bundled stock menu');
   check(await screenTemplateOk(kit), 'Platform screen template differs from the supported ABI');
@@ -171,14 +267,15 @@ export function activeServices(profile, machines) {
     .filter(([, kinds]) => machines.some(m => kinds.includes(m.kind))).map(([name]) => name));
 }
 
-export function linkKit(kit, selection) {
-  identities(kit);
+export function linkKit(kit, selection, layout = null) {
   check(Array.isArray(selection) && selection.length > 0 && new Set(selection).size === selection.length &&
     selection.every(id => kit.machines.some(m => m.id === id)), 'Choose each machine once.');
+  const numbers = assignNumbers(kit, selection, layout);
+  const definitions = {...kit.definitions, ...numberSymbols(kit, selection, numbers)};
   const selected = new Set(selection), limit = moduleBytes(kit.profile);
   const services = activeServices(kit.profile, kit.machines.filter(m => selected.has(m.id)));
   const objects = kit.objects.filter(o => o.owner === null ? !o.service || services.has(o.service) : selected.has(o.owner));
-  const globals = new Map(Object.entries(kit.definitions)), placements = new Map(), segments = [];
+  const globals = new Map(Object.entries(definitions)), placements = new Map(), segments = [];
   let cursor = kit.profile.module_base, initializedEnd;
   for (const group of ['text', 'rodata', 'data', 'bss']) {
     const all = objects.flatMap(o => o.sections.filter(s => s.group === group).map(s => ({o, s})));
@@ -247,7 +344,7 @@ export function linkKit(kit, selection) {
       }
     }
   }
-  return {module, globals, aliases, objects, segments, services,
+  return {module, globals, aliases, objects, segments, services, numbers, definitions,
     sizes: {initialized, bss: cursor - bssStart, allocated, available: limit - allocated}};
 }
 
@@ -352,7 +449,7 @@ export async function patchFirmware(kit, linked, stock) {
 // Recover only an exact output of this curated collection. The uploaded module
 // is compared with freshly linked code, never executed or reused for a build.
 const RECOVERABLE_MACHINES = 10;
-export async function recoverFirmware(kit, input) {
+export async function recoverFirmware(kit, input, layout = null) {
   const p = kit.profile;
   if (input.length === p.stock_bytes && await sha256(input) === p.stock_sha256) {
     readLdr(input);
@@ -381,7 +478,7 @@ export async function recoverFirmware(kit, input) {
   // the caller discards stale results.
   for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
     const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
-    const linked = linkKit(kit, selected);
+    const linked = linkKit(kit, selected, layout);
     if (equal(linked.module, payload) && equal(await patchFirmware(kit, linked, stock), input))
       return {stock, selected};
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -431,7 +528,7 @@ function defaultPreset(machine) {
   };
 }
 
-export async function buildAssets(kit, selection, catalog) {
+export async function buildAssets(kit, selection, catalog, numbers) {
   check(await sha256(catalog) === kit.profile.stock_catalog_sha256, 'The site’s machine data is damaged. Reload this page.');
   const machines = kit.machines.filter(m => selection.includes(m.id));
   // Each machine's entry ends its stock list; the offsets are bound to the
@@ -441,11 +538,11 @@ export async function buildAssets(kit, selection, catalog) {
   check(inserts.map(([key]) => key).sort().join() === Object.keys(groups).sort().join(), 'Unexpected catalog insertion points');
   let extended = catalog;
   for (const [key, at] of inserts)
-    extended = join([extended.subarray(0, at), utf8.encode(groups[key].map(m => m.catalog).join('')), extended.subarray(at)]);
+    extended = join([extended.subarray(0, at), utf8.encode(groups[key].map(m => catalogEntry(m, numbers)).join('')), extended.subarray(at)]);
   const text = decoder.decode(extended);
   const base = JSON.parse(decoder.decode(catalog)), expected = {...base};
   for (const [key, group] of Object.entries(groups))
-    expected[key] = [...base[key], ...group.map(m => JSON.parse(m.catalog.trim().replace(/^,/, '')))];
+    expected[key] = [...base[key], ...group.map(m => JSON.parse(catalogEntry(m, numbers).trim().replace(/^,/, '')))];
   check(JSON.stringify(JSON.parse(text)) === JSON.stringify(expected), 'Unexpected catalog modification');
   const files = {'content/op1_factory.json': extended};
   for (const machine of machines) {

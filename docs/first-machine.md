@@ -46,6 +46,12 @@ The ID follows the [machine name rule](api.md#registration-boundary): a
 lowercase letter, then up to 14 lowercase letters, digits or underscores. It
 must differ from the bundled machines.
 
+`sdk.py new` starts a synth; `--kind effect` starts a send effect instead
+(effects have no browser preview). Every starter has a sound check in
+`tests/sound.cpp`. A machine can live anywhere: to keep yours in a repository
+of its own, start from the
+[machine template](https://github.com/etcetc000/open-xy-machine-template).
+
 Open http://127.0.0.1:8917/. You should see **My Machine**, **Local authoring**,
 four controls and the **Triangle** and **Pulse** presets. Click **Enable audio**,
 then use the on-screen keys or `A W S E D F T G Y H U J K`. Start with a low
@@ -100,14 +106,21 @@ does not change your machine.
 | `definition.json` | Name, four controls, presets and declared state sizes |
 | `core.h`, `engine.cpp` | `Voice` and `Shared` state, lifecycle callbacks and the 64-sample render |
 | `display.h`, `display.cpp` | Display state and drawing callback |
-| `panel.svg.fragment` | Artwork; IDs follow the drawing convention (`local_panel`, `local_node_N`, `local_palette_N`) |
-| `machine.json` | Kind and a free engine ID and page, used once the machine joins a [firmware build](build.md#3-add-your-machine) |
+| `panel.svg.fragment` | Artwork; IDs carry the machine's ID (`<id>_panel`, `<id>_node_N`, `<id>_palette_N`) |
+| `machine.json` | Kind, SDK version and the engine number and page it asks for, used by a [firmware build](build.md#3-add-your-machine) of the folder |
+| `tests/sound.cpp` | The machine's own host checks; extend them as the sound grows |
+
+`python sdk.py test --machine local/mymachine` checks a machine folder the way
+a machine repository's CI does: its records and sources, a preview build and
+its `tests/*.cpp`, compiled with a host C++ compiler (`--host-cxx`, default
+`c++`). It also prints a [CPU estimate](api.md#cpu) next to the bundled
+machines; keep it within their range. `--firmware` adds a native compile with
+the bundled machines.
 
 Change labels and presets directly in `definition.json`; custom previews read it
 when building, with no separate JavaScript definition generator. Parameter
 order determines the C++ control indices. See the [engine API](api.md) for
-buffer ownership and the [display API](display.md) for drawing. Local machines
-use the drawing display.
+buffer ownership and the [display API](display.md) for drawing.
 
 Keep callbacks bounded: no allocation, blocking, logging, I/O, OS headers or
 platform conditionals. The SDK supplies the adapters and memory. A custom
@@ -115,6 +128,21 @@ preview compiles `engine.cpp` and `display.cpp` through those adapters; addition
 implementation code must be included by them. Includes must name local machine
 headers or SDK `opxy/*.hpp` headers. Keep compiled output outside the source
 directory, and use the SDK server rather than serving the checkout root.
+
+## Share it
+
+1. **Your own device:** build firmware with the machine
+   (`python sdk.py build --machine <folder> ...`,
+   [building firmware](build.md#3-add-your-machine)), or export a
+   [personal kit](builder.md#export-a-kit) to use the browser builder's guide.
+2. **Its own repository:** move the folder into a repository started from the
+   [machine template](https://github.com/etcetc000/open-xy-machine-template),
+   whose CI runs `sdk.py test` and a firmware compile on every push.
+3. **The Open-XY builder:** reserve the machine's ID in the
+   [catalog](catalog.md), tag a release and submit it, as the template's
+   [submission guide](https://github.com/etcetc000/open-xy-machine-template/blob/main/SUBMITTING.md)
+   describes. Published machines appear in the builder as **Community**
+   machines, linked to their code at the commit the catalog pins.
 
 ## When a command fails
 

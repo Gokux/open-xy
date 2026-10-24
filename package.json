@@ -11,7 +11,8 @@
     "build:release": "vite build --config vite.config.mjs --mode release",
     "preview": "vite preview --config vite.config.mjs",
     "test:web": "node --test tests/web/builder.test.mjs",
-    "deploy:cloudflare": "node tools/deploy_cloudflare.mjs"
+    "deploy:cloudflare": "node tools/deploy_cloudflare.mjs",
+    "deploy:beta": "node tools/deploy_cloudflare.mjs --env beta"
   },
   "devDependencies": {
     "vite": "8.3.5",
