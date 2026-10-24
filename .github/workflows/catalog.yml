@@ -34,6 +34,20 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y clang lld
           python -m pip install numpy==2.3.5
+      - name: A machine submission changes only the catalog
+        # Machines live in their own repositories: a pull request from a fork that
+        # touches the catalog may change nothing else. SDK changes are their own PR.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        env:
+          BASE: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          changed=$(git diff --name-only "origin/$BASE...HEAD")
+          if grep -qx 'catalog/machines.json' <<<"$changed" && [ "$changed" != 'catalog/machines.json' ]; then
+            echo "::error::A machine submission changes only catalog/machines.json. Changed: $(echo $changed)"
+            echo "Keep the machine in its own repository; open SDK changes as a separate pull request."
+            exit 1
+          fi
       - name: Catalog entries
         env:
           BASE: ${{ github.base_ref }}
