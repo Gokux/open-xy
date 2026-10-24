@@ -122,9 +122,9 @@ details input { max-width:100%; }
 .machine-list { --machine-row:82px; --machine-gap:8px; display:grid; gap:var(--machine-gap); grid-auto-rows:minmax(var(--machine-row),auto); align-content:start; min-height:calc(var(--machine-count,4) * var(--machine-row) + (var(--machine-count,4) - 1) * var(--machine-gap)); }
 .machine { display:grid; grid-template-columns:28px 38px minmax(0,1fr); align-items:center; gap:12px; padding:15px 12px; border:1px solid transparent; border-radius:9px; }
 .machine.selected { background:var(--soft); }
-.machine[data-origin="catalog"] { background:#1d2528; }
-.machine[data-origin="catalog"].selected { background:#29383d; }
-.machine[data-origin="catalog"] .machine-origin { color:#b9d6df; border-color:#57747e; }
+.machine[data-origin="catalog"] { background:#242424; }
+.machine[data-origin="catalog"].selected { background:#353535; }
+.machine[data-origin="catalog"] .machine-origin { color:#ccc; border-color:#666; }
 .machine:has(button[aria-pressed=true]) { border-color:#777; }
 .machine label { display:flex; align-items:center; min-height:44px; }
 .machine input { width:18px; height:18px; accent-color:var(--accent); margin:0; cursor:pointer; }
