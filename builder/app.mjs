@@ -271,6 +271,7 @@ async function inspect(id) {
       }
       const controls = m.controls.map((name, i) => {
         const label = node('label', undefined, 'preview-control'), input = node('input');
+        label.title = name;
         label.append(node('span', name));
         input.type = 'range'; input.min = '0'; input.max = '1000'; input.step = '1';
         input.value = String(parameters[i] / 0x7fffffff * 1000); input.setAttribute('aria-label', name + ' preview');
@@ -303,6 +304,7 @@ function renderMachines(filter = 'all') {
   kit.machines.forEach((m, index) => {
     if (filter !== 'all' && m.kind !== filter) return;
     const row = node('article', undefined, 'machine' + (selected.includes(m.id) ? ' selected' : ''));
+    row.dataset.origin = m.origin;
     row.style.setProperty('--machine', colors[index % colors.length]);
     const label = node('label'), input = node('input'); input.type = 'checkbox'; input.checked = selected.includes(m.id);
     input.setAttribute('aria-label', 'Include ' + m.name); label.append(input);
