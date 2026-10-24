@@ -20,8 +20,8 @@ effect and page numbers are not the catalog's: each firmware's
 | --- | --- |
 | `id`, `kind` | As in the machine's `definition.json` and `machine.json` ([identity rules](api.md#identity)) |
 | `maintainer` | The GitHub user who maintains it |
-| `status` | `reserved`: the ID is held for a machine being written. `published`: built from its release. `retired`: no longer built; its ID stays held |
-| `repository`, `tag`, `commit`, `path` | A published machine's release: `https://github.com/<owner>/<repo>`, the tag, its full commit SHA, and the machine's folder in the repository (`.` at the root). A retired entry may keep them |
+| `status` | `reserved`: the ID is held for a machine being written. `draft`: its release is pinned for review but not built into kits or firmware. `published`: built from its release. `retired`: no longer built; its ID stays held |
+| `repository`, `tag`, `commit`, `path` | A draft or published machine's release: `https://github.com/<owner>/<repo>`, the tag, its full commit SHA, and the machine's folder in the repository (`.` at the root). A retired entry may keep them |
 
 IDs are unique across the catalog and the bundled machines.
 
@@ -33,7 +33,7 @@ show a short notice about support and possible instability or unexpected audio.
 
 | Command | Does |
 | --- | --- |
-| `python sdk.py catalog check [--base <ref>] [--allow-control-changes]` | Validates the catalog against itself and the bundled machines. With `--base`, also against an earlier catalog: every entry stays, with its kind, and its status only moves forward; a published machine whose commit moved is fetched at both commits and its [controls compared](#controls) |
+| `python sdk.py catalog check [--base <ref>] [--allow-control-changes]` | Validates the catalog against itself and the bundled machines. With `--base`, also against an earlier catalog: every entry stays, with its kind, and its status only moves forward, except published back to draft; a published machine whose commit moved is fetched at both commits and its [controls compared](#controls) |
 | `python sdk.py catalog fetch [--tags]` | Fetches every published machine at exactly its commit into `local/catalog/`, checks it matches its entry and writes `local/catalog/collection.json`: the bundled machines, then every published one. `--tags` also confirms each tag still names its commit |
 | `python sdk.py catalog test [--tags]` | Fetches, then runs [`sdk.py test`](first-machine.md#what-you-own) on every published machine |
 

@@ -32,9 +32,10 @@ class Validation(unittest.TestCase):
         reserved = {k: PUBLISHED[k] for k in catalog.COMMON} | {'status': 'reserved'}
         catalog.validate(document(reserved))
         catalog.validate(document(dict(PUBLISHED, status='retired')))
+        catalog.validate(document(dict(PUBLISHED, status='draft')))
         for broken in (dict(reserved, tag='v1'), dict(reserved, status='retired', repository=PUBLISHED['repository']),
                        dict(reserved, status='retired', commit='xyz'), {k: v for k, v in PUBLISHED.items() if k != 'commit'},
-                       dict(PUBLISHED, status='draft'), dict(PUBLISHED, extra=1)):
+                       dict(reserved, status='draft'), dict(PUBLISHED, status='beta'), dict(PUBLISHED, extra=1)):
             with self.subTest(entry=broken), self.assertRaises(ValueError):
                 catalog.validate(document(broken))
 
@@ -81,6 +82,11 @@ class Changes(unittest.TestCase):
         catalog.changes([PUBLISHED], [dict(PUBLISHED, tag='v1.1.0', commit='1' * 40)])
         catalog.changes([PUBLISHED], [dict(PUBLISHED, status='retired')])
         catalog.changes([], [PUBLISHED])
+        # A draft is not built yet; a published machine may go back to draft.
+        draft = dict(PUBLISHED, status='draft')
+        catalog.changes([PUBLISHED], [draft])
+        catalog.changes([draft], [PUBLISHED])
+        catalog.changes([reserved], [draft])
         for after in ([], [dict(PUBLISHED, kind='effect')],
                       [dict(reserved)], [dict(PUBLISHED, id='other')],
                       [dict(PUBLISHED, repository='https://github.com/other/opxy-probe')],
