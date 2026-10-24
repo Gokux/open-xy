@@ -208,10 +208,14 @@ def block_cost(m, host_cxx, scratch):
 def summary(m, host_cxx, scratch):
     """One line for sdk.py test: the machine's estimated Blackfin instructions per block,
     with the limits to stay under and the bundled machines for scale."""
-    own = block_cost(m, host_cxx, scratch)
-    if own is None:
-        return f'CPU: not estimated for sample engines; keep render_sample light ({GUIDE})'
-    cost = round(own / reference_cost(host_cxx, scratch) * REFERENCE_INSTRUCTIONS, -2)
+    try:
+        own = block_cost(m, host_cxx, scratch)
+        if own is None:
+            return f'CPU: not estimated for sample engines; keep render_sample light ({GUIDE})'
+        cost = round(own / reference_cost(host_cxx, scratch) * REFERENCE_INSTRUCTIONS, -2)
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        # Advice only: a benchmark that cannot build or run never fails the machine's checks.
+        return f'CPU: not estimated ({str(error).splitlines()[0]}); --no-cpu skips it ({GUIDE})'
     aim, most = LIMITS[m.kind]
     unit = 'voice' if m.kind == 'synth' else 'effect'
     line = (f'CPU estimate (host-timed; not measured on the device): {m.name} about {cost:,.0f} Blackfin instructions '
