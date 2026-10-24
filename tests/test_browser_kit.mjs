@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {activeServices, assignNumbers, numberLayout, readLayout, readObject, linkKit, moduleBytes, openKit, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
+import {activeServices, assignNumbers, chosenByDefault, numberLayout, readLayout, readObject, linkKit, moduleBytes, openKit, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
 
 // Tiny authored ELF fixture, independent of private firmware/toolchains.
 function elf() {
@@ -170,8 +170,12 @@ test('a machine says where it comes from: bundled, a catalog release, or a perso
     assert.ok(!validSource({...source, ...change}), JSON.stringify(change));
   assert.ok(!validSource(null) && !validSource(undefined) && !validSource('https://github.com/a/b'));
   assert.ok(validOrigin({origin:'catalog', source}) && validOrigin({origin:'bundled'}) && validOrigin({origin:'personal'}));
-  for (const m of [{origin:'catalog'}, {origin:'bundled', source}, {origin:'personal', source}, {}, {origin:'community'}])
+  for (const m of [{origin:'catalog'}, {origin:'official'}, {origin:'bundled', source}, {origin:'personal', source}, {},
+                   {origin:'community'}])
     assert.ok(!validOrigin(m), JSON.stringify(m));
+  assert.ok(validOrigin({origin:'official', source}));
+  // Community machines start unselected; Open-XY's own and the user's start selected.
+  assert.deepEqual(['bundled', 'official', 'catalog', 'personal'].map(origin => chosenByDefault({origin})), [true, true, false, true]);
   const k=fixture(); k.format='opxy-browser-kit/1'; k.profileSource=profileBytes.toString('base64');
   k.objects=[]; k.stockCatalog=''; k.screenTemplate=readFileSync(new URL('../sdk/platform/opxy-1.2.0/screen.svg',import.meta.url),'utf8');
   Object.assign(k.machines[0], {origin:'catalog', source}); k.fixed={}; await openKit(k);

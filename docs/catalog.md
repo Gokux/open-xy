@@ -53,6 +53,12 @@ Merged catalog changes reach the site with the next release
 ([`sdk.py release`](builder.md#cloudflare-deployment)): beta from `staging`,
 then production from `main`.
 
+The builder shows catalog machines as **Community**, unselected at first.
+Open-XY's own examples, which maintainers list by ID (`OFFICIAL` in
+[`tooling/catalog.py`](../tooling/catalog.py)), are shown as Open-XY machines
+instead. A catalog entry has no field to claim this, and who hosts its
+repository does not decide it.
+
 A maintainer then reviews a new machine once, in full:
 
 - It uses only the public headers: no assembly, raw addresses or platform code.
