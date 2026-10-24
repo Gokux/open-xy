@@ -148,9 +148,17 @@ details input { max-width:100%; }
 #detail-description { min-height:3lh; }
 #art-caption { min-height:2lh; }
 .caption { font-size:11px!important; margin:8px 0 18px; }
-.audition-controls { display:flex; align-items:center; gap:10px; min-height:44px; margin:10px 0; }
-.audition-controls button { width:60px; flex:none; }
-.audition-controls select { background:var(--paper); color:var(--ink); border:1px solid #555; border-radius:4px; padding:6px; min-height:36px; }
+.audition-controls { display:flex; align-items:center; gap:18px; min-height:44px; margin:10px 0; }
+/* The preview keyboard: white keys in a row, black keys overlapping their neighbours. */
+.preview-keys { display:flex; align-items:flex-start; flex:none; touch-action:none; user-select:none; }
+.preview-key { position:relative; width:24px; height:56px; min-height:0; padding:0 0 4px; display:flex; align-items:flex-end; justify-content:center;
+  font-size:9px; color:#555; background:#e8e8e8; border:1px solid #111; border-radius:0 0 4px 4px; }
+.preview-key.black { z-index:1; width:16px; height:34px; margin:0 -8px; background:#222; border-color:#000; }
+.preview-key:not(:disabled):hover { background:#fff; }
+.preview-key.black:not(:disabled):hover { background:#3a3a3a; }
+.preview-key[data-down=true],.preview-key[data-down=true]:hover { background:#9a9a9a; }
+.preview-key.black[data-down=true] { background:#666; }
+.preview-key:focus-visible { outline-offset:2px; z-index:2; }
 .audition-volume { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--muted); min-width:0; }
 .audition-volume input { width:100%; min-width:32px; max-width:100px; accent-color:var(--ink); }
 .controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; min-height:50px; align-content:start; }
