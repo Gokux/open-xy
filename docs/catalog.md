@@ -25,6 +25,10 @@ effect and page numbers are not the catalog's: each firmware's
 
 IDs are unique across the catalog and the bundled machines.
 
+The builder shows the catalog's maintainer and repository as links on each
+community machine's card. Its details also link to the source at the pinned
+release commit. The maintainer link opens that GitHub user's profile.
+
 ## Commands
 
 | Command | Does |

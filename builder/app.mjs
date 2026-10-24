@@ -150,17 +150,26 @@ function node(tag, text, className) {
 function facts(target, values) {
   target.replaceChildren(...Object.entries(values).flatMap(([name, value]) => [node('dt', name), node('dd', value)]));
 }
+function sourceLinks(source, includeRelease = false) {
+  const link = (text, url) => {
+    const anchor = node('a', text);
+    anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer';
+    return anchor;
+  };
+  const links = ['Maintained by ', link('@' + source.maintainer, 'https://github.com/' + source.maintainer),
+    ' · ', link(Core.sourceName(source), source.repository)];
+  if (includeRelease) links.push(' · ', link('Source at ' + source.tag, Core.sourceUrl(source)));
+  return links;
+}
 async function inspect(id) {
   stopPreview();
   const ticket = ++previewRevision;
   inspected = id; const m = kit.machines.find(x => x.id === id);
   $('detail-kind').textContent = {synth: 'Synthesizer', effect: 'Send effect', sample: 'Sample engine'}[m.kind];
   $('detail-name').textContent = m.name; $('detail-description').textContent = m.description;
-  // Who makes it and where its code lives: a catalog machine links to its pinned commit.
+  // Credit the catalog's maintainer and repository, with the exact release source.
   if (m.origin === 'catalog') {
-    const link = node('a', Core.sourceName(m.source) + ' ' + m.source.tag);
-    link.href = Core.sourceUrl(m.source); link.target = '_blank'; link.rel = 'noopener noreferrer';
-    $('detail-source').replaceChildren('Community machine by ' + m.source.maintainer + ' · ', link);
+    $('detail-source').replaceChildren(...sourceLinks(m.source, true));
   } else $('detail-source').textContent = m.origin === 'bundled' ? 'Bundled with Open-XY' : 'Your machine, from this kit';
   $('art-preview').replaceChildren();
   $('audition-controls').replaceChildren();
@@ -295,7 +304,13 @@ function renderMachines(filter = 'all') {
     };
     const glyph = node('span', undefined, 'machine-icon');
     glyph.append(Visuals.icon(m.kind, m.icon));
-    row.append(label, glyph, button); $('machines').append(row);
+    row.append(label, glyph, button);
+    if (m.origin === 'catalog') {
+      // Links are siblings of the selection/preview controls, never nested in them.
+      const source = node('p', undefined, 'machine-source');
+      source.append(...sourceLinks(m.source)); row.append(source);
+    }
+    $('machines').append(row);
   });
 }
 function recalculate() {
