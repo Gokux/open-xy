@@ -12,8 +12,8 @@ effect and page numbers are not the catalog's: each firmware's
 
 ```json
 {"id": "pluck", "kind": "synth", "maintainer": "etcetc000", "status": "published",
- "repository": "https://github.com/etcetc000/open-xy-pluck", "tag": "v1.2.1",
- "commit": "6c8d6d7034df4cd710cfc56aea6f006cfbbdd809", "path": "."}
+ "repository": "https://github.com/etcetc000/open-xy-pluck", "tag": "v1.2.2",
+ "commit": "f323127264e9e8c84d02b95e26eb5d478a099f3b", "path": "."}
 ```
 
 | Field | Contract |
