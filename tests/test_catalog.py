@@ -55,6 +55,15 @@ class Validation(unittest.TestCase):
                 catalog.validate(document(PUBLISHED, clash) if clash['id'] == 'probe' else document(clash))
 
 
+class Official(unittest.TestCase):
+    def test_only_listed_ids_are_open_xys_own_whoever_hosts_them(self):
+        karplus = next(e for e in catalog.load() if e['id'] == 'karplus')
+        self.assertTrue(catalog.official(karplus))
+        # The same account hosting a machine someone else wrote does not make it official.
+        self.assertFalse(catalog.official(dict(karplus, id='helper')))
+        self.assertFalse(catalog.official(PUBLISHED))
+
+
 class BuilderPatterns(unittest.TestCase):
     def test_the_builder_checks_kits_with_the_catalogs_patterns(self):
         source = (ROOT / 'builder/core.mjs').read_text(encoding='utf-8')

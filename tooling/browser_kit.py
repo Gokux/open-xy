@@ -13,6 +13,7 @@ import subprocess
 import sys
 
 from .adapters import catalog_entry, sample_callbacks
+from .catalog import official
 from .definitions import control_positions
 from .formats import require, sha
 from .machines import discovered
@@ -54,8 +55,10 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
                      identity=m.requested or m.identity, controls=[p['label'] for p in m.definition['parameters']],
                      positions=control_positions(m.definition))
         entry['catalog'] = catalog_entry(m)
-        # Where the machine comes from, for the builder to show (core.mjs validOrigin).
-        entry['origin'] = 'bundled' if m.bundled else 'catalog' if m.id in sources else 'personal'
+        # Where the machine comes from, for the builder to show (core.mjs validOrigin): a
+        # catalog machine is Open-XY's own only when maintainers list it (catalog.OFFICIAL).
+        entry['origin'] = ('bundled' if m.bundled else 'personal' if m.id not in sources
+                           else 'official' if official(sources[m.id]) else 'catalog')
         if m.id in sources:
             entry['source'] = {key: sources[m.id][key] for key in ('repository', 'tag', 'commit', 'maintainer')}
         entry['presetDefaults'] = m.preset_defaults
@@ -131,7 +134,7 @@ def write_builder(kit, output):
                "import {supportsDeviceApis} from './browser.mjs';\n")
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
-    exports = ('requireThat decode64 sha256 equal readObject readLayout assignNumbers moduleBytes openKit linkKit readLdr '
+    exports = ('requireThat decode64 sha256 equal readObject readLayout assignNumbers chosenByDefault moduleBytes openKit linkKit readLdr '
                'patchFirmware recoverFirmware presetPath buildAssets zipFiles sourceUrl sourceName').split()
     bundled = 'const Core = (() => {\n' + script + '\nreturn {' + ','.join(exports) + '};\n})();\n'
     bundled += 'const {shownControls, inputWords} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode(

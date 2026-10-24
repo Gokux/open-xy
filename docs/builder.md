@@ -37,9 +37,11 @@ leaves the browser.
 3. Select machines. Synth rows have a playable preview of their C++ sound and
    display code; each row shows its code, data and state size against the
    memory meter. Machines from the [catalog](catalog.md) are marked
-   **Community**; their details name the maintainer and link to the machine's
-   code at the commit the catalog pins. A [personal kit](#export-a-kit)'s own
-   machines are marked **Yours**; the rest are bundled with Open-XY.
+   **Community** and start unselected; their details name the maintainer and
+   link to the machine's code at the commit the catalog pins. Open-XY's own
+   example machines from the catalog are labelled as Open-XY machines. A
+   [personal kit](#export-a-kit)'s own machines are marked **Yours**; the rest
+   are bundled with Open-XY.
 4. Follow the installation guide using the remembered computer choice. Mac
    browsers with WebUSB send the files directly; Windows downloads a ZIP to
    copy with File Explorer. The OS write step on the device is still manual.

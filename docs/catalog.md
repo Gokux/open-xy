@@ -25,6 +25,10 @@ effect and page numbers are not the catalog's: each firmware's
 
 IDs are unique across the catalog and the bundled machines.
 
+The builder's machine details panel links to the catalog's maintainer profile,
+repository and source at the pinned release commit. Community machines also
+show a short notice about support and possible instability or unexpected audio.
+
 ## Commands
 
 | Command | Does |
@@ -52,6 +56,12 @@ pinned Windows tools.
 Merged catalog changes reach the site with the next release
 ([`sdk.py release`](builder.md#cloudflare-deployment)): beta from `staging`,
 then production from `main`.
+
+The builder shows catalog machines as **Community**, unselected at first.
+Open-XY's own examples, which maintainers list by ID (`OFFICIAL` in
+[`tooling/catalog.py`](../tooling/catalog.py)), are shown as Open-XY machines
+instead. A catalog entry has no field to claim this, and who hosts its
+repository does not decide it.
 
 A maintainer then reviews a new machine once, in full:
 

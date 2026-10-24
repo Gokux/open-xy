@@ -37,6 +37,15 @@ REPOSITORY = r'https://github\.com/[A-Za-z0-9-]+/(?!\.\.?$)[A-Za-z0-9._-]+'
 TAG = r'[A-Za-z0-9._/-]{1,64}'
 COMMIT = r'[0-9a-f]{40}'
 MAINTAINER = r'[A-Za-z0-9-]{1,39}'
+# Catalog machines that are Open-XY's own examples rather than community ones, by
+# ID. Maintainers keep this list; a catalog entry has no field to claim it, and
+# who hosts the repository does not decide it.
+OFFICIAL = ('karplus',)
+
+
+def official(entry):
+    """Whether a catalog entry is one of Open-XY's own machines."""
+    return entry['id'] in OFFICIAL
 
 
 def validate(value, bundled=None):
