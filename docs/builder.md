@@ -54,7 +54,9 @@ The ZIP contains:
 | `content/presets/<machine>/default.json` | One init preset in each selected instrument's own folder |
 | `layout.json`, hashes | Keep `layout.json`: it holds your machines' numbers, and loading it into the builder next time keeps them for your projects |
 
-Every build shows `OPEN 0.0.1-1.2.0` at boot. Timestretch starts without a sample;
+Every build shows its release at boot, `OPEN 0.0.2-1.2.0` for 0.0.2, the version in
+[`VERSION`](../VERSION) that the builder also shows under its name and records in
+`build.json`. Timestretch starts without a sample;
 choose one on its sample page. Ring Mod is a send effect and has no preset.
 
 The builder accepts only the exact stock file or an exact Open-XY output of the

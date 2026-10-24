@@ -42,6 +42,7 @@ main { display:grid; grid-template-columns:230px minmax(0,1fr); gap:24px; max-wi
 .sidebar { display:flex; flex-direction:column; gap:42px; padding:12px 4px 12px 0; min-width:0; }
 .brand { font-size:24px; letter-spacing:-1px; }
 .brand span { display:block; margin-top:7px; font-size:12px; letter-spacing:0; color:var(--muted); }
+.brand .brand-version { margin-top:2px; font:11px Consolas,monospace; }
 .steps { display:grid; gap:12px; }
 .steps button { display:flex; align-items:center; gap:18px; text-align:left; padding:15px 14px; font-size:14px; }
 .steps b { display:block; font:11px/1.8 Consolas,monospace; font-weight:400; color:var(--muted); }
