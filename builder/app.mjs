@@ -150,16 +150,15 @@ function node(tag, text, className) {
 function facts(target, values) {
   target.replaceChildren(...Object.entries(values).flatMap(([name, value]) => [node('dt', name), node('dd', value)]));
 }
-function sourceLinks(source, includeRelease = false) {
+function sourceLinks(source) {
   const link = (text, url) => {
     const anchor = node('a', text);
     anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer';
     return anchor;
   };
-  const links = ['Maintained by ', link('@' + source.maintainer, 'https://github.com/' + source.maintainer),
-    ' · ', link(Core.sourceName(source), source.repository)];
-  if (includeRelease) links.push(' · ', link('Source at ' + source.tag, Core.sourceUrl(source)));
-  return links;
+  return ['Maintained by ', link('@' + source.maintainer, 'https://github.com/' + source.maintainer),
+    ' · ', link(Core.sourceName(source), source.repository),
+    ' · ', link('Source at ' + source.tag, Core.sourceUrl(source))];
 }
 async function inspect(id) {
   stopPreview();
@@ -167,9 +166,10 @@ async function inspect(id) {
   inspected = id; const m = kit.machines.find(x => x.id === id);
   $('detail-kind').textContent = {synth: 'Synthesizer', effect: 'Send effect', sample: 'Sample engine'}[m.kind];
   $('detail-name').textContent = m.name; $('detail-description').textContent = m.description;
+  $('community-notice').hidden = m.origin !== 'catalog';
   // Credit the catalog's maintainer and repository, with the exact release source.
   if (m.origin === 'catalog') {
-    $('detail-source').replaceChildren(...sourceLinks(m.source, true));
+    $('detail-source').replaceChildren(...sourceLinks(m.source));
   } else $('detail-source').textContent = m.origin === 'bundled' ? 'Bundled with Open-XY' : 'Your machine, from this kit';
   $('art-preview').replaceChildren();
   $('audition-controls').replaceChildren();
@@ -304,13 +304,7 @@ function renderMachines(filter = 'all') {
     };
     const glyph = node('span', undefined, 'machine-icon');
     glyph.append(Visuals.icon(m.kind, m.icon));
-    row.append(label, glyph, button);
-    if (m.origin === 'catalog') {
-      // Links are siblings of the selection/preview controls, never nested in them.
-      const source = node('p', undefined, 'machine-source');
-      source.append(...sourceLinks(m.source)); row.append(source);
-    }
-    $('machines').append(row);
+    row.append(label, glyph, button); $('machines').append(row);
   });
 }
 function recalculate() {
