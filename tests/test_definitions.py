@@ -188,9 +188,11 @@ class Definitions(unittest.TestCase):
                     machine('timestretch'), machine('ringmod')]
         with tempfile.TemporaryDirectory() as directory:
             text = generate_synth_controls(directory, machines).read_text(encoding='utf-8')
-        self.assertEqual(re.findall(r'^    \{(\d+), (\w+)_ready, \{([\d, ]+)\},', text, re.M),
-                         [('5', 'plain', '0, 1, 2, 3, 4, 5, 6, 7'), ('9', 'alt', '0, 1, 4, 3, 2, 5, 6, 7'),
-                          ('1', 'ringmod', '0, 1, 2, 3, 4, 5, 6, 7')])
+        # Each row names its machine's engine or effect ID symbol, which the linker supplies.
+        self.assertEqual(re.findall(r'^    \{(\w+), (\w+)_ready, \{([\d, ]+)\},', text, re.M),
+                         [('plain_engine_id', 'plain', '0, 1, 2, 3, 4, 5, 6, 7'),
+                          ('alt_engine_id', 'alt', '0, 1, 4, 3, 2, 5, 6, 7'),
+                          ('ringmod_fx_id', 'ringmod', '0, 1, 2, 3, 4, 5, 6, 7')])
 
     def test_renderers_generate_for_every_declared_shape(self):
         """Each shape's renderer is data for the SDK renderer: artwork IDs in binding order, and an

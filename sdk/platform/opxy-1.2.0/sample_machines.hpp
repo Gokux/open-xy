@@ -9,8 +9,8 @@ namespace opxy { namespace platform {
 // unselected machine's symbols resolve to a function returning 0, so `ready`
 // declines and nothing else is called.
 struct SampleMachine {
-    u32 engine;
-    u32 page;      // stock sample page, 2 or 7
+    const char* engine_id;  // absolute symbol: the engine ID, supplied at link time
+    u32 page;               // stock sample page, 2 or 7: what the machine is, never renumbered
     int (*ready)();
     // padSettings
     PadSettings (*defaults)();
@@ -24,6 +24,7 @@ struct SampleMachine {
     u32 (*prepare_begin)(const SampleView*, u32*, u32);
     u32 (*prepare_step)(u32, u32*);
     u32 (*prepared)(SampleAnalysis*);
+    u32 engine() const { return static_cast<u32>(reinterpret_cast<__UINTPTR_TYPE__>(engine_id)); }
 };
 }}
 

@@ -15,6 +15,8 @@ extern "C" {
 void* @PREFIX@_factory(opxy::u32) __asm__("@PREFIX@_factory");
 const char* @PREFIX@_parameter_name(opxy::u32) __asm__("@PREFIX@_parameter_name");
 extern const char @PREFIX@_name[] __asm__("@PREFIX@_name");
+// The engine ID: an absolute symbol the linker supplies.
+extern const char @PREFIX@_engine_id[] __asm__("@PREFIX@_engine_id");
 }
 using Voice = @NAMESPACE@::Voice;
 using Shared = @NAMESPACE@::Shared;
@@ -95,7 +97,7 @@ const char @PREFIX@_name[] = "@NAME@";
 // of the encoder can switch to an alternate.
 const char* @PREFIX@_parameter_name(opxy::u32 index) {
     static const char* const labels[] = {@LABELS@};
-    const opxy::u32 slot = sdk_synth_title_slot(@ENGINE@, index);
+    const opxy::u32 slot = sdk_synth_title_slot(static_cast<opxy::u32>(reinterpret_cast<__UINTPTR_TYPE__>(@PREFIX@_engine_id)), index);
     return slot < sizeof(labels) / sizeof(labels[0]) ? labels[slot] : "";
 }
 const void* const @PREFIX@_vtable[11] = {
