@@ -1,7 +1,6 @@
 name: Machine proposal
 description: Propose a new engine or effect, or a change to an existing one.
 labels: [area:machine, enhancement]
-projects: [etcetc000/1]
 body:
   - type: dropdown
     id: kind

@@ -1,7 +1,6 @@
 name: Bug
 description: Something in the builder, SDK or a machine does not work as documented.
 labels: [bug]
-projects: [etcetc000/1]
 body:
   - type: textarea
     id: what

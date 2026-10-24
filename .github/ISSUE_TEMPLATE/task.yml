@@ -1,7 +1,6 @@
 name: Task
 description: Planned work for an upcoming release.
 labels: [task]
-projects: [etcetc000/1]
 body:
   - type: textarea
     id: goal
