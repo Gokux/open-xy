@@ -124,6 +124,7 @@ details input { max-width:100%; }
 .machine.selected { background:var(--soft); }
 .machine[data-origin="bundled"] { background:#333; }
 .machine[data-origin="bundled"].selected { background:#484848; }
+.machine[data-origin="bundled"].selected .machine-meta { color:#bbb; }
 .machine[data-origin="catalog"] { background:#1e1e1e; }
 .machine[data-origin="catalog"].selected { background:#242424; }
 .machine[data-origin="catalog"] .machine-origin { color:#ccc; border-color:#666; }
