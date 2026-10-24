@@ -20,6 +20,12 @@
       "tag": "v1.3.0",
       "commit": "617e321f8037541f283cfe46fd39ff90d5e9db8c",
       "path": "."
+    },
+    {
+      "id": "hurdygurdy",
+      "kind": "synth",
+      "maintainer": "etcetc000",
+      "status": "reserved"
     }
   ]
 }
