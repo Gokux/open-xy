@@ -2,8 +2,9 @@
 
 For each folder: the machine's records and sources against this SDK, a browser
 preview build of a synth, the machine's own host tests (tests/*.cpp, compiled
-against the SDK headers and run), and optionally a native compile of the
-bundled collection plus every folder. No stock files and no device.
+against the SDK headers and run), an estimate of its CPU cost next to the
+bundled machines', and optionally a native compile of the bundled collection
+plus every folder. No stock files and no device.
 """
 import argparse
 import os
@@ -14,6 +15,7 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
+from . import cpu
 from .formats import require
 from .machines import machine_at
 from .native import check_sources
@@ -41,6 +43,7 @@ def main(argv=None):
     parser.add_argument('--machine', type=Path, action='append', required=True, help='machine folder; repeatable')
     parser.add_argument('--cxx', default='clang++', help='Clang++ with wasm32/wasm-ld, for synth previews')
     parser.add_argument('--host-cxx', default='c++', help='host C++11 compiler for tests/*.cpp')
+    parser.add_argument('--no-cpu', action='store_true', help='skip the CPU estimate')
     parser.add_argument('--firmware', action='store_true',
                         help='also compile the bundled collection plus these machines with the pinned Blackfin tools')
     args = parser.parse_args(argv)
@@ -56,9 +59,12 @@ def main(argv=None):
                     from .preview import build
                     build(args.cxx, m, scratch / ('preview-' + m.id))
                     done.append('preview built')
-                count = host_tests(m, shutil.which(args.host_cxx) or args.host_cxx, scratch)
+                host_cxx = shutil.which(args.host_cxx) or args.host_cxx
+                count = host_tests(m, host_cxx, scratch)
                 done.append(f'{count} host test{"s" * (count != 1)} passed')
                 print('PASS: ' + '; '.join(done))
+                if not args.no_cpu:
+                    print(cpu.summary(m, host_cxx, scratch))
             if args.firmware:
                 command = [sys.executable, str(ROOT / 'sdk.py'), 'compile', '--out', str(scratch / 'module')]
                 for m in machines:

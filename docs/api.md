@@ -57,6 +57,43 @@ beyond whole words and module memory. Browser previews run 8 voices in
 512 KiB of WebAssembly memory; a machine that needs more still builds for the
 device.
 
+## CPU
+
+The OP-XY renders every voice and effect in 64-sample blocks, 1.45 ms each, on
+one Blackfin core that also runs its own engines, sequencer and effects. A
+machine's cost adds up per sounding voice and per track that uses it. The SDK
+sets no hard limit and does not yet measure device cycles.
+
+`python sdk.py test` prints an estimate for synths and effects in **Blackfin
+instructions per 64-sample block**, at the machine's heaviest control setting.
+It times the machine's render (or `process`) on your computer against a
+reference loop in the same run, a table oscillator through a one-pole filter
+of known Blackfin instruction count (about 590 per block), so the figure is
+about the same on any computer:
+
+```text
+CPU estimate (host-timed; not measured on the device): Pluck about 7,700 Blackfin instructions per voice block at its heaviest setting. Aim for at most 15,000; for scale, 2op FM about 14,000, Macro Osc (Braids) about 9,000
+```
+
+| Per 64-sample block | Aim for at most | Likely to drop audio above | Bundled machines |
+| --- | --- | --- | --- |
+| A synth voice | 15,000 | 24,000 | 2op FM about 14,000, Macro Osc (Braids) about 9,000 |
+| An effect, once per track | 30,000 | 48,000 | Ring Mod about 10,500 |
+
+Above the aim, make the machine lighter where you can; above the second limit,
+measure it on a device with many notes held across tracks. Instructions are
+not cycles: pipeline stalls add some. And the estimate understates what the
+host does fast and the Blackfin does not:
+
+- **Division** has no hardware instruction and costs tens of cycles on the
+  device. Divide once per block, or use a table or a reciprocal.
+- **Floating point** has no hardware either. Keep audio in integers;
+  [`q31.hpp`](../sdk/include/opxy/q31.hpp) has the fixed-point helpers.
+- **64-bit arithmetic** has no runtime helpers in the module: keep products
+  within 32 bits or split them, as `q31.hpp` does.
+- **Per-sample work that changes only per block**, such as coefficients and
+  increments, belongs outside the sample loop.
+
 ## Definition
 
 Every machine kind keeps its controls in `definition.json` (for example
@@ -359,7 +396,7 @@ source dry mixer, as described under [effects](#effects).
 
 | Kind | ID | Page |
 | --- | --- | --- |
-| `synth` | 1..62, except the stock sentinel 33 and the IDs stock registers (2–4, 6, 7, 18–20, 22, 29–32) | Its own screen: 82..127 |
+| `synth` | 34..62 | Its own screen: 82..127 |
 | `sample` | 34..62 | Stock sample page 2 or 7; `padSettings` requires 7 |
 | `effect` | A free stock FX ID: 1–4, 6–8 or 11 | Stock FX page 21 |
 
@@ -379,7 +416,9 @@ held so an old project never opens another machine. The builder and
 the next build so every machine keeps its numbers. A machine new to the layout
 gets the numbers it asks for when they are free, otherwise the lowest free
 ones. New numbers come from engines 34..62 and pages 82..127, never from the
-gaps in stock's own engine table; a sample engine keeps its stock page.
+gaps in stock's own engine table, so ask for numbers in those ranges; a
+sample engine keeps its stock page. Bundled Macro Osc predates this and keeps
+engine 26.
 
 Generated adapters check record/name ownership and screen readiness before
 catalog admission; the packager authenticates firmware and constrains writes.

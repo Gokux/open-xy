@@ -113,7 +113,9 @@ does not change your machine.
 `python sdk.py test --machine local/mymachine` checks a machine folder the way
 a machine repository's CI does: its records and sources, a preview build and
 its `tests/*.cpp`, compiled with a host C++ compiler (`--host-cxx`, default
-`c++`). `--firmware` adds a native compile with the bundled machines.
+`c++`). It also prints a [CPU estimate](api.md#cpu) next to the bundled
+machines; keep it within their range. `--firmware` adds a native compile with
+the bundled machines.
 
 Change labels and presets directly in `definition.json`; custom previews read it
 when building, with no separate JavaScript definition generator. Parameter

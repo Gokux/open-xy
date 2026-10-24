@@ -135,6 +135,10 @@ replaced with this one. To bring one up to date:
 - A `"kind": "drawing"` display drops its `kind` and declares `"texts": 0`.
 - `Frame<paths, points, nodes, palette>` becomes
   `Frame<paths, points, nodes, 0, palette>`.
+- Artwork IDs carry the machine's ID, not `local`: `<id>_panel`,
+  `<id>_node_<i>`, `<id>_palette_<i>`.
+- A mutable outline's points are all distinct in the artwork: the device
+  merges repeated points.
 - A `"kind": "segments"` display, or code that includes `opxy/segments.hpp`,
   draws with this contract instead. Macro Osc keeps its own
   [segments.hpp](../machines/macroosc/segments.hpp) and
