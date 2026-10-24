@@ -128,6 +128,8 @@ def check_identity(rules, kind, value):
 
 def sdk_version(text):
     """A machine's declared SDK version, checked against this SDK."""
+    require(text is not None, 'machine.json needs "sdk": "%d.%d". A machine from before SDK 1.0: '
+            'see docs/display.md#migrating-from-before-sdk-10' % SDK_VERSION)
     require(isinstance(text, str) and re.fullmatch(r'\d+\.\d+', text), 'machine.json needs "sdk": "<major>.<minor>"')
     major, minor = map(int, text.split('.'))
     current = '%d.%d' % SDK_VERSION

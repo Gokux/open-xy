@@ -122,3 +122,22 @@ See [2op display.cpp](../machines/fm2op/display.cpp) (outlines and pulses) and
 [Macro display.cpp](../machines/macroosc/display.cpp) (segment characters,
 glow, dials and header text) for implementations.
 How screens reach stock is described in the [firmware ABI](abi-1.2.0.md#screens).
+
+## Migrating from before SDK 1.0
+
+Machines written for the earlier beta use two display contracts that SDK 1.0
+replaced with this one. To bring one up to date:
+
+- `machine.json` declares `"sdk": "1.0"`.
+- A `"kind": "drawing"` display drops its `kind` and declares `"texts": 0`.
+- `Frame<paths, points, nodes, palette>` becomes
+  `Frame<paths, points, nodes, 0, palette>`.
+- A `"kind": "segments"` display, or code that includes `opxy/segments.hpp`,
+  draws with this contract instead. Macro Osc keeps its own
+  [segments.hpp](../machines/macroosc/segments.hpp) and
+  [display.cpp](../machines/macroosc/display.cpp): copy the parts you need into
+  your machine and declare nodes for them.
+- Code that fills a `Node` directly also sets its rotation (`cos`, `sin`);
+  `place`, `shade` and `turn` do this for you.
+
+Then run `python sdk.py test --machine <folder>`.
