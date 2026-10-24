@@ -106,14 +106,15 @@ Synth amounts and bounded positive anchor-ratio captions show one decimal
 place; amounts omit the percent suffix. A machine's text controls can override them. Custom send effects also
 use the slower Shift rate for continuous controls, with stock FX captions.
 
-A sample engine declares `voiceCapacity` (1..256) and the optional
-[sample services](#sample-engines) it uses. An effect declares no resources (`{}`).
+A sample engine declares `voiceCapacity`, which must be 256 (stock creates a
+voice for each of its 256 voice indices and binds each to its sample), and the
+optional [sample services](#sample-engines) it uses. An effect declares no resources (`{}`).
 A synth declares:
 
 | Field | Required value or meaning |
 | --- | --- |
 | `voiceBytes`, `voiceAlignment` | `Voice` size (whole words) and alignment, checked against the compiled type |
-| `voiceCapacity` | Voices the firmware may create, 1..256 |
+| `voiceCapacity` | Notes that sound at once, 1..256. Stock's 256 voice indices share these voices: a new note takes a free one, or the one whose note started longest ago |
 | `sharedBytes` | `Shared` size, or 0 when `Shared` is empty |
 | `outputPeakQ31` | Positive declared oscillator peak; the preview uses it for audition gain |
 | `display` | The screen's kind and shape; see the [display API](display.md) |
@@ -158,9 +159,13 @@ void render(Voice& voice, Shared& shared, opxy::u32 owner,
             opxy::Output output, opxy::Parameters parameters, opxy::Pitch pitch);
 ```
 
-Storage begins zeroed; `owner` is a stable nonzero voice ID. `initialize` runs
-when the firmware creates the voice and establishes all sound state; `start`
-runs on each note; `destroy` releases anything the voice holds in `Shared`.
+Storage begins zeroed; `owner` is a stable nonzero voice ID, the stock voice
+index plus one. Each of the machine's `voiceCapacity` voices serves one owner at
+a time: `initialize` runs when a voice goes to an owner and establishes all
+sound state; `start` runs on each note; `destroy` releases anything the voice
+holds in `Shared`, when its note ends or another note takes the voice. A note
+whose voice was taken renders silence; no voice index ever fails, whatever the
+capacity.
 Callbacks run serially per voice. The browser preview's voice stealing and
 panic use the same lifecycle. The SDK adapter owns the firmware object header,
 method table and voice pool; none of that belongs in `Voice`.

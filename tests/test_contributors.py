@@ -14,7 +14,7 @@ class ContributorBoundary(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             source = generate_voice(directory, machine('fm2op')).read_text(encoding='utf-8')
         self.assertEqual(re.findall(r'#include "([^"]+)"', source), ['core.h', 'engine.cpp', 'stock.hpp', 'synth_controls.hpp'])
-        self.assertIn('fm2op::render(slot->voice, shared, owner(slot), output, parameters, increments);', source)
+        self.assertIn('fm2op::render(slot->voice, shared, slot->owner, output, parameters, increments);', source)
 
     def test_machines_have_no_platform_branches(self):
         check_sources(discovered())

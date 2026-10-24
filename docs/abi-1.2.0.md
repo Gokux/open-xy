@@ -81,8 +81,11 @@ Firmware without the relocated tables opens a project that uses an engine above
 Stock asks the factory for a voice object per voice index (0–255) and calls
 it through an 11-entry method table: render once per 64-sample block, start on
 a note, and unchanged stock defaults for the rest (see
-[`voice.cpp.in`](../sdk/platform/opxy-1.2.0/voice.cpp.in)). One adapter serves
-every synth.
+[`voice.cpp.in`](../sdk/platform/opxy-1.2.0/voice.cpp.in)). It never checks
+for a missing object, so the factory gives every index a small handle. A
+machine's `voiceCapacity` voices go to handles as their notes start: a free
+voice, or the one whose note started longest ago. A handle that has lost its
+voice renders silence. One adapter serves every synth.
 Render receives 64 output words and 8 parameter words. The SDK adds the stock
 per-sample pitch increments. Output is mono Q31 peaking at most at half scale. Stock
 velocity, envelope, filter and mixing run afterwards.
