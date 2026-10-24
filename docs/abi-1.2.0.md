@@ -23,7 +23,7 @@ version is rejected. The output differs from stock in exactly these places:
 
 | Change | Edits | Purpose |
 | --- | --- | --- |
-| Reservation | 2 | Shrinks the application heap by 512 KiB; the module lives in the freed tail |
+| Reservation | 2 | Shrinks the application heap by 2 MiB (20 MiB to 18 MiB); the module lives in the freed tail |
 | Hooks | 5 | Branches from the synth initializer, both screen factories and both catalog-insertion calls into SDK startup code |
 | Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock multisampler audio payload |
 | Sample analysis | 10 | Schedules bounded background work, snapshots committed assignments, releases cached analysis and reports progress |

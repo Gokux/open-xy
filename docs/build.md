@@ -63,9 +63,8 @@ this repository uses. To build it for the device:
    and IDs are saved in presets and projects, so they never change once
    published.
 3. Add `<id>` to `profiles/collection.json`. All selected machines share
-   508 KiB ([memory and limits](api.md#memory-and-limits)), and the bundled
-   ones use most of it; `compile` shows each machine's share. Remove machines
-   you don't want to make room.
+   2044 KiB ([memory and limits](api.md#memory-and-limits)); `compile` shows
+   each machine's share. Remove machines you don't want to make room.
 
 `python sdk.py compile --out <folder>` then builds the module alone, without
 stock files, and prints each machine's memory use: a quick check before the

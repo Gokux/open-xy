@@ -1,7 +1,7 @@
 """Build, package and verify the curated collection for stock OP-XY 1.2.0. No device operations.
 
 Every machine in profiles/collection.json is compiled and linked into one module
-inside the 512 KiB reservation with relocated engine and screen tables. Object
+inside the 2 MiB reservation with relocated engine and screen tables. Object
 names are part of the published browser kit (its linker orders objects by name),
 so their naming scheme is fixed.
 """
