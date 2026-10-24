@@ -34,8 +34,8 @@ The [firmware contract](abi-1.2.0.md) explains where each rule comes from.
 
 ## Memory and limits
 
-Every selected machine and the SDK share **one 508 KiB module region**: code,
-constant data and zero-initialized state together. It is the 512 KiB the
+Every selected machine and the SDK share **one 2044 KiB module region**: code,
+constant data and zero-initialized state together. It is the 2 MiB the
 firmware reserves from its heap, minus 4 KiB of relocated stock tables. There
 is no per-machine allowance: a build that does not fit names each machine's
 share, and `sdk.py compile` and the builder's memory meter report the same
@@ -44,7 +44,7 @@ figures. State usually dominates, since a synth's voice pool is
 
 | Limit | Value | Why |
 | --- | --- | --- |
-| Module memory | 508 KiB for the whole collection | Firmware heap reservation minus the relocated tables |
+| Module memory | 2044 KiB for the whole collection | Firmware heap reservation minus the relocated tables |
 | Voices | 1..256 per machine | Stock voice indices |
 | Effect state | 476 bytes | The 480-byte stock FX slot minus its object header |
 | Synth controls | 4 positions, at most 8 parameters | The stock four-knob page and eight-word parameter vector |

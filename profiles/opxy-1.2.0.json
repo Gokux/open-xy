@@ -8,12 +8,12 @@
   "stock_catalog_sha256": "36d14444dcc12cac8f33784c4d0e96079cfa0b5042ac9edfe31d34cc9b303ff0",
   "stock_svg_sha256": "449251eb0f33f451316d839c061d88d06d96962e8f3bbbb7c38e6f7119d9f052",
   "bootloader_reference_sha256": "139459f2a8b7bbe5cd9432d4870a758f4e9e9d7e875ebb10701144b73f40f75d",
-  "module_base": 2370112864,
-  "reserved_bytes": 524288,
+  "module_base": 2368540000,
+  "reserved_bytes": 2097152,
   "heap_fill_base": 2349665628,
   "heap_fill_bytes": 20971524,
   "stock_records": 999,
-  "linker_sha256": "9aa0ab41bbe63f8e4e71dc8727bba9883df46a36359f4914fe49aed1cdad6d15",
+  "linker_sha256": "371fec3c7f24ef759a16a8914ba0584ab7df2f948e6e1460ee4999af1e21e056",
   "table_bytes": 4096,
   "identities": {
     "engines": 63,
@@ -64,21 +64,21 @@
   "patches": [
     {
       "kind": "heap",
-      "name": "IN-MEMORY application heap 0x1400000 -> 0x1380000 (512 KiB module reservation)",
+      "name": "IN-MEMORY application heap 0x1400000 -> 0x1200000 (2 MiB module reservation)",
       "address": "0x8d4d0d9a",
       "file_offset": "0x108176",
       "length": 8,
       "before": "01da400100000000",
-      "after": "01da380100000000"
+      "after": "01da200100000000"
     },
     {
       "kind": "heap",
-      "name": "IN-MEMORY application heap 0x1400000 -> 0x1380000 (512 KiB module reservation)",
+      "name": "IN-MEMORY application heap 0x1400000 -> 0x1200000 (2 MiB module reservation)",
       "address": "0x8d4d0db4",
       "file_offset": "0x108190",
       "length": 8,
       "before": "01da400100000000",
-      "after": "01da380100000000"
+      "after": "01da200100000000"
     },
     {
       "kind": "hook",

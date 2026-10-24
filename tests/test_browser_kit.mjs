@@ -73,13 +73,13 @@ test('SDK objects of a profile service link only when a selected machine uses it
 test('empty, unknown, repeated selections, duplicate globals and memory exhaustion are rejected', () => {
   const k=fixture(); for(const s of [[],['missing'],['a','a']]) assert.throws(()=>linkKit(k,s),/Choose each machine once/);
   k.definitions.entry=42; assert.throws(()=>linkKit(k,['a']),/Duplicate global/); delete k.definitions.entry;
-  k.objects[0].sections[1].size=0x80000; assert.throws(()=>linkKit(k,['a']),/need more than the/);
+  k.objects[0].sections[1].size=k.profile.reserved_bytes; assert.throws(()=>linkKit(k,['a']),/need more than the/);
 });
 test('code, data and state share one module limit that names each machine', () => {
   const k=fixture(), tables=k.profile.table_bytes;
   k.profile.table_bytes=k.profile.reserved_bytes-3; assert.throws(()=>linkKit(k,['a']),/KiB available: a /);
   k.profile.table_bytes=tables;
-  k.objects[0].sections.push({index:5,name:'.bss',group:'bss',type:8,size:0x7f000,alignment:4});
+  k.objects[0].sections.push({index:5,name:'.bss',group:'bss',type:8,size:moduleBytes(k.profile),alignment:4});
   assert.throws(()=>linkKit(k,['a']),/need more than the/);
 });
 // tests/test_profile_parity.py checks validIdentity against the Python rules.
