@@ -13,9 +13,11 @@ namespace opxy { namespace draw {
 const i32 unit = q10_unit;
 // Bounds in pixels. Path points are relative to their node; node and text
 // positions cover the screen plus a margin, so an element can be parked out of view.
+// hide() parks at the bottom-right corner, 160 pixels right of and 100 below the
+// 480 x 220 screen: only an element reaching further both left and up still shows.
 const i32 path_extent = 64;
 const i32 node_left = -64, node_right = 640, node_top = -64, node_bottom = 320;
-const i32 hidden_x = 640, hidden_y = 120;
+const i32 hidden_x = node_right, hidden_y = node_bottom;
 // Terminated text: a text slot holds at most 23 characters, a header value 7.
 const u32 text_capacity = 24, header_capacity = 8;
 enum Paint : u32 { keep = 0, stroke = 1, fill_and_stroke = 2 };
@@ -194,5 +196,18 @@ inline bool valid(const F& frame) {
     for (u32 i = 0; i < page_controls; ++i)
         if (!terminated(frame.header[i], header_capacity)) return false;
     return true;
+}
+// The first path that repeats a point, or Paths when every point of every path
+// is distinct. The stock parser merges repeated points, so an outline needs
+// distinct points. The previews check frames with it; valid() does not, keeping
+// the device's per-frame check linear.
+template <class F>
+inline u32 repeated(const F& frame) {
+    for (u32 p = 0; p < F::path_count; ++p)
+        for (u32 i = 1; i < F::point_count; ++i)
+            for (u32 j = 0; j < i; ++j)
+                if (frame.paths[p].points[i].x == frame.paths[p].points[j].x &&
+                    frame.paths[p].points[i].y == frame.paths[p].points[j].y) return p;
+    return F::path_count;
 }
 }} // namespace opxy::draw

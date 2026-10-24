@@ -17,7 +17,8 @@ export class PreviewDisplay {
     }
     this.api = new WebAssembly.Instance(module).exports;
     const e = this.api;
-    if (e.opxy_display_abi() !== 1 || e.opxy_display_input_bytes() !== INPUT_BYTES) throw new Error('Unsupported drawing ABI');
+    if (e.opxy_display_abi() !== 1 || e.opxy_display_input_bytes() !== INPUT_BYTES ||
+        typeof e.opxy_display_repeated !== 'function') throw new Error('Unsupported drawing ABI');
     this.stateBytes = integer(e.opxy_display_state_bytes(), 4, e.memory.buffer.byteLength, 'display state size');
     // Largest declared frame: 4 paths of 64 points, 256 nodes, 4 texts and the header.
     const frameBytes = integer(e.opxy_display_frame_bytes(), 32, 4 * 516 + 256 * 28 + 4 * 36 + 32, 'drawing frame size');
@@ -50,6 +51,9 @@ export class PreviewDisplay {
     this.input.set([p0, p1, p2, p3, elapsed >>> 0, track, serial, Number(reducedMotion), shown, ...slots]);
     this.api.opxy_display_render();
     if (this.api.opxy_display_valid() !== 1) throw new Error('Display emitted an invalid drawing frame');
+    // The device's SVG parser merges repeated points, so an outline needs distinct ones.
+    const path = this.api.opxy_display_repeated();
+    if (path) throw new Error(`Drawing path ${path - 1} repeats a point; the device merges repeated points, so keep each distinct`);
     return this.frame;
   }
 }

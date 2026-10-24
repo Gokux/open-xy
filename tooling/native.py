@@ -524,6 +524,12 @@ def check_outlines(by_id, prefix, display):
         require(node is not None and node.tag == 'path' and commands == ['M'] + ['L'] * (points - 1) + ['Z'] and
                 len(coordinates) == 2 * points and node.get('fill') == 'none',
                 'Mutable outline must contain exactly M, %d L and Z, with no fill: %s' % (points - 1, name))
+        # The stock parser merges repeated points, leaving fewer than the frame
+        # binds, and the device then no longer reshapes the outline. Points are
+        # compared as the Q10 coordinates the device holds.
+        pairs = [(round(float(x) * 1024), round(float(y) * 1024)) for x, y in zip(coordinates[::2], coordinates[1::2])]
+        require(len(set(pairs)) == points,
+                'Mutable outline repeats a point; the device merges repeated points, so keep each distinct: ' + name)
 
 
 def check_bindings(by_id, prefix, display):

@@ -60,7 +60,7 @@ element. Both renderers apply only what changed.
 
 | Part | Contents |
 | --- | --- |
-| `paths[i]` | A nonzero geometry `key` and `points` points relative to the node's origin. Change the key whenever the points change; renderers cache the keys they applied. |
+| `paths[i]` | A nonzero geometry `key` and `points` distinct points relative to the node's origin. Change the key whenever the points change; renderers cache the keys they applied. |
 | `nodes[i]` | The element's whole transform, `x`, `y` (origin), `scale` (uniform) and `cos`, `sin` (a clockwise turn), plus `shade`, a palette entry, and `paint`: keep, stroke, or fill and stroke. |
 | `texts[i]` | `x`, `y`, `scale` like a node's, without turning, and up to 23 characters. |
 | `header[i]` | Text for control position `i` in place of the stock value, at its position and size: keep it to about five characters. An empty string keeps the stock value. |
@@ -77,11 +77,18 @@ element. Both renderers apply only what changed.
 An element authored in place, with no transform, is drawn where the artwork
 puts it at `(0, 0)`, unit scale and no turn. `place` sets a node's transform
 and paint upright, `turn` rotates it, `shade` repaints it without moving it,
-and `hide` moves it to (`hidden_x`, `hidden_y`), outside the display, keeping a
-positive unit scale. `rotation(tenths)` turns by tenths of a degree and
+and `hide` moves it to (`hidden_x`, `hidden_y`), the bottom-right corner
+(640, 320), keeping a positive unit scale. That is 160 pixels right of and 100
+below the 480 × 220 screen, so a hidden element stays out of view unless it
+reaches more than 160 pixels left and more than 100 pixels up from its origin.
+`rotation(tenths)` turns by tenths of a degree and
 `sweep(value, half)` maps a control onto `half` tenths of a degree either side
 of upright (at most 1800). `text` and `header` copy bounded strings. `valid`
 checks the complete frame before painting; an invalid frame is not applied.
+The OP-XY's SVG parser merges repeated points, leaving an outline with fewer
+points than its path, which the device then no longer reshapes. The browser
+preview therefore also rejects a frame whose path repeats a point
+(`repeated`); `valid` does not check this on the device.
 
 ## Artwork
 
@@ -89,7 +96,7 @@ Elements bind by index and the machine's symbol prefix:
 
 | Frame part | Artwork |
 | --- | --- |
-| Node `i` | `<prefix>_node_<i>`: a `path` or `circle`. Path nodes are a `path` of exactly `M`, `points - 1` `L` and `Z` with no fill. |
+| Node `i` | `<prefix>_node_<i>`: a `path` or `circle`. Path nodes are a `path` of exactly `M`, `points - 1` `L` and `Z` with no fill, every point distinct. |
 | Text slot `i` | `<prefix>_text_<i>`: a `text` with explicit font, positioned by its transform, with no `x` or `y` |
 | Palette entry `i` | `<prefix>_palette_<i>`: a `path` or `circle` with explicit `#RRGGBB` fill and stroke and a stroke width; it lends them to the nodes that select it. Park entries off screen. |
 

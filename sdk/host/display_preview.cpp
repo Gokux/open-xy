@@ -16,4 +16,9 @@ opxy::binding::Frame* opxy_display_frame() { return &frame; }
 void opxy_display_reset() { opxy::binding::display_reset(&state, &frame); }
 void opxy_display_render() { opxy::binding::display_render(&state, &input, &frame); }
 opxy::u32 opxy_display_valid() { return opxy::binding::display_valid(&frame); }
+// 1 + the first path that repeats a point, or 0.
+opxy::u32 opxy_display_repeated() {
+    const opxy::u32 path = opxy::draw::repeated(frame);
+    return path < opxy::binding::Frame::path_count ? path + 1 : 0;
+}
 }
