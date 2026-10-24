@@ -41,7 +41,7 @@ Start with [Your first machine](docs/first-machine.md): check the prerequisites,
 create a custom C++ machine, play it in the browser and make an audible edit.
 To keep a machine in a repository of your own and submit it to the builder,
 start from the [machine template](https://github.com/etcetc000/open-xy-machine-template);
-[Pluck](https://github.com/etcetc000/open-xy-pluck) is one such machine.
+[Karplus](https://github.com/etcetc000/open-xy-karplus) is one such machine.
 
 A machine is a folder of source: `machine.json`, which declares its kind and
 the stock numbers it asks for, controls in `definition.json`, and C++ for its kind: a synth's
