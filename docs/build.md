@@ -2,7 +2,7 @@
 
 `sdk.py build` statically links every machine in the collection into exact
 stock OS 1.2.0, using the [firmware ABI](abi-1.2.0.md), and checks the result.
-It runs on Windows x86_64 and Apple-silicon macOS. To choose among the curated
+It runs on Windows x86_64, Apple-silicon macOS and Linux x86_64. To choose among the curated
 machines without building, use the [browser builder](builder.md) instead. A
 machine reaches the firmware by joining the collection; read the
 [caveats](../README.md) before installing.
@@ -22,6 +22,29 @@ and installs it in `local/toolchain`, which every native command uses when
 `--toolchain` and `--compiler` are omitted. If you downloaded the zip from the
 `toolchain-1` release yourself, install it with
 `python sdk.py toolchain fetch --archive <zip>`.
+
+### On Linux
+
+Linux x86_64 has no download yet; build the pinned tools with Docker instead,
+from the checkout (it takes several minutes):
+
+```sh
+git init local/blackfin-plus-gnu
+git -C local/blackfin-plus-gnu fetch --depth 1 https://github.com/deanm1278/blackfin-plus-gnu e4408a15b9be6cd911283f103a1a3f69e9a6b8c0
+git -C local/blackfin-plus-gnu checkout FETCH_HEAD
+mkdir local/toolchain-build
+docker build -t open-xy-toolchain-linux - < tools/gcc/linux.Dockerfile
+docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
+  -v "$PWD":/opt/opxy-toolchain/open-xy:ro \
+  -v "$PWD/local/blackfin-plus-gnu":/opt/opxy-toolchain/fork \
+  -v "$PWD/local/toolchain-build":/opt/opxy-toolchain/out \
+  open-xy-toolchain-linux /opt/opxy-toolchain/open-xy/tools/gcc/build-linux.sh \
+  /opt/opxy-toolchain/fork /opt/opxy-toolchain/out/blackfin
+mv local/toolchain-build/blackfin local/toolchain
+```
+
+Native commands then use `local/toolchain` and check every tool against the
+`linux-x86_64` pins ([how it is built](toolchain.md#native-tools)).
 
 ## 2. Copy the OS from your OP-XY
 

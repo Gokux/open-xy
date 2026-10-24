@@ -23,7 +23,8 @@ This is an unofficial, experimental SDK. A build statically links a curated
 collection of machines into exact stock OS 1.2.0; arbitrary engine installation
 and dynamic loading are not implemented. Native code is not sandboxed, and
 build checks cannot guarantee recovery from a faulty image. Browser previews
-work on any OS; firmware builds need Windows x86_64 or Apple-silicon macOS.
+work on any OS; firmware builds need Windows x86_64, Apple-silicon macOS or
+Linux x86_64.
 
 ## Try an example
 
