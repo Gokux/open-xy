@@ -15,7 +15,9 @@ Feedback does not decay; Decay scales the modulator's influence on the carrier.
 The carrier plays at one eighth of full scale (`FM2_OUTPUT_LEVEL`), so a stock
 volume readout sounds about as loud as on stock instruments and Macro Osc.
 Controls smooth per voice. The display responds to note starts and controls;
-it is not an audio scope.
+it is not an audio scope. Amount, Feedback and Decay captions show whole
+numbers from 0–100; Shift + turn retains fine adjustment. Ratio captions
+retain their fractional values.
 
 ```sh
 python sdk.py preview --engine fm2op --out local/fm2op-preview-001

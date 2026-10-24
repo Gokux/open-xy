@@ -11,9 +11,10 @@ times the note frequency; depth 0 is the unmodulated model. The complete
 model/code/label list is in [models.hpp](models.hpp). The screen shows the
 model code on four glowing 14-segment characters and knobs for Timbre, Color
 and, joined on the right, FM Ratio and FM Depth; each knob always shows its
-own parameter, and the fourth value reads `2.0` or `40.0` for whichever the
-encoder edits. Timbre, Color and FM Depth show 0.0–100.0 without a percent
-suffix. Shift + turn gives finer adjustment of continuous values.
+own parameter, and the fourth value reads `2.0` or `40` for whichever the
+encoder edits. Timbre, Color and FM Depth show whole numbers from 0–100
+without a percent suffix. Shift + turn gives finer adjustment of continuous
+values.
 FM Ratio interpolates between its harmonic anchors, including intermediate
 ratios; the model selector stays discrete.
 Output is 6.8 dB below half scale (`kOutputLevel`), so a stock volume readout
