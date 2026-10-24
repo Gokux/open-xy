@@ -196,25 +196,33 @@ async function inspect(id) {
       // Eight parameter words; each control position shows the parameter last edited there.
       const parameters = Object.assign(Array(8).fill(0), m.preview.defaults), shown = [0, 1, 2, 3];
       let serial = 0, previous = 0, handle, cancelled = false;
-      const play = node('button', 'Play', 'secondary'); play.id = 'preview-play'; play.setAttribute('aria-pressed', 'false');
-      const pitch = node('select'); pitch.id = 'preview-note'; pitch.setAttribute('aria-label', 'Preview note');
-      for (let note = 48; note <= 72; note++) {
-        const option = node('option', ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][note % 12] + (Math.floor(note / 12) - 1));
-        option.value = String(note); option.selected = note === 60; pitch.append(option);
+      // A small keyboard from middle C: a key plays its note while held.
+      const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+      const keyboard = node('div', undefined, 'preview-keys');
+      keyboard.id = 'preview-keys'; keyboard.setAttribute('role', 'group'); keyboard.setAttribute('aria-label', 'Preview keyboard');
+      for (let note = 60; note <= 77; note++) {
+        const black = [1, 3, 6, 8, 10].includes(note % 12), name = names[note % 12] + (Math.floor(note / 12) - 1);
+        const key = node('button', note % 12 === 0 ? name : undefined, 'preview-key' + (black ? ' black' : ''));
+        key.type = 'button'; key.setAttribute('aria-label', name);
+        const press = () => { if (key.dataset.down === 'true') return; key.dataset.down = 'true'; trigger(); audio.play(note); };
+        const lift = () => { if (key.dataset.down !== 'true') return; key.dataset.down = 'false'; audio.release(note); };
+        key.onpointerdown = e => { e.preventDefault(); key.setPointerCapture(e.pointerId); key.focus(); press(); };
+        key.onpointerup = key.onpointercancel = key.onlostpointercapture = lift;
+        key.onkeydown = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) press(); } };
+        key.onkeyup = e => { if (e.key === ' ' || e.key === 'Enter') lift(); };
+        key.onblur = lift;
+        keyboard.append(key);
       }
       const volume = node('label', 'Volume', 'audition-volume'), level = node('input');
       level.type = 'range'; level.min = '0'; level.max = '100'; level.value = '50'; level.setAttribute('aria-label', 'Preview volume');
       volume.append(level);
       const audio = new Audition(compiled, parameters, (playing, error) => {
         if (!cancelled) frame(0);
-        play.textContent = playing ? 'Stop' : 'Play'; play.setAttribute('aria-pressed', String(playing));
         if (error && ticket === previewRevision) $('art-caption').textContent = 'Audio unavailable: ' + error;
       });
       stopAudio = () => audio.stop();
-      play.onclick = () => { if (audio.playing) audio.stop(); else { trigger(); audio.play(Number(pitch.value)); } };
-      pitch.onchange = () => { if (audio.playing) { trigger(); audio.play(Number(pitch.value)); } };
       level.oninput = () => audio.setVolume(Number(level.value) / 100);
-      $('audition-controls').append(play, pitch, volume);
+      $('audition-controls').append(keyboard, volume);
       const reduced = matchMedia('(prefers-reduced-motion: reduce)');
       function frame(dt = 34) {
         const input = shownControls(parameters, shown);

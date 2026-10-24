@@ -63,6 +63,10 @@ export class Audition {
       this.onState(false, error.message);
     }
   }
+  // A key let go: the note fades over the preview engine's short release.
+  release(note) {
+    if (this.playing) this.processor?.port.postMessage({type:'off', note});
+  }
   stop() {
     this.revision++; this.playing = false;
     if (this.gain && this.context.state !== 'closed') this.gain.gain.value = 0;
