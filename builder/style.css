@@ -370,20 +370,36 @@ footer details[open] { flex-basis:100%; }
   .steps b { display:none; }
   .nav-icon { width:26px; }
 }
-/* Machines on a desktop window: the page fits the window. The header, the actions
-   and the footer stay in view; the list and the details scroll on their own, with
-   memory usage pinned under the list. */
+/* Machines on a desktop window: the page fills the window, with its header and
+   actions in view. Only the machine list scrolls inside it; the details set the
+   row's height and the list takes what is left, beside memory usage. */
 @media(min-width:1000px) and (min-height:600px) {
-  main:has([data-page="2"]:not([hidden])) { height:100dvh; min-height:0; align-items:stretch; }
-  main:has([data-page="2"]:not([hidden])) .main-stage { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
-  #builder-workspace:has([data-page="2"]:not([hidden])) { min-height:0; max-width:1280px; }
-  #builder-workspace:has([data-page="2"]:not([hidden])) ~ footer { flex:none; max-width:1280px; margin-top:14px; }
+  main:has([data-page="2"]:not([hidden])) { align-items:stretch; }
+  main:has([data-page="2"]:not([hidden])) .main-stage { display:flex; flex-direction:column; min-height:calc(100dvh - 48px); }
+  #builder-workspace:has([data-page="2"]:not([hidden])) { flex:1; min-height:0; }
   [data-page="2"]:not([hidden]) { min-height:0; }
+  [data-page="2"] .page-header { margin-bottom:14px; }
+  [data-page="2"] .page-header h1 { font-size:24px; }
   [data-page="2"] .workspace { flex:1; min-height:0; align-items:stretch; }
-  [data-page="2"] .workspace>div,[data-page="2"] .inspector { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; padding-right:8px; }
-  [data-page="2"] .workspace>div { display:flex; flex-direction:column; }
-  [data-page="2"] .machine-list { flex:1 0 auto; min-height:0; }
-  [data-page="2"] .filters { position:sticky; top:0; z-index:1; background:var(--panel); margin:0; padding-bottom:10px; }
-  [data-page="2"] .capacity { position:sticky; bottom:0; z-index:1; background:var(--panel); padding-bottom:4px; }
+  /* contain:size: the list column takes the row's height, never sets it. */
+  [data-page="2"] .workspace>div { contain:size; display:flex; flex-direction:column; min-height:280px; }
+  [data-page="2"] .machine-list { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; padding-right:6px; }
   [data-page="2"] .actions { flex:none; }
 }
+/* Compact machine rows. */
+.machine-list { --machine-row:52px; --machine-gap:4px; min-height:0; }
+.machine { grid-template-columns:22px 26px minmax(0,1fr); gap:10px; padding:6px 10px; }
+.machine label { min-height:32px; }
+.machine input { width:16px; height:16px; }
+.machine-name { font-size:14px; }
+.machine-meta { font-size:11px; margin-top:1px; }
+/* Memory: the bar alone; hovering or focusing it shows what uses the memory. */
+.capacity { flex:none; margin-top:14px; padding-top:12px; }
+.capacity-heading { margin-bottom:8px; }
+.memory-bar { position:relative; padding:4px 0; border-radius:4px; }
+.memory-bar:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+.memory-breakdown { display:none; position:absolute; left:0; right:0; bottom:calc(100% + 8px); z-index:2; padding:12px 14px; background:var(--paper); border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px #0009; }
+.memory-bar:hover .memory-breakdown,.memory-bar:focus .memory-breakdown { display:block; }
+.memory-breakdown .memory-legend { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px 16px; margin:0; }
+.memory-breakdown .machine-facts { margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
+.memory-breakdown .capacity-foot { margin:10px 0 0; font-size:11px; }
