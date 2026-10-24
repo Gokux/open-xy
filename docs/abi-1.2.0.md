@@ -32,6 +32,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Relocated tables | 13 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
 | Synth and effect controls | 3 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit; scales fine turns on owned synth and send-effect pages |
+| Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
 | Startup label | 1 | Shows `OPEN <version>-1.2.0` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
@@ -106,6 +107,16 @@ the artwork's nodes, text slots and palette entries by ID and applies each
 frame through stock's own setters: matrix words for a node's transform, palette
 selectors for its paint, path commands rewritten in place for outlines, and
 text leaves. Nothing is created or freed.
+
+Drawing input reads the GUI's existing note-start counter at `8d4d75c0` and
+the per-track 128-pitch note map at `86be3f14` (the reader at `8d5b5e88`, set
+at `8d5b5ecc`, clear at `8d5b5ea4`). The calls to clear at `8d5937ea` and
+`8d59384c` route through `sdk_note_off`: it checks whether that pitch was held,
+delegates the unchanged clear exactly once, preserves its result, and counts
+the closure. The screen reads the held count and release serial on the GUI
+side; no audio callback or cross-role publication is added. The two calls are
+authenticated profile edits. Other stock instructions and note routing remain
+unchanged. This reports stock note activity, not audio-envelope state.
 
 Stock paints the screen slots in ascending page order each frame, so page
 numbers are layers. The compositor's loop advance is hooked: when the selected

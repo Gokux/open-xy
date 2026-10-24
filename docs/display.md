@@ -53,6 +53,63 @@ every declared parameter by index (0 beyond the declared ones). A serial is a
 snapshot, not a queue: several note starts between frames can coalesce.
 Initializing or changing track must not fabricate a note.
 
+### Note activity (SDK 1.1)
+
+| Field | Meaning |
+| --- | --- |
+| `note_on_serial` | Alias of `note_serial`, the existing note-start counter. |
+| `held_notes` | Number of distinct MIDI pitches held on this track, 0..128. Repeated starts of the same pitch count once until released. |
+| `note_off_serial` | Counter of held pitches released. Duplicate releases do not increment it. Like note starts, it wraps modulo 2^32. |
+
+This is note gate activity, independent of oscillator voices, voice stealing,
+and amplitude release tails. On the device it follows stock's per-track
+note-on/off map, which stock also uses to illuminate its keyboard; it is not a
+physical-key sensor or a measurement of audible sound. Sequenced and live notes
+follow the same stock note routing. Sustain/latch behavior follows that routing;
+this API does not read the amplitude envelope or promise that sound ends at a
+note-off. Non-instrument tracks report zero.
+
+Store a zero-initialized `opxy::draw::NoteTracker` in `DisplayState` and call
+`update(input)` once per frame. Call the tracker's `reset()` in
+`display_reset`, and include its 16 bytes in the declared `stateBytes`.
+It returns `NoteEvents`:
+
+| Event | Meaning |
+| --- | --- |
+| `hold_started` | The previous frame held no pitches and this frame holds at least one. |
+| `hold_ended` | The previous frame held pitches and this frame holds none. |
+| `note_released` | `note_off_serial` changed, including when other pitches remain held. |
+
+```cpp
+const auto events = state.notes.update(input);  // notes is a NoteTracker member
+if (events.hold_started) { /* begin the held animation */ }
+if (events.hold_ended) { /* begin its release */ }
+if (events.note_released) { /* react to one or more releases */ }
+const bool held = input.held_notes <= 128 && input.held_notes != 0;
+```
+
+The first update, an update after reset, and a track change establish a
+baseline and emit no events, even if notes are already held. While `held` is
+true, accumulate `elapsed` in the machine's state to measure animation time.
+These are frame snapshots: a complete press/release between frames can leave
+the held count unchanged, while both serials advance. Such a release still
+sets `note_released`; hold edges only describe the observed frames.
+
+Browser hosts pass `{held_notes, note_off_serial}` as the optional sixth
+argument to `PreviewDisplay.tick`; the third argument remains the note-start
+serial. `NoteActivity` from `sdk/browser/display.mjs` maintains these counters
+through `noteOn(note)`, `noteOff(note)` and `panic()`, independently of audio.
+One instance describes one track. Omission reports `notes_unavailable`
+(`0xffffffff`) in `held_notes`, which clears the tracker's baseline. The SDK
+workbench and builder both supply activity, including releases with reduced
+motion enabled.
+
+Machines using these additions declare `"sdk": "1.1"` in `machine.json`.
+Existing SDK 1.0 source remains supported. New previews use drawing ABI 2 with
+a 76-byte input; the browser host also accepts existing ABI 1 previews, which
+retain their 68-byte input and do not receive activity. Rebuild old preview
+modules to use the new fields.
+
 ## Frame
 
 The frame persists between calls; the first call after reset must set every

@@ -137,7 +137,7 @@ def write_builder(kit, output):
     bundled += 'const {shownControls, inputWords} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode(
         'utf-8').replace('export ', '') + '\nreturn {shownControls, inputWords};\n})();\n'
     controls_import = "import { inputWords } from './controls.mjs';\n"
-    for namespace, file, classes in (('Retained', 'display.mjs', 'PreviewDisplay,SvgDisplay,headerSvg'),):
+    for namespace, file, classes in (('Retained', 'display.mjs', 'PreviewDisplay,SvgDisplay,headerSvg,NoteActivity'),):
         source = read(ROOT / 'sdk/browser' / file).decode('utf-8')
         require(source.count(controls_import) == 1, 'Unexpected display imports')
         bundled += 'const ' + namespace + '= (() => {\n' + source.replace(controls_import, '').replace(
