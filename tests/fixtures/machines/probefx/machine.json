@@ -4,7 +4,7 @@
   "kind": "effect",
   "description": "Test fixture: a soft-clipping send effect with a Dry control.",
   "identity": {
-    "effect": 3,
+    "effect": 21,
     "page": 21
   },
   "dryParameter": "dry"

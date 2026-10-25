@@ -13,7 +13,7 @@ const machines = ['probesynth', 'probesources', 'probesample'].map((id, i) => {
     presetDefaults: machine.presetDefaults ?? {}};
 });
 machines.push({id:'probefx', kind:'effect',
-  catalog:entry('probefx', [0, 32767, 0, 0, 0, 0, 0, 0]).replace('"type":"probefx"', '"type":"probefx","id":3')});
+  catalog:entry('probefx', [0, 32767, 0, 0, 0, 0, 0, 0]).replace('"type":"probefx"', '"type":"probefx","id":21')});
 // The numbers a layout gave: the effect's menu entry carries its own.
 const numbers = {probefx: {effect: 6, page: 21}};
 
