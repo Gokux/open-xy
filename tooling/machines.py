@@ -257,11 +257,16 @@ def read_layout(path):
     require(isinstance(value, dict) and value.get('format') == LAYOUT_FORMAT and isinstance(value.get('machines'), dict),
             f'{path} is not a machine layout ({LAYOUT_FORMAT})')
     require(value.get('profile') == profile['id'], f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
-    for name, identity in value['machines'].items():
+    return check_layout_numbers(value['machines'], 'the layout')
+
+
+def check_layout_numbers(machines, where):
+    """Layout numbers by machine ID: an engine and page, or an effect and page, each."""
+    for name, identity in machines.items():
         stock_name(name)
         require(isinstance(identity, dict) and set(identity) in ({'engine', 'page'}, {'effect', 'page'}) and
-                all(type(n) is int for n in identity.values()), f'{name}: invalid numbers in the layout')
-    return value['machines']
+                all(type(n) is int for n in identity.values()), f'{name}: invalid numbers in {where}')
+    return machines
 
 
 def layout_document(numbers):

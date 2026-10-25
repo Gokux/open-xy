@@ -465,6 +465,8 @@ ones. New numbers come from engines 34..62 and pages 82..127, never from the
 gaps in stock's own engine table, so ask for numbers in those ranges; a
 sample engine keeps its stock page. Bundled Macro Osc predates this and keeps
 engine 26.
+A [project companion](projects.md) records what a project's numbers meant by
+machine ID, for firmware with another layout.
 
 Generated adapters check record/name ownership and screen readiness before
 catalog admission; the packager authenticates firmware and constrains writes.
