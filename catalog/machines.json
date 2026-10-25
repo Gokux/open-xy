@@ -60,6 +60,16 @@
       "tag": "v1.0.0",
       "commit": "43df28f2cde2dd44b0bcadae57c30a1408b3bd73",
       "path": "."
+    },
+    {
+      "id": "pingpong",
+      "kind": "effect",
+      "maintainer": "etcetc000",
+      "status": "published",
+      "repository": "https://github.com/etcetc000/open-xy-pingpong",
+      "tag": "v1.1.1",
+      "commit": "1822fdc9560b8902be605105fcfb3f3c5bd32317",
+      "path": "."
     }
   ]
 }
