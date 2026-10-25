@@ -36,7 +36,7 @@ The [firmware contract](abi-1.2.0.md) explains where each rule comes from.
 
 Every selected machine and the SDK share **one 2040 KiB module region**: code,
 constant data and zero-initialized state together. It is the 2 MiB the
-firmware reserves from its heap, minus 4 KiB of relocated stock tables. There
+firmware reserves from its heap, minus 8 KiB of relocated stock tables. There
 is no per-machine allowance: a build that does not fit names each machine's
 share, and `sdk.py compile` and the builder's memory meter report the same
 figures. State usually dominates, since a synth's voice pool is
@@ -114,7 +114,7 @@ Controls are finite numbers in [0, 1]. Mappings support `linear`
 interpolated evenly, `power` (`maximum * value^exponent`, exponent other than 1),
 `exponential` (`minimum * (maximum/minimum)^value`) and `enum`. Display formats
 are `ratio`, `percent` (the normalized value scaled to 0.0–100.0, without a suffix), `bipolar` (a -1..1 value as a signed
-percentage), `duration`, `semitones`, `enum` and `division` (SDK 1.1: one of
+percentage), `duration`, `semitones`, `enum` and `division` (SDK 1.2: one of
 stock delay's eight note lengths, below). Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
 Parameter order and mapping changes affect saved sounds. The stock parameter
@@ -365,7 +365,7 @@ browser preview.
 
 An effect that needs memory beyond its state, such as a delay line, declares
 `"bufferBytes"` in `definition.json` `resources`: whole words, at most 524288
-(512 KiB). It needs `"sdk": "1.1"` in `machine.json`, and its `process` takes
+(512 KiB). It needs `"sdk": "1.2"` in `machine.json`, and its `process` takes
 the buffer:
 
 ```cpp
@@ -386,7 +386,7 @@ stock delay and reverb use the same memory. Its `State` is at most
 
 ### Tempo
 
-An effect declares `"transport": 1` in `resources` (SDK 1.1) to receive the
+An effect declares `"transport": 1` in `resources` (SDK 1.2) to receive the
 audio clock's tempo, read once per block, after the buffer if it has one:
 
 ```cpp

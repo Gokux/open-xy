@@ -24,9 +24,9 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includ
 # The public machine contract: headers, definition schema, artwork rules and
 # callbacks. A machine names the version it was written for; the SDK builds a
 # machine of the same major version and an equal or older minor version.
-# 1.1 adds an effect's delay buffer (resources.bufferBytes), its tempo
-# (resources.transport), division captions and display note activity.
-SDK_VERSION = (1, 1)
+# 1.1 adds display note activity; 1.2 an effect's delay buffer (resources.bufferBytes),
+# its tempo (resources.transport) and division captions.
+SDK_VERSION = (1, 2)
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
 COLLECTION = ROOT / 'profiles/collection.json'
@@ -138,7 +138,12 @@ def sdk_version(text):
     current = '%d.%d' % SDK_VERSION
     require(major == SDK_VERSION[0] and minor <= SDK_VERSION[1],
             f'The machine targets SDK {text}; this SDK is {current} and builds {SDK_VERSION[0]}.0 to {current}')
-    return text
+    return major, minor
+
+
+def require_sdk(version, minimum, feature):
+    """A feature newer than the SDK version the machine declares is refused, not misread."""
+    require(version >= minimum, f'{feature} needs "sdk": "%d.%d" in machine.json' % minimum)
 
 
 def machine(identity):
@@ -161,7 +166,7 @@ def machine_at(root, identity=None):
     require(isinstance(value, dict) and value.get('schema') == 1 and
             set(value) <= FIELDS,
             'Unexpected machine.json fields: ' + identity)
-    sdk_version(value.get('sdk'))
+    version = sdk_version(value.get('sdk'))
     kind = value.get('kind')
     require(kind in KINDS, 'Unknown machine kind: ' + str(kind))
     require(isinstance(value.get('description'), str) and 0 < len(value['description']) <= 160,
@@ -172,12 +177,12 @@ def machine_at(root, identity=None):
     icon = value.get('icon', '')
     require(icon == '' or isinstance(icon, str) and ICON.fullmatch(icon), 'icon is SVG path data')
     definition = validate_definition(json.loads((root / 'definition.json').read_text(encoding='utf-8')), kind)
-    require('bufferBytes' not in definition['resources'] or tuple(map(int, value['sdk'].split('.'))) >= (1, 1),
-            'An effect buffer (bufferBytes) needs "sdk": "1.1"')
-    require(not definition['resources'].get('transport') or tuple(map(int, value['sdk'].split('.'))) >= (1, 1),
-            'An effect\'s tempo (transport) needs "sdk": "1.1"')
-    require(all(p['display'] != 'division' for p in definition['parameters']) or
-            tuple(map(int, value['sdk'].split('.'))) >= (1, 1), 'A division control needs "sdk": "1.1"')
+    if 'bufferBytes' in definition['resources']:
+        require_sdk(version, (1, 2), 'An effect buffer (bufferBytes)')
+    if definition['resources'].get('transport'):
+        require_sdk(version, (1, 2), "An effect's tempo (transport)")
+    if any(p['display'] == 'division' for p in definition['parameters']):
+        require_sdk(version, (1, 2), 'A division control')
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
     require(root == ROOT / 'machines' / identity or not (ROOT / 'machines' / identity).exists(),
             f'A machine named {identity} is bundled with the SDK; choose another ID')
@@ -235,8 +240,11 @@ def number_pools(rules):
 
 def occupied(rules, identity):
     """What an identity holds: its engine or effect number, and its own page. Effects share
-    the FX page and sample engines a stock sample page."""
+    the FX page and sample engines a stock sample page. Stock reads a send track's effect
+    number as its engine, so an effect also holds that engine number: no engine shares it."""
     keys = [(slot, identity[slot]) for slot in ('engine', 'effect') if slot in identity]
+    if 'effect' in identity:
+        keys.append(('engine', identity['effect']))
     if 'effect' not in identity and identity['page'] not in rules['sample_pages']:
         keys.append(('page', identity['page']))
     return keys
@@ -278,6 +286,10 @@ def number_layout(rules, fixed, layout, machines):
     for name, identity in (layout or {}).items():
         if name in numbers:
             require(numbers[name] == identity, f'{name} is bundled with fixed numbers; the layout gives it others')
+        elif 'effect' in identity and identity['effect'] not in pools['effect']:
+            # An effect number later found unusable on stock (its controls never
+            # moved) is let go: the machine is numbered again like a new one.
+            continue
         else:
             hold(name, identity)
     for name, kind, requested in machines:
@@ -289,7 +301,9 @@ def number_layout(rules, fixed, layout, machines):
         identity = dict(requested)
         for slot in ('effect',) if kind == 'effect' else ('engine', 'page') if kind == 'synth' else ('engine',):
             choices = ([requested[slot]] if requested[slot] in pools[slot] else []) + pools[slot]
-            identity[slot] = next((n for n in choices if (slot, n) not in holders), None)
+            # An effect number is also held as an engine number (occupied).
+            keys = lambda n: [(slot, n)] + ([('engine', n)] if slot == 'effect' else [])
+            identity[slot] = next((n for n in choices if not any(k in holders for k in keys(n))), None)
             require(identity[slot] is not None, f'No free {slot} number for {name}: every one is held in this layout')
         hold(name, check_identity(rules, kind, identity))
     return numbers

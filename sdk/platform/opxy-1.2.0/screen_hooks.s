@@ -29,7 +29,8 @@ sdk_screen_advance:
 
 /* 8d53aa6e: the send page's value-text CALL 0x8d5ff080 (R0 = widget, R1 =
  * text), inside the loop over positions. R7 holds the position and P5 the
- * parameter vector, whose words start at [P5 + 4]; both are callee-saved, so
+ * parameter vector, whose first field [P5 + 4] points to its Q31 words (stock
+ * reads word i there and prints it as 00-99); R7 and P5 are callee-saved, so
  * they are intact here. Pass the position and its word to C++
  * (synth_controls.cpp), which makes the call itself. */
 .extern sdk_fx_value_text
