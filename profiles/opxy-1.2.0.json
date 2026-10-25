@@ -738,6 +738,42 @@
       "call": true
     },
     {
+      "kind": "hook",
+      "address": "0x8d584576",
+      "file_offset": "0x1bb952",
+      "length": 4,
+      "before": "00e31b97",
+      "symbol": "sdk_project_save",
+      "call": true
+    },
+    {
+      "kind": "text",
+      "name": "MTP path allowlist: project companion (.oxy) beside each project (.xy)",
+      "address": "0x840ab1b4",
+      "file_offset": "0x5ce2c",
+      "length": 28,
+      "before": "5e2f70726f6a656374732f776f726b73706163655c2e787924000000",
+      "after": "5e2f70726f6a656374732f776f726b73706163655c2e6f3f78792400"
+    },
+    {
+      "kind": "text",
+      "name": "MTP path allowlist: project companion (.oxy) beside each project (.xy)",
+      "address": "0x840ab1d0",
+      "file_offset": "0x5ce48",
+      "length": 64,
+      "before": "5e2f70726f6a656374732f5b5c775c645c215c2b5c2d5c405c5b5c5d20232d295d2b2f5b5c775c645c215c2b5c2d5c405c5b5c5d20232d295d2b5c2e78792400",
+      "after": "5e2f70726f6a656374732f5b5c775c215c2b5c2d5c405c5b5c5d20232d295d2b2f5b5c775c645c215c2b5c2d5c405c5b5c5d20232d295d2b5c2e6f3f78792400"
+    },
+    {
+      "kind": "text",
+      "name": "MTP path allowlist: project companion (.oxy) beside each project (.xy)",
+      "address": "0x840ab210",
+      "file_offset": "0x5ce88",
+      "length": 88,
+      "before": "5e2f70726f6a656374732f5b5c775c645c215c2b5c2d5c405c5b5c5d20232d295d2b2f5b5c775c645c215c2b5c2d5c405c5b5c5d20232d295d2b2f5b5c775c645c215c2b5c2d5c405c5b5c5d20232d295d2b5c2e78792400",
+      "after": "5e2f70726f6a656374732f5b5c775c215c2b5c2d5c405c5b5c5d20232d295d2b2f5b5c775c645c215c2b5c2d5c405c5b5c5d20232d295d2b2f5b5c775c645c215c2b5c2d5c405c5b5c5d20232d295d2b5c2e6f3f78792400"
+    },
+    {
       "kind": "startup",
       "name": "Boot-screen version label",
       "address": "0x8c0b9114",

@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = 'd3f1c4f3647f77cc65f9a22c2372bb5c6c3c928ad977559abfa318a14313b889';
+export const PROFILE_SHA256 = '3973b501d10bb0345ef6202bbbfd488c8466dbb3ddca3f785f48152eff1cd3c6';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -431,7 +431,7 @@ export async function patchFirmware(kit, linked, stock) {
       check(destination >= low && destination < low + linked.module.length, 'Hook destination outside module');
       after = redirect(edit, destination);
     } else {
-      check(['heap', 'table'].includes(edit.kind), 'Unknown edit kind');
+      check(['heap', 'table', 'text'].includes(edit.kind), 'Unknown edit kind');
       after = unhex(edit.after);
     }
     check(before.length === edit.length && after.length === edit.length, 'Patch length mismatch');

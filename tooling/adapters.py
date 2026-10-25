@@ -331,6 +331,19 @@ def generate_synth_controls(directory, machines):
                   Path(directory) / 'synth_control_table.cpp')
 
 
+
+def generate_project_companion_table(directory, machines):
+    """Each machine's ID and its number symbols, sorted by ID as a companion lists them
+    (docs/projects.md). Numbers are link-time symbols; a kit's unselected machines are 0."""
+    declarations, rows = [], []
+    for m in sorted(machines, key=lambda m: m.id):
+        number, page = (m.prefix + '_fx_id', m.prefix + '_fx_page_id') if m.kind == 'effect' else \
+            (m.prefix + '_engine_id', m.prefix + '_page_id')
+        declarations += [f'extern const char {name}[] __asm__("{name}");' for name in (number, page)]
+        rows.append(f'    {{"{m.id}", {number}, {page}, {"true" if m.kind == "effect" else "false"}}},')
+    return expand('project_companion_table.cpp.in', dict(DECLARATIONS='\n'.join(declarations), MACHINES='\n'.join(rows)),
+                  Path(directory) / 'project_companion_table.cpp')
+
 # A send slot's stock scratch memory: scratch(slot, bytes) (0x8d50d9c8), as stock
 # delay and reverb use it, only for the two send slots (docs/abi-1.2.0.md).
 FX_BUFFER_INIT = '''    // Stock's per-send scratch memory, which stock delay and reverb use the same way.

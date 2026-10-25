@@ -22,7 +22,7 @@ from . import screen, startup_label, stock_tables
 from .adapters import (catalog_entry, generate_display, generate_fx_object, generate_registration,
                        generate_registration_stock, generate_sample_voice,
                        generate_sample_callbacks, generate_screen, generate_screen_order,
-                       generate_synth_controls, generate_voice)
+                       generate_synth_controls, generate_project_companion_table, generate_voice)
 from .contributors import validate_source_boundary
 from .firmware import active_services, assemble, hook_instruction, hook_target, patch_active
 from .formats import elf32, elf_sections, require, sha
@@ -176,7 +176,8 @@ SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup'
              'hook', 'sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache', 'sample_cache_stock',
              'sample_cache_hooks', 'sample_progress', 'sample_progress_stock', 'pad_assignment',
              'pad_assignment_stock', 'drum_page', 'drum_controls_stock', 'drum_display_stock', 'screen_order',
-             'screen_hooks', 'synth_controls', 'synth_control_table', 'note_activity')
+             'screen_hooks', 'synth_controls', 'synth_control_table', 'note_activity', 'project_companion',
+             'project_companion_table')
 # SDK units that exist only for a profile service, linked when a machine needs it.
 UNIT_SERVICES = dict.fromkeys(('sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache',
                                'sample_cache_stock', 'sample_cache_hooks', 'sample_progress',
@@ -266,6 +267,8 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
                 return cxx(str(generate_sample_callbacks(folder, machines)), obj)
             if step == 'synth_control_table':
                 return cxx(str(generate_synth_controls(folder, machines)), obj)
+            if step == 'project_companion_table':
+                return cxx(str(generate_project_companion_table(folder, machines)), obj)
             if step == 'registration_stock':
                 return cxx(str(generate_registration_stock(folder)), obj)
             if step == 'divide':

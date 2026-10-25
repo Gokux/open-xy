@@ -7,17 +7,18 @@ numbers meant by machine ID, so firmware with another layout, or another
 user's firmware, can open the project with the right machines. Sections let
 other firmware features keep their own data in the same file.
 
-The firmware does not write or read companions yet. This page is the format
-they follow; [`tooling/projects.py`](../tooling/projects.py) is the reference
-reader and writer.
+Open-XY firmware writes a companion after every project save, listing its
+machines; it does not read them yet ([firmware](abi-1.2.0.md#project-companions)).
+[`tooling/projects.py`](../tooling/projects.py) is the reference reader and
+writer.
 
 ## Files
 
 `song.oxy` sits beside `song.xy`, including `workspace.oxy` beside stock's
 `/projects/workspace.xy`. Its own extension keeps stock from taking it for a
 project. Stock's MTP view shows only the paths it allows, `.xy` but not `.oxy`
-under `/projects`, so the firmware adds `.oxy` beside `.xy` to that view. Copy
-both files when you share a project.
+under `/projects`, so Open-XY firmware adds `.oxy` beside `.xy` to that view.
+Copy both files when you share a project.
 
 Firmware back on stock leaves companions in place, unread and hidden from MTP.
 A project saved on stock no longer matches its companion's
@@ -80,7 +81,7 @@ rest.
 
 A writer replacing a project rewrites its own sections. It keeps other owners'
 sections unchanged while the previous companion still matched the project it
-replaces, and drops them otherwise.
+replaces, and drops them otherwise. The firmware writes only `open-xy.machines` for now.
 
 ### Canonical form
 
@@ -91,9 +92,10 @@ a change diffs as the lines it touched. Readers accept any JSON.
 ## `open-xy.machines`
 
 Version 1. `profile` is the firmware profile that saved the project, and
-`machines` its layout's numbers by machine ID, in the layout's form: an
-`engine` and `page`, or an `effect` and `page`. A writer may list every machine
-in its layout, including ones the project does not use.
+`machines` its machines' numbers by ID, in the layout's form: an `engine` and
+`page`, or an `effect` and `page`. The firmware lists every machine it holds,
+including ones the project does not use; the host writer lists its whole
+layout.
 
 A reader with the same profile maps each listed number to that machine's
 number in its own layout. A machine missing from its layout is shown as
