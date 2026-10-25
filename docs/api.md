@@ -347,7 +347,8 @@ void process(State& state, opxy::Channel left, opxy::Channel right,
 ```
 
 Stock constructs an effect in place in its send slot on the audio thread and
-calls `initialize` once; storage starts zeroed. `process` runs once per
+calls `initialize`, which runs again on an engine reset, so keep it short;
+storage starts zeroed. `process` runs once per
 64-frame block on the stereo send buffers and replaces them in place: `left`
 and `right` are distinct 64-word Q31 buffers. `parameters` holds the stock
 eight-word vector of normalized Q31 words; the first are the one to eight
@@ -357,6 +358,29 @@ declared controls. Do not depend on the absolute level of the send buffers.
 No destructor ever runs, so it holds no resources. The generated adapter
 checks both limits at compile time. Effects use the stock FX page and have no
 browser preview.
+
+### Effect buffers
+
+An effect that needs memory beyond its state, such as a delay line, declares
+`"bufferBytes"` in `definition.json` `resources`: whole words, at most 524288
+(512 KiB). It needs `"sdk": "1.2"` in `machine.json`, and its `process` takes
+the buffer:
+
+```cpp
+void process(State& state, opxy::Buffer buffer, opxy::Channel left,
+             opxy::Channel right, opxy::Parameters parameters);
+```
+
+`buffer.words` is the send slot's scratch memory, `buffer.count` words long;
+stock delay and reverb use the same memory. Its `State` is at most
+`opxy::effect_buffered_state_bytes` (472). The buffer:
+
+- **Is never cleared:** it holds whatever the slot's previous effect, or this
+  one before an engine reset, left. Read only what the effect has written since
+  `initialize`, for example by counting the words written.
+- **Is empty outside a send:** `buffer.words` is null and `buffer.count` 0;
+  write silence then.
+- **Is per send:** an effect on both sends gets two buffers.
 
 `process` writes only the wet return. An effect may declare `dryParameter` in
 `machine.json`, naming a control with a linear 0..1 mapping. The adapter returns
@@ -398,7 +422,7 @@ source dry mixer, as described under [effects](#effects).
 | --- | --- | --- |
 | `synth` | 34..62 | Its own screen: 82..127 |
 | `sample` | 34..62 | Stock sample page 2 or 7; `padSettings` requires 7 |
-| `effect` | A free stock FX ID: 1–4, 6–8 or 11 | Stock FX page 21 |
+| `effect` | A free stock FX ID: 1, 8 or 11 | Stock FX page 21 |
 
 IDs above 32 and pages above 81 exist only in the relocated stock tables.
 Presets save a machine's name and projects its numbers, so a name never changes

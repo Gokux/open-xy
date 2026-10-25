@@ -24,7 +24,8 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includ
 # The public machine contract: headers, definition schema, artwork rules and
 # callbacks. A machine names the version it was written for; the SDK builds a
 # machine of the same major version and an equal or older minor version.
-SDK_VERSION = (1, 1)
+# 1.1 adds display note activity; 1.2 an effect's delay buffer (resources.bufferBytes).
+SDK_VERSION = (1, 2)
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
 COLLECTION = ROOT / 'profiles/collection.json'
@@ -136,7 +137,12 @@ def sdk_version(text):
     current = '%d.%d' % SDK_VERSION
     require(major == SDK_VERSION[0] and minor <= SDK_VERSION[1],
             f'The machine targets SDK {text}; this SDK is {current} and builds {SDK_VERSION[0]}.0 to {current}')
-    return text
+    return major, minor
+
+
+def require_sdk(version, minimum, feature):
+    """A feature newer than the SDK version the machine declares is refused, not misread."""
+    require(version >= minimum, f'{feature} needs "sdk": "%d.%d" in machine.json' % minimum)
 
 
 def machine(identity):
@@ -159,7 +165,7 @@ def machine_at(root, identity=None):
     require(isinstance(value, dict) and value.get('schema') == 1 and
             set(value) <= FIELDS,
             'Unexpected machine.json fields: ' + identity)
-    sdk_version(value.get('sdk'))
+    version = sdk_version(value.get('sdk'))
     kind = value.get('kind')
     require(kind in KINDS, 'Unknown machine kind: ' + str(kind))
     require(isinstance(value.get('description'), str) and 0 < len(value['description']) <= 160,
@@ -170,6 +176,8 @@ def machine_at(root, identity=None):
     icon = value.get('icon', '')
     require(icon == '' or isinstance(icon, str) and ICON.fullmatch(icon), 'icon is SVG path data')
     definition = validate_definition(json.loads((root / 'definition.json').read_text(encoding='utf-8')), kind)
+    if 'bufferBytes' in definition['resources']:
+        require_sdk(version, (1, 2), 'An effect buffer (bufferBytes)')
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
     require(root == ROOT / 'machines' / identity or not (ROOT / 'machines' / identity).exists(),
             f'A machine named {identity} is bundled with the SDK; choose another ID')
@@ -270,6 +278,10 @@ def number_layout(rules, fixed, layout, machines):
     for name, identity in (layout or {}).items():
         if name in numbers:
             require(numbers[name] == identity, f'{name} is bundled with fixed numbers; the layout gives it others')
+        elif 'effect' in identity and identity['effect'] not in pools['effect']:
+            # An effect number later found unusable on stock (its controls never
+            # moved) is let go: the machine is numbered again like a new one.
+            continue
         else:
             hold(name, identity)
     for name, kind, requested in machines:

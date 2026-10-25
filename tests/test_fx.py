@@ -72,6 +72,42 @@ void process(State& state, opxy::Channel left, opxy::Channel right, opxy::Parame
                 result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30, **hidden)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    @unittest.skipUnless(HOST_CXX, 'No working host C++ compiler (set OPXY_TEST_HOST_CXX)')
+    def test_a_buffered_effect_gets_its_send_slots_scratch(self):
+        definition = dict(machine('ringmod').definition, resources={'bufferBytes': 64})
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            generated = adapters.generate_fx_object(folder, replace(machine('ringmod'), definition=definition))
+            text = generated.read_text()
+            self.assertIn('static_assert(sizeof(State) <= opxy::effect_buffered_state_bytes', text)
+            generated.write_text(text.replace('__builtin_offsetof(Object, state) == 4',
+                                              '__builtin_offsetof(Object, state) == sizeof(void*)'))
+            # Stock functions resolve through host_stock_address on the host.
+            stock = (ROOT / 'sdk/platform/opxy-1.2.0/stock.hpp').read_text()
+            stock = stock.replace('typedef __UINTPTR_TYPE__ Address;',
+                                  'typedef __UINTPTR_TYPE__ Address;\nAddress host_stock_address(Address);')
+            stock = stock.replace('reinterpret_cast<T*>(address)', 'reinterpret_cast<T*>(host_stock_address(address))')
+            (folder / 'stock.hpp').write_text(stock)
+            (folder / 'fx.cpp').write_text('''#include <opxy/effect.hpp>
+namespace ringmod {
+struct State { unsigned initialized; };
+void initialize(State& state) { state.initialized = 1; }
+void process(State&, opxy::Buffer buffer, opxy::Channel left, opxy::Channel, opxy::Parameters) {
+    left[0] = static_cast<opxy::i32>(buffer.count);
+    if (buffer.words) buffer.words[0] = 7;
+}
+}
+''')
+            (folder / 'test.cpp').write_text((ROOT / 'tests/fixtures/fx_buffer.cpp').read_text())
+            binary = folder / ('test.exe' if os.name == 'nt' else 'test')
+            hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
+            command = [HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror', '-I' + str(folder),
+                       '-I' + str(ROOT / 'sdk/include'), str(folder / 'test.cpp'), '-o', str(binary)]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=120, **hidden)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30, **hidden)
+            self.assertEqual(result.returncode, 0, 'fixture step %d failed' % result.returncode)
+
     def test_catalog_entry_is_appended_to_fx_types_only(self):
         catalog = stock_like_catalog()
         ends = [catalog.index(b'\n    ]', catalog.index(key)) for key in (b'"engine_types"', b'"fx_types"')]
