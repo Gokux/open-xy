@@ -8,7 +8,7 @@ catalog/machines.json lists each machine once, for good:
   machine's folder in that repository. Builds fetch exactly that commit;
 - retired: no longer built, but its ID is never given to another machine.
 
-Bundled machines (machines/) hold their IDs the same way. A machine's engine,
+Open-XY's own machines are catalog entries like any other. A machine's engine,
 effect and page numbers are not the catalog's: each firmware's layout gives them
 (tooling.machines.assign_numbers).
 """
@@ -23,7 +23,7 @@ import sys
 
 from .definitions import stock_name
 from .formats import require
-from .machines import COLLECTION, discovered, machine_at, read_collection, relative_path
+from .machines import machine_at, relative_path
 from .pipeline import NO_WINDOW, ROOT
 
 CATALOG = ROOT / 'catalog/machines.json'
@@ -38,10 +38,10 @@ REPOSITORY = r'https://github\.com/[A-Za-z0-9-]+/(?!\.\.?$)[A-Za-z0-9._-]+'
 TAG = r'[A-Za-z0-9._/-]{1,64}'
 COMMIT = r'[0-9a-f]{40}'
 MAINTAINER = r'[A-Za-z0-9-]{1,39}'
-# Catalog machines that are Open-XY's own examples rather than community ones, by
+# Catalog machines that are Open-XY's own rather than community ones, by
 # ID. Maintainers keep this list; a catalog entry has no field to claim it, and
 # who hosts the repository does not decide it.
-OFFICIAL = ('karplus', 'pingpong')
+OFFICIAL = ('fm2op', 'macroosc', 'karplus', 'timestretch', 'ringmod', 'pingpong')
 
 
 def official(entry):
@@ -49,12 +49,11 @@ def official(entry):
     return entry['id'] in OFFICIAL
 
 
-def validate(value, bundled=None):
-    """A catalog document's entries, checked against each other and the bundled machines."""
+def validate(value):
+    """A catalog document's entries, checked against each other."""
     require(isinstance(value, dict) and set(value) == {'schema', 'machines'} and value['schema'] == 1 and
             isinstance(value['machines'], list), 'Unsupported catalog')
-    bundled = discovered() if bundled is None else bundled
-    names = {m.id: 'bundled' for m in bundled}
+    names = {}
     for entry in value['machines']:
         require(isinstance(entry, dict) and isinstance(entry.get('id'), str), 'Catalog entries need an id')
         name = entry['id']
@@ -236,7 +235,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog='sdk.py catalog', description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     command = parser.add_subparsers(dest='command', required=True)
-    checking = command.add_parser('check', help='validate catalog/machines.json against itself and the bundled machines')
+    checking = command.add_parser('check', help='validate catalog/machines.json')
     checking.add_argument('--base', help='a git revision to compare with, such as the pull request target')
     checking.add_argument('--allow-control-changes', action='store_true',
                           help="accept releases that change what saved parameter values mean (a catalog maintainer's approval)")
@@ -267,7 +266,7 @@ def main(argv=None):
                 for line in release_controls(before, entries, args.cache, args.allow_control_changes):
                     print(line)
             print(f'PASS: {len(entries)} catalog entr{"y" if len(entries) == 1 else "ies"}; '
-                  'IDs are unique, including against the bundled machines.')
+                  'IDs are unique.')
             return 0
         published = [e for e in entries if e['status'] == 'published']
         folders = []
@@ -278,10 +277,9 @@ def main(argv=None):
             m = fetch(entry, args.cache)
             folders.append(m.root)
             print(f"Fetched {m.id} {entry['tag']} ({entry['commit'][:12]}): {m.root}")
-        # The bundled machines, then every published machine: a collection for any build command.
+        # Every published machine, in catalog order: a collection for any build command.
         collection = Path(args.cache) / 'collection.json'
-        entries = read_collection(COLLECTION) + [{'path': os.path.relpath(f, Path(args.cache).resolve())}
-                                                 for f in folders]
+        entries = [{'path': os.path.relpath(f, Path(args.cache).resolve())} for f in folders]
         collection.parent.mkdir(parents=True, exist_ok=True)
         collection.write_text(json.dumps({'schema': 1, 'machines': entries}, indent=2) + '\n', encoding='utf-8')
         print(f'Collection: {collection} (pass it to build, compile or kit with --collection)')

@@ -29,7 +29,6 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includ
 SDK_VERSION = (1, 2)
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
-COLLECTION = ROOT / 'profiles/collection.json'
 # Folders inside a machine that are never its source: version control, caches, tools.
 IGNORED = {'.git', '__pycache__', 'node_modules', '.venv'}
 
@@ -69,21 +68,14 @@ class Machine:
     def prefix(self):
         return self.id
 
-    @property
-    def bundled(self):
-        """A machine of this repository's machines/ folder, rather than a folder elsewhere."""
-        return self.root == ROOT / 'machines' / self.id
-
     def source(self, relative=''):
-        """A machine file as the build names it: machines/<id>/... for a bundled machine, so
-        rebuilds stay byte-identical, and an absolute path for a machine elsewhere."""
-        base = 'machines/' + self.id if self.bundled else self.root.as_posix()
-        return base + ('/' + relative if relative else '')
+        """A machine file as the build names it: its absolute path."""
+        return self.root.as_posix() + ('/' + relative if relative else '')
 
     def files(self):
         """Every authored file, keyed as the build's provenance names it."""
-        key = 'machines/' + self.id if self.bundled else 'external/' + self.id
-        return {key + '/' + p.relative_to(self.root).as_posix(): p for p in tree(self.root) if p.suffix != '.md'}
+        return {'external/' + self.id + '/' + p.relative_to(self.root).as_posix(): p
+                for p in tree(self.root) if p.suffix != '.md'}
 
     def contains(self, path):
         """Whether a path lies inside this machine's folder, where build output must never go."""
@@ -146,12 +138,6 @@ def require_sdk(version, minimum, feature):
     require(version >= minimum, f'{feature} needs "sdk": "%d.%d" in machine.json' % minimum)
 
 
-def machine(identity):
-    """A bundled machine, machines/<identity>/."""
-    stock_name(identity)
-    return machine_at(ROOT / 'machines' / identity, identity)
-
-
 def machine_at(root, identity=None):
     """The machine in a folder; its definition names it."""
     root = Path(os.path.abspath(root))
@@ -184,8 +170,6 @@ def machine_at(root, identity=None):
     if any(p['display'] == 'division' for p in definition['parameters']):
         require_sdk(version, (1, 2), 'A division control')
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
-    require(root == ROOT / 'machines' / identity or not (ROOT / 'machines' / identity).exists(),
-            f'A machine named {identity} is bundled with the SDK; choose another ID')
     dry_parameter = None
     if 'dryParameter' in value:
         require(kind == 'effect' and isinstance(value['dryParameter'], str),
@@ -215,19 +199,17 @@ def machine_at(root, identity=None):
                    root=root, icon=icon, dry_parameter=dry_parameter)
 
 
-def discovered():
-    """Every machine folder in the repository, in name order."""
-    return [machine(path.parent.name) for path in sorted((ROOT / 'machines').glob('*/machine.json'))]
-
-
 # Machine numbers. Projects store a track's engine, effect and page numbers, so a
-# machine keeps its numbers in a firmware for good. Bundled machines' numbers are
-# fixed. Every other machine is given numbers by a layout: the firmware's record of
+# machine keeps its numbers in a firmware for good. The first Open-XY firmware gave
+# its own machines fixed numbers, held in every firmware whether or not it holds the
+# machine (FIXED_NUMBERS). Every other machine is given numbers by a layout: the firmware's record of
 # every number it has given out, including to machines since dropped, which stay
 # held so an old project never opens another machine. A machine new to a layout
 # gets the numbers it asks for when they are free, else the lowest free ones.
 # builder/core.mjs assignNumbers applies the same rules (tests/fixtures/numbers.json).
 LAYOUT_FORMAT = 'opxy-layout/1'
+FIXED_NUMBERS = {'fm2op': {'engine': 34, 'page': 82}, 'macroosc': {'engine': 26, 'page': 83},
+                 'ringmod': {'effect': 1, 'page': 21}, 'timestretch': {'engine': 35, 'page': 7}}
 
 
 def number_pools(rules):
@@ -285,7 +267,7 @@ def number_layout(rules, fixed, layout, machines):
         hold(name, identity)
     for name, identity in (layout or {}).items():
         if name in numbers:
-            require(numbers[name] == identity, f'{name} is bundled with fixed numbers; the layout gives it others')
+            require(numbers[name] == identity, f'{name} has fixed numbers; the layout gives it others')
         elif 'effect' in identity and identity['effect'] not in pools['effect']:
             # An effect number later found unusable on stock (its controls never
             # moved) is let go: the machine is numbered again like a new one.
@@ -310,10 +292,12 @@ def number_layout(rules, fixed, layout, machines):
 
 
 def assign_numbers(machines, layout=None, fixed=None):
-    """The machines with their numbers in this layout, and the layout after. `fixed` are
-    the bundled machines, by default this repository's."""
-    numbers = number_layout(config()['identities'],
-                            [(m.id, m.kind, m.identity) for m in (discovered() if fixed is None else fixed)],
+    """The machines with their numbers in this layout, and the layout after. `fixed` maps
+    IDs to fixed numbers, by default FIXED_NUMBERS; a machine with fixed numbers asks for them."""
+    fixed = FIXED_NUMBERS if fixed is None else fixed
+    for m in machines:
+        require(fixed.get(m.id, m.identity) == m.identity, f'{m.id} has fixed numbers; its machine.json asks for others')
+    numbers = number_layout(config()['identities'], [(name, None, identity) for name, identity in fixed.items()],
                             layout, [(m.id, m.kind, m.identity) for m in machines])
     assigned = [m if numbers[m.id] == m.identity else replace(m, identity=numbers[m.id], requested=m.identity)
                 for m in machines]
@@ -321,48 +305,48 @@ def assign_numbers(machines, layout=None, fixed=None):
 
 
 def free_synth_identity():
-    """Numbers to ask for in a new synth's machine.json: the lowest that no bundled machine holds."""
+    """Numbers to ask for in a new synth's machine.json: the lowest that no fixed numbers hold."""
     rules = config()['identities']
-    held = {key for m in discovered() for key in occupied(rules, m.identity)}
+    held = {key for identity in FIXED_NUMBERS.values() for key in occupied(rules, identity)}
     pools = number_pools(rules)
     return {slot: next(n for n in pools[slot] if (slot, n) not in held) for slot in ('engine', 'page')}
 
 
-def read_collection(path=COLLECTION, extra=()):
-    """A collection file's entries, resolved: a bundled machine's ID, or the absolute
-    folder of a machine elsewhere ({"path": ...}, relative to the file). Folders
-    in `extra` follow them."""
+def read_collection(path=None, extra=()):
+    """A collection file's entries, resolved: each machine's absolute folder
+    ({"path": ...}, relative to the file). Folders in `extra` follow them."""
+    if path is None:
+        return [{'path': str(Path(folder).resolve())} for folder in extra]
     path = Path(path)
     value = json.loads(path.read_text(encoding='utf-8'))
     require(isinstance(value, dict) and set(value) == {'schema', 'machines'} and value['schema'] == 1 and
             isinstance(value['machines'], list), 'Unsupported collection file: ' + str(path))
     entries = []
     for entry in value['machines']:
-        if isinstance(entry, dict):
-            require(set(entry) == {'path'} and isinstance(entry['path'], str),
-                    'Collection entries are IDs or {"path": ...}')
-            entries.append({'path': str((path.parent / entry['path']).resolve())})
-        else:
-            entries.append(entry)
+        require(isinstance(entry, dict) and set(entry) == {'path'} and isinstance(entry['path'], str),
+                'Collection entries are {"path": ...}: the SDK holds no machines of its own')
+        entries.append({'path': str((path.parent / entry['path']).resolve())})
     return entries + [{'path': str(Path(folder).resolve())} for folder in extra]
 
 
 def free_effect_identity():
-    """Numbers to ask for in a new effect's machine.json: the lowest effect number no bundled machine holds."""
+    """Numbers to ask for in a new effect's machine.json: the lowest effect number not fixed."""
     rules = config()['identities']
-    used = {m.identity.get('effect') for m in discovered()}
+    used = {identity.get('effect') for identity in FIXED_NUMBERS.values()}
     free = [n for n in rules['effects'] if n not in used]
-    require(free, 'Every effect number is held by a bundled machine')
+    require(free, 'Every effect number is fixed')
     return {'effect': free[0], 'page': rules['effect_page']}
 
 
 def collection(entries=None, layout=None):
     """Machines in firmware order, with their numbers in the layout: the order sets
     startup, catalog and link layout, and which machine new to the layout is numbered first.
-    Entries come from read_collection; the default is profiles/collection.json."""
-    entries = read_collection() if entries is None else entries
-    require(isinstance(entries, list) and entries, 'Collection needs machines')
-    machines = [machine_at(e['path']) if isinstance(e, dict) else machine(e) for e in entries]
+    Entries come from read_collection."""
+    entries = [] if entries is None else entries
+    require(isinstance(entries, list) and entries,
+            'Collection needs machines: pass --machine <folder>, or --collection local/catalog/collection.json '
+            'after python sdk.py catalog fetch')
+    machines = [machine_at(e['path']) for e in entries]
     identities = [m.id for m in machines]
     require(len(set(identities)) == len(identities), 'Collection needs distinct machines')
     machines, _numbers = assign_numbers(machines, layout)

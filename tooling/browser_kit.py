@@ -16,7 +16,7 @@ from .adapters import catalog_entry, sample_callbacks
 from .catalog import official
 from .definitions import control_positions
 from .formats import require, sha
-from .machines import discovered
+from .machines import FIXED_NUMBERS
 from .pipeline import ROOT, child, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
 from . import native, preview, screen
 
@@ -32,13 +32,13 @@ def notices(machines):
 
 def catalog_sources(machines, personal):
     """The release of each catalog machine at its pinned commit, by ID. A published kit
-    holds reviewed machines only: bundled ones, and those. A personal kit may hold any folder."""
+    holds reviewed machines only: those. A personal kit may hold any folder."""
     from .catalog import load, pinned
     entries = load()
     sources = {m.id: next(e for e in entries if e['id'] == m.id) for m in machines
-               if not m.bundled and pinned(m, entries)}
-    require(personal or all(m.bundled or m.id in sources for m in machines),
-            'A published kit holds the bundled machines and catalog machines at their pinned commits '
+               if pinned(m, entries)}
+    require(personal or all(m.id in sources for m in machines),
+            'A published kit holds catalog machines at their pinned commits '
             '(sdk.py catalog fetch); build other folders into a --personal kit')
     return sources
 
@@ -57,7 +57,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
         entry['catalog'] = catalog_entry(m)
         # Where the machine comes from, for the builder to show (core.mjs validOrigin): a
         # catalog machine is Open-XY's own only when maintainers list it (catalog.OFFICIAL).
-        entry['origin'] = ('bundled' if m.bundled else 'personal' if m.id not in sources
+        entry['origin'] = ('personal' if m.id not in sources
                            else 'official' if official(sources[m.id]) else 'catalog')
         if m.id in sources:
             entry['source'] = {key: sources[m.id][key] for key in ('repository', 'tag', 'commit', 'maintainer')}
@@ -103,7 +103,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
     # The release version, as the firmware's boot label shows it.
     kit = dict(format='opxy-browser-kit/1', version=native.package_version(package), profile=profile,
                profileSource=base64.b64encode(read(ROOT / ('profiles/' + profile['id'] + '.json'))).decode('ascii'),
-               definitions=stock, fixed={m.id: m.identity for m in discovered()},
+               definitions=stock, fixed=FIXED_NUMBERS,
                machines=kit_machines, objects=objects, notices=notices(machines),
                stockCatalog=base64.b64encode(stock_catalog).decode('ascii'),
                screenTemplate=screen.template().decode('utf-8'))
