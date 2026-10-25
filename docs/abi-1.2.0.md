@@ -29,7 +29,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Sample analysis | 10 | Schedules bounded background work, snapshots committed assignments, releases cached analysis and reports progress |
 | Drum-page services | 14 | Routes controls, octave publication, assignment and waveform projection for machines declaring pad settings or drum controls |
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
-| Relocated tables | 13 | Moves the engine records (63) and screen slots (128) into the last 4 KiB of the reservation |
+| Relocated tables | 22 | Moves the effect records (63), engine records (63) and screen slots (128) into the last 8 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
 | Synth and effect controls | 3 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit; scales fine turns on owned synth and send-effect pages |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
@@ -71,7 +71,7 @@ and then completes the stock epilogue it replaced.
 | --- | --- | --- | --- |
 | Engines | 63 (relocated) | 33 (stock "none"), IDs stock registers | IDs above 32 exist only with the relocated tables |
 | Screen pages | 128 (relocated) | 81 (stock "none") | Sample engines show stock page 2 or 7 instead |
-| Effects | 19 (stock) | IDs stock registers; 2–4, 6, 7 | Free IDs: 1, 8, 11; all effects use page 21 |
+| Effects | 63 (relocated) | 19 (stock "none"), IDs stock registers, stock engine IDs (2–4, 6, 7, 20, 22, 29–33) | Free IDs: 1, 8, 11, 21, 23–28, 34–62; all effects use page 21 |
 
 Presets store the engine **name**. Projects store the engine **number**.
 Firmware without the relocated tables opens a project that uses an engine above
@@ -258,7 +258,10 @@ the canonical pad; the raw note minus the canonical pad is `drum_transpose`.
 
 ## Send effects
 
-Effects live in a separate 19-entry registry. The audio mixer keeps one
+Effects live in a separate registry (19 stock entries, 63 relocated). Stock
+registers send effects and the per-track filter types in it; the filter setter
+keeps the stock bound, so IDs above 18 are send effects only. Stock firmware's
+send-slot setter (`0x8d50e0c4`) rejects types above 18. The audio mixer keeps one
 **480-byte** slot per track (`0x84c6e3b8 + 480 * slot`); the two sends are
 slots 14 and 15, and either may hold any effect, including the same one. When a
 send's effect changes, the old object fades out over a few blocks and only
@@ -273,8 +276,12 @@ A send track reports its effect ID where an instrument track reports its
 engine, and stock's parameter stepping (`0x8d5ab584`) treats that ID as an
 engine. On the first four controls, ID 2 gets engine 2's eighth-size steps,
 which round a detent to nothing, and IDs 3 and 4 get pitch stepping in cents.
-Other stock paths test engines 6 and 7. Effects therefore use only the
-unregistered IDs no stock engine holds: 1, 8 and 11.
+Other stock paths test engines 6 and 29–31, and split at 29. Effects
+therefore use only free IDs that no stock engine holds and stock never tests:
+1, 8, 11, 21, 23–28 and 34–62, never the stock "none" engine 33. For the same
+reason a layout never gives an effect and an engine the same number, so an SDK
+hook that asks about an engine number never mistakes a send track for an SDK
+engine.
 
 Stock delay, reverb and chorus keep their delay lines in a static per-send
 scratchpad, two 1 MiB regions that `scratch(slot, bytes)` (`0x8d50d9c8`)
