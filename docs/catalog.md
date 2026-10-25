@@ -12,8 +12,8 @@ effect and page numbers are not the catalog's: each firmware's
 
 ```json
 {"id": "karplus", "kind": "synth", "maintainer": "etcetc000", "status": "published",
- "repository": "https://github.com/etcetc000/open-xy-karplus", "tag": "v1.3.0",
- "commit": "617e321f8037541f283cfe46fd39ff90d5e9db8c", "path": "."}
+ "repository": "https://github.com/etcetc000/open-xy-core-machines", "tag": "v1.1.0",
+ "commit": "32b257d924f65338ac6eb82639647ade90e8ac05", "path": "machines/karplus"}
 ```
 
 | Field | Contract |
