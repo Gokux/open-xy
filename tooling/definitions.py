@@ -139,9 +139,14 @@ def validate_definition(value, kind):
     names = set()
     for i, parameter in enumerate(parameters):
         alternate = kind == 'synth' and i >= SYNTH_POSITIONS
-        validate_parameter(parameter, alternate)
+        validate_parameter(parameter, alternate, kind == 'synth' and not alternate)
         require(parameter['id'] not in names, 'Duplicate parameter identity')
         names.add(parameter['id'])
+    # A press either cycles a position's alternates or selects its next choice.
+    positions = control_positions(value) if kind == 'synth' else []
+    for i, parameter in enumerate(parameters):
+        if 'press' in parameter:
+            require(positions.count(i) == 1, 'A press selects the next choice only at a position without alternates')
     require(isinstance(value['presets'], dict) and len(value['presets']) <= 64, 'Invalid presets')
     for name, preset in value['presets'].items():
         label(name); keys(preset, names, 'preset')
@@ -177,9 +182,14 @@ def validate_display(display):
             'Display state must occupy aligned whole words')
 
 
-def validate_parameter(parameter, alternate=False):
+def validate_parameter(parameter, alternate=False, pressable=False):
     # A synth's parameters after the first four are alternates of one control position.
-    keys(parameter, ('id', 'label', 'default', 'mapping', 'display', *(('control',) if alternate else ())), 'parameter')
+    extra = ('control',) if alternate else ('press',) if pressable and 'press' in parameter else ()
+    keys(parameter, ('id', 'label', 'default', 'mapping', 'display', *extra), 'parameter')
+    if 'press' in extra:
+        require(parameter['press'] == 'next' and parameter['mapping'].get('kind') == 'enum' and
+                len(parameter['mapping'].get('labels', [])) < 256,
+                'press is "next", on an enum control of at most 255 choices')
     if alternate:
         require(type(parameter['control']) is int and 0 <= parameter['control'] < SYNTH_POSITIONS,
                 'An alternate parameter names its control position 0..3')

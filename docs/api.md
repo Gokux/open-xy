@@ -120,6 +120,11 @@ are `ratio`, `percent` (the normalized value scaled to 0.0–100.0, without a su
 percentage), `duration`, `semitones`, `enum` and `division` (SDK 1.2: one of
 stock delay's eight note lengths, below). Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
+On the device, a synth's or send effect's enum of up to 255 choices moves one
+choice per encoder detent (two when turned fast), in plain and locked edits
+alike, and stores the middle of the choice's range; a larger enum keeps stock's
+0..99 stepping. The stock value text stays 0..99; a [header value](display.md#frame)
+can name the choice.
 Parameter order and mapping changes affect saved sounds. The stock parameter
 page shows labels in lower case.
 
@@ -140,6 +145,11 @@ Browser previews show the parameter last edited at each position. See
 [Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json), whose fourth encoder
 switches between FM ratio and depth.
 
+A position without alternates may instead declare `"press": "next"` on its
+enum parameter (SDK 1.2): pressing its encoder selects the next choice,
+wrapping to the first, as a one-detent edit, so a held step records it as a
+lock.
+
 On instrument tracks, the Value, Random and Element LFOs can target every
 declared parameter of a custom synth or sample engine, including all eight
 when present. Destination names follow parameter order regardless of which
@@ -157,7 +167,7 @@ machines with more than four parameters: their saved selector values now
 address eight slots instead of four.
 
 On custom synth engine pages, Shift + turn edits the same visible parameter
-at one tenth of the normal rate. Enum choices keep their ordinary stepping.
+at one tenth of the normal rate. Enum choices keep their one-choice stepping.
 Synth amounts and bounded positive anchor-ratio captions show one decimal
 place; amounts omit the percent suffix. A machine's display can replace them with
 its own [header text](display.md#frame). Custom send effects also

@@ -292,6 +292,13 @@ def control_cycles(definition):
     return following
 
 
+def enum_steps(parameter):
+    """An enum's choice count, for stock's stepped encoder edits; 0 for any other control and for an
+    enum too large for stock's step table (fewer than 256 steps)."""
+    labels = parameter['mapping'].get('labels', []) if parameter['mapping']['kind'] == 'enum' else []
+    return len(labels) if len(labels) < 256 else 0
+
+
 def generate_synth_controls(directory, machines):
     """Synth ownership, alternate selection and continuous fine controls."""
     declarations, rows, formatters, lfo_rows = [], [], [], []
@@ -306,6 +313,9 @@ def generate_synth_controls(directory, machines):
         effect = m.kind == 'effect'
         following = (not effect and control_cycles(m.definition)) or list(range(8))
         continuous = sum(1 << i for i, p in enumerate(m.definition['parameters']) if p['mapping']['kind'] != 'enum')
+        steps = [enum_steps(p) for p in m.definition['parameters']]
+        steps += [0] * (8 - len(steps))
+        press = sum(1 << i for i, p in enumerate(m.definition['parameters']) if p.get('press') == 'next')
         declarations.append(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");')
         # The engine or effect ID is an absolute symbol the linker supplies.
         id_symbol = m.prefix + ('_fx_id' if effect else '_engine_id')
@@ -335,7 +345,7 @@ def generate_synth_controls(directory, machines):
                              '        return true;'])
         body.extend(['    default: return false;', '    }', '}'])
         formatters.append('\n'.join(body))
-        rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, {m.prefix}_format, {'true' if effect else 'false'}}},")
+        rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, {{{', '.join(map(str, steps))}}}, {press}, {m.prefix}_format, {'true' if effect else 'false'}}},")
     return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows), FORMATTERS='\n'.join(formatters), LFO_MACHINES='\n'.join(lfo_rows)),
                   Path(directory) / 'synth_control_table.cpp')
 
