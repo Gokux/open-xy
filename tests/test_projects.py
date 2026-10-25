@@ -10,8 +10,8 @@ import unittest
 from tooling.machines import LAYOUT_FORMAT
 from tooling import native
 from tooling.adapters import generate_project_companion_table
-from tooling.machines import collection
 from tooling.pipeline import ROOT, config
+from machine_fixtures import NAMES, fixture
 from tooling.projects import (LIMIT, MACHINES, canonical, companion, companion_path, main, parse, saved_numbers, translation)
 
 PROJECT = bytes(range(256)) * 4
@@ -153,10 +153,11 @@ class FirmwareWriter(unittest.TestCase):
 
     def test_table_lists_each_machine_by_id_with_its_number_symbols(self):
         with tempfile.TemporaryDirectory() as directory:
-            source = generate_project_companion_table(directory, collection()).read_text()
+            machines = [fixture(name) for name in NAMES]
+            source = generate_project_companion_table(directory, machines).read_text()
         ids = re.findall(r'\{"([a-z0-9]+)", ', source)
-        self.assertEqual(ids, sorted(m.id for m in collection()))
-        self.assertIn('{"ringmod", ringmod_fx_id, ringmod_fx_page_id, true},', source)
+        self.assertEqual(ids, sorted(m.id for m in machines))
+        self.assertIn('{"probefx", probefx_fx_id, probefx_fx_page_id, true},', source)
 
 
 if __name__ == '__main__':
