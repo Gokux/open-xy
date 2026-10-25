@@ -3,6 +3,7 @@
 catalog/machines.json lists each machine once, for good:
 
 - reserved: an ID held for a machine being written;
+- draft: a release pinned for review, like a published one, but not built yet;
 - published: also a repository, the release tag and its commit, and the
   machine's folder in that repository. Builds fetch exactly that commit;
 - retired: no longer built, but its ID is never given to another machine.
@@ -28,7 +29,7 @@ from .pipeline import NO_WINDOW, ROOT
 CATALOG = ROOT / 'catalog/machines.json'
 # Fetched machine sources: third-party code, never firmware, so it may live in local/.
 CACHE = ROOT / 'local/catalog'
-STATUSES = ('reserved', 'published', 'retired')
+STATUSES = ('reserved', 'draft', 'published', 'retired')
 COMMON = {'id', 'kind', 'maintainer', 'status'}
 RELEASE = {'repository', 'tag', 'commit', 'path'}
 # A release's fields; builder/core.mjs validSource checks kits with the same patterns
@@ -59,7 +60,7 @@ def validate(value, bundled=None):
         name = entry['id']
         status = entry.get('status')
         require(status in STATUSES, f'{name}: status is one of {", ".join(STATUSES)}')
-        required = COMMON | (RELEASE if status == 'published' else set())
+        required = COMMON | (RELEASE if status in ('draft', 'published') else set())
         # A retired machine keeps its whole last release, or none of it.
         if status == 'retired' and RELEASE & set(entry):
             required = COMMON | RELEASE
@@ -83,8 +84,10 @@ def validate(value, bundled=None):
     return value['machines']
 
 
-# A machine's status only moves forward; retired is final.
-MOVES = {'reserved': {'reserved', 'published', 'retired'}, 'published': {'published', 'retired'},
+# A machine's status moves forward, except that a published machine may go back to
+# draft until it is ready, keeping its ID; retired is final.
+MOVES = {'reserved': {'reserved', 'draft', 'published', 'retired'},
+         'draft': {'draft', 'published', 'retired'}, 'published': {'published', 'draft', 'retired'},
          'retired': {'retired'}}
 
 
