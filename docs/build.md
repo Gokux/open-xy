@@ -26,7 +26,11 @@ and installs it in `local/toolchain`, which every native command uses when
 ### On Linux
 
 Linux x86_64 has no download yet; build the pinned tools with Docker instead,
-from the checkout (it takes several minutes):
+from the checkout (it takes several minutes). The tools then run on any
+x86_64 distribution with glibc 2.36 or later, such as Debian 12, Ubuntu 24.04,
+Fedora 37 or Arch; Ubuntu 22.04 and musl-based distributions such as Alpine
+are too old or incompatible. The `z` mount option lets the container read and
+write the checkout on SELinux hosts such as Fedora, and changes nothing elsewhere.
 
 ```sh
 git init local/blackfin-plus-gnu
@@ -35,9 +39,9 @@ git -C local/blackfin-plus-gnu checkout FETCH_HEAD
 mkdir local/toolchain-build
 docker build -t open-xy-toolchain-linux - < tools/gcc/linux.Dockerfile
 docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
-  -v "$PWD":/opt/opxy-toolchain/open-xy:ro \
-  -v "$PWD/local/blackfin-plus-gnu":/opt/opxy-toolchain/fork \
-  -v "$PWD/local/toolchain-build":/opt/opxy-toolchain/out \
+  -v "$PWD":/opt/opxy-toolchain/open-xy:ro,z \
+  -v "$PWD/local/blackfin-plus-gnu":/opt/opxy-toolchain/fork:z \
+  -v "$PWD/local/toolchain-build":/opt/opxy-toolchain/out:z \
   open-xy-toolchain-linux /opt/opxy-toolchain/open-xy/tools/gcc/build-linux.sh \
   /opt/opxy-toolchain/fork /opt/opxy-toolchain/out/blackfin
 mv local/toolchain-build/blackfin local/toolchain
@@ -57,7 +61,8 @@ It must show "3. dev menu"; if not, enable it with the
    "2. mtp file transfer (mac)", and wait for "mtp mode active". Open the
    device in File Explorer, or in OpenMTP on a Mac (quit Field Kit first).
    On Linux, use track 3 and open the device in your file manager; GNOME
-   Files lists it as "OP XY".
+   Files lists it as "OP XY". The file manager needs MTP support (gvfs on
+   GNOME or Cinnamon, kio-extras on KDE).
 3. Copy the OS into a folder outside every checkout:
 
 ```text
