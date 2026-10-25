@@ -24,7 +24,8 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includ
 # The public machine contract: headers, definition schema, artwork rules and
 # callbacks. A machine names the version it was written for; the SDK builds a
 # machine of the same major version and an equal or older minor version.
-# 1.1 adds an effect's delay buffer (resources.bufferBytes) and display note activity.
+# 1.1 adds an effect's delay buffer (resources.bufferBytes), its tempo
+# (resources.transport), division captions and display note activity.
 SDK_VERSION = (1, 1)
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
@@ -173,6 +174,10 @@ def machine_at(root, identity=None):
     definition = validate_definition(json.loads((root / 'definition.json').read_text(encoding='utf-8')), kind)
     require('bufferBytes' not in definition['resources'] or tuple(map(int, value['sdk'].split('.'))) >= (1, 1),
             'An effect buffer (bufferBytes) needs "sdk": "1.1"')
+    require(not definition['resources'].get('transport') or tuple(map(int, value['sdk'].split('.'))) >= (1, 1),
+            'An effect\'s tempo (transport) needs "sdk": "1.1"')
+    require(all(p['display'] != 'division' for p in definition['parameters']) or
+            tuple(map(int, value['sdk'].split('.'))) >= (1, 1), 'A division control needs "sdk": "1.1"')
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
     require(root == ROOT / 'machines' / identity or not (ROOT / 'machines' / identity).exists(),
             f'A machine named {identity} is bundled with the SDK; choose another ID')

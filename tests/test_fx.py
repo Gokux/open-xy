@@ -108,6 +108,26 @@ void process(State&, opxy::Buffer buffer, opxy::Channel left, opxy::Channel, opx
             result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30, **hidden)
             self.assertEqual(result.returncode, 0, 'fixture step %d failed' % result.returncode)
 
+    def test_a_tempo_effect_reads_the_audio_transport(self):
+        definition = dict(machine('ringmod').definition, resources={'transport': 1})
+        with tempfile.TemporaryDirectory() as directory:
+            text = adapters.generate_fx_object(Path(directory), replace(machine('ringmod'), definition=definition)).read_text()
+            self.assertIn('#include "stock.hpp"', text)
+            self.assertIn('process(object->state, opxy::platform::audio_transport(), left, right, parameters)', text)
+            plain = adapters.generate_fx_object(Path(directory), machine('ringmod')).read_text()
+            self.assertIn('process(object->state, left, right, parameters)', plain)
+
+    def test_send_pages_name_only_division_controls(self):
+        parameters = [dict(p) for p in machine('ringmod').definition['parameters']]
+        parameters[0] = dict(parameters[0], display='division', mapping={'kind': 'linear', 'minimum': 0, 'maximum': 1})
+        effect = replace(machine('ringmod'), definition=dict(machine('ringmod').definition, parameters=parameters))
+        with tempfile.TemporaryDirectory() as directory:
+            text = adapters.generate_synth_controls(Path(directory), [effect]).read_text()
+            body = text[text.index('static bool ringmod_format'):text.index('const SynthControls')]
+            self.assertIn('case 0:\n        control_division(text, value);', body)
+            self.assertNotIn('case 1', body)
+            self.assertNotIn('control_tenths', body)
+
     def test_catalog_entry_is_appended_to_fx_types_only(self):
         catalog = stock_like_catalog()
         ends = [catalog.index(b'\n    ]', catalog.index(key)) for key in (b'"engine_types"', b'"fx_types"')]

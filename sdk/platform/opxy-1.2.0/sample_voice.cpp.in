@@ -42,18 +42,10 @@ static const void* published_sample() {
 }
 
 // Audio-role globals.
-static const opxy::u32 kPlaying = 0x860d37f5;          // two bytes; either set while playing
-static const opxy::u32 kTicks96 = 0x86bd9d3c;
 static const opxy::u32 kTrackParameters = 0x84eb3bc8;  // per-track words, stride 0xe8 (stock 8d5181a4)
 static const opxy::u32 kTransposeParameter = 0xd0;
 static const opxy::u32 kVoiceRegion = 0x84ebba70;      // region record of the voice being rendered
 
-// Audio clock tempo, decoded without floating-point work on the callback.
-static opxy::Transport transport() {
-    using namespace opxy::platform;
-    return opxy::Transport{audio_bpm_x10(), word(kTicks96),
-                           byte(kPlaying) || byte(kPlaying + 1)};
-}
 static opxy::i32 track_transpose(opxy::u32 track) {
     if (track >= opxy::platform::kTracks) return 0;
     return opxy::platform::sample_track_transpose(
@@ -168,7 +160,7 @@ static int render(void* self, opxy::i32* output, const opxy::i32* parameters) {
         slot->pitch_cents = opxy::platform::sample_pitch_cents(factor);
     }
     // The drum page edits outer markers only; hidden inner loop markers do not narrow playback.
-    const opxy::SampleBlock block{output, parameters, increments, transport(),
+    const opxy::SampleBlock block{output, parameters, increments, opxy::platform::audio_transport(),
         opxy::platform::sample_region(region, slot->frames, slot->pitch_cents, @DRUM_CONTROLS@ != 0), slot->analysis,
         settings(region), @STEREO@ ? 2u : 1u, track_transpose(slot->track), slot->drum_transpose};
     @NAMESPACE@::render_sample(slot->voice, block);

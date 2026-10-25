@@ -26,3 +26,26 @@ sdk_screen_advance:
     CC = R0 == 1;
     RTS;
 .size sdk_screen_advance, .-sdk_screen_advance
+
+/* 8d53aa6e: the send page's value-text CALL 0x8d5ff080 (R0 = widget, R1 =
+ * text), inside the loop over positions. R7 holds the position and P5 the
+ * parameter vector, whose words start at [P5 + 4]; both are callee-saved, so
+ * they are intact here. Pass the position and its word to C++
+ * (synth_controls.cpp), which makes the call itself. */
+.extern sdk_fx_value_text
+.global sdk_fx_value
+.type sdk_fx_value, STT_FUNC
+sdk_fx_value:
+    LINK 0;
+    SP += -16;          /* argument area and the fourth argument */
+    P2 = R7;
+    P1 = [P5 + 4];
+    P1 = P1 + (P2 << 2);
+    R3 = [P1];
+    [SP + 12] = R3;
+    R2 = R7;
+    CALL sdk_fx_value_text;
+    SP += 16;
+    UNLINK;
+    RTS;
+.size sdk_fx_value, .-sdk_fx_value

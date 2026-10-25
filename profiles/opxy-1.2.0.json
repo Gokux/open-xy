@@ -712,6 +712,15 @@
     },
     {
       "kind": "hook",
+      "address": "0x8d53aa6e",
+      "file_offset": "0x171e4a",
+      "length": 4,
+      "before": "06e30923",
+      "symbol": "sdk_fx_value",
+      "call": true
+    },
+    {
+      "kind": "hook",
       "address": "0x8d5937ea",
       "file_offset": "0x1cabc6",
       "length": 4,

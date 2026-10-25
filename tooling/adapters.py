@@ -307,6 +307,13 @@ def generate_synth_controls(directory, machines):
             mapping = p['mapping']
             if mapping['kind'] == 'enum':
                 continue
+            # Stock delay's note-length names. Send pages keep stock captions
+            # for every other control.
+            if p['display'] == 'division':
+                body.extend([f'    case {i}:', '        control_division(text, value);', '        return true;'])
+                continue
+            if effect:
+                continue
             # Compact native ratio captions; unusual/signed ranges retain the
             # stock normalized display, with an extra decimal place.
             if p['display'] == 'ratio' and mapping['kind'] == 'anchors' and 0 <= mapping['values'][0] < mapping['values'][-1] <= 1000:
@@ -345,6 +352,12 @@ def generate_fx_object(directory, m):
                       INIT=FX_BUFFER_INIT.format(bytes=bytes_),
                       BUFFER=f'opxy::Buffer{{object->buffer, object->buffer ? {bytes_ // 4}u : 0u}}, ',
                       RESET='    object->buffer = nullptr;')
+    # A tempo-aware effect reads the audio clock's transport once per block.
+    if m.definition['resources'].get('transport'):
+        values['OBJECT'] = '#include "stock.hpp"\n' + values['OBJECT'].replace('#include "stock.hpp"\n', '')
+        values['TRANSPORT'] = 'opxy::platform::audio_transport(), '
+    else:
+        values['TRANSPORT'] = ''
     return expand('fx_object.cpp.in', dict(values, PREFIX=m.prefix, NAMESPACE=m.definition['id'],
                                            NAME=m.native_name, LABELS=stock_labels(m),
                                            DRY_LEVEL='0x7fffffff' if m.dry_parameter is None else
