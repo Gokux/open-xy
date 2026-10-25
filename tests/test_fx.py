@@ -1,6 +1,7 @@
 """Send effects: generated adapters and catalog entries."""
 import json
 import os
+import re
 from dataclasses import replace
 from pathlib import Path
 import subprocess
@@ -127,6 +128,13 @@ void process(State&, opxy::Buffer buffer, opxy::Channel left, opxy::Channel, opx
             self.assertIn('case 0:\n        control_division(text, value);', body)
             self.assertNotIn('case 1', body)
             self.assertNotIn('control_tenths', body)
+
+    def test_device_and_browser_name_divisions_alike(self):
+        native = (ROOT / 'sdk/platform/opxy-1.2.0/synth_controls.cpp').read_text()
+        browser = (ROOT / 'sdk/browser/controls.mjs').read_text()
+        names = lambda text, pattern: re.findall(r'"([^"]+)"', re.search(pattern, text, re.S).group(1).replace("'", '"'))
+        self.assertEqual(names(native, r'names\[8\] = \{(.*?)\};'), names(browser, r'DIVISIONS = \[(.*?)\];'))
+        self.assertEqual(len(names(native, r'names\[8\] = \{(.*?)\};')), 8)
 
     def test_catalog_entry_is_appended_to_fx_types_only(self):
         catalog = stock_like_catalog()

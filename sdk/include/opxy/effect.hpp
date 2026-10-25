@@ -12,7 +12,7 @@ namespace opxy {
 // header and never destroys it, so State holds no resources. initialize runs
 // after construction and again on an engine reset: keep it short.
 //
-// An effect that declares resources.bufferBytes (SDK 1.1) takes a buffer too:
+// An effect that declares resources.bufferBytes (SDK 1.2) takes a buffer too:
 //   void process(State& state, opxy::Buffer buffer, opxy::Channel left,
 //                opxy::Channel right, opxy::Parameters parameters);
 // The buffer is stock's per-send scratch memory: it outlives the effect and is
@@ -20,7 +20,7 @@ namespace opxy {
 // a send slot it is empty (count 0); then write silence. Its State is at most
 // effect_buffered_state_bytes, since the slot also holds the buffer's address.
 //
-// An effect that declares resources.transport 1 (SDK 1.1) also takes the
+// An effect that declares resources.transport 1 (SDK 1.2) also takes the
 // tempo, read once per block, after the buffer if it has one:
 //   void process(State& state, [opxy::Buffer buffer,] const opxy::Transport& transport,
 //                opxy::Channel left, opxy::Channel right, opxy::Parameters parameters);

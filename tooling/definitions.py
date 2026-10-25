@@ -73,8 +73,8 @@ ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
 # A sample engine's optional services: integer 0/1 flags and the analysis budget.
 SAMPLE_FLAGS = ('chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput')
 SAMPLE_OPTIONS = ('sampleAnalysis', *SAMPLE_FLAGS)
-# An effect's optional delay memory (SDK 1.1): stock's per-send scratch, at most
-# 512 KiB; and transport 1 for the tempo in process (SDK 1.1).
+# An effect's optional delay memory (SDK 1.2): stock's per-send scratch, at most
+# 512 KiB; and transport 1 for the tempo in process (SDK 1.2).
 EFFECT_OPTIONS = ('bufferBytes', 'transport')
 EFFECT_BUFFER_LIMIT = 524288
 DISPLAY_FORMATS = ('ratio', 'percent', 'bipolar', 'duration', 'semitones', 'enum', 'division')
