@@ -71,7 +71,7 @@ and then completes the stock epilogue it replaced.
 | --- | --- | --- | --- |
 | Engines | 63 (relocated) | 33 (stock "none"), IDs stock registers | IDs above 32 exist only with the relocated tables |
 | Screen pages | 128 (relocated) | 81 (stock "none") | Sample engines show stock page 2 or 7 instead |
-| Effects | 19 (stock) | IDs stock registers | Free IDs: 1–4, 6–8, 11; all effects use page 21 |
+| Effects | 19 (stock) | IDs stock registers; 2–4, 6, 7 | Free IDs: 1, 8, 11; all effects use page 21 |
 
 Presets store the engine **name**. Projects store the engine **number**.
 Firmware without the relocated tables opens a project that uses an engine above
@@ -268,6 +268,13 @@ an engine reset, then `process(left, right, parameters)` once per 64-sample
 block on in-place stereo buffers. **No destructor ever runs**, so an effect may
 hold no resources. The first slot word is the object's method table, which
 leaves 476 bytes of effect state.
+
+A send track reports its effect ID where an instrument track reports its
+engine, and stock's parameter stepping (`0x8d5ab584`) treats that ID as an
+engine. On the first four controls, ID 2 gets engine 2's eighth-size steps,
+which round a detent to nothing, and IDs 3 and 4 get pitch stepping in cents.
+Other stock paths test engines 6 and 7. Effects therefore use only the
+unregistered IDs no stock engine holds: 1, 8 and 11.
 
 Stock delay, reverb and chorus keep their delay lines in a static per-send
 scratchpad, two 1 MiB regions that `scratch(slot, bytes)` (`0x8d50d9c8`)

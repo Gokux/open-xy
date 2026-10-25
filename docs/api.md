@@ -422,7 +422,7 @@ source dry mixer, as described under [effects](#effects).
 | --- | --- | --- |
 | `synth` | 34..62 | Its own screen: 82..127 |
 | `sample` | 34..62 | Stock sample page 2 or 7; `padSettings` requires 7 |
-| `effect` | A free stock FX ID: 1–4, 6–8 or 11 | Stock FX page 21 |
+| `effect` | A free stock FX ID: 1, 8 or 11 | Stock FX page 21 |
 
 IDs above 32 and pages above 81 exist only in the relocated stock tables.
 Presets save a machine's name and projects its numbers, so a name never changes
