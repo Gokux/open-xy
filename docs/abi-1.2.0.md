@@ -31,7 +31,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
 | Relocated tables | 22 | Moves the effect records (63), engine records (63) and screen slots (128) into the last 8 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
-| Synth and effect controls | 3 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit; scales fine turns on owned synth and send-effect pages |
+| Synth and effect controls | 4 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit; scales fine turns on owned synth and send-effect pages; names an owned effect's division values on the send page |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
 | Startup label | 1 | Shows `OPEN <version>-1.2.0` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
@@ -158,7 +158,10 @@ The adapter's callback names the shown parameter, and the screen shell passes st
 of the vector with each position's shown word in place. Generated metadata
 then supplies one-decimal amounts (0.0–100.0 without a suffix) and bounded positive
 anchor-ratio captions on custom synth screens; enums and machine text overrides remain
-discrete. FX pages retain their stock captions.
+discrete. FX pages retain their stock captions, except that a send page
+hook (`8d53aa6e`, the value-text call in its loop over positions) lets an owned
+effect name a `division` control's value, as stock does only for its delay
+(effect 0, table `0x840535fc`).
 
 ## Sample engines
 

@@ -73,10 +73,11 @@ ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
 # A sample engine's optional services: integer 0/1 flags and the analysis budget.
 SAMPLE_FLAGS = ('chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput')
 SAMPLE_OPTIONS = ('sampleAnalysis', *SAMPLE_FLAGS)
-# An effect's optional delay memory (SDK 1.2): stock's per-send scratch, at most 512 KiB.
-EFFECT_OPTIONS = ('bufferBytes',)
+# An effect's optional delay memory (SDK 1.2): stock's per-send scratch, at most
+# 512 KiB; and transport 1 for the tempo in process (SDK 1.2).
+EFFECT_OPTIONS = ('bufferBytes', 'transport')
 EFFECT_BUFFER_LIMIT = 524288
-DISPLAY_FORMATS = ('ratio', 'percent', 'bipolar', 'duration', 'semitones', 'enum')
+DISPLAY_FORMATS = ('ratio', 'percent', 'bipolar', 'duration', 'semitones', 'enum', 'division')
 # Every kind's parameters occupy the stock eight-word parameter vector in order.
 # A synth's first four fill the four-control page; up to four more are alternates
 # (see control_positions). Sample engines and effects use one to eight.
@@ -127,6 +128,8 @@ def validate_definition(value, kind):
         require(4 <= size <= EFFECT_BUFFER_LIMIT and size % 4 == 0,
                 'bufferBytes is whole words, at most %d: the per-send scratch memory stock gives an effect'
                 % EFFECT_BUFFER_LIMIT)
+    if kind == 'effect':
+        require(resources.get('transport', 0) in (0, 1), 'transport must be 0 or 1')
     if kind == 'synth':
         validate_synth_resources(resources)
     parameters = value['parameters']
@@ -183,6 +186,8 @@ def validate_parameter(parameter, alternate=False):
     identifier(parameter['id']); control_label(parameter['label'])
     number(parameter['default'], 0, 1, 'normalized default')
     require(parameter['display'] in DISPLAY_FORMATS, 'Unsupported display format')
+    require(parameter['display'] != 'division' or parameter['mapping'] == {'kind': 'linear', 'minimum': 0, 'maximum': 1},
+            'A division control maps linearly from 0 to 1')
     mapping = parameter['mapping']
     require(isinstance(mapping, dict), 'Invalid mapping')
     kind = mapping.get('kind')

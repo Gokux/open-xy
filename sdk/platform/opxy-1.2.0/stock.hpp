@@ -1,6 +1,7 @@
 // Stock OS 1.2.0 functions and globals that more than one platform unit uses.
 // Addresses used by a single unit stay beside that unit's code.
 #pragma once
+#include <opxy/transport.hpp>
 #include <opxy/types.hpp>
 
 namespace opxy { namespace platform {
@@ -31,6 +32,13 @@ inline u32 audio_bpm_x10() {
     if (bits < 0x41a00000u || bits > 0x43960000u) return 0;
     const u32 shift = 150u - (bits >> 23);
     return (((bits & 0x007fffffu) | 0x00800000u) * 10u + (1u << (shift - 1u))) >> shift;
+}
+
+// Audio-role transport, read once per block without floating-point work.
+const u32 kPlaying = 0x860d37f5;  // two bytes; either set while playing
+const u32 kTicks96 = 0x86bd9d3c;
+inline Transport audio_transport() {
+    return Transport{audio_bpm_x10(), word(kTicks96), byte(kPlaying) || byte(kPlaying + 1)};
 }
 
 // Assignment runs on the GUI side. Read the project's stored tenths of BPM,

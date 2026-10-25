@@ -114,7 +114,8 @@ Controls are finite numbers in [0, 1]. Mappings support `linear`
 interpolated evenly, `power` (`maximum * value^exponent`, exponent other than 1),
 `exponential` (`minimum * (maximum/minimum)^value`) and `enum`. Display formats
 are `ratio`, `percent` (the normalized value scaled to 0.0–100.0, without a suffix), `bipolar` (a -1..1 value as a signed
-percentage), `duration`, `semitones` and `enum`. Mappings describe
+percentage), `duration`, `semitones`, `enum` and `division` (SDK 1.2: one of
+stock delay's eight note lengths, below). Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
 Parameter order and mapping changes affect saved sounds. The stock parameter
 page shows labels in lower case.
@@ -141,7 +142,8 @@ at one tenth of the normal rate. Enum choices keep their ordinary stepping.
 Synth amounts and bounded positive anchor-ratio captions show one decimal
 place; amounts omit the percent suffix. A machine's display can replace them with
 its own [header text](display.md#frame). Custom send effects also
-use the slower Shift rate for continuous controls, with stock FX captions.
+use the slower Shift rate for continuous controls, with stock FX captions
+except for `division` controls.
 
 A sample engine declares `voiceCapacity`, which must be 256 (stock creates a
 voice for each of its 256 voice indices and binds each to its sample), and the
@@ -381,6 +383,25 @@ stock delay and reverb use the same memory. Its `State` is at most
 - **Is empty outside a send:** `buffer.words` is null and `buffer.count` 0;
   write silence then.
 - **Is per send:** an effect on both sends gets two buffers.
+
+### Tempo
+
+An effect declares `"transport": 1` in `resources` (SDK 1.2) to receive the
+audio clock's tempo, read once per block, after the buffer if it has one:
+
+```cpp
+void process(State& state, opxy::Buffer buffer, const opxy::Transport& transport,
+             opxy::Channel left, opxy::Channel right, opxy::Parameters parameters);
+```
+
+`transport.bpm_x10` is the tempo in tenths of BPM, or 0 when there is none
+(see [`opxy/transport.hpp`](../sdk/include/opxy/transport.hpp)). A control with
+`"display": "division"` and a linear 0..1 mapping picks one of stock delay's
+note lengths, an eighth of its travel each: 1/32, 1/32 dotted, 1/16, 1/16
+dotted, 1/8, 1/8 dotted, 1/4 and 1/2. `opxy::division(control)` gives the index
+and `opxy::division_sixteenths` the length in sixteenths of a quarter note, and
+the send page shows the length's name in place of the number, as for stock
+delay's Size.
 
 `process` writes only the wet return. An effect may declare `dryParameter` in
 `machine.json`, naming a control with a linear 0..1 mapping. The adapter returns

@@ -3,6 +3,7 @@
 // ABI. A press of an owned synth's encoder selects the position's next
 // parameter; a turn edits the selected one. Everything else reaches stock as before.
 #include "synth_controls.hpp"
+#include <opxy/effect.hpp>
 #include "stock.hpp"
 
 extern "C" {
@@ -130,6 +131,17 @@ u32 sdk_effect_turn(u32 project, u32 track, u32 index, u32 event) {
     return stock<u32(u32, u32, u32, u32)>(0x8d5ab8ec)(project, track, index, event);
 }
 
+// 8d53aa6e: the send page sets each position's value text (stock's "%02i" of
+// the word) with 0x8d5ff080(widget, text). An owned effect on a send track may
+// name the value instead; the text is copied before this returns.
+u32 sdk_fx_value_text(u32 widget, const char* text, u32 index, opxy::i32 value) {
+    static char caption[16];
+    const u32 track = selected_track();
+    const SynthControls* m = (track == 14 || track == 15) && index < 4 ? owned(track_engine(track), true) : nullptr;
+    if (m && m->format(index, value, caption)) text = caption;
+    return stock<u32(u32, const char*)>(0x8d5ff080)(widget, text);
+}
+
 bool sdk_synth_value(u32 track, u32 slot, opxy::i32 value, char* text) {
     Track* t;
     const SynthControls* m = machine(track, t);
@@ -146,6 +158,11 @@ void control_tenths(char* text, u32 tenths, const char* suffix) {
     *text++ = static_cast<char>('0' + tenths % 10);
     while (*suffix) *text++ = *suffix++;
     *text = 0;
+}
+void control_division(char* text, i32 value) {
+    static const char* const names[8] = {"1/32", "1/32 dotted", "1/16", "1/16 dotted",
+                                         "1/8", "1/8 dotted", "1/4", "1/2"};
+    for (const char* name = names[division(value)]; (*text = *name); ++text, ++name) {}
 }
 u32 control_ratio(i32 value, const u32* anchors, u32 count) {
     const u32 q15 = value < 0 ? 0 : static_cast<u32>(value) >> 16;

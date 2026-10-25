@@ -1,4 +1,5 @@
 // Shared control/patch plumbing. Descriptors are validated by the SDK generator.
+const DIVISIONS = ['1/32', '1/32 dotted', '1/16', '1/16 dotted', '1/8', '1/8 dotted', '1/4', '1/2'];
 function freeze(value) {
   if (value && typeof value === 'object') {
     for (const child of Object.values(value)) freeze(child);
@@ -79,6 +80,8 @@ export function createControls(input) {
     if (parameter.display === 'bipolar') return `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
     if (parameter.display === 'semitones') return `${v > 0 ? '+' : ''}${v.toFixed(1)} st`;
     if (parameter.display === 'duration') return v < 1000 ? `${Math.round(v)} ms` : `${(v / 1000).toFixed(2)} s`;
+    // Stock delay's note lengths, by the Q31 word >> 28 as on the device.
+    if (parameter.display === 'division') return DIVISIONS[Math.round(value[id] * 0x7fffffff) >>> 28];
     return (value[id] * 100).toFixed(1);
   }
   function q31(value) {

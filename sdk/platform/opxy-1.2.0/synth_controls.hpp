@@ -20,6 +20,8 @@ struct SynthControls {
 // GUI-only, bounded one-decimal formatting. Caller provides 16 bytes.
 void control_tenths(char* text, u32 tenths, const char* suffix);
 u32 control_ratio(i32 value, const u32* anchors, u32 count);
+// Stock delay's name for the note length a division control selects.
+void control_division(char* text, i32 value);
 }}
 
 extern "C" {
@@ -33,4 +35,8 @@ bool sdk_synth_value(opxy::u32 track, opxy::u32 slot, opxy::i32 value, char* tex
 // owned synth, as last refreshed; other indices and engines map to themselves.
 // For stock control titles.
 opxy::u32 sdk_synth_title_slot(opxy::u32 engine, opxy::u32 index) __asm__("sdk_synth_title_slot");
+// The send page's value text for position `index` of an owned effect, through
+// the hook in screen_hooks.s; every other caption reaches stock unchanged.
+opxy::u32 sdk_fx_value_text(opxy::u32 widget, const char* text, opxy::u32 index, opxy::i32 value)
+    __asm__("sdk_fx_value_text");
 }

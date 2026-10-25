@@ -307,6 +307,13 @@ def generate_synth_controls(directory, machines):
             mapping = p['mapping']
             if mapping['kind'] == 'enum':
                 continue
+            # Stock delay's note-length names. Send pages keep stock captions
+            # for every other control.
+            if p['display'] == 'division':
+                body.extend([f'    case {i}:', '        control_division(text, value);', '        return true;'])
+                continue
+            if effect:
+                continue
             # Compact native ratio captions; unusual/signed ranges retain the
             # stock normalized display, with an extra decimal place.
             if p['display'] == 'ratio' and mapping['kind'] == 'anchors' and 0 <= mapping['values'][0] < mapping['values'][-1] <= 1000:
@@ -332,19 +339,24 @@ FX_BUFFER_INIT = '''    // Stock's per-send scratch memory, which stock delay an
 
 
 def generate_fx_object(directory, m):
-    bytes_ = m.definition['resources'].get('bufferBytes')
+    resources = m.definition['resources']
+    bytes_ = resources.get('bufferBytes')
     if bytes_ is None:
         values = dict(OBJECT='struct Object { const void* const* vtable; State state; };\n'
                              'static_assert(sizeof(State) <= opxy::effect_state_bytes, "Effect state exceeds the stock FX slot");',
                       INIT='    (void)slot;', BUFFER='', RESET='')
     else:
-        values = dict(OBJECT='#include "stock.hpp"\n'
-                             'struct Object { const void* const* vtable; State state; opxy::i32* buffer; };\n'
+        values = dict(OBJECT='struct Object { const void* const* vtable; State state; opxy::i32* buffer; };\n'
                              'static_assert(sizeof(State) <= opxy::effect_buffered_state_bytes,\n'
                              '              "Effect state exceeds the stock FX slot beside its buffer address");',
                       INIT=FX_BUFFER_INIT.format(bytes=bytes_),
                       BUFFER=f'opxy::Buffer{{object->buffer, object->buffer ? {bytes_ // 4}u : 0u}}, ',
                       RESET='    object->buffer = nullptr;')
+    # A tempo-aware effect reads the audio clock's transport once per block.
+    values['TRANSPORT'] = 'opxy::platform::audio_transport(), ' if resources.get('transport') else ''
+    # The buffer's scratch call and the transport both use stock addresses.
+    if bytes_ is not None or resources.get('transport'):
+        values['OBJECT'] = '#include "stock.hpp"\n' + values['OBJECT']
     return expand('fx_object.cpp.in', dict(values, PREFIX=m.prefix, NAMESPACE=m.definition['id'],
                                            NAME=m.native_name, LABELS=stock_labels(m),
                                            DRY_LEVEL='0x7fffffff' if m.dry_parameter is None else
