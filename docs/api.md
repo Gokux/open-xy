@@ -363,7 +363,7 @@ browser preview.
 
 An effect that needs memory beyond its state, such as a delay line, declares
 `"bufferBytes"` in `definition.json` `resources`: whole words, at most 524288
-(512 KiB). It needs `"sdk": "1.1"` in `machine.json`, and its `process` takes
+(512 KiB). It needs `"sdk": "1.2"` in `machine.json`, and its `process` takes
 the buffer:
 
 ```cpp
