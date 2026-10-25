@@ -110,6 +110,16 @@
       "tag": "v1.1.1",
       "commit": "1822fdc9560b8902be605105fcfb3f3c5bd32317",
       "path": "."
+    },
+    {
+      "id": "nightdrive",
+      "kind": "synth",
+      "maintainer": "V714",
+      "status": "draft",
+      "repository": "https://github.com/V714/open-xy-nightdrive",
+      "tag": "v1.0.0",
+      "commit": "01bfee0a1d3d6bd73f1a319b7485c0528d199a12",
+      "path": "."
     }
   ]
 }
