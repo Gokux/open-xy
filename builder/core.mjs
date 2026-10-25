@@ -133,6 +133,8 @@ export function numberPools(rules) {
 }
 export function occupied(rules, identity) {
   const keys = ['engine', 'effect'].filter(slot => Object.hasOwn(identity, slot)).map(slot => slot + ' ' + identity[slot]);
+  // Stock reads a send track's effect number as its engine: no engine shares it.
+  if (Object.hasOwn(identity, 'effect')) keys.push('engine ' + identity.effect);
   if (!Object.hasOwn(identity, 'effect') && !rules.sample_pages.includes(identity.page)) keys.push('page ' + identity.page);
   return keys;
 }
@@ -165,7 +167,9 @@ export function numberLayout(rules, fixed, layout, machines) {
     const identity = {...requested};
     for (const slot of kind === 'effect' ? ['effect'] : kind === 'synth' ? ['engine', 'page'] : ['engine']) {
       const choices = [...(pools[slot].includes(requested[slot]) ? [requested[slot]] : []), ...pools[slot]];
-      identity[slot] = choices.find(n => !holders.has(slot + ' ' + n));
+      // An effect number is also held as an engine number (occupied).
+      const keys = n => [slot + ' ' + n, ...(slot === 'effect' ? ['engine ' + n] : [])];
+      identity[slot] = choices.find(n => !keys(n).some(key => holders.has(key)));
       check(identity[slot] !== undefined, `No free ${slot} number for ${name}: every one is held in this layout`);
     }
     check(validIdentity(rules, kind, identity), `${name}: no valid numbers`);

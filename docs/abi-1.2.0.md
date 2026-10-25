@@ -278,9 +278,10 @@ engine. On the first four controls, ID 2 gets engine 2's eighth-size steps,
 which round a detent to nothing, and IDs 3 and 4 get pitch stepping in cents.
 Other stock paths test engines 6 and 29–31, and split at 29. Effects
 therefore use only free IDs that no stock engine holds and stock never tests:
-1, 8, 11, 21, 23–28 and 34–62, never the stock "none" engine 33. SDK hooks
-that look a track's engine up are limited to the eight instrument tracks, so
-an effect ID equal to an SDK engine's number does not reach them.
+1, 8, 11, 21, 23–28 and 34–62, never the stock "none" engine 33. For the same
+reason a layout never gives an effect and an engine the same number, so an SDK
+hook that asks about an engine number never mistakes a send track for an SDK
+engine.
 
 Stock delay, reverb and chorus keep their delay lines in a static per-send
 scratchpad, two 1 MiB regions that `scratch(slot, bytes)` (`0x8d50d9c8`)

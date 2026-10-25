@@ -36,7 +36,7 @@ The [firmware contract](abi-1.2.0.md) explains where each rule comes from.
 
 Every selected machine and the SDK share **one 2040 KiB module region**: code,
 constant data and zero-initialized state together. It is the 2 MiB the
-firmware reserves from its heap, minus 4 KiB of relocated stock tables. There
+firmware reserves from its heap, minus 8 KiB of relocated stock tables. There
 is no per-machine allowance: a build that does not fit names each machine's
 share, and `sdk.py compile` and the builder's memory meter report the same
 figures. State usually dominates, since a synth's voice pool is

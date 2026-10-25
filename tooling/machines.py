@@ -235,8 +235,11 @@ def number_pools(rules):
 
 def occupied(rules, identity):
     """What an identity holds: its engine or effect number, and its own page. Effects share
-    the FX page and sample engines a stock sample page."""
+    the FX page and sample engines a stock sample page. Stock reads a send track's effect
+    number as its engine, so an effect also holds that engine number: no engine shares it."""
     keys = [(slot, identity[slot]) for slot in ('engine', 'effect') if slot in identity]
+    if 'effect' in identity:
+        keys.append(('engine', identity['effect']))
     if 'effect' not in identity and identity['page'] not in rules['sample_pages']:
         keys.append(('page', identity['page']))
     return keys
@@ -293,7 +296,9 @@ def number_layout(rules, fixed, layout, machines):
         identity = dict(requested)
         for slot in ('effect',) if kind == 'effect' else ('engine', 'page') if kind == 'synth' else ('engine',):
             choices = ([requested[slot]] if requested[slot] in pools[slot] else []) + pools[slot]
-            identity[slot] = next((n for n in choices if (slot, n) not in holders), None)
+            # An effect number is also held as an engine number (occupied).
+            keys = lambda n: [(slot, n)] + ([('engine', n)] if slot == 'effect' else [])
+            identity[slot] = next((n for n in choices if not any(k in holders for k in keys(n))), None)
             require(identity[slot] is not None, f'No free {slot} number for {name}: every one is held in this layout')
         hold(name, check_identity(rules, kind, identity))
     return numbers
