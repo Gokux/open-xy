@@ -281,7 +281,8 @@ scratchpad, two 1 MiB regions that `scratch(slot, bytes)` (`0x8d50d9c8`)
 returns for slots 14 and 15, at most 512 KiB per request; it is never cleared
 or freed. An effect that declares `bufferBytes` gets the same memory: the
 adapter's `init` asks `scratch` for its slot, only for slots 14 and 15, and
-keeps the address in the slot's last word, which leaves 472 bytes of state.
+keeps the address in the word after the effect's state, which leaves at most
+472 bytes of state.
 
 Each effect also answers a dry-level query, `(object, parameters) -> Q31`;
 stock delay and reverb return parameter word 3. The stock mixer reduces the

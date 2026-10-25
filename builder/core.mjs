@@ -151,6 +151,8 @@ export function numberLayout(rules, fixed, layout, machines) {
   for (const [name, identity] of Object.entries(layout ?? {})) {
     if (Object.hasOwn(numbers, name))
       check(sameNumbers(numbers[name], identity), `${name} is bundled with fixed numbers; the layout gives it others`);
+    // An effect number later found unusable on stock is let go and numbered again.
+    else if (Object.hasOwn(identity, 'effect') && !pools.effect.includes(identity.effect)) continue;
     else hold(name, identity);
   }
   for (const [name, kind, requested] of machines) {

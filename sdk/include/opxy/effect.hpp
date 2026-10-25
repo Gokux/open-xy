@@ -11,7 +11,7 @@ namespace opxy {
 // header and never destroys it, so State holds no resources. initialize runs
 // after construction and again on an engine reset: keep it short.
 //
-// An effect that declares resources.bufferBytes (SDK 1.1) takes a buffer too:
+// An effect that declares resources.bufferBytes (SDK 1.2) takes a buffer too:
 //   void process(State& state, opxy::Buffer buffer, opxy::Channel left,
 //                opxy::Channel right, opxy::Parameters parameters);
 // The buffer is stock's per-send scratch memory: it outlives the effect and is
