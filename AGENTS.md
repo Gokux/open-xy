@@ -3,28 +3,36 @@
 ## First, which task is this?
 
 - **Making a machine** (an instrument or effect, a "plugin"): it does not go in
-  this repository, which holds only the SDK and the catalog. Start a repository
-  of your own from the
-  [machine template](https://github.com/etcetc000/open-xy-machine-template) and
-  follow its README and AGENTS.md. Use this checkout only as the SDK beside it,
-  for example `python ../open-xy/sdk.py test --machine machines/<id>`. Do not
+  this repository, which holds only the SDK and the catalog. Start with
+  `python sdk.py new --repository --id <id> --name "<Name>" --out ../<id>`
+  (`--kind effect` for a send effect), then follow its generated README and
+  AGENTS.md. Read the relevant core machines below as the worked examples.
+  Use this checkout as the SDK beside the new repository,
+  for example `python ../open-xy/sdk.py test --machine .`. Do not
   add a machine to this repository, or change `sdk/`, `tooling/` or tests, to
   make a machine work. If the SDK lacks something it needs, that is a separate SDK
   pull request.
 - **Submitting a machine to the builder:** a pull request against `staging` that
   changes only `catalog/machines.json`, adding or updating that machine's one
-  entry ([submitting](https://github.com/etcetc000/open-xy-machine-template/blob/main/SUBMITTING.md),
-  [catalog](docs/catalog.md)). CI refuses a submission from a fork that changes
+  entry ([submission workflow](docs/catalog.md#submit-a-machine)). CI refuses a submission from a fork that changes
   anything else.
 - **Changing the SDK, builder or docs:** branch from `origin/staging` and open the
   pull request against `staging`. `main` only receives releases from `staging`;
   never base work on it or target it.
 
-This repository holds no machines. Examples to read before writing one: the
-template's own, and Open-XY's
+This repository holds no machines. Examples to read before writing one are Open-XY's
 [core machines](https://github.com/etcetc000/open-xy-core-machines): synths 2op FM, Macro Osc and Karplus, the Timestretch
 sample engine, and the Ring Mod and Ping Pong send effects, each published
 through the catalog like any other machine.
+
+For machine work, follow the complete [authoring journey](docs/first-machine.md):
+implement and test, offer audition where supported, then prepare a development
+build and propose an authorized hardware test. Follow [hardware profiling](docs/profiling.md)
+to collect the revision-bound CPU readout required for catalog submission.
+If hardware is unavailable, say that validation remains pending; a maintainer
+can measure it. Never treat a successful host check as a measured CPU result or
+hardware acceptance. A sample engine uses the public sample API and Timestretch
+as its worked example; `new` currently scaffolds synths and effects.
 
 ## SDK changes
 

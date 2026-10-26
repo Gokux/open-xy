@@ -48,9 +48,18 @@ Open http://127.0.0.1:8917/ and click **Enable audio**. Use
 
 Start with [Your first machine](docs/first-machine.md): check the prerequisites,
 create a custom C++ machine, play it in the browser and make an audible edit.
-To keep a machine in a repository of your own and submit it to the builder,
-start from the [machine template](https://github.com/etcetc000/open-xy-machine-template);
-the [core machines](https://github.com/etcetc000/open-xy-core-machines) are worked examples.
+The [core machines](https://github.com/etcetc000/open-xy-core-machines) are the
+worked examples. Create a repository-ready starter directly from the SDK:
+
+```sh
+python sdk.py new --repository --id mymachine --name "My Machine" --out ../mymachine
+```
+
+It includes source, tests, README, agent instructions, licence and CI. Use
+`--kind effect` for a send effect; omit `--repository` when adding just a machine
+folder to an existing repository. Follow the generated instructions through
+audition, [hardware profiling](docs/profiling.md) and
+[catalog submission](docs/catalog.md#submit-a-machine).
 
 A machine is a folder of source: `machine.json`, which declares its kind and
 the stock numbers it asks for, controls in `definition.json`, and C++ for its kind: a synth's

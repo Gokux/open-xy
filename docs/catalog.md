@@ -6,14 +6,12 @@ one tagged commit of each; nothing is copied into this repository. Each
 machine's ID is held for good, so no two machines ever share one. Engine,
 effect and page numbers are not the catalog's: each firmware's
 [layout](api.md#identity) gives them. Authors follow the
-[submission guide](https://github.com/etcetc000/open-xy-machine-template/blob/main/SUBMITTING.md).
+[submission workflow below](#submit-a-machine).
 
 ## Entries
 
 ```json
-{"id": "karplus", "kind": "synth", "maintainer": "etcetc000", "status": "published",
- "repository": "https://github.com/etcetc000/open-xy-core-machines", "tag": "v1.1.0",
- "commit": "32b257d924f65338ac6eb82639647ade90e8ac05", "path": "machines/karplus"}
+{"id": "mymachine", "kind": "synth", "maintainer": "your-github-name", "status": "reserved"}
 ```
 
 | Field | Contract |
@@ -50,6 +48,45 @@ collection to any build command:
 ```sh
 python sdk.py compile --collection local/catalog/collection.json --out <folder>
 ```
+
+## Submit a machine
+
+1. **Develop in your own repository.** Use `sdk.py new --repository` as described
+   in [Your first machine](first-machine.md); the
+   [core machines](https://github.com/etcetc000/open-xy-core-machines) are the worked
+   examples. A root-level machine uses catalog `path: "."`; a machine in a
+   multi-machine repository uses its folder, such as `machines/myid`.
+2. **Reserve the ID when you intend to publish.** Open a catalog-only PR against
+   `staging` with an unused ID and `reserved` entry as above. Your personal builds
+   need no reservation. The ID is saved in presets and held for good; engine,
+   effect and page numbers are assigned by each build's layout.
+3. **Check and audition.** Run `sdk.py test --machine <folder>` and the native
+   compile (`test --firmware` with the pinned tools). Extend the machine's own
+   sound tests, keep CI green, and provide a description and redistribution
+   licence, including any vendored licences. Keep within the shared memory
+   budget printed by the build. Host CPU estimates guide development.
+4. **Commit and measure on hardware.** Follow [hardware profiling](profiling.md)
+   for the exact machine revision: build with profiling enabled, install when
+   authorized, confirm reboot, collect three runs, and publish the generated
+   readout. Keep all firmware outside every checkout. A maintainer can run this
+   for authors without an XY. A reserved entry can stay reserved while hardware
+   evidence is pending; `draft` and `published` submissions both need it.
+5. **Tag the measured commit and submit it.** Push a release tag such as
+   `v1.0.0`. Change the catalog entry to `draft` for review or `published` for
+   inclusion, adding `repository`, `tag`, the full tagged `commit` and `path`
+   from the field table. Add the generated `cpu` member from `catalog-cpu.json`.
+   The CPU record's commit must equal the tagged machine commit. Keep reports
+   in an issue/comment or separate evidence location so adding the readout does
+   not change the machine commit after measurement.
+6. **Validate the catalog PR.** From a checkout of the SDK, run
+   `python sdk.py catalog check --base origin/staging`. The PR targets `staging`
+   and changes only your entry in `catalog/machines.json`. CI fetches the pinned
+   source and checks the entry; maintainer review follows below.
+
+Updates follow the same checks: tag a new machine revision, remeasure it and
+update `tag`, `commit` and `cpu` together. Preserve the published
+[control contract](#controls). Removal marks an entry `retired`; its ID is never
+reused, and retirement needs no new measurement.
 
 ## Pull requests
 

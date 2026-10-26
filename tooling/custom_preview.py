@@ -145,18 +145,31 @@ def authenticate(manifest, artifacts):
 STARTERS = ('synth', 'effect')
 
 
-def scaffold(out, identity, name, kind='synth'):
+def scaffold(out, identity, name, kind='synth', repository=False):
     require(kind in STARTERS, 'sdk.py new starts a ' + ' or '.join(STARTERS))
     custom_identity(identity); label(name)
     from .machines import free_effect_identity, free_synth_identity
     stock_identity = free_effect_identity() if kind == 'effect' else free_synth_identity()  # before writing anything
     out = fresh_output(out)
-    starter = ROOT / 'sdk/templates' / kind
-    for template in sorted(starter.rglob('*.in')):
-        text = template.read_text(encoding='utf-8').replace('@ID@', identity).replace('@NAME@', name)
-        destination = out / template.relative_to(starter).as_posix().removesuffix('.in')
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(text, encoding='utf-8', newline='\n')
+    starters = [ROOT / 'sdk/templates' / kind]
+    if repository:
+        starters.append(ROOT / 'sdk/templates/repository')
+    audition = ('Build and audition the synth in the browser:\n\n```sh\n'
+                'python ../open-xy/sdk.py preview --machine . --out ../previews/@ID@-001\n'
+                'python ../open-xy/tools/serve_harness.py --preview ../previews/@ID@-001\n```'
+                if kind == 'synth' else
+                'Effects have no browser preview. Run the host tests below, then audition on your XY\n'
+                'using the hardware workflow linked below.')
+    for starter in starters:
+        for template in sorted(starter.rglob('*.in')):
+            text = template.read_text(encoding='utf-8').replace('@AUDITION@', audition)
+            text = text.replace('@ID@', identity).replace('@NAME@', name)
+            destination = out / template.relative_to(starter).as_posix().removesuffix('.in')
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(text, encoding='utf-8', newline='\n')
+    if repository:
+        shutil.copyfile(ROOT / 'LICENSE', out / 'LICENSE')
+        print('Repository-ready source: README.md, AGENTS.md and CI included; Git is not initialized.')
     from .machines import SDK_VERSION
     python = 'python3' if Path(sys.executable).name.startswith('python3') else 'python'
     if kind == 'effect':
@@ -209,14 +222,15 @@ def square_outline(points, half=32):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Start a machine folder: portable C++ that previews (synths) and builds anywhere')
+    parser = argparse.ArgumentParser(description='Start a machine, optionally with repository instructions and CI')
     parser.add_argument('--id', required=True, help='lower-case machine ID, also its stock name and artwork prefix')
     parser.add_argument('--name', required=True, help='name shown on the OP-XY')
     parser.add_argument('--kind', choices=STARTERS, default='synth', help='machine kind to start (default: synth)')
-    parser.add_argument('--out', required=True, type=Path, help='new folder for the machine source, such as local/mymachine')
+    parser.add_argument('--out', required=True, type=Path, help='new source folder, such as ../mymachine')
+    parser.add_argument('--repository', action='store_true', help='include README, agent instructions, licence and CI for a standalone repository')
     args = parser.parse_args(argv)
     try:
-        scaffold(args.out, args.id, args.name, args.kind)
+        scaffold(args.out, args.id, args.name, args.kind, repository=args.repository)
         return 0
     except (ValueError, OSError, ET.ParseError) as error:
         print('FAIL: ' + str(error), file=sys.stderr)
