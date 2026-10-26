@@ -738,6 +738,106 @@
       "call": true
     },
     {
+      "kind": "hook",
+      "address": "0x11a09682",
+      "file_offset": "0x100f6",
+      "length": 8,
+      "before": "08da0208e8520000",
+      "symbol": "sdk_profile_voice_start",
+      "call": true,
+      "profiling": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x11a0999a",
+      "file_offset": "0x1040e",
+      "length": 8,
+      "before": "09da0208e8520000",
+      "symbol": "sdk_profile_osc_start",
+      "call": true,
+      "profiling": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x11a099cc",
+      "file_offset": "0x10440",
+      "length": 8,
+      "before": "08da0208e8520000",
+      "symbol": "sdk_profile_osc_end",
+      "call": true,
+      "profiling": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x11a09b1e",
+      "file_offset": "0x10592",
+      "length": 8,
+      "before": "5db9c56f30009631",
+      "symbol": "sdk_profile_filter_start",
+      "call": true,
+      "profiling": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x11a09bbc",
+      "file_offset": "0x10630",
+      "length": 8,
+      "before": "59b9300096318f31",
+      "symbol": "sdk_profile_filter_end",
+      "call": true,
+      "profiling": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x11a09e24",
+      "file_offset": "0x10898",
+      "length": 8,
+      "before": "59b9300096318f31",
+      "symbol": "sdk_profile_voice_end",
+      "call": true,
+      "profiling": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d51a698",
+      "file_offset": "0x151a74",
+      "length": 8,
+      "before": "08da0208e8520000",
+      "symbol": "sdk_profile_alt_voice_start",
+      "call": true,
+      "profiling": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d51a93a",
+      "file_offset": "0x151d16",
+      "length": 8,
+      "before": "09da0208e8520000",
+      "symbol": "sdk_profile_alt_osc_start",
+      "call": true,
+      "profiling": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d51a96c",
+      "file_offset": "0x151d48",
+      "length": 8,
+      "before": "08da0208e8520000",
+      "symbol": "sdk_profile_alt_osc_end",
+      "call": true,
+      "profiling": false
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d51ab9e",
+      "file_offset": "0x151f7a",
+      "length": 8,
+      "before": "300096318f314000",
+      "symbol": "sdk_profile_alt_voice_end",
+      "call": true,
+      "profiling": false
+    },
+    {
       "kind": "startup",
       "name": "Boot-screen version label",
       "address": "0x8c0b9114",

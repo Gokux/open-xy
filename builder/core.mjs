@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = 'd3f1c4f3647f77cc65f9a22c2372bb5c6c3c928ad977559abfa318a14313b889';
+export const PROFILE_SHA256 = '90d8930b9c6e110eda52a8d211ec7e5ac2215f3e9bd8c5528b65c9116a88ee02';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -399,7 +399,8 @@ export function redirect(edit, destination) {
   after.set(words((edit.call ? 0xe300 : 0xe200) | value >>> 16, value & 0xffff));
   return after;
 }
-export async function patchFirmware(kit, linked, stock) {
+export async function patchFirmware(kit, linked, stock, {profiling = true} = {}) {
+  check(typeof profiling === 'boolean', 'Profiling must be a boolean');
   const p = kit.profile;
   check(stock.length === p.stock_bytes && await sha256(stock) === p.stock_sha256,
     'Only OP–XY OS 1.2.0 is supported. Choose the OS file, os.ldr, copied from your OP–XY, not a .tfw update file.');
@@ -424,8 +425,10 @@ export async function patchFirmware(kit, linked, stock) {
     let after;
     check(edit.service === undefined || (edit.kind === 'hook' && Object.hasOwn(p.services ?? {}, edit.service)),
       'Undeclared service: ' + edit.service);
-    if (edit.service && !linked.services.has(edit.service)) {
-      after = before;  // the selection leaves this service's stock code unchanged
+    check(edit.profiling === undefined || (edit.profiling === false && edit.kind === 'hook'),
+      'Invalid profiling hook');
+    if ((edit.service && !linked.services.has(edit.service)) || (edit.profiling === false && profiling)) {
+      after = before;  // inactive hooks leave the corresponding stock code unchanged
     } else if (['hook', 'startup'].includes(edit.kind)) {
       const destination = linked.globals.get(edit.symbol);
       check(destination >= low && destination < low + linked.module.length, 'Hook destination outside module');
@@ -485,8 +488,14 @@ export async function recoverFirmware(kit, input, layout = null) {
   for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
     const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
     const linked = linkKit(kit, selected, layout);
-    if (equal(linked.module, payload) && equal(await patchFirmware(kit, linked, stock), input))
-      return {stock, selected};
+    if (equal(linked.module, payload)) {
+      // SDK builds retain timing; site builds omit the per-voice bookkeeping.
+      // Accept only a complete reconstruction of one mode, never mixed hooks.
+      for (const profiling of [true, false]) {
+        if (equal(await patchFirmware(kit, linked, stock, {profiling}), input))
+          return {stock, selected};
+      }
+    }
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   throw new Error('This open-xy OS has machines this site doesn’t offer. Choose the original OP–XY OS 1.2.0.');

@@ -15,6 +15,17 @@ for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
   const recovered = await recoverFirmware(kit, firmware);
   assert.deepEqual(recovered, {stock, selected});
   assert.deepEqual(await patchFirmware(kit, linkKit(kit, recovered.selected), recovered.stock), firmware);
+  const profilingOff = await patchFirmware(kit, linked, stock, {profiling: false});
+  assert.notDeepEqual(profilingOff, firmware);
+  assert.deepEqual(await recoverFirmware(kit, profilingOff), {stock, selected});
+  assert.deepEqual(await patchFirmware(kit, linkKit(kit, selected), stock, {profiling: false}), profilingOff);
+  writeFileSync(target + '.profiling-off.ldr', profilingOff);
+  const timingHooks = kit.profile.patches.filter(edit => edit.profiling === false);
+  assert.ok(timingHooks.length > 1);
+  const mixed = profilingOff.slice(), firstHook = timingHooks[0];
+  const offset = Number(firstHook.file_offset);
+  mixed.set(firmware.subarray(offset, offset + firstHook.length), offset);
+  await assert.rejects(recoverFirmware(kit, mixed));
   const damagedLabel = firmware.slice();
   damagedLabel[Number(kit.profile.patches.at(-1).file_offset)] ^= 1;
   await assert.rejects(recoverFirmware(kit, damagedLabel));
@@ -37,4 +48,4 @@ for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
 // Relinking does not depend on checkbox order or mutate the object capsules.
 const all = kit.machines.map(m => m.id);
 assert.deepEqual(linkKit(kit, all).module, linkKit(kit, [...all].reverse()).module);
-console.log('Browser container/assets checks: all selections recovered and rebuilt exactly; corrupt inputs rejected.');
+console.log('Browser container/assets checks: all selections recovered in both profiling modes; corrupt/mixed inputs rejected.');

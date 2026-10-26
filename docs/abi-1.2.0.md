@@ -33,6 +33,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
 | Synth and effect controls | 4 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit; scales fine turns on owned synth and send-effect pages; names an owned effect's division values on the send page |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
+| Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
 | Startup label | 1 | Shows `OPEN <version>-1.2.0` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
@@ -43,6 +44,18 @@ their sites stay stock. Everything else must reconstruct byte for byte. Protecte
 [`pipeline.py`](../tooling/pipeline.py) admit only hooks into the module and
 the reviewed startup label.
 The bootloader is never modified.
+
+The `profiling: false` profile hooks apply only when the build disables
+per-voice profiling. SDK builds default to on; the website selects off
+([build flag](build.md#4-build)). Six hooks cover the normal renderer's
+oscillator, filter and whole-voice measurements, and four cover the alternate
+renderer's oscillator and whole-voice measurements. The shims in
+[`profiling.s`](../sdk/platform/opxy-1.2.0/profiling.s) replay useful loads mixed
+into stock bookkeeping and jump to stock continuations in the existing frame.
+They preserve audio processing and voice-lifetime return paths. Counter
+initialization, resets, exporters, coarse timing and deadline clocks remain
+stock. These shims are linked in both modes so the browser can select the mode
+without recompilation; enabled builds leave all ten stock hook sites intact.
 
 ## Startup
 
