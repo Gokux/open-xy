@@ -18,7 +18,7 @@ MAX_FILE = 16 * 1024 * 1024
 PROFILE = 'profiles/opxy-1.2.0.json'
 TOOLCHAINS = 'profiles/toolchains.json'
 TOOLCHAIN_HOME = 'local/toolchain'  # where `sdk.py toolchain fetch` installs
-TOOLCHAINS_SHA256 = 'ab575720dc8685fa3e5edac1891c9e917cced62a723bfa61e7faf83b1da64d72'
+TOOLCHAINS_SHA256 = '318e955c019f31e7ed1c5611ceaf6c476389bea88626bf535dd1cfd705baa468'
 # Additional exclusions, not a complete map of critical code. The exact source,
 # module and whole-output pins remain the stronger reference boundary.
 PROTECTED = (
@@ -35,7 +35,7 @@ PROTECTED = (
 )
 
 
-PATCH_KINDS = ('heap', 'table', 'hook', 'startup')
+PATCH_KINDS = ('heap', 'table', 'text', 'hook', 'startup')
 
 
 def check_patch_boundaries(profile, count):
@@ -51,13 +51,21 @@ def check_patch_boundaries(profile, count):
         end = start + len(before)
         require(before and len(before) == patch['length'] and 0 <= start < end <= 0x100000000, 'Invalid instruction edit')
         require('service' not in patch or patch['service'] in profile.get('services', {}), 'Undeclared service')
+        require('profiling' not in patch or (patch['profiling'] is False and kind == 'hook'),
+                'Invalid profiling hook')
         if 'after' in patch:
             after = bytes.fromhex(patch['after'])
-            # A service's hook stays stock in a build that leaves the service out.
-            require(len(after) == len(before) and (after != before or (kind == 'hook' and 'service' in patch)),
+            # Optional hooks stay stock in builds that leave them out.
+            require(len(after) == len(before) and (after != before or
+                    (kind == 'hook' and ('service' in patch or 'profiling' in patch))),
                     'Invalid instruction edit')
         else:
-            require(kind in ('hook', 'startup'), 'Heap and table edits carry their reviewed bytes')
+            require(kind in ('hook', 'startup'), 'Heap, table and text edits carry their reviewed bytes')
+        if kind == 'text':
+            # A stock string rewritten in place: printable text, then at least one NUL.
+            for data in (before, bytes.fromhex(patch['after'])):
+                text = data.rstrip(b'\0')
+                require(len(text) < len(data) and all(0x20 <= c < 0x7f for c in text), 'Invalid text edit')
         if kind == 'hook':
             require(isinstance(patch.get('symbol'), str) and patch['symbol'] and type(patch.get('call')) is bool,
                     'A hook names its module symbol and call/jump form')

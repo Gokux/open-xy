@@ -55,6 +55,30 @@ class Formats(unittest.TestCase):
 
 
 class Services(unittest.TestCase):
+    def test_profiling_policy_is_strict_and_independent_of_services(self):
+        from tooling.firmware import patch_active
+        profile = config()
+        timing = [p for p in profile['patches'] if p.get('profiling') is False]
+        self.assertEqual(len(timing), 10)
+        for p in timing:
+            self.assertFalse(patch_active(p, {'samples'}))
+            self.assertTrue(patch_active(p, set(), False))
+            tagged = dict(p, service='samples')
+            self.assertFalse(patch_active(tagged, set(), False))
+            self.assertTrue(patch_active(tagged, {'samples'}, False))
+        for invalid in (None, 0, 1, 'off', 'on'):
+            with self.subTest(value=invalid), self.assertRaises(ValueError):
+                patch_active(timing[0], set(), invalid)
+        for invalid in (None, 0, 1, True, 'off'):
+            bad = copy.deepcopy(profile)
+            next(p for p in bad['patches'] if 'profiling' in p)['profiling'] = invalid
+            with self.subTest(value=invalid), self.assertRaises(ValueError):
+                check_patch_boundaries(bad, len(bad['patches']))
+        bad = copy.deepcopy(profile)
+        bad['patches'][0]['profiling'] = False  # fixed edits may never be optional
+        with self.assertRaises(ValueError):
+            check_patch_boundaries(bad, len(bad['patches']))
+
     def test_only_machines_that_use_a_service_link_and_patch_it(self):
         from tooling import native
         from tooling.firmware import active_services

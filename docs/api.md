@@ -94,6 +94,9 @@ host does fast and the Blackfin does not:
 - **Per-sample work that changes only per block**, such as coefficients and
   increments, belongs outside the sample loop.
 
+Measure and publish the required [hardware CPU readout](profiling.md) before
+submitting a catalog entry. Host estimates do not satisfy that requirement.
+
 ## Definition
 
 Every machine kind keeps its controls in `definition.json` (for example
@@ -136,6 +139,22 @@ can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position. See
 [Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json), whose fourth encoder
 switches between FM ratio and depth.
+
+On instrument tracks, the Value, Random and Element LFOs can target every
+declared parameter of a custom synth or sample engine, including all eight
+when present. Destination names follow parameter order regardless of which
+alternate the engine page shows. Synth destination icons follow each
+parameter's assigned encoder, including alternates that share an encoder.
+Sample-engine icons repeat for the second row of four controls. Turning
+stops at the first and last declared destination; pressing cycles through
+the declared destinations and wraps to the first. Extended machines use
+eight selector positions, bounded to their declared count. A retained
+destination beyond the machine's count resolves to its last parameter in
+audio, labels and icons. Stock engines and
+machines with at most four parameters retain stock selection. When opening
+projects saved with older firmware, reselect LFO engine destinations on
+machines with more than four parameters: their saved selector values now
+address eight slots instead of four.
 
 On custom synth engine pages, Shift + turn edits the same visible parameter
 at one tenth of the normal rate. Enum choices keep their ordinary stepping.
@@ -465,6 +484,8 @@ ones. New numbers come from engines 34..62 and pages 82..127, never from the
 gaps in stock's own engine table, so ask for numbers in those ranges; a
 sample engine keeps its stock page. Macro Osc predates this and keeps
 engine 26.
+A [project companion](projects.md) records what a project's numbers meant by
+machine ID, for firmware with another layout.
 
 Generated adapters check record/name ownership and screen readiness before
 catalog admission; the packager authenticates firmware and constrains writes.

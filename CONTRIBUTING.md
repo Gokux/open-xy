@@ -25,7 +25,7 @@ in the layer that owns the behavior:
 
 | Change | Location |
 | --- | --- |
-| A new machine | Its own repository, started from the [machine template](https://github.com/etcetc000/open-xy-machine-template) |
+| A new machine | Its own repository, created with `sdk.py new --repository`; learn from the core machines |
 | Oscillator, controls, artwork, presets or lookup tables | The machine's folder |
 | Sound tests | The machine's `tests/`, run by `sdk.py test` |
 | Callback contract, adapter, build, preview or packaging | SDK |
@@ -36,7 +36,7 @@ schema for every kind), `machine.json`, artwork and `tests/`. It never holds
 build scripts; a new machine is not a reason to add code to `tooling/`. A new
 callback contract or native identity still needs SDK work. New machines live
 in their own repositories and reach the builder through the [catalog](docs/catalog.md)
-([submitting a machine](https://github.com/etcetc000/open-xy-machine-template/blob/main/SUBMITTING.md)).
+([submitting a machine](docs/catalog.md#submit-a-machine)).
 This repository holds no machines; Open-XY's own are in the
 [core machines](https://github.com/etcetc000/open-xy-core-machines), published the same way.
 
@@ -48,8 +48,9 @@ checkout**, including ignored `local/`. The one exception is the stock
 instrument catalog,
 [`profiles/opxy-1.2.0/content/op1_factory.json`](profiles/opxy-1.2.0/content/op1_factory.json),
 which every build extends and builds read by default. The docs use
-`%LOCALAPPDATA%/OPXY-SDK/private/` (Windows) or
-`~/Library/Application Support/OPXY-SDK/private/` (macOS); pass those external
+`%LOCALAPPDATA%/OPXY-SDK/private/` (Windows),
+`~/Library/Application Support/OPXY-SDK/private/` (macOS) or
+`~/.local/share/OPXY-SDK/private/` (Linux); pass those external
 paths to build commands. `local/` is only for non-firmware development
 artifacts. Do not force-add private inputs or generated firmware packages.
 
@@ -79,7 +80,8 @@ is tagged `v<milestone>` with generated release notes, and closes its milestone.
 
 In a PR, explain the behavior, how to try it, compatibility changes and checks
 run. For a device observation, include the exact image/asset hashes and what you
-actually exercised. Build success is not a hardware timing measurement.
+actually exercised. Build success is not a hardware timing measurement. New or changed catalog
+submissions require the revision-bound [hardware CPU readout](docs/profiling.md).
 
 ## Documentation
 

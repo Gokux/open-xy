@@ -12,6 +12,7 @@ import json
 import math
 from pathlib import Path
 
+from .benchmark import append_callback
 from .definitions import ROOT, control_positions, validate_definition
 from .formats import require
 from .stock_tables import REGISTRATION as RELOCATED
@@ -176,6 +177,7 @@ def generate_registration(directory, m):
             screen = '&screen'
             entries[p + '_screen_register()'] = 'sdk_register_screen(&record, &screen)'
         entries[p + '_register()'] = 'sdk_register_engine(&record)'
+        entries[p + '_record_ready()'] = 'sdk_engine_ready(&record, nullptr)'
         entries[p + '_name_matches(const void* string)'] = 'sdk_name_matches(&record, string)'
         entries[p + '_ready()'] = f'sdk_engine_ready(&record, {screen})'
     declarations += [f'int {signature} __asm__("{signature.split("(")[0]}");' for signature in entries]
@@ -241,14 +243,15 @@ def sample_callbacks(m):
     return [m.prefix + suffix for flag, entries in SAMPLE_SERVICES if resources.get(flag, 0) for suffix, *_ in entries]
 
 
-def generate_sample_voice(directory, m):
+def generate_sample_voice(directory, m, benchmark=False):
     resources = m.definition['resources']
     values = dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'], NAME=m.native_name,
                   LABELS=stock_labels(m), CAPACITY=resources['voiceCapacity'],
                   ANALYSIS=resources.get('sampleAnalysis', 0), STEREO=resources.get('stereoOutput', 0),
                   CHOKE=resources.get('chokeSameKey', 0), DRUM_KEYS=int(m.identity['page'] == 7),
                   PAD_SETTINGS=resources.get('padSettings', 0), DRUM_CONTROLS=resources.get('drumControls', 0))
-    return expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
+    path = expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
+    return append_callback(path, m) if benchmark else path
 
 
 def generate_sample_callbacks(directory, machines):
@@ -291,8 +294,13 @@ def control_cycles(definition):
 
 def generate_synth_controls(directory, machines):
     """Synth ownership, alternate selection and continuous fine controls."""
-    declarations, rows, formatters = [], [], []
+    declarations, rows, formatters, lfo_rows = [], [], [], []
     for m in machines:
+        if m.kind != 'effect':
+            declarations.append(f'int {m.prefix}_record_ready() __asm__("{m.prefix}_record_ready");')
+            declarations.append(f'extern const char {m.prefix}_engine_id[] __asm__("{m.prefix}_engine_id");')
+            controls = ', '.join(str(position % 4) for position in control_positions(m.definition))
+            lfo_rows.append(f'    {{{m.prefix}_engine_id, {m.prefix}_record_ready, {len(m.definition["parameters"])}, {{{controls}}}}},')
         if m.kind not in ('synth', 'effect'):
             continue
         effect = m.kind == 'effect'
@@ -301,7 +309,8 @@ def generate_synth_controls(directory, machines):
         declarations.append(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");')
         # The engine or effect ID is an absolute symbol the linker supplies.
         id_symbol = m.prefix + ('_fx_id' if effect else '_engine_id')
-        declarations.append(f'extern const char {id_symbol}[] __asm__("{id_symbol}");')
+        if effect:
+            declarations.append(f'extern const char {id_symbol}[] __asm__("{id_symbol}");')
         body = [f'static bool {m.prefix}_format(opxy::u32 slot, opxy::i32 value, char* text) {{', '    switch (slot) {']
         for i, p in enumerate(m.definition['parameters']):
             mapping = p['mapping']
@@ -327,9 +336,22 @@ def generate_synth_controls(directory, machines):
         body.extend(['    default: return false;', '    }', '}'])
         formatters.append('\n'.join(body))
         rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, {m.prefix}_format, {'true' if effect else 'false'}}},")
-    return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows), FORMATTERS='\n'.join(formatters)),
+    return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows), FORMATTERS='\n'.join(formatters), LFO_MACHINES='\n'.join(lfo_rows)),
                   Path(directory) / 'synth_control_table.cpp')
 
+
+
+def generate_project_companion_table(directory, machines):
+    """Each machine's ID and its number symbols, sorted by ID as a companion lists them
+    (docs/projects.md). Numbers are link-time symbols; a kit's unselected machines are 0."""
+    declarations, rows = [], []
+    for m in sorted(machines, key=lambda m: m.id):
+        number, page = (m.prefix + '_fx_id', m.prefix + '_fx_page_id') if m.kind == 'effect' else \
+            (m.prefix + '_engine_id', m.prefix + '_page_id')
+        declarations += [f'extern const char {name}[] __asm__("{name}");' for name in (number, page)]
+        rows.append(f'    {{"{m.id}", {number}, {page}, {"true" if m.kind == "effect" else "false"}}},')
+    return expand('project_companion_table.cpp.in', dict(DECLARATIONS='\n'.join(declarations), MACHINES='\n'.join(rows)),
+                  Path(directory) / 'project_companion_table.cpp')
 
 # A send slot's stock scratch memory: scratch(slot, bytes) (0x8d50d9c8), as stock
 # delay and reverb use it, only for the two send slots (docs/abi-1.2.0.md).
@@ -338,7 +360,7 @@ FX_BUFFER_INIT = '''    // Stock's per-send scratch memory, which stock delay an
         ? opxy::platform::stock<opxy::i32*(opxy::u32, opxy::u32)>(0x8d50d9c8)(slot, {bytes}u) : nullptr;'''
 
 
-def generate_fx_object(directory, m):
+def generate_fx_object(directory, m, benchmark=False):
     resources = m.definition['resources']
     bytes_ = resources.get('bufferBytes')
     if bytes_ is None:
@@ -357,11 +379,12 @@ def generate_fx_object(directory, m):
     # The buffer's scratch call and the transport both use stock addresses.
     if bytes_ is not None or resources.get('transport'):
         values['OBJECT'] = '#include "stock.hpp"\n' + values['OBJECT']
-    return expand('fx_object.cpp.in', dict(values, PREFIX=m.prefix, NAMESPACE=m.definition['id'],
+    path = expand('fx_object.cpp.in', dict(values, PREFIX=m.prefix, NAMESPACE=m.definition['id'],
                                            NAME=m.native_name, LABELS=stock_labels(m),
                                            DRY_LEVEL='0x7fffffff' if m.dry_parameter is None else
                                            f'parameters[{m.dry_parameter}]'),
                   Path(directory) / f'fx_object_{m.prefix}.cpp')
+    return append_callback(path, m) if benchmark else path
 
 
 def stock_labels(m):

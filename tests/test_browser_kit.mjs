@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {activeServices, assignNumbers, chosenByDefault, numberLayout, readLayout, readObject, linkKit, moduleBytes, openKit, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
+import {activeServices, assignNumbers, chosenByDefault, numberLayout, readLayout, readObject, linkKit, moduleBytes, openKit, patchFirmware, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
 
 // Tiny authored ELF fixture, independent of private firmware/toolchains.
 function elf() {
@@ -26,6 +26,82 @@ function fixture() {
   const object = {...readObject(elf()), name:'a.o',owner:'a'};
   return {version:'0.0.2',profile:JSON.parse(profileBytes),definitions:{},fixed:{a:{engine:34,page:82}},machines:[machine('a',34,82)],objects:[object]};
 }
+
+// An authored loader with two diagnostic hooks and one ordinary hook. No stock
+// instructions or firmware bytes are needed to exercise full reconstruction.
+async function profilingFixture() {
+  const kit = fixture(), stock = new Uint8Array(96), d = new DataView(stock.buffer);
+  const record = (at, flags, address, size, argument = 0) => {
+    [0xad000000 | flags, address, size, argument].forEach((v, i) => d.setUint32(at + i * 4, v, true));
+    stock[at + 2] = stock.subarray(at, at + 16).reduce((a, b) => a ^ b, 0);
+  };
+  record(0, 0x5004, 0x1000, 0, stock.length - 16);
+  record(16, 4, 0x1000, 32);
+  stock.set(Array.from({length:32}, (_, i) => i + 1), 32);
+  record(64, 0x104, 0x2000, 256);
+  record(80, 0x8004, 0, 0);
+  Object.assign(kit.profile, {stock_bytes:stock.length, stock_sha256:await sha256(stock), stock_records:4,
+    module_base:0x2000, reserved_bytes:256, table_bytes:0, heap_fill_base:0x2000, heap_fill_bytes:256,
+    patches:[0, 8, 16].map((offset, i) => ({kind:'hook', call:true, symbol:'entry', length:8,
+      address:0x1000 + offset, file_offset:32 + offset,
+      before:Buffer.from(stock.subarray(32 + offset, 40 + offset)).toString('hex'),
+      ...(i < 2 ? {profiling:false} : {})}))});
+  return {kit, stock, linked:linkKit(kit, ['a'])};
+}
+
+test('profiling defaults on; disabling it changes only the reviewed diagnostic hooks', async () => {
+  const {kit, linked, stock} = await profilingFixture(), original = stock.slice();
+  const on = await patchFirmware(kit, linked, stock);
+  assert.deepEqual(on, await patchFirmware(kit, linked, stock, {profiling:true}));
+  const off = await patchFirmware(kit, linked, stock, {profiling:false});
+  assert.deepEqual(stock, original);
+  for (const edit of kit.profile.patches) {
+    const at = edit.file_offset;
+    if (edit.profiling === false) {
+      assert.deepEqual(on.subarray(at, at + 8), stock.subarray(at, at + 8));
+      assert.notDeepEqual(off.subarray(at, at + 8), on.subarray(at, at + 8));
+    } else {
+      assert.deepEqual(off.subarray(at, at + 8), on.subarray(at, at + 8));
+      assert.notDeepEqual(on.subarray(at, at + 8), stock.subarray(at, at + 8));
+    }
+  }
+  const restored = off.slice(); restored.set(on.subarray(32, 48), 32);
+  assert.deepEqual(restored, on);
+  for (const image of [on, off]) assert.deepEqual(await recoverFirmware(kit, image), {stock, selected:['a']});
+});
+
+test('profiling recovery rejects mixed modes, hook corruption, and altered linked code', async () => {
+  const {kit, linked, stock} = await profilingFixture();
+  const on = await patchFirmware(kit, linked, stock), off = await patchFirmware(kit, linked, stock, {profiling:false});
+  const mixed = off.slice(); mixed.set(on.subarray(32, 40), 32);
+  await assert.rejects(recoverFirmware(kit, mixed));
+  for (const image of [on, off]) for (const at of [32, 48, 60, readLdr(image).at(-2).offset + 16]) {
+    const damaged = image.slice(); damaged[at] ^= 1;
+    await assert.rejects(recoverFirmware(kit, damaged));
+  }
+});
+
+test('profiling option and profile hook condition must be exact booleans', async () => {
+  const {kit, linked, stock} = await profilingFixture();
+  for (const profiling of [0, 1, 'false', 'true', null, [], {}])
+    await assert.rejects(patchFirmware(kit, linked, stock, {profiling}), /Profiling must be a boolean/);
+  for (const profiling of [true, 0, 'false', null]) {
+    kit.profile.patches[0].profiling = profiling;
+    await assert.rejects(patchFirmware(kit, linked, stock), /Invalid profiling hook/);
+  }
+  kit.profile.patches[0].profiling = false;
+  kit.profile.patches[0].kind = 'table';
+  await assert.rejects(patchFirmware(kit, linked, stock), /Invalid profiling hook/);
+});
+
+test('inactive profiling hooks retain stock mapping and overlap guards', async () => {
+  const {kit, linked, stock} = await profilingFixture();
+  kit.profile.patches[0].file_offset++;
+  await assert.rejects(patchFirmware(kit, linked, stock), /Patch preimage\/mapping mismatch/);
+  kit.profile.patches[0].file_offset--;
+  kit.profile.patches.push({...kit.profile.patches[0]});
+  await assert.rejects(patchFirmware(kit, linked, stock), /Overlapping patch intervals/);
+});
 test('ELF parsing reads symbols and little-endian instructions', () => {
   const o = readObject(elf()); assert.equal(o.symbols[1].name,'entry'); assert.equal(o.symbols[1].size,4);
   assert.deepEqual([...o.sections[1].data],[0,96,16,0]);

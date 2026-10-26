@@ -56,10 +56,10 @@
       "kind": "synth",
       "maintainer": "etcetc000",
       "status": "published",
-      "repository": "https://github.com/etcetc000/open-xy-karplus",
-      "tag": "v1.3.1",
-      "commit": "02684ff84cf77b9c0aa5fde938688f38c1d5025e",
-      "path": "."
+      "repository": "https://github.com/etcetc000/open-xy-core-machines",
+      "tag": "v1.1.0",
+      "commit": "32b257d924f65338ac6eb82639647ade90e8ac05",
+      "path": "machines/karplus"
     },
     {
       "id": "drone",
@@ -106,10 +106,10 @@
       "kind": "effect",
       "maintainer": "etcetc000",
       "status": "published",
-      "repository": "https://github.com/etcetc000/open-xy-pingpong",
-      "tag": "v1.1.1",
-      "commit": "1822fdc9560b8902be605105fcfb3f3c5bd32317",
-      "path": "."
+      "repository": "https://github.com/etcetc000/open-xy-core-machines",
+      "tag": "v1.1.0",
+      "commit": "32b257d924f65338ac6eb82639647ade90e8ac05",
+      "path": "machines/pingpong"
     },
     {
       "id": "nightdrive",

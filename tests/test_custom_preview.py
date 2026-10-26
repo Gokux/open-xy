@@ -56,7 +56,7 @@ class CustomPreviewTests(unittest.TestCase):
     def test_starters_are_machines_whose_own_checks_pass(self):
         folder = self.root / 'effect'
         with redirect_stdout(io.StringIO()):
-            custom.scaffold(folder, 'drive', 'Drive', 'effect')
+            custom.scaffold(folder, 'drive', 'Drive', 'effect', repository=True)
         m = machine_at(folder)
         self.assertEqual((m.kind, m.dry_parameter, m.identity['page']), ('effect', 2, 21))
         with self.assertRaises(ValueError):
@@ -68,6 +68,38 @@ class CustomPreviewTests(unittest.TestCase):
         from tooling.machine_test import host_tests
         for m in (machine_at(folder), machine_at(self.source)):
             self.assertEqual(host_tests(m, HOST_CXX, self.root), 1)
+
+    def test_repository_cli_keeps_machine_at_root_and_adds_agent_and_ci_entry_points(self):
+        for kind in custom.STARTERS:
+            with self.subTest(kind=kind), redirect_stdout(io.StringIO()):
+                plain, repo = self.root / (kind + '-plain'), self.root / (kind + '-repo')
+                custom.scaffold(plain, 'ownmachine', 'Own Machine', kind)
+                self.assertEqual(custom.main(['--repository', '--kind', kind, '--id', 'ownmachine',
+                                              '--name', 'Own Machine', '--out', str(repo)]), 0)
+                self.assertEqual(machine_at(repo).kind, kind)
+                # Repository setup must preserve every authored source and sound test.
+                for path in plain.rglob('*'):
+                    if path.is_file():
+                        self.assertEqual(path.read_bytes(), (repo / path.relative_to(plain)).read_bytes())
+                self.assertFalse((plain / 'AGENTS.md').exists())
+                self.assertFalse((repo / '.git').exists())
+                for name in ('README.md', 'AGENTS.md', 'LICENSE', '.gitignore', '.github/workflows/machine.yml'):
+                    self.assertTrue((repo / name).is_file(), name)
+                for name in ('README.md', 'AGENTS.md'):
+                    text = (repo / name).read_text()
+                    self.assertIn('docs/profiling.md', text)
+                    self.assertIn('docs/catalog.md#submit-a-machine', text)
+                    self.assertIn('open-xy-core-machines', text)
+                    self.assertNotIn('machine-template', text)
+                    self.assertNotIn('@ID@', text)
+                    self.assertNotIn('@AUDITION@', text)
+                workflow = (repo / '.github/workflows/machine.yml').read_text()
+                self.assertIn('OPEN_XY_REF: staging', workflow)
+                self.assertIn('sdk.py test --machine machine', workflow)
+                self.assertIn('sdk.py compile --machine machine', workflow)
+                self.assertIn('${{ runner.temp }}/module', workflow)
+                with self.assertRaisesRegex(ValueError, 'Output already exists'):
+                    custom.scaffold(repo, 'ownmachine', 'Own Machine', kind, repository=True)
 
     def test_scaffold_artwork_meets_the_native_rules(self):
         # One root element and outlines with the declared point count, as the firmware build requires.

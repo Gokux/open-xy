@@ -400,7 +400,7 @@ async function build() {
   try {
     const selection = [...selected], result = Core.linkKit(kit, selection, numbers);
     const files = await Core.buildAssets(kit, selection, catalog, result.numbers);
-    files['os.ldr'] = await Core.patchFirmware(kit, result, stock);
+    files['os.ldr'] = await Core.patchFirmware(kit, result, stock, {profiling: false});
     const hashes = {};
     for (const [name, bytes] of Object.entries(files)) hashes[name] = await Core.sha256(bytes);
     // Every number this firmware has given out, for the next build (Core.readLayout).

@@ -18,11 +18,11 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
-from . import screen, startup_label, stock_tables
+from . import benchmark, screen, startup_label, stock_tables
 from .adapters import (catalog_entry, generate_display, generate_fx_object, generate_registration,
                        generate_registration_stock, generate_sample_voice,
                        generate_sample_callbacks, generate_screen, generate_screen_order,
-                       generate_synth_controls, generate_voice)
+                       generate_synth_controls, generate_project_companion_table, generate_voice)
 from .contributors import validate_source_boundary
 from .firmware import active_services, assemble, hook_instruction, hook_target, patch_active
 from .formats import elf32, elf_sections, require, sha
@@ -172,11 +172,12 @@ def plan(machines, profile=None):
 
 # The SDK's shared objects, after every machine's. Sources are TEMPLATES/<unit>.cpp
 # or .s, except the generated units and the Blackfin runtime.
-SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup', 'startup_exit', 'startup_label',
+SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup', 'startup_exit', 'startup_label', 'benchmark', 'benchmark_clock',
              'hook', 'sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache', 'sample_cache_stock',
              'sample_cache_hooks', 'sample_progress', 'sample_progress_stock', 'pad_assignment',
              'pad_assignment_stock', 'drum_page', 'drum_controls_stock', 'drum_display_stock', 'screen_order',
-             'screen_hooks', 'synth_controls', 'synth_control_table', 'note_activity')
+             'screen_hooks', 'synth_controls', 'synth_control_table', 'note_activity', 'project_companion',
+             'project_companion_table', 'profiling', 'lfo', 'lfo_stock', 'lfo_hooks')
 # SDK units that exist only for a profile service, linked when a machine needs it.
 UNIT_SERVICES = dict.fromkeys(('sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache',
                                'sample_cache_stock', 'sample_cache_hooks', 'sample_progress',
@@ -232,9 +233,10 @@ def object_services(machines, profile=None):
             if m is None and step in UNIT_SERVICES}
 
 
-def compile_collection(directory, toolchain, compiler, profile, machines, definitions, version):
+def compile_collection(directory, toolchain, compiler, profile, machines, definitions, version, profiling=True):
     """Compile and link every machine, labelled with the release version; return the
     module bytes, report and patched profile."""
+    require(type(profiling) is bool, 'Profiling must be a boolean')
     directory = Path(directory)
     for m in machines:
         if m.display != 'stock':
@@ -260,12 +262,16 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         folder = obj.parent
         folder.mkdir(exist_ok=True)
         if m is None:
+            if step == 'benchmark':
+                return cxx(str(benchmark.generate(folder, machines)), obj)
             if step == 'screen_order':
                 return cxx(str(generate_screen_order(folder)), obj)
             if step == 'sample_callbacks':
                 return cxx(str(generate_sample_callbacks(folder, machines)), obj)
             if step == 'synth_control_table':
                 return cxx(str(generate_synth_controls(folder, machines)), obj)
+            if step == 'project_companion_table':
+                return cxx(str(generate_project_companion_table(folder, machines)), obj)
             if step == 'registration_stock':
                 return cxx(str(generate_registration_stock(folder)), obj)
             if step == 'divide':
@@ -284,9 +290,9 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         if step.startswith('source:'):
             return cxx(m.source(step.removeprefix('source:')), obj, m)
         source = {'voice': lambda: generate_voice(folder, m), 'display': lambda: display_unit(folder, m),
-                  'screen': lambda: generate_screen(folder, m), 'fx_object': lambda: generate_fx_object(folder, m),
+                  'screen': lambda: generate_screen(folder, m), 'fx_object': lambda: generate_fx_object(folder, m, benchmark=True),
                   'registration': lambda: generate_registration(folder, m),
-                  'sample_voice': lambda: generate_sample_voice(folder, m)}[step]
+                  'sample_voice': lambda: generate_sample_voice(folder, m, benchmark=True)}[step]
         return cxx(str(source()), obj, m)
 
     names = []
@@ -311,11 +317,11 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         usage, limit = memory_by_owner(directory, machines, profile), module_bytes(profile)
         total = limit + int(overflow.group(1)) if overflow else sum(sum(share.values()) for share in usage.values())
         raise ValueError('Machines exceed the shared module memory, ' + memory_summary(usage, total, limit)) from None
-    module, sizes, patch_profile, hooks, stack, usage = check_module(directory, tools, profile, machines)
+    module, sizes, patch_profile, hooks, stack, usage = check_module(directory, tools, profile, machines, profiling)
     require(provenance(machines) == before, 'Sources changed during compilation')
     report = dict(schema=1, target=TARGET, status='experimental-unqualified', sources=before,
                   host=host_platform(), tools=host_pins('tools')[0], compiler=host_pins('compiler')[0],
-                  cxx_flags=CXX_FLAGS,
+                  cxx_flags=CXX_FLAGS, profiling=profiling, benchmark_cases=benchmark.cases(machines),
                   sizes=sizes, memory=usage, module_bytes=module_bytes(profile), audio_stack_bytes=stack,
                   reserved_bytes=profile['reserved_bytes'],
                   module_sha256=sha(module), elf_sha256=sha(read(directory / 'module.elf')), hooks=hooks,
@@ -431,7 +437,8 @@ def audio_stack_bounds(disassembly, module, base, symbols, machines):
     return bounds
 
 
-def check_module(directory, tools, profile, machines):
+def check_module(directory, tools, profile, machines, profiling=True):
+    require(type(profiling) is bool, 'Profiling must be a boolean')
     elf = directory / 'module.elf'
     sections, symbols = elf32(read(elf))
     allocated = {name: s for name, s in sections.items() if s['flags'] & 2 and s['size']}
@@ -487,8 +494,8 @@ def check_module(directory, tools, profile, machines):
     text = allocated['.text']
     services = active_services(profile, (m.kind for m in machines))
     for patch in patch_profile['patches']:
-        if not patch_active(patch, services):
-            patch['after'] = patch['before']  # this build leaves the service's stock code unchanged
+        if not patch_active(patch, services, profiling):
+            patch['after'] = patch['before']  # inactive hooks retain stock code
         elif patch['kind'] == 'startup':
             patch['after'] = startup_label.jump(symbols[patch['symbol']]['value']).hex()
         elif patch['kind'] == 'hook':
@@ -658,14 +665,17 @@ def numbers_after(layout, machines):
 def verification(stock, catalog, package, toolchain, compiler, *, require_record=True):
     manifest = document(package / 'manifest.json')
     require(manifest.get('schema') == 1 and manifest.get('target') == TARGET, 'Unexpected manifest')
+    profiling = manifest.get('profiling')
+    require(type(profiling) is bool, 'Manifest profiling must be a boolean')
     profile, machines, definitions = configuration(package_collection(package), package_layout(package))
     with tempfile.TemporaryDirectory(prefix='opxy-verify-') as temporary:
         temporary = Path(temporary)
         module, report, patch_profile = compile_collection(temporary, toolchain, compiler, profile, machines,
-                                                           definitions, package_version(package))
+                                                           definitions, package_version(package), profiling)
+        require(report['profiling'] is profiling, 'Compile profiling differs from manifest')
         expected_assets = prepare_assets(catalog, profile, machines)
         expected_assets['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
-                                               set(report['services']))
+                                               set(report['services']), profiling)
         expected = {'candidate/' + name: data for name, data in expected_assets.items()}
         expected['analysis/module.bin'] = module
         expected['analysis/module.elf'] = read(temporary / 'module.elf')
@@ -680,7 +690,8 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
     result = dict(target=TARGET, status='experimental-unqualified', os_sha256=sha(expected_assets['os.ldr']),
                   machines=[m.source() for m in machines],
                   fresh_source_rebuild_matches=True, original_entry_preserved=True,
-                  exact_edits=sum(patch_active(p, set(report['services'])) for p in profile['patches']),
+                  profiling=profiling,
+                  exact_edits=sum(patch_active(p, set(report['services']), profiling) for p in profile['patches']),
                   single_shared_reservation_bytes=profile['reserved_bytes'],
                   sizes=report['sizes'], device_operations=False, hardware_tested=False, cpu_timing_measured=False,
                   brick_risk_eliminated=False)
@@ -689,9 +700,10 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
     return result
 
 
-def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layout=None):
+def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layout=None, profiling=True):
     """A firmware package. Its machines take their numbers from `layout` (by machine ID);
     the package's layout.json is that layout after this build, for the next one."""
+    require(type(profiling) is bool, 'Profiling must be a boolean')
     entries = [] if entries is None else entries
     profile, machines, definitions = configuration(entries, layout)
     require(not any(m.contains(out) for m in machines), 'Keep build output outside every machine folder')
@@ -704,15 +716,15 @@ def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layou
     analysis.mkdir()
     version = startup_label.release_version()
     module, report, patch_profile = compile_collection(analysis, toolchain, compiler, profile, machines,
-                                                       definitions, version)
+                                                       definitions, version, profiling)
     prepared['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
-                                  set(report['services']))
+                                  set(report['services']), profiling)
     for name, data in prepared.items():
         path = child(output / 'candidate', name)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
     tracked = ['candidate/' + name for name in prepared] + ['analysis/module.bin', 'analysis/module.elf'] + ANALYSIS
-    save_json(output / 'manifest.json', dict(schema=1, target=TARGET, version=version, collection=entries,
+    save_json(output / 'manifest.json', dict(schema=1, target=TARGET, version=version, collection=entries, profiling=profiling,
                                              **({'layout': layout} if layout else {}),
                                              files={name: sha(read(output / name)) for name in tracked}))
     save_json(output / 'layout.json', layout_document(numbers_after(layout, machines)))
@@ -754,6 +766,8 @@ def main(argv=None, command=None):
         parser.add_argument('--stock-content', type=Path, default=STOCK_CONTENT,
                             help="the folder holding op1_factory.json (default: this repository's copy)")
     if command != 'verify':  # a package records its own collection
+        parser.add_argument('--profiling', choices=('on', 'off'), default='on',
+                            help='per-voice diagnostic timing (default: on for SDK development builds)')
         add_collection_arguments(parser)
         parser.add_argument('--layout', type=Path,
                             help="the machine numbers your OP-XY's projects use: the layout.json of your last build")
@@ -778,7 +792,7 @@ def main(argv=None, command=None):
             require(not any(m.contains(args.out) for m in machines), 'Keep build output outside every machine folder')
             output = fresh_output(args.out)
             _module, report, _patches = compile_collection(output, *tools, profile, machines, definitions,
-                                                           startup_label.release_version())
+                                                           startup_label.release_version(), args.profiling == 'on')
             print(json.dumps(report['sizes'], indent=2))
             print('Memory ' + memory_summary(report['memory'], report['sizes']['allocated_span_bytes'],
                                             report['module_bytes']))
@@ -788,7 +802,8 @@ def main(argv=None, command=None):
             require(sha(stock) == profile['stock_sha256'], 'Stock OS hash mismatch')
             print(json.dumps(verification(stock, catalog, args.package.resolve(), *tools), indent=2))
         else:
-            output, result = build(args.out, *tools, args.stock_os, args.stock_content, entries, layout)
+            output, result = build(args.out, *tools, args.stock_os, args.stock_content, entries, layout,
+                                   args.profiling == 'on')
             print(json.dumps(result, indent=2))
             print('Local experimental package: ' + str(output))
             candidate = output / 'candidate'

@@ -61,6 +61,8 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
                            else 'official' if official(sources[m.id]) else 'catalog')
         if m.id in sources:
             entry['source'] = {key: sources[m.id][key] for key in ('repository', 'tag', 'commit', 'maintainer')}
+            if 'cpu' in sources[m.id]:
+                entry['cpu'] = sources[m.id]['cpu']
         entry['presetDefaults'] = m.preset_defaults
         if m.icon:
             entry['icon'] = m.icon
@@ -68,12 +70,14 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
         if m.kind == 'effect':
             entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_fx_register', '_ready')}
         else:
-            entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_register', '_name_matches', '_ready')}
+            entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_register', '_name_matches', '_ready', '_record_ready')}
             if m.display == 'stock':
                 # The shared sample table names these; unselected, its ready check declines first.
                 entry['absent'].update({symbol: 'kit_absent' for symbol in sample_callbacks(m)})
             else:
                 entry['absent'][m.prefix + '_screen_register'] = 'kit_absent'
+        if m.kind in ('effect', 'sample'):
+            entry['absent'][m.prefix + '_benchmark'] = 'kit_absent'
         if m.display != 'stock':
             entry['artwork'] = read(m.root / 'panel.svg.fragment').decode('utf-8')
             entry['asset'] = m.native_name + '.svg'

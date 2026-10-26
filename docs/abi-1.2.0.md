@@ -7,7 +7,7 @@ manufacturer ABI; machine authors need only the [engine API](api.md).
 [The firmware profile](../profiles/opxy-1.2.0.json) is the single source
 both the Python SDK and the browser builder read: stock and tool hashes, the
 reservation and its table bytes, identity ranges, stock catalog insertion
-offsets and every edit. Heap and table edits carry their replacement bytes; a
+offsets and every edit. Heap, table and text edits carry their replacement bytes; a
 hook names the module symbol it calls or jumps to, and each build computes and
 verifies its bytes. The builder pins the profile digest. Stock
 addresses live beside the code that uses them: the adapter templates in
@@ -31,8 +31,12 @@ version is rejected. The output differs from stock in exactly these places:
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
 | Relocated tables | 22 | Moves the effect records (63), engine records (63) and screen slots (128) into the last 8 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
-| Synth and effect controls | 4 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns then edit; scales fine turns on owned synth and send-effect pages; names an owned effect's division values on the send page |
+| Synth and effect controls | 5 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns and titles then follow; scales fine turns on owned synth and send-effect pages; names an owned effect's division values on the send page |
+| LFO destinations | 15 | Selects and modulates all declared engine parameters on owned instrument machines with five to eight parameters, using their assigned encoder icons |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
+| Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
+| Diagnostic benchmark | 1 | Extends explicit command 0xc8 with the selected machines; no normal-playback callbacks added |
+| Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
 | Startup label | 1 | Shows `OPEN <version>-1.2.0` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
@@ -43,6 +47,27 @@ their sites stay stock. Everything else must reconstruct byte for byte. Protecte
 [`pipeline.py`](../tooling/pipeline.py) admit only hooks into the module and
 the reviewed startup label.
 The bootloader is never modified.
+
+The `profiling: false` profile hooks apply only when the build disables
+per-voice profiling. SDK builds default to on; the website selects off
+([build flag](build.md#4-build)). Six hooks cover the normal renderer's
+oscillator, filter and whole-voice measurements, and four cover the alternate
+renderer's oscillator and whole-voice measurements. The shims in
+[`profiling.s`](../sdk/platform/opxy-1.2.0/profiling.s) replay useful loads mixed
+into stock bookkeeping and jump to stock continuations in the existing frame.
+They preserve audio processing and voice-lifetime return paths. Counter
+initialization, resets, exporters, coarse timing and deadline clocks remain
+stock. These shims are linked in both modes so the browser can select the mode
+without recompilation; enabled builds leave all ten stock hook sites intact.
+
+The diagnostic runner calls stock's nine synth tests, then the selected SDK
+machines in build order. Synths reuse stock's benchmark-one routine. Effects and
+sample engines use generated wrappers beside their real C++ callbacks, isolated
+state/heap storage and a two-instruction CYCLES reader. Only the explicit command
+publishes those callback statistics into the existing diagnostic records and
+exporter. The heap calls match the bounded allocation path used by sample analysis;
+allocation, preparation and cleanup are outside the timed callback. No callback
+wrapper is inserted into normal audio processing. See [workloads](profiling.md#what-is-measured).
 
 ## Startup
 
@@ -154,7 +179,9 @@ Stock draws each position's title from the engine record's parameter-name
 callback and its value as a percentage of the vector word. The adapter
 passes the selected track to the screen's parameter-vector getter after
 refreshing alternate-control selection.
-The adapter's callback names the shown parameter, and the screen shell passes stock a copy
+The engine-page title call maps the position to its shown slot; the record's
+parameter-name callback always names the raw slot, including when called by
+an LFO page. The screen shell passes stock a copy
 of the vector with each position's shown word in place. Generated metadata
 then supplies one-decimal amounts (0.0–100.0 without a suffix) and bounded positive
 anchor-ratio captions on custom synth screens; enums and machine text overrides remain
@@ -162,6 +189,45 @@ discrete. FX pages retain their stock captions, except that a send page
 hook (`8d53aa6e`, the value-text call in its loop over positions) lets an owned
 effect name a `division` control's value, as stock does only for its delay
 (effect 0, table `0x840535fc`).
+
+### LFO destinations
+
+[`lfo.cpp`](../sdk/platform/opxy-1.2.0/lfo.cpp) extends the engine destination
+group of the Value, Random and Element LFOs on instrument tracks 0..7.
+Generated metadata supplies each instrument's declared parameter count, encoder assignments and
+record-ownership probe, without requiring its screen to be loaded. Only an
+owned machine with five to eight parameters uses the extended routing.
+
+Four calls to the stock range helper (`8d53ec60`, `8d53ef50`, `8d53ff32`,
+`8d5426b8`) retain the selector's eight positions instead of folding them
+into four. The live and parameter-lock quantizer calls (`8d5ab8ce`,
+`8d5ab7ea`) step among the declared slots and store their Q31 midpoints.
+The instrument controller's click-publication call (`8c0b38b4`) cycles the
+current full slot modulo the declared count before delegating to stock's
+original setter. This bypasses its four-position click quantization without
+changing other parameters or destination groups.
+The engine-group audio call (`11a03f20`) takes the full selector from R4,
+decodes the same slot and delegates to stock's modulation function, which
+still owns saturation and restoration. This path reads the audio engine
+table and record ownership only; it does not call GUI or project getters.
+It also corrects stock's destination scratch word (`84044a58`) before the
+existing modulation telemetry publication (`11a042e8`). The GUI therefore
+animates the same full parameter slot that audio modulates, while stock
+retains the publication timing, amount and selected-track filtering.
+Other destination groups and stock engines retain their original routing.
+Three icon-strip animation calls (`8d53f676`, `8d540b6e`, `8d5431ca`)
+map slots 4..7 to their declared encoder using the caller's decoded group
+and slot; sample engines repeat the four positions for their second row.
+Element's name call (`8d53f3e8`) also restores the strip's
+visibility for those slots. Its initializer's offset calculation (`8d53ecc0`)
+uses the same mapping after stock stores the full slot, so reopening the page also shows the
+correct icon. The full slot still selects the label and audio
+destination; only the strip's scroll position is remapped.
+The three name calls (`8d53f3e8`, `8d5404b6`, `8d542da8`) and icon mapping
+clamp retained selectors beyond the declared count to the last slot, just
+as audio does. Changing from a larger machine therefore keeps a valid name
+and icon until the user edits the destination.
+The [API guide](api.md#alternate-controls) describes saved-selector compatibility.
 
 ## Sample engines
 
@@ -258,6 +324,24 @@ mapper and publishes the octave in a per-track word; the octave setter also
 publishes each change. Audio maps notes with that snapshot and the same
 integer mapping, without calling GUI project or pattern getters. Choke uses
 the canonical pad; the raw note minus the canonical pad is `drum_transpose`.
+
+## Project companions
+
+Stock saves every project, the workspace included, through one function,
+`save(project, path)` (`0x8d5973ac`), which `0x8d584534` calls once, at
+`0x8d584576`, with stock's project object. That call is hooked: the SDK calls
+stock `save`, and when it succeeds reads the saved file back with stock's
+newlib `fopen`, `fread` and `fclose` (`0x8fed0350`, `0x8fed05c8`,
+`0x8fed00b6`) for its size and CRC-32, then writes the companion beside it with
+`fwrite` (`0x8fed078c`) ([`project_companion.cpp`](../sdk/platform/opxy-1.2.0/project_companion.cpp)).
+The machines it lists are the collection's, from their link-time numbers; a
+kit leaves out machines with number 0. A failed save writes nothing.
+
+Stock's MTP view lists only paths matching a table of regular expressions
+(`0x840aade4`…), and under `/projects` only `.xy`. Three text edits rewrite
+the workspace and project patterns in place to `\.o?xy$`. Dropping a redundant
+`\d` (already in `\w`) from one character class keeps each string's length;
+the workspace pattern uses its padding.
 
 ## Send effects
 

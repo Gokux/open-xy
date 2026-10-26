@@ -22,6 +22,7 @@ import subprocess
 import sys
 
 from .definitions import stock_name
+from . import cpu_measurement
 from .formats import require
 from .machines import machine_at, relative_path
 from .pipeline import NO_WINDOW, ROOT
@@ -63,6 +64,10 @@ def validate(value):
         # A retired machine keeps its whole last release, or none of it.
         if status == 'retired' and RELEASE & set(entry):
             required = COMMON | RELEASE
+        if 'cpu' in entry:
+            require('commit' in entry and status != 'reserved', f'{name}: cpu needs a pinned release')
+            cpu_measurement.validate(entry['cpu'], entry.get('kind'), entry['commit'])
+            required = required | {'cpu'}
         require(set(entry) == required, f'{name}: catalog fields for a {status} machine: '
                 + ', '.join(sorted(required)))
         stock_name(name)
@@ -94,6 +99,11 @@ def changes(before, after):
     """An updated catalog keeps every machine it held, with its kind, and only moves a
     status forward."""
     current = {e['id']: e for e in after}
+    previous = {e['id']: e for e in before}
+    for entry in after:
+        if entry['status'] in ('draft', 'published') and entry != previous.get(entry['id']):
+            require('cpu' in entry, f"{entry['id']}: new or updated submissions require hardware cpu measurements (docs/profiling.md)")
+            cpu_measurement.validate(entry['cpu'], entry['kind'], entry['commit'])
     for entry in before:
         name = entry['id']
         require(name in current, f'{name}: catalog entries are never removed; retire the machine instead')

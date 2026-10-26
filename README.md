@@ -23,7 +23,8 @@ This is an unofficial, experimental SDK. A build statically links a curated
 collection of machines into exact stock OS 1.2.0; arbitrary engine installation
 and dynamic loading are not implemented. Native code is not sandboxed, and
 build checks cannot guarantee recovery from a faulty image. Browser previews
-work on any OS; firmware builds need Windows x86_64 or Apple-silicon macOS.
+work on any OS; firmware builds need Windows x86_64, Apple-silicon macOS or
+Linux x86_64.
 
 ## Try an example
 
@@ -48,9 +49,18 @@ Open http://127.0.0.1:8917/ and click **Enable audio**. Use
 
 Start with [Your first machine](docs/first-machine.md): check the prerequisites,
 create a custom C++ machine, play it in the browser and make an audible edit.
-To keep a machine in a repository of your own and submit it to the builder,
-start from the [machine template](https://github.com/etcetc000/open-xy-machine-template);
-the [core machines](https://github.com/etcetc000/open-xy-core-machines) are worked examples.
+The [core machines](https://github.com/etcetc000/open-xy-core-machines) are the
+worked examples. Create a repository-ready starter directly from the SDK:
+
+```sh
+python sdk.py new --repository --id mymachine --name "My Machine" --out ../mymachine
+```
+
+It includes source, tests, README, agent instructions, licence and CI. Use
+`--kind effect` for a send effect; omit `--repository` when adding just a machine
+folder to an existing repository. Follow the generated instructions through
+audition, [hardware profiling](docs/profiling.md) and
+[catalog submission](docs/catalog.md#submit-a-machine).
 
 A machine is a folder of source: `machine.json`, which declares its kind and
 the stock numbers it asks for, controls in `definition.json`, and C++ for its kind: a synth's
@@ -62,7 +72,9 @@ previews, firmware builds and packaging.
 - [Display API](docs/display.md): retained drawing frames and asset constraints.
 - [Build your own firmware](docs/build.md): toolchain, stock files, adding a machine, build and install.
 - [Open-XY builder](docs/builder.md): using the builder, web development and kit export.
+- [Hardware CPU profiling](docs/profiling.md): measure your machine and publish the required catalog readout.
 - [Catalog](docs/catalog.md): machines published from their own repositories, pinned by commit.
+- [Project companions](docs/projects.md): the `.oxy` file recording which machine each project number meant.
 - [Contributing](CONTRIBUTING.md): code ownership and checks.
 
 ## Repository layout
