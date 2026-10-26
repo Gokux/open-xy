@@ -64,6 +64,8 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
             if 'cpu' in sources[m.id]:
                 entry['cpu'] = sources[m.id]['cpu']
         entry['presetDefaults'] = m.preset_defaults
+        if m.presets:
+            entry['presets'] = m.presets
         if m.icon:
             entry['icon'] = m.icon
         # An unselected machine's startup and catalog callbacks decline.
@@ -139,7 +141,7 @@ def write_builder(kit, output):
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
     exports = ('requireThat decode64 sha256 equal readObject readLayout assignNumbers chosenByDefault moduleBytes openKit linkKit readLdr '
-               'patchFirmware recoverFirmware presetPath buildAssets zipFiles sourceUrl sourceName').split()
+               'patchFirmware recoverFirmware presetFiles buildAssets zipFiles sourceUrl sourceName').split()
     bundled = 'const Core = (() => {\n' + script + '\nreturn {' + ','.join(exports) + '};\n})();\n'
     bundled += 'const {shownControls, inputWords} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode(
         'utf-8').replace('export ', '') + '\nreturn {shownControls, inputWords};\n})();\n'
@@ -159,9 +161,9 @@ def write_builder(kit, output):
     wizard_import = ("import * as Ferret from './ferret.mjs';\n"
                      "import * as Mtp from './mtp.mjs';\n"
                      "import * as Visuals from './visuals.mjs';\n"
-                     "import {presetPath, sha256} from './core.mjs';\n")
+                     "import {presetFiles, sha256} from './core.mjs';\n")
     require(wizard.startswith(wizard_import), 'Unexpected wizard imports')
-    bundled += 'const Wizard = (() => {\nconst {presetPath, sha256} = Core;\n' + wizard[len(wizard_import):].replace(
+    bundled += 'const Wizard = (() => {\nconst {presetFiles, sha256} = Core;\n' + wizard[len(wizard_import):].replace(
         'export ', '') + '\nreturn {createWizard};\n})();\n'
     audition = read(ROOT / 'builder/audition.mjs').decode('utf-8')
     audition_imports = ("import engineSource from '../sdk/browser/engine.mjs?raw';\n"
