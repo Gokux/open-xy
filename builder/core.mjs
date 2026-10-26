@@ -508,6 +508,27 @@ export function presetPath(machine) {
   return `content/presets/${machine.id}/default.json`;
 }
 
+// The machine's init preset, then its own presets (tooling.machines.read_presets):
+// each a version 4 preset of this machine, pointing at no samples. Its own
+// default replaces the generated init preset.
+export function presetFiles(machine) {
+  const path = presetPath(machine);
+  if (!path) return {};
+  const presets = machine.presets ?? {};
+  const files = Object.hasOwn(presets, 'default') ? {} : {[path]: defaultPreset(machine)};
+  check(presets && typeof presets === 'object' && !Array.isArray(presets) && Object.keys(presets).length <= 16,
+    'Invalid machine presets');
+  for (const [name, preset] of Object.entries(presets)) {
+    const params = preset?.engine?.params;
+    check(/^[a-z0-9][a-z0-9_-]{0,23}$/.test(name) && preset && typeof preset === 'object' &&
+      preset.version === 4 && preset.platform === 'OP-XY' && preset.type === machine.id &&
+      Array.isArray(preset.regions) && preset.regions.length === 0 && Array.isArray(params) && params.length === 8 &&
+      params.every(n => Number.isInteger(n) && n >= 0 && n <= 32767), 'Invalid machine preset: ' + name);
+    files[`content/presets/${machine.id}/${name}.json`] = preset;
+  }
+  return files;
+}
+
 function defaultPreset(machine) {
   const entry = JSON.parse(machine.catalog.trim().replace(/^,/, ''));
   check(/^[a-z][a-z0-9_]{0,14}$/.test(entry.type) && Array.isArray(entry.default_params) &&
@@ -560,10 +581,9 @@ export async function buildAssets(kit, selection, catalog, numbers) {
     expected[key] = [...base[key], ...group.map(m => JSON.parse(catalogEntry(m, numbers).trim().replace(/^,/, '')))];
   check(JSON.stringify(JSON.parse(text)) === JSON.stringify(expected), 'Unexpected catalog modification');
   const files = {'content/op1_factory.json': extended};
-  for (const machine of machines) {
-    const path = presetPath(machine);
-    if (path) files[path] = utf8.encode(JSON.stringify(defaultPreset(machine), null, 2) + '\n');
-  }
+  for (const machine of machines)
+    for (const [path, preset] of Object.entries(presetFiles(machine)))
+      files[path] = utf8.encode(JSON.stringify(preset, null, 2) + '\n');
   if (machines.some(m => m.artwork)) {
     check(await screenTemplateOk(kit), 'Platform screen template differs from the supported ABI');
     const baseSvg = kit.screenTemplate;

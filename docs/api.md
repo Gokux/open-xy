@@ -454,16 +454,36 @@ preset entries, its screen file, its symbol prefix and its C++ namespace. It is 
 | Field | Contract |
 | --- | --- |
 | `schema` | 1 |
-| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.1 and builds 1.0 and 1.1 machines |
+| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.3 and builds 1.0 to 1.3 machines |
 | `kind` | `synth`, `sample` or `effect` |
 | `description` | Plain text of at most 160 characters, shown by the builder and preview |
 | `identity` | The numbers it asks for: `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |
 | `sources`, `includes` | Optional extra translation units and include folders inside the machine folder; synths only, since the native plan compiles one source for the other kinds |
 | `icon` | Optional builder glyph: SVG path data in a 46 × 48 box, drawn as a stroke. The kind's glyph is used otherwise |
 | `presetDefaults` | Optional `{"amp": {...}}` overriding generated factory preset envelope values: `attack`, `decay`, `release` and `sustain`, each 0..32767. It does not rewrite existing projects or presets |
+| `presets` | Optional folder inside the machine folder holding the machine's own [presets](#presets); `sdk` 1.3, instruments only |
 
 An effect's optional `dryParameter` field names the control used by the stock
 source dry mixer, as described under [effects](#effects).
+
+### Presets
+
+The [builder](builder.md) installs an init preset for each instrument,
+`content/presets/<id>/default.json`, from its control defaults and
+`presetDefaults`. A machine can ship its own: save them on an OP-XY running
+firmware with the machine, copy the preset files into the folder `presets`
+names, and the builder installs each `<name>.json` as
+`content/presets/<id>/<name>.json`. A `default.json` there replaces the
+generated init preset. Presets store the machine's ID, so they work in any
+firmware that holds it.
+
+- A name is lowercase letters, digits, `-` and `_`, at most 24. Other files in
+  the folder, except `.md` and hidden files, are refused.
+- At most 16 presets, each at most 16 KiB.
+- Each is a version 4 OP-XY preset whose `type` is the machine's ID, with
+  eight engine `params` from 0 to 32767 and no sample `regions`, since a
+  preset never points into a user's sample library. Other fields stay as the
+  device saved them.
 
 ### Identity
 

@@ -157,8 +157,9 @@ prints its results as JSON, then the files to install from `<out>/candidate/`.
    When "firmware written ok!" appears, switch it off and on.
 
 The firmware writer reads `/os.ldr`, not the upgrade directory. The browser
-builder's packages also add an init preset for each instrument
-(`content/presets/<machine>/default.json`); command-line packages do not.
+builder's packages also add each instrument's presets
+(`content/presets/<machine>/`: an init preset and the machine's
+[own](api.md#presets)); command-line packages do not.
 `module.elf` and `module.bin` are development artifacts, not installable
 images. Build commands never write to a device; hardware profiling sends
 explicit diagnostic commands but does not install firmware. To select machines and

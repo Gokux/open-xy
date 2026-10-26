@@ -114,14 +114,23 @@ def main():
                 name = 'content/presets/' + machine['id'] + '/default.json'
                 data = (prefix / name).read_bytes()
                 preset = json.loads(data)
-                definition = definitions[machine['id']]
-                defaults = catalog_defaults(definition)
-                entry = json.loads(machine['catalog'].strip().lstrip(','))
-                require(preset['type'] == entry['type'] and preset['platform'] == 'OP-XY' and
-                        preset['version'] == 4 and preset['engine']['params'] == defaults and
-                        preset['regions'] == [] and preset['fx']['active'] is False and
-                        preset['lfo']['active'] is False, 'Default preset differs from instrument definition')
+                own = machine.get('presets', {})
+                if 'default' in own:
+                    require(preset == own['default'], 'Machine preset differs: default')
+                else:
+                    definition = definitions[machine['id']]
+                    defaults = catalog_defaults(definition)
+                    entry = json.loads(machine['catalog'].strip().lstrip(','))
+                    require(preset['type'] == entry['type'] and preset['platform'] == 'OP-XY' and
+                            preset['version'] == 4 and preset['engine']['params'] == defaults and
+                            preset['regions'] == [] and preset['fx']['active'] is False and
+                            preset['lfo']['active'] is False, 'Default preset differs from instrument definition')
                 expected_files[name] = data
+                for preset_name, document in own.items():
+                    name = 'content/presets/' + machine['id'] + '/' + preset_name + '.json'
+                    data = (prefix / name).read_bytes()
+                    require(json.loads(data) == document, 'Machine preset differs: ' + preset_name)
+                    expected_files[name] = data
             if machine.get('artwork'):
                 name = 'content/display/' + machine['asset']
                 art = screen.compose(machine['artwork'].encode())

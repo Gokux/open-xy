@@ -1,7 +1,7 @@
 import * as Ferret from './ferret.mjs';
 import * as Mtp from './mtp.mjs';
 import * as Visuals from './visuals.mjs';
-import {presetPath, sha256} from './core.mjs';
+import {presetFiles, sha256} from './core.mjs';
 
 // Screen state is supplied by the user at the relevant step. Only the explicit
 // Enable / Disable actions access MIDI. On a Mac with WebUSB, explicit
@@ -138,10 +138,7 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     const files = [install ? 'os.ldr' : 'upgrade/firmware/blackfin/bin/os.ldr'];
     if (install) files.push('content/op1_factory.json');
     if (install) kit?.machines.filter(m => getSelected().includes(m.id) && m.artwork).forEach(m => files.push('content/display/' + m.asset));
-    if (install) kit?.machines.filter(m => getSelected().includes(m.id)).forEach(m => {
-      const path = presetPath(m);
-      if (path) files.push(path);
-    });
+    if (install) kit?.machines.filter(m => getSelected().includes(m.id)).forEach(m => files.push(...Object.keys(presetFiles(m))));
     const visual = Visuals.guide(stage, {install, computer, files, disabling: isDisabling()});
     $('flow-visual').replaceChildren(visual);
     $('flow-file-details').hidden = stage !== 'transfer';

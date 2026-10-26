@@ -20,16 +20,22 @@ from .pipeline import config
 
 KINDS = ('synth', 'sample', 'effect')
 FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includes', 'icon', 'presetDefaults',
-          'dryParameter'}
+          'presets', 'dryParameter'}
 # The public machine contract: headers, definition schema, artwork rules and
 # callbacks. A machine names the version it was written for; the SDK builds a
 # machine of the same major version and an equal or older minor version.
 # 1.1 adds display note activity; 1.2 an effect's delay buffer (resources.bufferBytes),
 # its tempo (resources.transport), division captions and a press that selects an enum's next
-# choice (press).
-SDK_VERSION = (1, 2)
+# choice (press); 1.3 the machine's own presets.
+SDK_VERSION = (1, 3)
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
+# A machine's own presets (machine.json `presets`): <name>.json files the builder
+# installs beside its init preset; default.json replaces the generated one.
+# builder/core.mjs checks them again.
+PRESET_NAME = re.compile(r'[a-z0-9][a-z0-9_-]{0,23}')
+PRESET_COUNT = 16
+PRESET_BYTES = 16 * 1024
 # Folders inside a machine that are never its source: version control, caches, tools.
 IGNORED = {'.git', '__pycache__', 'node_modules', '.venv'}
 
@@ -56,6 +62,7 @@ class Machine:
     identity: dict
     preset_defaults: dict
     root: Path = None
+    presets: dict = None  # name -> preset document, from machine.json `presets`
     icon: str = ''
     dry_parameter: int | None = None
     requested: dict = None  # the numbers machine.json asks for, when a layout gave others
@@ -94,6 +101,43 @@ def _relative(machine_root, value):
     path = (machine_root / value).resolve()
     require(path.is_relative_to(machine_root.resolve()) and path.exists(), 'Missing machine path: ' + value)
     return value
+
+
+def check_preset(value, identity):
+    """A preset as the device saves it (version 4), for this machine and pointing at no samples."""
+    engine = value.get('engine') if isinstance(value, dict) else None
+    params = engine.get('params') if isinstance(engine, dict) else None
+    require(isinstance(value, dict) and value.get('version') == 4 and value.get('platform') == 'OP-XY' and
+            value.get('type') == identity and value.get('regions') == [] and isinstance(params, list) and
+            len(params) == 8 and all(type(n) is int and 0 <= n <= 32767 for n in params),
+            f'A preset is a version 4 OP-XY preset of {identity}, with eight engine params and no sample regions')
+    return value
+
+
+def reject_constant(name):
+    raise ValueError(f'{name} is not JSON')
+
+
+def read_presets(root, folder, identity):
+    """Each <name>.json in the machine's presets folder, by name."""
+    path = root / _relative(root, folder)
+    require(path.is_dir(), 'presets names a folder: ' + folder)
+    # Notes and hidden files, such as a Finder .DS_Store, are not presets.
+    files = sorted(p for p in path.iterdir() if p.suffix != '.md' and not p.name.startswith('.'))
+    require(0 < len(files) <= PRESET_COUNT, f'A presets folder holds 1 to {PRESET_COUNT} presets')
+    presets = {}
+    for file in files:
+        require(file.is_file() and file.suffix == '.json' and PRESET_NAME.fullmatch(file.stem),
+                f'Invalid preset file {file.name}: <name>.json, the name lowercase letters, digits, - and _, '
+                'at most 24')
+        data = file.read_bytes()
+        require(len(data) <= PRESET_BYTES, f'{file.name}: a preset is at most {PRESET_BYTES} bytes')
+        try:
+            value = json.loads(data.decode('utf-8'), parse_constant=reject_constant)
+        except ValueError as error:
+            raise ValueError(f'{file.name}: invalid JSON: {error}') from error
+        presets[file.stem] = check_preset(value, identity)
+    return presets
 
 
 def check_identity(rules, kind, value):
@@ -195,11 +239,16 @@ def machine_at(root, identity=None):
     amp = defaults.get('amp', {})
     require(isinstance(amp, dict) and set(amp) <= {'attack', 'decay', 'release', 'sustain'} and
             all(type(v) is int and 0 <= v <= 32767 for v in amp.values()), 'Invalid preset amp defaults')
+    presets = None
+    if 'presets' in value:
+        require_sdk(version, (1, 3), "A machine's own presets")
+        require(kind != 'effect' and isinstance(value['presets'], str), 'presets names a folder; effects have none')
+        presets = read_presets(root, value['presets'], identity)
     return Machine(id=identity, kind=kind, name=definition['name'], description=value['description'],
                    display=display, sources=sources, includes=includes,
                    definition=definition,
                    identity=check_identity(config()['identities'], kind, value['identity']), preset_defaults=defaults,
-                   root=root, icon=icon, dry_parameter=dry_parameter)
+                   root=root, icon=icon, dry_parameter=dry_parameter, presets=presets)
 
 
 # Machine numbers. Projects store a track's engine, effect and page numbers, so a
