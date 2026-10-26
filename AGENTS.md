@@ -61,6 +61,7 @@ firmware-containing packages and stock content must live outside every
 checkout, including ignored local/ directories. The one exception is the stock
 instrument catalog, profiles/opxy-1.2.0/content/op1_factory.json, kept for
 development and checked against the profile's hash; never add other stock
-files beside it. The docs use %LOCALAPPDATA%/OPXY-SDK/private/ (Windows) or
-~/Library/Application Support/OPXY-SDK/private/ (macOS); pass external
+files beside it. The docs use %LOCALAPPDATA%/OPXY-SDK/private/ (Windows),
+~/Library/Application Support/OPXY-SDK/private/ (macOS) or
+~/.local/share/OPXY-SDK/private/ (Linux); pass external
 input/output paths to build commands. Never force-add these files or bypass the commit/push guards.

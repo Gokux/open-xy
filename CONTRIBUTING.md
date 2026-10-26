@@ -48,8 +48,9 @@ checkout**, including ignored `local/`. The one exception is the stock
 instrument catalog,
 [`profiles/opxy-1.2.0/content/op1_factory.json`](profiles/opxy-1.2.0/content/op1_factory.json),
 which every build extends and builds read by default. The docs use
-`%LOCALAPPDATA%/OPXY-SDK/private/` (Windows) or
-`~/Library/Application Support/OPXY-SDK/private/` (macOS); pass those external
+`%LOCALAPPDATA%/OPXY-SDK/private/` (Windows),
+`~/Library/Application Support/OPXY-SDK/private/` (macOS) or
+`~/.local/share/OPXY-SDK/private/` (Linux); pass those external
 paths to build commands. `local/` is only for non-firmware development
 artifacts. Do not force-add private inputs or generated firmware packages.
 

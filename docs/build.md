@@ -2,7 +2,7 @@
 
 `sdk.py build` statically links every machine in the collection into exact
 stock OS 1.2.0, using the [firmware ABI](abi-1.2.0.md), and checks the result.
-It runs on Windows x86_64 and Apple-silicon macOS. To choose among the curated
+It runs on Windows x86_64, Apple-silicon macOS and Linux x86_64. To choose among the curated
 machines without building, use the [browser builder](builder.md) instead. A
 machine reaches the firmware by joining the collection; read the
 [caveats](../README.md) before installing.
@@ -23,6 +23,33 @@ and installs it in `local/toolchain`, which every native command uses when
 `toolchain-1` release yourself, install it with
 `python sdk.py toolchain fetch --archive <zip>`.
 
+### On Linux
+
+Linux x86_64 has no download yet; build the pinned tools with Docker instead,
+from the checkout (it takes several minutes). The tools then run on any
+x86_64 distribution with glibc 2.36 or later, such as Debian 12, Ubuntu 24.04,
+Fedora 37 or Arch; Ubuntu 22.04 and musl-based distributions such as Alpine
+are too old or incompatible. The `z` mount option lets the container read and
+write the checkout on SELinux hosts such as Fedora, and changes nothing elsewhere.
+
+```sh
+git init local/blackfin-plus-gnu
+git -C local/blackfin-plus-gnu fetch --depth 1 https://github.com/deanm1278/blackfin-plus-gnu e4408a15b9be6cd911283f103a1a3f69e9a6b8c0
+git -C local/blackfin-plus-gnu checkout FETCH_HEAD
+mkdir local/toolchain-build
+docker build -t open-xy-toolchain-linux - < tools/gcc/linux.Dockerfile
+docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
+  -v "$PWD":/opt/opxy-toolchain/open-xy:ro,z \
+  -v "$PWD/local/blackfin-plus-gnu":/opt/opxy-toolchain/fork:z \
+  -v "$PWD/local/toolchain-build":/opt/opxy-toolchain/out:z \
+  open-xy-toolchain-linux /opt/opxy-toolchain/open-xy/tools/gcc/build-linux.sh \
+  /opt/opxy-toolchain/fork /opt/opxy-toolchain/out/blackfin
+mv local/toolchain-build/blackfin local/toolchain
+```
+
+Native commands then use `local/toolchain` and check every tool against the
+`linux-x86_64` pins ([how it is built](toolchain.md#native-tools)).
+
 ## 2. Copy the OS from your OP-XY
 
 On an OP-XY running OS 1.2.0, hold COM while switching it on to open te-boot.
@@ -33,6 +60,9 @@ It must show "3. dev menu"; if not, enable it with the
 2. Press track 3 for "3. mtp file transfer (windows)", or track 2 for
    "2. mtp file transfer (mac)", and wait for "mtp mode active". Open the
    device in File Explorer, or in OpenMTP on a Mac (quit Field Kit first).
+   On Linux, use track 3 and open the device in your file manager; GNOME
+   Files lists it as "OP XY". The file manager needs MTP support (gvfs on
+   GNOME or Cinnamon, kio-extras on KDE).
 3. Copy the OS into a folder outside every checkout:
 
 ```text
@@ -42,8 +72,12 @@ stock-1.2.0/
 
 4. Press track 2 for "2. exit".
 
-For example, keep the folder in `%LOCALAPPDATA%/OPXY-SDK/private/` on Windows or
-`~/Library/Application Support/OPXY-SDK/private/` on macOS. All firmware comes
+If the OP-XY freezes on "mtp mode active" as soon as a computer connects,
+reinstall the official OS 1.2.0 update (`.tfw`) and try again.
+
+For example, keep the folder in `%LOCALAPPDATA%/OPXY-SDK/private/` on Windows,
+`~/Library/Application Support/OPXY-SDK/private/` on macOS or
+`~/.local/share/OPXY-SDK/private/` on Linux. All firmware comes
 from your device; the build accepts only the exact stock OS, and an encrypted
 `.tfw` is a different format. The stock instrument catalog the build extends,
 `op1_factory.json`, is in this repository
