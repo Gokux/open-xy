@@ -70,6 +70,7 @@ previews, firmware builds and packaging.
 
 - [Machine API](docs/api.md): platform rules, schemas, callbacks for each kind, buffers and ownership.
 - [Display API](docs/display.md): retained drawing frames and asset constraints.
+- [Machine UX](docs/ux.md): the conventions machines share for controls, pages, screens and motion.
 - [Build your own firmware](docs/build.md): toolchain, stock files, adding a machine, build and install.
 - [Open-XY builder](docs/builder.md): using the builder, web development and kit export.
 - [Hardware CPU profiling](docs/profiling.md): measure your machine and publish the required catalog readout.
