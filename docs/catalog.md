@@ -75,9 +75,9 @@ python sdk.py compile --collection local/catalog/collection.json --out <folder>
    `v1.0.0`. Change the catalog entry to `draft` for review or `published` for
    inclusion, adding `repository`, `tag`, the full tagged `commit` and `path`
    from the field table. Add the generated `cpu` member from `catalog-cpu.json`.
-   The CPU record's commit must equal the tagged machine commit. Keep reports
-   in an issue/comment or separate evidence location so adding the readout does
-   not change the machine commit after measurement.
+   The CPU record's commit must equal the tagged machine commit. If you link a
+   report, keep it in an issue/comment or separate evidence location so adding
+   the readout does not change the machine commit after measurement.
 6. **Validate the catalog PR.** From a checkout of the SDK, run
    `python sdk.py catalog check --base origin/staging`. The PR targets `staging`
    and changes only your entry in `catalog/machines.json`. CI fetches the pinned
