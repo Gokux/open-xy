@@ -71,5 +71,19 @@ class ProfileParity(unittest.TestCase):
                          expected)
 
 
+    def test_released_open_xy_os_remains_recoverable(self):
+        # The builder rebuilds stock OS 1.2.0 from an uploaded open-xy OS by undoing
+        # this profile's edits (builder/core.mjs recoverFirmware). Every edit a
+        # released profile made must stay among them with the same stock bytes, or
+        # devices running that release could no longer be upgraded from their own
+        # os.ldr. Add each release's edits to the fixture when it ships.
+        current = {p['file_offset']: p['before'] for p in config()['patches']}
+        released = json.loads((ROOT / 'tests/fixtures/released_profiles.json').read_text(encoding='utf-8'))
+        for release, edits in released['releases'].items():
+            for offset, before in edits:
+                with self.subTest(release=release, offset=offset):
+                    self.assertEqual(current.get(offset), before)
+
+
 if __name__ == '__main__':
     unittest.main()
