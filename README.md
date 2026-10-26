@@ -63,6 +63,7 @@ previews, firmware builds and packaging.
 - [Build your own firmware](docs/build.md): toolchain, stock files, adding a machine, build and install.
 - [Open-XY builder](docs/builder.md): using the builder, web development and kit export.
 - [Catalog](docs/catalog.md): machines published from their own repositories, pinned by commit.
+- [Project companions](docs/projects.md): the `.oxy` file recording which machine each project number meant.
 - [Contributing](CONTRIBUTING.md): code ownership and checks.
 
 ## Repository layout

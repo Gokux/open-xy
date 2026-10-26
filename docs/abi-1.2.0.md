@@ -7,7 +7,7 @@ manufacturer ABI; machine authors need only the [engine API](api.md).
 [The firmware profile](../profiles/opxy-1.2.0.json) is the single source
 both the Python SDK and the browser builder read: stock and tool hashes, the
 reservation and its table bytes, identity ranges, stock catalog insertion
-offsets and every edit. Heap and table edits carry their replacement bytes; a
+offsets and every edit. Heap, table and text edits carry their replacement bytes; a
 hook names the module symbol it calls or jumps to, and each build computes and
 verifies its bytes. The builder pins the profile digest. Stock
 addresses live beside the code that uses them: the adapter templates in
@@ -34,6 +34,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Synth and effect controls | 5 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns and titles then follow; scales fine turns on owned synth and send-effect pages; names an owned effect's division values on the send page |
 | LFO destinations | 15 | Selects and modulates all declared engine parameters on owned instrument machines with five to eight parameters, using their assigned encoder icons |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
+| Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
 | Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
 | Startup label | 1 | Shows `OPEN <version>-1.2.0` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
@@ -313,6 +314,24 @@ mapper and publishes the octave in a per-track word; the octave setter also
 publishes each change. Audio maps notes with that snapshot and the same
 integer mapping, without calling GUI project or pattern getters. Choke uses
 the canonical pad; the raw note minus the canonical pad is `drum_transpose`.
+
+## Project companions
+
+Stock saves every project, the workspace included, through one function,
+`save(project, path)` (`0x8d5973ac`), which `0x8d584534` calls once, at
+`0x8d584576`, with stock's project object. That call is hooked: the SDK calls
+stock `save`, and when it succeeds reads the saved file back with stock's
+newlib `fopen`, `fread` and `fclose` (`0x8fed0350`, `0x8fed05c8`,
+`0x8fed00b6`) for its size and CRC-32, then writes the companion beside it with
+`fwrite` (`0x8fed078c`) ([`project_companion.cpp`](../sdk/platform/opxy-1.2.0/project_companion.cpp)).
+The machines it lists are the collection's, from their link-time numbers; a
+kit leaves out machines with number 0. A failed save writes nothing.
+
+Stock's MTP view lists only paths matching a table of regular expressions
+(`0x840aade4`…), and under `/projects` only `.xy`. Three text edits rewrite
+the workspace and project patterns in place to `\.o?xy$`. Dropping a redundant
+`\d` (already in `\w`) from one character class keeps each string's length;
+the workspace pattern uses its padding.
 
 ## Send effects
 

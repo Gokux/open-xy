@@ -8,6 +8,7 @@ COMMANDS = '''Commands:
   new       Start a machine: python sdk.py new [--kind synth|effect] --id mymachine --name "My Machine" --out ../mymachine
   test      Check machine folders anywhere: python sdk.py test --machine ../mymachine [--firmware]
   catalog   Published machines: python sdk.py catalog check | fetch | test [--tags]
+  project   Project companions: python sdk.py project write --layout layout.json song.xy | check song.xy
   compile   Native module only: python sdk.py compile --help
   build     Native firmware package: python sdk.py build [--machine <folder>] --help
   verify    Rebuild and compare a native package: python sdk.py verify --help
@@ -27,6 +28,9 @@ if __name__ == '__main__':
         raise SystemExit(main(argv))
     if command == 'catalog':
         from tooling.catalog import main
+        raise SystemExit(main(argv))
+    if command == 'project':
+        from tooling.projects import main
         raise SystemExit(main(argv))
     if command == 'test':
         from tooling.machine_test import main

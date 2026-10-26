@@ -35,7 +35,7 @@ PROTECTED = (
 )
 
 
-PATCH_KINDS = ('heap', 'table', 'hook', 'startup')
+PATCH_KINDS = ('heap', 'table', 'text', 'hook', 'startup')
 
 
 def check_patch_boundaries(profile, count):
@@ -60,7 +60,12 @@ def check_patch_boundaries(profile, count):
                     (kind == 'hook' and ('service' in patch or 'profiling' in patch))),
                     'Invalid instruction edit')
         else:
-            require(kind in ('hook', 'startup'), 'Heap and table edits carry their reviewed bytes')
+            require(kind in ('hook', 'startup'), 'Heap, table and text edits carry their reviewed bytes')
+        if kind == 'text':
+            # A stock string rewritten in place: printable text, then at least one NUL.
+            for data in (before, bytes.fromhex(patch['after'])):
+                text = data.rstrip(b'\0')
+                require(len(text) < len(data) and all(0x20 <= c < 0x7f for c in text), 'Invalid text edit')
         if kind == 'hook':
             require(isinstance(patch.get('symbol'), str) and patch['symbol'] and type(patch.get('call')) is bool,
                     'A hook names its module symbol and call/jump form')
