@@ -6,14 +6,13 @@ from .formats import require
 
 BENCHMARKS = {'synth': 'opxy-synth-c8-v1', 'effect': 'opxy-effect-callback-v1',
               'sample': 'opxy-sample-callback-v1'}
-FIELDS = {'benchmark', 'commit', 'firmware_sha256', 'runs',
-          'block_percent', 'report'}
-# A public evidence URL, never a local path or a URL with credentials.
+FIELDS = {'benchmark', 'commit', 'firmware_sha256', 'runs', 'block_percent'}
+# An optional public evidence URL, never a local path or a URL with credentials.
 REPORT_URL = r'https://[A-Za-z0-9.-]+(?::[0-9]+)?/[^\s<>"\\]*'
 
 
 def validate(value, kind, commit):
-    require(isinstance(value, dict) and set(value) == FIELDS, 'cpu: unexpected measurement fields')
+    require(isinstance(value, dict) and set(value) - {'report'} == FIELDS, 'cpu: unexpected measurement fields')
     require(kind in BENCHMARKS and value['benchmark'] == BENCHMARKS[kind], 'cpu: benchmark must match the machine kind')
     require(isinstance(commit, str) and re.fullmatch(r'[0-9a-f]{40}', commit) and value['commit'] == commit,
             'cpu: measurement must match the catalog commit; remeasure when updating')
@@ -24,6 +23,7 @@ def validate(value, kind, commit):
         number = value[field]
         require(type(number) in (int, float) and math.isfinite(number) and 0 < number < 100,
                 f'cpu: {field} must be an unsaturated, positive percentage of the stock block budget')
-    require(isinstance(value['report'], str) and len(value['report']) <= 2048 and
-            re.fullmatch(REPORT_URL, value['report']), 'cpu: report must be a public HTTPS evidence URL')
+    if 'report' in value:
+        require(isinstance(value['report'], str) and len(value['report']) <= 2048 and
+                re.fullmatch(REPORT_URL, value['report']), 'cpu: report must be a public HTTPS evidence URL')
     return value
