@@ -47,6 +47,12 @@ class SynthVoices(unittest.TestCase):
     def test_every_voice_index_has_an_object_and_notes_share_the_capacity(self):
         definition = copy.deepcopy(fixture('probesynth').definition)
         definition['id'] = 'probe'
+        for i in range(4):
+            parameter = copy.deepcopy(definition['parameters'][i])
+            parameter.update(id='extra' + str(i), label='Extra ' + str(i), control=i)
+            definition['parameters'].append(parameter)
+            for preset in definition['presets'].values():
+                preset[parameter['id']] = parameter['default']
         definition['resources'].update(voiceBytes=12, voiceAlignment=4, voiceCapacity=2, sharedBytes=0)
         validate_definition(definition, 'synth')
         m = SimpleNamespace(definition=definition, prefix='probe', native_name='probe', identity=dict(engine=5, page=85))

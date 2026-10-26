@@ -838,6 +838,166 @@
       "profiling": false
     },
     {
+      "kind": "hook",
+      "name": "LFO destination range on Element selector initialization",
+      "address": "0x8d53ec60",
+      "file_offset": "0x17603c",
+      "length": 4,
+      "before": "fce340c6",
+      "symbol": "sdk_lfo_range",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO destination range on Element page",
+      "address": "0x8d53ef50",
+      "file_offset": "0x17632c",
+      "length": 4,
+      "before": "fce3c8c4",
+      "symbol": "sdk_lfo_range",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO destination range on Random page",
+      "address": "0x8d53ff32",
+      "file_offset": "0x17730e",
+      "length": 4,
+      "before": "fce3d7bc",
+      "symbol": "sdk_lfo_range",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO destination range on Value page",
+      "address": "0x8d5426b8",
+      "file_offset": "0x179a94",
+      "length": 4,
+      "before": "fce314a9",
+      "symbol": "sdk_lfo_range",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO destination stepping in parameter locks",
+      "address": "0x8d5ab7ea",
+      "file_offset": "0x1e2bc2",
+      "length": 4,
+      "before": "ffe317ff",
+      "symbol": "sdk_lfo_step",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO destination stepping in live controls",
+      "address": "0x8d5ab8ce",
+      "file_offset": "0x1e2ca6",
+      "length": 4,
+      "before": "ffe3a5fe",
+      "symbol": "sdk_lfo_step",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO engine destination audio routing",
+      "address": "0x11a03f20",
+      "file_offset": "0xa994",
+      "length": 8,
+      "before": "00de518dd4820000",
+      "symbol": "sdk_lfo_audio",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "Synth engine page titles follow alternate selection",
+      "address": "0x8d545b2e",
+      "file_offset": "0x17cf0a",
+      "length": 4,
+      "before": "fee36705",
+      "symbol": "sdk_synth_title",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO Element destination knob icons",
+      "address": "0x8d53f676",
+      "file_offset": "0x176a52",
+      "length": 4,
+      "before": "06e39704",
+      "symbol": "sdk_lfo_element_icon",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO Random destination knob icons",
+      "address": "0x8d540b6e",
+      "file_offset": "0x177f4a",
+      "length": 4,
+      "before": "05e31bfa",
+      "symbol": "sdk_lfo_random_icon",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO Value destination knob icons",
+      "address": "0x8d5431ca",
+      "file_offset": "0x17a5a6",
+      "length": 4,
+      "before": "05e3ede6",
+      "symbol": "sdk_lfo_value_icon",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO Element extra destination icon visibility",
+      "address": "0x8d53f3e8",
+      "file_offset": "0x1767c4",
+      "length": 4,
+      "before": "fce3acca",
+      "symbol": "sdk_lfo_element_name",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO Element initial knob icon offset",
+      "address": "0x8d53ecc0",
+      "file_offset": "0x17609c",
+      "length": 8,
+      "before": "504f79c20820b14f",
+      "symbol": "sdk_lfo_element_initial_icon",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO destination encoder click cycle",
+      "address": "0x8c0b38b4",
+      "file_offset": "0xeac74",
+      "length": 8,
+      "before": "00de5a8d58b20000",
+      "symbol": "sdk_lfo_cycle",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO Random effective destination label",
+      "address": "0x8d5404b6",
+      "file_offset": "0x177892",
+      "length": 4,
+      "before": "fce345c2",
+      "symbol": "sdk_lfo_label",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "name": "LFO Value effective destination label",
+      "address": "0x8d542da8",
+      "file_offset": "0x17a184",
+      "length": 4,
+      "before": "fce3ccad",
+      "symbol": "sdk_lfo_label",
+      "call": true
+    },
+    {
       "kind": "startup",
       "name": "Boot-screen version label",
       "address": "0x8c0b9114",

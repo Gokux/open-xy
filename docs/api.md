@@ -137,6 +137,22 @@ Browser previews show the parameter last edited at each position. See
 [Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json), whose fourth encoder
 switches between FM ratio and depth.
 
+On instrument tracks, the Value, Random and Element LFOs can target every
+declared parameter of a custom synth or sample engine, including all eight
+when present. Destination names follow parameter order regardless of which
+alternate the engine page shows. Synth destination icons follow each
+parameter's assigned encoder, including alternates that share an encoder.
+Sample-engine icons repeat for the second row of four controls. Turning
+stops at the first and last declared destination; pressing cycles through
+the declared destinations and wraps to the first. Extended machines use
+eight selector positions, bounded to their declared count. A retained
+destination beyond the machine's count resolves to its last parameter in
+audio, labels and icons. Stock engines and
+machines with at most four parameters retain stock selection. When opening
+projects saved with older firmware, reselect LFO engine destinations on
+machines with more than four parameters: their saved selector values now
+address eight slots instead of four.
+
 On custom synth engine pages, Shift + turn edits the same visible parameter
 at one tenth of the normal rate. Enum choices keep their ordinary stepping.
 Synth amounts and bounded positive anchor-ratio captions show one decimal
