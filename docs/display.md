@@ -8,6 +8,8 @@ reshapes, recolours and relabels them. It is not executable SVG animation. The
 same C++ computes the browser preview and the device frames; fonts, framing and
 rasterization can differ.
 
+The [UX conventions](ux.md) say how machine screens look and move.
+
 There is one display contract. Characters, dials, keyboards, meters and other
 patterns are the machine's own code filling nodes; see
 [Macro Osc's segment characters](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/segments.hpp).

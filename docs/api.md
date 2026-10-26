@@ -120,7 +120,8 @@ are `ratio`, `percent` (the normalized value scaled to 0.0–100.0, without a su
 percentage), `duration`, `semitones`, `enum` and `division` (SDK 1.2: one of
 stock delay's eight note lengths, below). Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
-Parameter order and mapping changes affect saved sounds. The stock parameter
+Parameter order and mapping changes affect saved sounds; the
+[UX conventions](ux.md) cover direction, defaults and adding parameters. The stock parameter
 page shows labels in lower case.
 
 ### Alternate controls
