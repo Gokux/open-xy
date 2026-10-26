@@ -35,6 +35,7 @@ version is rejected. The output differs from stock in exactly these places:
 | LFO destinations | 15 | Selects and modulates all declared engine parameters on owned instrument machines with five to eight parameters, using their assigned encoder icons |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
 | Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
+| Diagnostic benchmark | 1 | Extends explicit command 0xc8 with the selected machines; no normal-playback callbacks added |
 | Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
 | Startup label | 1 | Shows `OPEN <version>-1.2.0` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
@@ -58,6 +59,15 @@ They preserve audio processing and voice-lifetime return paths. Counter
 initialization, resets, exporters, coarse timing and deadline clocks remain
 stock. These shims are linked in both modes so the browser can select the mode
 without recompilation; enabled builds leave all ten stock hook sites intact.
+
+The diagnostic runner calls stock's nine synth tests, then the selected SDK
+machines in build order. Synths reuse stock's benchmark-one routine. Effects and
+sample engines use generated wrappers beside their real C++ callbacks, isolated
+state/heap storage and a two-instruction CYCLES reader. Only the explicit command
+publishes those callback statistics into the existing diagnostic records and
+exporter. The heap calls match the bounded allocation path used by sample analysis;
+allocation, preparation and cleanup are outside the timed callback. No callback
+wrapper is inserted into normal audio processing. See [workloads](profiling.md#what-is-measured).
 
 ## Startup
 

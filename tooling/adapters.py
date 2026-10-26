@@ -12,6 +12,7 @@ import json
 import math
 from pathlib import Path
 
+from .benchmark import append_callback
 from .definitions import ROOT, control_positions, validate_definition
 from .formats import require
 from .stock_tables import REGISTRATION as RELOCATED
@@ -242,14 +243,15 @@ def sample_callbacks(m):
     return [m.prefix + suffix for flag, entries in SAMPLE_SERVICES if resources.get(flag, 0) for suffix, *_ in entries]
 
 
-def generate_sample_voice(directory, m):
+def generate_sample_voice(directory, m, benchmark=False):
     resources = m.definition['resources']
     values = dict(PREFIX=m.prefix, NAMESPACE=m.definition['id'], NAME=m.native_name,
                   LABELS=stock_labels(m), CAPACITY=resources['voiceCapacity'],
                   ANALYSIS=resources.get('sampleAnalysis', 0), STEREO=resources.get('stereoOutput', 0),
                   CHOKE=resources.get('chokeSameKey', 0), DRUM_KEYS=int(m.identity['page'] == 7),
                   PAD_SETTINGS=resources.get('padSettings', 0), DRUM_CONTROLS=resources.get('drumControls', 0))
-    return expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
+    path = expand('sample_voice.cpp.in', values, Path(directory) / f'sample_voice_{m.prefix}.cpp')
+    return append_callback(path, m) if benchmark else path
 
 
 def generate_sample_callbacks(directory, machines):
@@ -358,7 +360,7 @@ FX_BUFFER_INIT = '''    // Stock's per-send scratch memory, which stock delay an
         ? opxy::platform::stock<opxy::i32*(opxy::u32, opxy::u32)>(0x8d50d9c8)(slot, {bytes}u) : nullptr;'''
 
 
-def generate_fx_object(directory, m):
+def generate_fx_object(directory, m, benchmark=False):
     resources = m.definition['resources']
     bytes_ = resources.get('bufferBytes')
     if bytes_ is None:
@@ -377,11 +379,12 @@ def generate_fx_object(directory, m):
     # The buffer's scratch call and the transport both use stock addresses.
     if bytes_ is not None or resources.get('transport'):
         values['OBJECT'] = '#include "stock.hpp"\n' + values['OBJECT']
-    return expand('fx_object.cpp.in', dict(values, PREFIX=m.prefix, NAMESPACE=m.definition['id'],
+    path = expand('fx_object.cpp.in', dict(values, PREFIX=m.prefix, NAMESPACE=m.definition['id'],
                                            NAME=m.native_name, LABELS=stock_labels(m),
                                            DRY_LEVEL='0x7fffffff' if m.dry_parameter is None else
                                            f'parameters[{m.dry_parameter}]'),
                   Path(directory) / f'fx_object_{m.prefix}.cpp')
+    return append_callback(path, m) if benchmark else path
 
 
 def stock_labels(m):

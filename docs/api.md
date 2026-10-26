@@ -94,6 +94,9 @@ host does fast and the Blackfin does not:
 - **Per-sample work that changes only per block**, such as coefficients and
   increments, belongs outside the sample loop.
 
+Measure and publish the required [hardware CPU readout](profiling.md) before
+submitting a catalog entry. Host estimates do not satisfy that requirement.
+
 ## Definition
 
 Every machine kind keeps its controls in `definition.json` (for example

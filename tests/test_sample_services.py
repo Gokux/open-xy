@@ -35,9 +35,13 @@ class SampleServices(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='sample-services-') as folder:
             binary = Path(folder) / (name + ('.exe' if os.name == 'nt' else ''))
             hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
-            if name == 'sample_callbacks':
+            if name in ('sample_callbacks', 'benchmark'):
                 probe = replace(fixture('probesample'), id='probe', identity=dict(engine=46, page=7))
-                generate_sample_callbacks(folder, [probe])
+                if name == 'sample_callbacks':
+                    generate_sample_callbacks(folder, [probe])
+                else:
+                    from tooling.benchmark import generate
+                    generate(folder, [replace(fixture('probesynth'), id='unfamiliar', identity=dict(engine=46, page=91))])
                 # Exercise the real tempo readers and assignment bridge with
                 # host addresses standing in for stock functions and globals.
                 stock = (ROOT / 'sdk/platform/opxy-1.2.0/stock.hpp').read_text()
@@ -81,3 +85,6 @@ class SampleServices(unittest.TestCase):
 
     def test_startup_registers_in_order_and_gates_the_catalog(self):
         self.run_fixture('startup')
+
+    def test_benchmark_forwards_stock_and_only_owned_arbitrary_synths(self):
+        self.run_fixture('benchmark')
