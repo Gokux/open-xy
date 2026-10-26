@@ -21,18 +21,20 @@ class Benchmark(unittest.TestCase):
         self.assertEqual(transport.frame(0x21, 9, 1).hex(), 'f000207621660004210109027300f7')
         self.assertEqual(transport.frame(0x21, 0xc8, 2).hex(), 'f000207621660804210248024900f7')
 
-    def test_arbitrary_synth_and_non_synth_exclusion(self):
+    def test_arbitrary_names_and_all_machine_kinds(self):
         synth = replace(fixture('probesynth'), id='unfamiliar', identity=dict(engine=46, page=91))
         selected = [fixture('probefx'), synth, fixture('probesample')]
-        self.assertEqual(cases(selected)[9:], [dict(name='unfamiliar', engine=46, source='sdk')])
+        self.assertEqual([c['kind'] for c in cases(selected)[9:]], ['effect', 'synth', 'sample'])
+        self.assertEqual([c['metric'] for c in cases(selected)[9:]], [7, 5, 3])
+        self.assertEqual(cases(selected)[10]['name'], 'unfamiliar')
         with tempfile.TemporaryDirectory() as folder:
             source = generate(folder, selected).read_text(encoding='utf-8')
             self.assertIn('unfamiliar_ready', source)
             self.assertNotIn('probesynth', source)
-            self.assertNotIn('probefx', source)
-            self.assertNotIn('probesample', source)
+            self.assertIn('probefx_benchmark', source)
+            self.assertIn('probesample_benchmark', source)
             empty = generate(folder, []).read_text(encoding='utf-8')
-            self.assertIn('{0, 0, 0}', empty)
+            self.assertIn('{0, 0, 0, 0, 0}', empty)
 
     def test_hook_replaces_only_the_explicit_diagnostic_runner(self):
         patch = next(p for p in config()['patches'] if p.get('symbol') == 'sdk_benchmark_run')
@@ -66,3 +68,34 @@ class Benchmark(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, 'profiling-enabled'):
                         transport.main()
                 self.assertFalse((package / 'capture').exists())
+
+    def test_effect_and_sample_callback_workloads_execute_and_release_private_storage(self):
+        import os, subprocess
+        from tooling.benchmark import append_callback
+        from test_sample_services import HOST_CXX, ROOT
+        if not HOST_CXX:
+            self.skipTest('No working host C++ compiler')
+        for name, source in [('probefx', 'fx.cpp'), ('probesample', 'sample.cpp')]:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as folder:
+                folder = Path(folder)
+                machine = fixture(name)
+                generated = folder / 'generated_bench.cpp'
+                generated.write_text('#include "' + (machine.root / source).as_posix() + '"\n')
+                if machine.definition['resources'].get('padSettings'):
+                    with generated.open('a') as output:
+                        output.write(f'''opxy::PadSettings {machine.prefix}_sample_defaults() {{ return {machine.id}::sample_defaults(); }}
+opxy::PadSettings {machine.prefix}_sample_assign(const opxy::SampleAssignment* input) {{ return {machine.id}::sample_assign(*input); }}
+''')
+                append_callback(generated, machine)
+                binary = folder / ('test.exe' if os.name == 'nt' else 'test')
+                command = [HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror', '-Wno-unused-variable',
+                           '-I' + str(folder), '-I' + str(ROOT / 'sdk/include'),
+                           '-I' + str(ROOT / 'sdk/platform/opxy-1.2.0'),
+                           '-DBENCHMARK=' + name + '_benchmark',
+                           *(['-DSAMPLE_BENCHMARK'] if machine.kind == 'sample' else []),
+                           str(ROOT / 'tests/fixtures/benchmark_callbacks.cpp'), '-o', str(binary)]
+                hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
+                result = subprocess.run(command, capture_output=True, text=True, **hidden)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                result = subprocess.run([str(binary)], capture_output=True, text=True, **hidden)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

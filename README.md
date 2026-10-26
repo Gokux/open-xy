@@ -62,6 +62,7 @@ previews, firmware builds and packaging.
 - [Display API](docs/display.md): retained drawing frames and asset constraints.
 - [Build your own firmware](docs/build.md): toolchain, stock files, adding a machine, build and install.
 - [Open-XY builder](docs/builder.md): using the builder, web development and kit export.
+- [Hardware CPU profiling](docs/profiling.md): measure your machine and publish the required catalog readout.
 - [Catalog](docs/catalog.md): machines published from their own repositories, pinned by commit.
 - [Project companions](docs/projects.md): the `.oxy` file recording which machine each project number meant.
 - [Contributing](CONTRIBUTING.md): code ownership and checks.

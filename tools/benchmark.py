@@ -1,4 +1,4 @@
-"""Run the installed build's synthetic synth benchmark over USB MIDI. Requires python-rtmidi.
+"""Run the installed build's synthetic machine benchmarks over USB MIDI. Requires python-rtmidi.
 
 Save the project and stop playback first: stock diagnostic setup changes temporary
 engine/playback state. --package must describe the firmware actually installed.
@@ -92,18 +92,27 @@ def selftest():
     if len(frame(0x21, 9)) > 64:
         raise ValueError('frame bounds')
 
-def main():
+def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('mode', choices=['selftest', 'probe', 'benchmark'])
+    p.add_argument('mode', choices=['selftest', 'probe', 'benchmark', 'report'])
     p.add_argument('--out', type=Path)
     p.add_argument('--package', type=Path)
     p.add_argument('--seconds', type=float, default=60)
     p.add_argument('--greet', action='store_true')
-    a = p.parse_args()
+    p.add_argument('--installed', action='store_true', help='confirm --package is installed and unsaved work is saved')
+    p.add_argument('--capture', type=Path, action='append', default=[], help='report: capture.json from each independent run')
+    p.add_argument('--machine', help='report: machine ID in the package')
+    p.add_argument('--report-url', help='report: public HTTPS location where you will publish report.md')
+    a = p.parse_args(argv)
     a.route = VERIFIED_BENCHMARK_ROUTE
     selftest()
     if a.mode == 'selftest':
         print('PASS: codec vectors/roundtrip/rejection; no device access')
+        return
+    if a.mode == 'report':
+        require(a.package and a.out and a.machine and a.report_url, 'report needs --package, --out, --machine and --report-url')
+        from tooling.profile_report import create
+        print(create(a.package, a.capture, a.machine, a.report_url, a.out))
         return
     if not a.out or a.out.exists():
         raise ValueError('fresh output required')
@@ -113,20 +122,17 @@ def main():
     package_identity = None
     if a.mode == 'benchmark':
         require(a.package is not None, '--package is required for machine attribution')
-        manifest = json.loads((a.package / 'manifest.json').read_text(encoding='utf-8'))
-        require(manifest.get('profiling') is True, 'Benchmark requires a profiling-enabled package')
-        report_path = a.package / 'analysis/compile-report.json'
-        require(sha(report_path.read_bytes()) == manifest['files']['analysis/compile-report.json'], 'Compile report hash mismatch')
-        report = json.loads(report_path.read_text(encoding='utf-8'))
-        require(report.get('profiling') is True, 'Compile report must have profiling enabled')
+        from tooling.profile_report import package_data
+        _manifest, report, package_identity = package_data(a.package)
         expected = report['benchmark_cases']
-        package_identity = dict(manifest_sha256=sha((a.package / 'manifest.json').read_bytes()),
-                                firmware_sha256=manifest['files']['candidate/os.ldr'],
-                                compile_report_sha256=sha(report_path.read_bytes()))
+        require(a.installed, 'Confirm this exact package is installed and save work first: --installed')
     a.out.mkdir(parents=True)
     record = {'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'mode': a.mode, 'route': a.route, 'collector_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), 'expected_cases': expected, 'transmissions': [], 'frames': [], 'errors': [], 'identity': None, 'complete': False}
     record['package'] = package_identity
-    import rtmidi
+    try:
+        import rtmidi
+    except ImportError:
+        raise SystemExit('Install the optional collector dependency: python -m pip install python-rtmidi')
     incoming = rtmidi.MidiIn(queue_size_limit=8192)
     outgoing = rtmidi.MidiOut()
     pending = bytearray()
@@ -234,13 +240,16 @@ def main():
         (a.out / 'messages.txt').write_text('\n'.join((f['text'] for f in record['frames'])), encoding='utf-8')
     if expected is not None:
         decoded = decode(record, expected)
-        results = {'package': package_identity, 'engines': decoded, 'normalization': '100 * encoded average / 65535; stock 580352-cycle block budget', 'workload': '1000 held-note blocks + 500 release blocks, note 60 velocity 127, knobs 0..3 at midpoint', 'limitations': ['Synthetic test, not live project utilization or maximum polyphony.', 'Results assigned by build order and exact packet count; device firmware hash is not attested.', 'Machine settings affect cost; this does not sweep presets or models.', 'This benchmark excludes display rendering and does not profile sample engines or effects.', 'Whole voice includes oscillator; do not add the two.', 'A maximum of 65535 is clipped; insufficient voice activity is flagged.']}
+        results = {'package': package_identity, 'engines': decoded, 'normalization': '100 * encoded average / 65535; stock 580352-cycle block budget', 'workload': 'Versioned workloads in docs/profiling.md; synth: stock note 60/midpoint; effect/sample: isolated default-setting callback fixtures', 'limitations': ['Synthetic test, not live project utilization or maximum polyphony.', 'Results assigned by build order and exact packet count; device firmware hash is not attested.', 'Machine settings affect cost; this does not sweep presets or models.', 'Graphics are excluded. Effect/sample callback tests exclude stock mixing, preparation and allocation.', 'Whole voice includes oscillator; do not add the two.', 'A maximum of 65535 is clipped; insufficient voice activity is flagged.']}
         (a.out / 'results.json').write_text(json.dumps(results, indent=2), encoding='utf-8')
-        lines = ['| Machine | Oscillator | Whole voice |', '| --- | ---: | ---: |']
+        lines = ['| Machine | Scope | Mean block budget |', '| --- | --- | ---: |']
         for item in decoded:
             metrics = item['metrics']
             suffix = ' (insufficient activity)' if item['insufficient_voice_activity'] else ''
-            lines.append('| ' + item['machine']['name'] + suffix + ' | ' + format(metrics[3]['average_budget_percent'], '.3f') + '% | ' + format(metrics[5]['average_budget_percent'], '.3f') + '% |')
+            case = item['machine']
+            scope = 'whole voice' if case.get('kind', 'synth') == 'synth' else case['kind'] + ' callback'
+            value = metrics[case.get('metric', 5)]['average_budget_percent']
+            lines.append(f"| {case['name']}{suffix} | {scope} | {value:.3f}% |")
         lines += ['', 'Workload: ' + results['workload'] + '.', '', 'Normalization: ' + results['normalization'] + '.',
                   '', *('- ' + item for item in results['limitations']), '',
                   'Firmware SHA-256: `' + package_identity['firmware_sha256'] + '`']

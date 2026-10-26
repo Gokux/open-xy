@@ -172,7 +172,7 @@ def plan(machines, profile=None):
 
 # The SDK's shared objects, after every machine's. Sources are TEMPLATES/<unit>.cpp
 # or .s, except the generated units and the Blackfin runtime.
-SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup', 'startup_exit', 'startup_label', 'benchmark',
+SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup', 'startup_exit', 'startup_label', 'benchmark', 'benchmark_clock',
              'hook', 'sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache', 'sample_cache_stock',
              'sample_cache_hooks', 'sample_progress', 'sample_progress_stock', 'pad_assignment',
              'pad_assignment_stock', 'drum_page', 'drum_controls_stock', 'drum_display_stock', 'screen_order',
@@ -290,9 +290,9 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         if step.startswith('source:'):
             return cxx(m.source(step.removeprefix('source:')), obj, m)
         source = {'voice': lambda: generate_voice(folder, m), 'display': lambda: display_unit(folder, m),
-                  'screen': lambda: generate_screen(folder, m), 'fx_object': lambda: generate_fx_object(folder, m),
+                  'screen': lambda: generate_screen(folder, m), 'fx_object': lambda: generate_fx_object(folder, m, benchmark=True),
                   'registration': lambda: generate_registration(folder, m),
-                  'sample_voice': lambda: generate_sample_voice(folder, m)}[step]
+                  'sample_voice': lambda: generate_sample_voice(folder, m, benchmark=True)}[step]
         return cxx(str(source()), obj, m)
 
     names = []

@@ -47,6 +47,8 @@ Read README.md and CONTRIBUTING.md. For native changes also read
   Native changes to this repository require the build and
   [release verification](docs/build.md#release-verification), with no skipped
   required fixtures. Checks must remain active under `python -O`.
+- For mandatory catalog CPU measurements and authorized hardware tests, follow
+  [hardware profiling](docs/profiling.md); host estimates cannot fill the catalog field.
 - Build and verification commands are local. Device operations require a separate
   user instruction. Do not infer measured cycles or recovery from host checks.
 - Keep public docs about current interfaces and behavior. Remove obsolete text

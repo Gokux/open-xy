@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""OP-XY SDK commands. Local builds and checks only; no device operations."""
+"""OP-XY SDK commands: local builds/checks and explicitly requested hardware profiling."""
 import sys
 
 COMMANDS = '''Commands:
+  profile   Hardware machine measurements: python sdk.py profile --help
   check     Contributor checks: python sdk.py check [--help]
   preview   Browser audition build: python sdk.py preview --machine ../mymachine --out local/preview-001
   new       Start a machine: python sdk.py new [--kind synth|effect] --id mymachine --name "My Machine" --out ../mymachine
@@ -23,6 +24,9 @@ if __name__ == '__main__':
     if command in ('compile', 'build', 'verify'):
         from tooling.native import main
         raise SystemExit(main(argv, command))
+    if command == 'profile':
+        from tools.benchmark import main
+        raise SystemExit(main(argv))
     if command == 'new':
         from tooling.custom_preview import main
         raise SystemExit(main(argv))

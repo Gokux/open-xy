@@ -23,6 +23,12 @@ effect and page numbers are not the catalog's: each firmware's
 | `status` | `reserved`: the ID is held for a machine being written. `draft`: its release is pinned for review but not built into kits or firmware. `published`: built from its release. `retired`: no longer built; its ID stays held |
 | `repository`, `tag`, `commit`, `path` | A draft or published machine's release: `https://github.com/<owner>/<repo>`, the tag, its full commit SHA, and the machine's folder in the repository (`.` at the root). A retired entry may keep them |
 
+New or changed draft/published entries also require a `cpu` record generated
+from [hardware profiling](profiling.md), for every machine kind. That guide owns
+the field schema, workloads and contributor commands. Unchanged legacy entries
+may remain without a record until their next update; measurements are never
+backfilled with host estimates.
+
 IDs are unique across the catalog. Open-XY's own machines are entries like
 any other, published from the [core machines](https://github.com/etcetc000/open-xy-core-machines).
 
