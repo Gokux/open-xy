@@ -70,15 +70,37 @@ test('profiling defaults on; disabling it changes only the reviewed diagnostic h
   for (const image of [on, off]) assert.deepEqual(await recoverFirmware(kit, image), {stock, selected:['a']});
 });
 
-test('profiling recovery rejects mixed modes, hook corruption, and altered linked code', async () => {
+test('only an exact build restores its selection; others recover verified stock or are rejected', async () => {
   const {kit, linked, stock} = await profilingFixture();
   const on = await patchFirmware(kit, linked, stock), off = await patchFirmware(kit, linked, stock, {profiling:false});
+  const earlier = {stock, selected:null, earlier:true};
+  // Mixed modes, altered edits or altered linked code: stock is rebuilt from the
+  // reviewed edits and verified by hash; the uploaded module is never used.
   const mixed = off.slice(); mixed.set(on.subarray(32, 40), 32);
-  await assert.rejects(recoverFirmware(kit, mixed));
-  for (const image of [on, off]) for (const at of [32, 48, 60, readLdr(image).at(-2).offset + 16]) {
-    const damaged = image.slice(); damaged[at] ^= 1;
-    await assert.rejects(recoverFirmware(kit, damaged));
+  assert.deepEqual(await recoverFirmware(kit, mixed), earlier);
+  for (const image of [on, off]) {
+    for (const at of [32, 48, readLdr(image).at(-2).offset + 16]) {
+      const damaged = image.slice(); damaged[at] ^= 1;
+      assert.deepEqual(await recoverFirmware(kit, damaged), earlier);
+    }
+    // A change outside every reviewed edit is not OS 1.2.0.
+    const foreign = image.slice(); foreign[60] ^= 1;
+    await assert.rejects(recoverFirmware(kit, foreign), /not made from OS 1\.2\.0/);
   }
+});
+
+test('an earlier release whose module loads elsewhere recovers stock OS 1.2.0', async () => {
+  const {kit, linked, stock} = await profilingFixture();
+  const image = await patchFirmware(kit, linked, stock, {profiling:false});
+  // Move the module record's load address, as a release with smaller tables did.
+  const at = readLdr(image).at(-2).offset, d = new DataView(image.buffer, image.byteOffset);
+  d.setUint32(at + 4, kit.profile.module_base + 0x180000, true);
+  image[at + 2] = 0; image[at + 2] = image.subarray(at, at + 16).reduce((a, b) => a ^ b, 0);
+  assert.deepEqual(await recoverFirmware(kit, image), {stock, selected:null, earlier:true});
+  // A kit too large to search every selection still recovers stock.
+  kit.machines = [...kit.machines, ...Array.from({length:10}, (_, i) => machine('m' + i, 35 + i, 83 + i))];
+  const exact = await patchFirmware(kit, linked, stock, {profiling:false});
+  assert.deepEqual(await recoverFirmware(kit, exact), {stock, selected:null, earlier:true});
 });
 
 test('profiling option and profile hook condition must be exact booleans', async () => {
@@ -278,5 +300,5 @@ test('firmware recovery rejects malformed and foreign loader layouts without pri
   final[2] = final.reduce((a,b) => a ^ b, 0);
   await assert.rejects(recoverFirmware(kit, final), /Only OP–XY OS 1\.2\.0 is supported/);
   kit.machines = Array.from({length:11},(_,i) => machine('m'+i,34+i,82+i));
-  await assert.rejects(recoverFirmware(kit, final), /can.t be recognized/);
+  await assert.rejects(recoverFirmware(kit, final), /Only OP–XY OS 1\.2\.0 is supported/);
 });

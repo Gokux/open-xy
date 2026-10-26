@@ -153,6 +153,8 @@ async function acceptFirmware(file, isCurrent = () => true) {
       selected = recovered.selected; renderMachines(); recalculate();
       $('firmware-result').textContent = '✓ open-xy OS with ' +
         kit.machines.filter(m => selected.includes(m.id)).map(m => m.name).join(' + ');
+    } else if (recovered.earlier) {
+      $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 recovered from an earlier open-xy OS · choose your machines again';
     } else $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 verified · ' + file.name;
     wizard.setFirmwareState('loaded');
     $('files-title').focus();
