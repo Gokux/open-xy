@@ -145,11 +145,6 @@ Browser previews show the parameter last edited at each position. See
 [Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json), whose fourth encoder
 switches between FM ratio and depth.
 
-A position without alternates may instead declare `"press": "next"` on its
-enum parameter (SDK 1.2): pressing its encoder selects the next choice,
-wrapping to the first, as a one-detent edit, so a held step records it as a
-lock.
-
 On instrument tracks, the Value, Random and Element LFOs can target every
 declared parameter of a custom synth or sample engine, including all eight
 when present. Destination names follow parameter order regardless of which

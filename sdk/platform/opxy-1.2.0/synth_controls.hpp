@@ -1,6 +1,6 @@
 // Owned synth/FX controls: generated metadata for alternate selection,
-// continuous fine turns, enum steps and presses, and synth captions; GUI state
-// lives in synth_controls.cpp.
+// continuous fine turns, enum steps and synth captions; GUI state lives in
+// synth_controls.cpp.
 #pragma once
 #include <opxy/types.hpp>
 
@@ -9,16 +9,14 @@ namespace opxy { namespace platform {
 // position from slot s to next[s]; each position starts on its own slot 0..3,
 // and a slot no position reaches maps to itself. steps[s] is an enum slot's
 // choice count (2..255; 0 for other slots and larger enums): each detent moves
-// one choice. A press of a position showing a slot in `press` selects its next
-// choice. In a browser kit an unselected machine's ready resolves to a function
-// returning 0.
+// one choice. In a browser kit an unselected machine's ready resolves to a
+// function returning 0.
 struct SynthControls {
     const char* id;  // absolute symbol: the engine or effect ID, supplied at link time
     int (*ready)();
     u8 next[parameter_slots];
     u32 continuous;
     u8 steps[parameter_slots];
-    u32 press;
     bool (*format)(u32 slot, i32 value, char* text);
     bool effect;
     u32 engine() const { return static_cast<u32>(reinterpret_cast<__UINTPTR_TYPE__>(id)); }

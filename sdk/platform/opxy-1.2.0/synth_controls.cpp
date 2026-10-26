@@ -1,8 +1,7 @@
 // Stock OS 1.2.0 instrument-track encoders for synths with alternate controls.
 // Both hooks replace a CALL.A of a C function, so stock calls them with the C
 // ABI. A press of an owned synth's encoder selects the position's next
-// parameter, or its next choice; a turn edits the selected one, an enum one
-// choice per detent. Everything else reaches stock as before.
+// parameter; a turn edits the selected one, an enum one choice per detent. Everything else reaches stock as before.
 #include "synth_controls.hpp"
 #include <opxy/effect.hpp>
 #include "stock.hpp"
@@ -24,7 +23,6 @@ using namespace opxy::platform;
 // word is 0 on the engine page and 1..3 on the other three pages.
 const u32 kInstrumentController = 0x8400b208;  // its vtable
 const u32 kInstrumentPage = 0x08023c74;
-const u32 kProject = 0x86bd9f38;
 // The controller on top of the GUI stack, which receives key events.
 u32 top_controller_vtable() { return *stock<const u32*()>(0x8c095008)(); }
 
@@ -68,12 +66,6 @@ const SynthControls* editor(u32 track) {
     return track == 14 || track == 15 ? owned(track_engine(track), true) : nullptr;
 }
 
-// Stock's encoder edit, 8d5ab8ec(project, track, index, event): event holds the
-// continuous delta, the detent delta and the turn speed (0 for slow).
-u32 edit(u32 track, u32 index, const opxy::i32* event) {
-    return stock<u32(u32, u32, u32, const opxy::i32*)>(0x8d5ab8ec)(kProject, track, index, event);
-}
-
 u32 shown(u32 track, u32 position) {
     Track* t;
     return position < opxy::page_controls && machine(track, t) ? t->slots[position] : position;
@@ -108,19 +100,7 @@ void sdk_synth_press(u32 encoder) {
     const SynthControls* m;
     if (encoder < opxy::page_controls && top_controller_vtable() == kInstrumentController &&
         word(kInstrumentPage) == 0 && (m = machine(byte(kSelectedTrack), t))) {
-        const u32 slot = t->slots[encoder], count = m->steps[slot];
-        if (m->press & (1u << slot) && count) {
-            // The choice after the stored one, wrapping to the first, as a
-            // one-detent stock edit, so a held step records it as a lock.
-            const u32 track = byte(kSelectedTrack);
-            const opxy::i32 value = static_cast<opxy::i32>(
-                word(stock<u32(u32)>(0x8d585da0)(track) + 0x3864 + slot * 4));
-            const u32 index = opxy::platform::control_choice(value, count);
-            const opxy::i32 event[3] = {0, index + 1 < count ? 1 : 1 - static_cast<opxy::i32>(count), 0};
-            edit(track, slot, event);
-            return;
-        }
-        const u32 next = m->next[slot];
+        const u32 next = m->next[t->slots[encoder]];
         if (next < opxy::parameter_slots) t->slots[encoder] = static_cast<u8>(next);
     }
 }
