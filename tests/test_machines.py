@@ -173,10 +173,10 @@ class OutsideMachines(unittest.TestCase):
         self.assertEqual((fmcopy.identity, fmcopy.requested), (self.free, dict(self.free, engine=34)))
 
     def test_sdk_version_and_fixed_names_are_checked(self):
-        for version in ('1.1', '1.2'):
+        for version in ('1.1', '1.2', '1.3'):
             self.rename('fmcopy', self.free, version)
             self.assertEqual(machines.machine_at(self.folder).id, 'fmcopy')
-        for version in ('0.9', '2.0', '1.3', '1', 'latest', None):
+        for version in ('0.9', '2.0', '1.4', '1', 'latest', None):
             with self.subTest(version=version):
                 self.rename('fmcopy', self.free, version)
                 with self.assertRaises(ValueError):
@@ -188,6 +188,65 @@ class OutsideMachines(unittest.TestCase):
         self.rename('fm2op', machines.FIXED_NUMBERS['fm2op'])
         self.assertEqual(machines.collection(machines.read_collection(None, [self.folder]))[0].identity,
                          machines.FIXED_NUMBERS['fm2op'])
+
+    def preset(self, **changes):
+        value = {'engine': {'params': [0, 16384, 32767, 0, 0, 0, 0, 0], 'volume': 16384}, 'platform': 'OP-XY',
+                 'regions': [], 'type': 'fmcopy', 'version': 4}
+        return {**value, **changes}
+
+    def with_presets(self, files, folder='presets', sdk='1.3'):
+        self.rename('fmcopy', self.free, sdk)
+        record = json.loads((self.folder / 'machine.json').read_text(encoding='utf-8'))
+        record['presets'] = folder
+        (self.folder / 'machine.json').write_text(json.dumps(record), encoding='utf-8')
+        shutil.rmtree(self.folder / 'presets', ignore_errors=True)
+        (self.folder / 'presets').mkdir()
+        for name, value in files.items():
+            data = value if isinstance(value, bytes) else json.dumps(value).encode()
+            (self.folder / 'presets' / name).write_bytes(data)
+        return lambda: machines.machine_at(self.folder)
+
+    def test_a_machine_ships_its_own_presets(self):
+        # Device-saved fields beyond the checked ones are kept as they are; a README is not a preset.
+        load = self.with_presets({'warm-pad.json': self.preset(), 'bass_2.json': self.preset(octave=-1),
+                                  'README.md': b'# Presets', '.DS_Store': b'\0'})
+        m = load()
+        self.assertEqual(sorted(m.presets), ['bass_2', 'warm-pad'])
+        self.assertEqual(m.presets['bass_2']['octave'], -1)
+        self.assertIn('external/fmcopy/presets/warm-pad.json', m.files())
+        # Its own default.json replaces the generated init preset.
+        self.assertEqual(sorted(self.with_presets({'default.json': self.preset()})().presets), ['default'])
+        self.assertIsNone(machines.machine_at(FOLDER / 'probesynth').presets)
+
+    def test_machine_presets_are_checked(self):
+        cases = {
+            'old sdk': ({'a.json': self.preset()}, 'presets', '1.2', 'needs "sdk": "1.3"'),
+            'missing folder': ({'a.json': self.preset()}, 'elsewhere', '1.3', 'Missing machine path'),
+            'outside': ({'a.json': self.preset()}, '..', '1.3', 'Invalid machine path|Missing machine path'),
+            'empty': ({}, 'presets', '1.3', '1 to 16 presets'),
+            'too many': ({f'p{i}.json': self.preset() for i in range(17)}, 'presets', '1.3', '1 to 16 presets'),
+            'name': ({'Warm Pad.json': self.preset()}, 'presets', '1.3', 'Invalid preset file'),
+            'suffix': ({'a.txt': b'{}'}, 'presets', '1.3', 'Invalid preset file'),
+            'json': ({'a.json': b'{'}, 'presets', '1.3', 'invalid JSON'),
+            'nan': ({'a.json': json.dumps(self.preset(gain=float('nan'))).encode()}, 'presets', '1.3', 'NaN is not JSON'),
+            'size': ({'a.json': self.preset(pad='x' * 16384)}, 'presets', '1.3', 'at most 16384 bytes'),
+            'machine': ({'a.json': self.preset(type='fm2op')}, 'presets', '1.3', 'version 4 OP-XY preset'),
+            'version': ({'a.json': self.preset(version=3)}, 'presets', '1.3', 'version 4 OP-XY preset'),
+            'samples': ({'a.json': self.preset(regions=[{'sample': 'kick.wav'}])}, 'presets', '1.3', 'sample regions'),
+            'params': ({'a.json': self.preset(engine={'params': [0] * 7})}, 'presets', '1.3', 'eight engine params'),
+            'range': ({'a.json': self.preset(engine={'params': [32768] + [0] * 7})}, 'presets', '1.3', 'eight engine'),
+        }
+        for case, (files, folder, sdk, error) in cases.items():
+            with self.subTest(case=case), self.assertRaisesRegex(ValueError, error):
+                self.with_presets(files, folder, sdk)()
+        # Effects have no presets.
+        path = FOLDER / 'probefx' / 'machine.json'
+        real = Path.read_text
+        value = dict(json.loads(real(path)), sdk='1.3', presets='.')
+        with mock.patch.object(Path, 'read_text',
+                               lambda self, *a, **k: json.dumps(value) if self == path else real(self, *a, **k)):
+            with self.assertRaisesRegex(ValueError, 'effects have none'):
+                machines.machine_at(FOLDER / 'probefx')
 
 
 if __name__ == '__main__':

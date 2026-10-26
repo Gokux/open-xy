@@ -52,7 +52,7 @@ The ZIP contains:
 | `os.ldr` | Device root, replacing the existing file |
 | `content/op1_factory.json` | Replaces the menu file |
 | `content/display/*.svg` | New screens for the selected machines; keep the stock files |
-| `content/presets/<machine>/default.json` | One init preset in each selected instrument's own folder |
+| `content/presets/<machine>/*.json` | Each selected instrument's init preset, `default.json`, and its own [presets](api.md#presets), in the instrument's folder |
 | `layout.json`, hashes | Keep `layout.json`: it holds your machines' numbers, and loading it into the builder next time keeps them for your projects |
 
 Every build shows its release at boot, `OPEN 0.0.2-1.2.0` for 0.0.2, the version in
