@@ -1,0 +1,41 @@
+// Explicit diagnostic command only; no callbacks added to the audio path.
+#include "stock.hpp"
+using namespace opxy;
+using namespace opxy::platform;
+
+extern "C" {
+void sdk_benchmark_run() __asm__("sdk_benchmark_run");
+@DECLARATIONS@
+}
+
+namespace {
+struct Test { u32 engine; const char* name; u32 setup; u32 parameter; };
+struct Machine { const char* name; const char* id; int (*ready)(); };
+const Machine machines[] = {
+@MACHINES@
+    {0, 0, 0}
+};
+// 0x8d57b8f0: stock benchmark-one(controller, record, index, total).
+// It sets knobs 0..3 to midpoint, holds note 60/velocity 127 for 1000
+// 64-sample blocks, releases for 500, and emits one 120-byte report.
+void run(const Test* test, u32 index, u32 total) {
+    stock<void(void*, const Test*, u32, u32)>(0x8d57b8f0)(at<void>(0x84c70fac), test, index, total);
+}
+}
+
+void sdk_benchmark_run() {
+    u32 total = 9;
+    for (u32 i = 0; machines[i].ready; ++i)
+        if (machines[i].ready() == 1) ++total;
+    for (u32 i = 0; i < 9; ++i) run(at<const Test>(0x8409bf18) + i, i, total);
+    u32 index = 9;
+    for (u32 i = 0; machines[i].ready; ++i) {
+        const Machine& machine = machines[i];
+        // Unselected browser-kit callbacks return 0. Recheck actual ownership
+        // after stock setup; never benchmark a foreign or failed registration.
+        if (machine.ready() != 1) continue;
+        const Test test = {static_cast<u32>(reinterpret_cast<Address>(machine.id)),
+                           machine.name, 19, 0x40000000};
+        run(&test, index++, total);
+    }
+}
