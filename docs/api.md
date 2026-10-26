@@ -136,9 +136,16 @@ per track, starts on the position's own parameter and is not saved. Display
 inputs carry each position's shown value, its parameter index (`shown`) and
 every parameter's value (`slots`), so a [header value](display.md#frame)
 can format whichever is shown while dials follow their own parameters.
-Browser previews show the parameter last edited at each position. See
-[Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json), whose fourth encoder
-switches between FM ratio and depth.
+Browser previews show the parameter last edited at each position.
+
+A synth with eight parameters, each position with exactly one alternate, may
+declare `"press": "page"` at the top of `definition.json` (SDK 1.3): its four
+own parameters are page 1, its alternates page 2, and pressing any encoder
+switches all four positions to the other page. `shown` tells the display
+which page is up. Browser previews show the page of the parameter last
+edited. See
+[Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json),
+whose header shows one page and whose row of text slots under it the other.
 
 On instrument tracks, the Value, Random and Element LFOs can target every
 declared parameter of a custom synth or sample engine, including all eight
