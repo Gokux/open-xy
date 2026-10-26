@@ -126,10 +126,10 @@ def main():
                             preset['regions'] == [] and preset['fx']['active'] is False and
                             preset['lfo']['active'] is False, 'Default preset differs from instrument definition')
                 expected_files[name] = data
-                for own, document in own.items():
-                    name = 'content/presets/' + machine['id'] + '/' + own + '.json'
+                for preset_name, document in own.items():
+                    name = 'content/presets/' + machine['id'] + '/' + preset_name + '.json'
                     data = (prefix / name).read_bytes()
-                    require(json.loads(data) == document, 'Machine preset differs: ' + own)
+                    require(json.loads(data) == document, 'Machine preset differs: ' + preset_name)
                     expected_files[name] = data
             if machine.get('artwork'):
                 name = 'content/display/' + machine['asset']

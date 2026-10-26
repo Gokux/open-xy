@@ -113,11 +113,16 @@ def check_preset(value, identity):
     return value
 
 
+def reject_constant(name):
+    raise ValueError(f'{name} is not JSON')
+
+
 def read_presets(root, folder, identity):
     """Each <name>.json in the machine's presets folder, by name."""
     path = root / _relative(root, folder)
     require(path.is_dir(), 'presets names a folder: ' + folder)
-    files = sorted(p for p in path.iterdir() if p.suffix != '.md')
+    # Notes and hidden files, such as a Finder .DS_Store, are not presets.
+    files = sorted(p for p in path.iterdir() if p.suffix != '.md' and not p.name.startswith('.'))
     require(0 < len(files) <= PRESET_COUNT, f'A presets folder holds 1 to {PRESET_COUNT} presets')
     presets = {}
     for file in files:
@@ -127,7 +132,7 @@ def read_presets(root, folder, identity):
         data = file.read_bytes()
         require(len(data) <= PRESET_BYTES, f'{file.name}: a preset is at most {PRESET_BYTES} bytes')
         try:
-            value = json.loads(data.decode('utf-8'))
+            value = json.loads(data.decode('utf-8'), parse_constant=reject_constant)
         except ValueError as error:
             raise ValueError(f'{file.name}: invalid JSON: {error}') from error
         presets[file.stem] = check_preset(value, identity)

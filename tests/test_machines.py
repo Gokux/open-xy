@@ -209,7 +209,7 @@ class OutsideMachines(unittest.TestCase):
     def test_a_machine_ships_its_own_presets(self):
         # Device-saved fields beyond the checked ones are kept as they are; a README is not a preset.
         load = self.with_presets({'warm-pad.json': self.preset(), 'bass_2.json': self.preset(octave=-1),
-                                  'README.md': b'# Presets'})
+                                  'README.md': b'# Presets', '.DS_Store': b'\0'})
         m = load()
         self.assertEqual(sorted(m.presets), ['bass_2', 'warm-pad'])
         self.assertEqual(m.presets['bass_2']['octave'], -1)
@@ -228,6 +228,7 @@ class OutsideMachines(unittest.TestCase):
             'name': ({'Warm Pad.json': self.preset()}, 'presets', '1.3', 'Invalid preset file'),
             'suffix': ({'a.txt': b'{}'}, 'presets', '1.3', 'Invalid preset file'),
             'json': ({'a.json': b'{'}, 'presets', '1.3', 'invalid JSON'),
+            'nan': ({'a.json': json.dumps(self.preset(gain=float('nan'))).encode()}, 'presets', '1.3', 'NaN is not JSON'),
             'size': ({'a.json': self.preset(pad='x' * 16384)}, 'presets', '1.3', 'at most 16384 bytes'),
             'machine': ({'a.json': self.preset(type='fm2op')}, 'presets', '1.3', 'version 4 OP-XY preset'),
             'version': ({'a.json': self.preset(version=3)}, 'presets', '1.3', 'version 4 OP-XY preset'),

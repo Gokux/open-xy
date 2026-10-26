@@ -468,7 +468,7 @@ generated init preset. Presets store the machine's ID, so they work in any
 firmware that holds it.
 
 - A name is lowercase letters, digits, `-` and `_`, at most 24. Other files in
-  the folder, except `.md`, are refused.
+  the folder, except `.md` and hidden files, are refused.
 - At most 16 presets, each at most 16 KiB.
 - Each is a version 4 OP-XY preset whose `type` is the machine's ID, with
   eight engine `params` from 0 to 32767 and no sample `regions`, since a
