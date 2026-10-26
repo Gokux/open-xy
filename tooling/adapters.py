@@ -324,7 +324,12 @@ def generate_synth_controls(directory, machines):
         body = [f'static bool {m.prefix}_format(opxy::u32 slot, opxy::i32 value, char* text) {{', '    switch (slot) {']
         for i, p in enumerate(m.definition['parameters']):
             mapping = p['mapping']
+            # The selected choice's label, on synth and send pages alike.
             if mapping['kind'] == 'enum':
+                labels = ', '.join(json.dumps(label) for label in mapping['labels'])
+                body.extend([f'    case {i}: {{', f'        static const char* const labels[] = {{{labels}}};',
+                             f'        control_label(text, value, labels, {len(mapping["labels"])});',
+                             '        return true;', '    }'])
                 continue
             # Stock delay's note-length names. Send pages keep stock captions
             # for every other control.

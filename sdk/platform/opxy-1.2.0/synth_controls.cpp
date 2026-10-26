@@ -115,7 +115,7 @@ void sdk_synth_press(u32 encoder) {
             const u32 track = byte(kSelectedTrack);
             const opxy::i32 value = static_cast<opxy::i32>(
                 word(stock<u32(u32)>(0x8d585da0)(track) + 0x3864 + slot * 4));
-            const u32 index = value < 0 ? 0 : ((static_cast<u32>(value) >> 16) * count) >> 15;
+            const u32 index = opxy::platform::control_choice(value, count);
             const opxy::i32 event[3] = {0, index + 1 < count ? 1 : 1 - static_cast<opxy::i32>(count), 0};
             edit(track, slot, event);
             return;
@@ -210,6 +210,12 @@ void control_division(char* text, i32 value) {
     static const char* const names[8] = {"1/32", "1/32 dotted", "1/16", "1/16 dotted",
                                          "1/8", "1/8 dotted", "1/4", "1/2"};
     for (const char* name = names[division(value)]; (*text = *name); ++text, ++name) {}
+}
+u32 control_choice(i32 value, u32 count) {
+    return value < 0 ? 0 : ((static_cast<u32>(value) >> 16) * count) >> 15;
+}
+void control_label(char* text, i32 value, const char* const* labels, u32 count) {
+    for (const char* label = labels[control_choice(value, count)]; (*text = *label); ++text, ++label) {}
 }
 u32 control_ratio(i32 value, const u32* anchors, u32 count) {
     const u32 q15 = value < 0 ? 0 : static_cast<u32>(value) >> 16;

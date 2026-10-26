@@ -1,4 +1,4 @@
-"""Enum controls step one choice per detent, and a declared press selects the next choice."""
+"""Enum controls step one choice per detent, show their label, and a declared press selects the next choice."""
 import copy
 import json
 import os
@@ -44,6 +44,11 @@ class SynthSteps(unittest.TestCase):
         # Stock steps at most 255 buckets, so the 256-choice enum stays with stock.
         self.assertEqual(row.group(2), '3, 0, 17, 0, 0, 0, 0, 0')
         self.assertEqual(row.group(3), '1')
+        # Every enum's value text is its selected label, including the one stock steps.
+        self.assertIn('static const char* const labels[] = {"c0", "c1", "c2"};', text)
+        self.assertIn('control_label(text, value, labels, 3);', text)
+        self.assertIn('control_label(text, value, labels, 17);', text)
+        self.assertIn('control_label(text, value, labels, 256);', text)
 
     def test_press_is_a_next_choice_on_a_position_without_alternates(self):
         base = fixture('probesynth').definition['parameters']

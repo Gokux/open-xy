@@ -31,7 +31,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
 | Relocated tables | 22 | Moves the effect records (63), engine records (63) and screen slots (128) into the last 8 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
-| Synth and effect controls | 6 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns and titles then follow, or an enum's next choice; scales fine turns on owned synth and send-effect pages; steps owned enums one choice per detent; names an owned effect's division values on the send page |
+| Synth and effect controls | 6 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns and titles then follow, or an enum's next choice; scales fine turns on owned synth and send-effect pages; steps owned enums one choice per detent; names owned enums' choices, and an owned effect's division values on the send page |
 | LFO destinations | 15 | Selects and modulates all declared engine parameters on owned instrument machines with five to eight parameters, using their assigned encoder icons |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
 | Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |

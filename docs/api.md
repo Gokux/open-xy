@@ -123,8 +123,8 @@ the control for previews and the builder; the C++ applies its own mapping. Enum 
 On the device, a synth's or send effect's enum of up to 255 choices moves one
 choice per encoder detent (two when turned fast), in plain and locked edits
 alike, and stores the middle of the choice's range; a larger enum keeps stock's
-0..99 stepping. The stock value text stays 0..99; a [header value](display.md#frame)
-can name the choice.
+0..99 stepping. Its value text on the engine or send page is the selected
+choice's label.
 Parameter order and mapping changes affect saved sounds. The stock parameter
 page shows labels in lower case.
 
@@ -172,7 +172,7 @@ Synth amounts and bounded positive anchor-ratio captions show one decimal
 place; amounts omit the percent suffix. A machine's display can replace them with
 its own [header text](display.md#frame). Custom send effects also
 use the slower Shift rate for continuous controls, with stock FX captions
-except for `division` controls.
+except for `enum` and `division` controls.
 
 A sample engine declares `voiceCapacity`, which must be 256 (stock creates a
 voice for each of its 256 voice indices and binds each to its sample), and the

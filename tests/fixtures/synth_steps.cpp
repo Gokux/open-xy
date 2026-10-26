@@ -1,8 +1,9 @@
 // Host boundary double for the real synth control adapter's enum steps and
-// presses: stock's step-count query, its encoder edit and the GUI state they
+// presses and labels: stock's step-count query, its encoder edit and the GUI state they
 // read. The machines are table rows; no machine behavior is tested.
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <synth_controls.cpp>
 
 namespace {
@@ -128,6 +129,22 @@ int main() {
     press(0);
     require(edits == 0, "Press edited another engine");
     require(stock_presses == 7, "Stock press skipped");
+
+    // The label shown is the choice a stored value selects, the one a press
+    // starts from: every bucket's centre and both edges, negative values first.
+    const char* const labels[] = {"play", "wr a", "wr b"};
+    char text[16];
+    for (u32 index = 0; index < 3; ++index) {
+        opxy::platform::control_label(text, centre(index, 3), labels, 3);
+        require(std::strcmp(text, labels[index]) == 0, "Label not the stored choice");
+    }
+    opxy::platform::control_label(text, -1, labels, 3);
+    require(std::strcmp(text, "play") == 0, "Negative value not the first label");
+    opxy::platform::control_label(text, 0x7fffffff, labels, 3);
+    require(std::strcmp(text, "wr b") == 0, "Full value not the last label");
+    for (u32 count = 2; count <= 256; ++count)
+        for (u32 index = 0; index < count; ++index)
+            require(opxy::platform::control_choice(centre(index, count), count) == index, "Choice not the stored bucket");
     std::puts("synth steps ok");
     return 0;
 }

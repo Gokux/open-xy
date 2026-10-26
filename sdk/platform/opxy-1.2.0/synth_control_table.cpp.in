@@ -8,6 +8,7 @@ using opxy::platform::SynthControls;
 using opxy::platform::control_tenths;
 using opxy::platform::control_ratio;
 using opxy::platform::control_division;
+using opxy::platform::control_label;
 
 @FORMATTERS@
 
