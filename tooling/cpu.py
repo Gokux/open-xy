@@ -26,7 +26,7 @@ GUIDE = 'docs/api.md#cpu'
 # the cost above which a machine is likely to drop audio. A synth's is per voice;
 # an effect runs once per track. Host timings vary by about a tenth between runs.
 LIMITS = {'synth': (15000, 24000), 'effect': (30000, 48000)}
-# Bundled machines for scale, as this estimate measured them.
+# Open-XY's core machines for scale, as this estimate measured them.
 EXAMPLES = {'synth': '2op FM about 14,000, Macro Osc (Braids) about 9,000', 'effect': 'Ring Mod about 10,500'}
 # The reference loop's Blackfin instructions per block, from the pinned compiler
 # (-O2 -mcpu=bf707): 9 per sample in a zero-overhead hardware loop, plus setup.
@@ -216,7 +216,7 @@ def block_cost(m, host_cxx, scratch):
 
 def summary(m, host_cxx, scratch):
     """One line for sdk.py test: the machine's estimated Blackfin instructions per block,
-    with the limits to stay under and the bundled machines for scale."""
+    with the limits to stay under and Open-XY's core machines for scale."""
     try:
         own = block_cost(m, host_cxx, scratch)
         if own is None:

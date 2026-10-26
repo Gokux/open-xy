@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = '3973b501d10bb0345ef6202bbbfd488c8466dbb3ddca3f785f48152eff1cd3c6';
+export const PROFILE_SHA256 = '83479cd2fb8adcc942f335ccd3fd70483cede42c1f9ad94e5cf47403b60a55dd';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -107,22 +107,22 @@ export function validIdentity(rules, kind, identity) {
     : kind === 'synth' && page > rules.page_none && page < rules.pages;
 }
 
-// A kit's numbers: each machine asks for valid ones, and the bundled machines'
-// fixed numbers are their own and never shared.
+// A kit's numbers: each machine asks for valid ones, and fixed numbers (kit.fixed,
+// tooling.machines.FIXED_NUMBERS) belong to their own machines and are never shared.
 function checkNumbers(kit) {
   const rules = kit.profile.identities;
-  check(kit.fixed && typeof kit.fixed === 'object', 'Missing bundled machine numbers');
+  check(kit.fixed && typeof kit.fixed === 'object', 'Missing fixed machine numbers');
   check(new Set(kit.machines.map(m => m.id)).size === kit.machines.length, 'Duplicate machine');
   for (const m of kit.machines) {
     check(validIdentity(rules, m.kind, m.identity), 'Machine numbers overlap a stock slot or exceed capacity: ' + m.id);
-    check((m.origin === 'bundled') === Object.hasOwn(kit.fixed, m.id) &&
-      (m.origin !== 'bundled' || sameNumbers(kit.fixed[m.id], m.identity)), 'Bundled machine numbers differ: ' + m.id);
+    check(!Object.hasOwn(kit.fixed, m.id) || sameNumbers(kit.fixed[m.id], m.identity),
+      'Fixed machine numbers differ: ' + m.id);
   }
   numberLayout(rules, Object.entries(kit.fixed).map(([id, identity]) => [id, null, identity]), null, []);
 }
 // Machine numbers, as tooling.machines.number_layout gives them (tests/fixtures/numbers.json
 // holds both). Projects store a track's engine, effect and page numbers, so a machine
-// keeps its numbers in a firmware for good. Bundled machines' are fixed (kit.fixed);
+// keeps its numbers in a firmware for good. Open-XY's first machines' are fixed (kit.fixed);
 // a layout keeps every number it has given out, including to machines since dropped,
 // and a machine new to it gets the numbers it asks for when free, else the lowest free.
 export const LAYOUT_FORMAT = 'opxy-layout/1';
@@ -152,7 +152,7 @@ export function numberLayout(rules, fixed, layout, machines) {
   for (const [name, , identity] of fixed) hold(name, identity);
   for (const [name, identity] of Object.entries(layout ?? {})) {
     if (Object.hasOwn(numbers, name))
-      check(sameNumbers(numbers[name], identity), `${name} is bundled with fixed numbers; the layout gives it others`);
+      check(sameNumbers(numbers[name], identity), `${name} has fixed numbers; the layout gives it others`);
     // An effect number later found unusable on stock is let go and numbered again.
     else if (Object.hasOwn(identity, 'effect') && !pools.effect.includes(identity.effect)) continue;
     else hold(name, identity);
@@ -214,11 +214,11 @@ function catalogEntry(m, numbers) {
   return m.kind === 'effect' ? m.catalog.replace(/"id":\s*\d+/, '"id": ' + numbers[m.id].effect) : m.catalog;
 }
 
-// Where a machine comes from (tooling.browser_kit): bundled with Open-XY, published
-// in the catalog, or a personal kit's own folder. A catalog machine's source is its
+// Where a machine comes from (tooling.browser_kit): published in the catalog, or a
+// personal kit's own folder. A catalog machine's source is its
 // GitHub repository, release tag, commit and maintainer, matching tooling.catalog's patterns.
 // Official catalog machines are Open-XY's own (tooling.catalog.OFFICIAL); the rest are community.
-export const ORIGINS = ['bundled', 'official', 'catalog', 'personal'];
+export const ORIGINS = ['official', 'catalog', 'personal'];
 const RELEASE = {repository: /^https:\/\/github\.com\/[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9._-]+$/,
   tag: /^[A-Za-z0-9._/-]{1,64}$/, commit: /^[0-9a-f]{40}$/, maintainer: /^[A-Za-z0-9-]{1,39}$/};
 export function validSource(source) {
@@ -399,7 +399,8 @@ export function redirect(edit, destination) {
   after.set(words((edit.call ? 0xe300 : 0xe200) | value >>> 16, value & 0xffff));
   return after;
 }
-export async function patchFirmware(kit, linked, stock) {
+export async function patchFirmware(kit, linked, stock, {profiling = true} = {}) {
+  check(typeof profiling === 'boolean', 'Profiling must be a boolean');
   const p = kit.profile;
   check(stock.length === p.stock_bytes && await sha256(stock) === p.stock_sha256,
     'Only OP–XY OS 1.2.0 is supported. Choose the OS file, os.ldr, copied from your OP–XY, not a .tfw update file.');
@@ -424,8 +425,10 @@ export async function patchFirmware(kit, linked, stock) {
     let after;
     check(edit.service === undefined || (edit.kind === 'hook' && Object.hasOwn(p.services ?? {}, edit.service)),
       'Undeclared service: ' + edit.service);
-    if (edit.service && !linked.services.has(edit.service)) {
-      after = before;  // the selection leaves this service's stock code unchanged
+    check(edit.profiling === undefined || (edit.profiling === false && edit.kind === 'hook'),
+      'Invalid profiling hook');
+    if ((edit.service && !linked.services.has(edit.service)) || (edit.profiling === false && profiling)) {
+      after = before;  // inactive hooks leave the corresponding stock code unchanged
     } else if (['hook', 'startup'].includes(edit.kind)) {
       const destination = linked.globals.get(edit.symbol);
       check(destination >= low && destination < low + linked.module.length, 'Hook destination outside module');
@@ -485,8 +488,14 @@ export async function recoverFirmware(kit, input, layout = null) {
   for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
     const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
     const linked = linkKit(kit, selected, layout);
-    if (equal(linked.module, payload) && equal(await patchFirmware(kit, linked, stock), input))
-      return {stock, selected};
+    if (equal(linked.module, payload)) {
+      // SDK builds retain timing; site builds omit the per-voice bookkeeping.
+      // Accept only a complete reconstruction of one mode, never mixed hooks.
+      for (const profiling of [true, false]) {
+        if (equal(await patchFirmware(kit, linked, stock, {profiling}), input))
+          return {stock, selected};
+      }
+    }
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   throw new Error('This open-xy OS has machines this site doesn’t offer. Choose the original OP–XY OS 1.2.0.');

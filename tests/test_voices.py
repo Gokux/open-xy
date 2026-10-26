@@ -9,8 +9,8 @@ import unittest
 
 from tooling.adapters import generate_voice
 from tooling.definitions import validate_definition
-from tooling.machines import machine
 from test_sample_services import HOST_CXX
+from machine_fixtures import fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 # A machine whose voices remember their owner and render it.
@@ -36,7 +36,7 @@ inline void render(Voice& voice, Shared&, opxy::u32 owner, opxy::Output output, 
 
 class SynthVoices(unittest.TestCase):
     def test_sample_engines_take_a_voice_for_every_stock_index(self):
-        definition = copy.deepcopy(machine('timestretch').definition)
+        definition = copy.deepcopy(fixture('probesample').definition)
         validate_definition(definition, 'sample')
         for capacity in (1, 8, 255):
             definition['resources']['voiceCapacity'] = capacity
@@ -45,8 +45,14 @@ class SynthVoices(unittest.TestCase):
 
     @unittest.skipUnless(HOST_CXX, 'No working host C++ compiler (set OPXY_TEST_HOST_CXX)')
     def test_every_voice_index_has_an_object_and_notes_share_the_capacity(self):
-        definition = copy.deepcopy(machine('fm2op').definition)
+        definition = copy.deepcopy(fixture('probesynth').definition)
         definition['id'] = 'probe'
+        for i in range(4):
+            parameter = copy.deepcopy(definition['parameters'][i])
+            parameter.update(id='extra' + str(i), label='Extra ' + str(i), control=i)
+            definition['parameters'].append(parameter)
+            for preset in definition['presets'].values():
+                preset[parameter['id']] = parameter['default']
         definition['resources'].update(voiceBytes=12, voiceAlignment=4, voiceCapacity=2, sharedBytes=0)
         validate_definition(definition, 'synth')
         m = SimpleNamespace(definition=definition, prefix='probe', native_name='probe', identity=dict(engine=5, page=85))

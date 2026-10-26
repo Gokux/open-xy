@@ -58,7 +58,10 @@ def main():
     # The browser links the native objects in native order, so selecting every
     # machine reproduces the native package exactly.
     everything = directory / 'reference' / str(2 ** len(kit['machines']) - 1)
-    require(everything.with_suffix('.ldr').read_bytes() == (directory / 'source/candidate/os.ldr').read_bytes(),
+    source_profiling = json.loads((directory / 'source/manifest.json').read_bytes()).get('profiling')
+    require(type(source_profiling) is bool, 'Source package profiling must be a boolean')
+    source_suffix = '.ldr' if source_profiling else '.profiling-off.ldr'
+    require(everything.with_suffix(source_suffix).read_bytes() == (directory / 'source/candidate/os.ldr').read_bytes(),
             'Browser firmware for the full collection differs from the native package')
     for index, result in enumerate(json.loads((directory / 'reference/selections.json').read_text()), 1):
         prefix = directory / 'reference' / str(index)
@@ -73,17 +76,31 @@ def main():
                 sections.get('.bss', {}).get('size', 0) == result['sizes']['bss'], 'GNU memory allocation differs')
         for name, value in result['globals'].items():
             require(symbols[name]['value'] == value, 'GNU symbol differs: ' + name)
-        profile = copy.deepcopy(kit['profile'])
         services = active_services(kit['profile'], (m['kind'] for m in kit['machines'] if m['id'] in result['selected']))
-        for patch in profile['patches']:
-            if not patch_active(patch, services):
-                patch['after'] = patch['before']
-            elif patch['kind'] == 'hook':
-                patch['after'] = hook_instruction(patch, symbols[patch['symbol']]['value']).hex()
-            elif patch['kind'] == 'startup':
-                patch['after'] = startup_label.jump(symbols[patch['symbol']]['value']).hex()
-        expected = assemble(stock, module, profile, kit['profile'], len(profile['patches']), services)
-        require(expected == prefix.with_suffix('.ldr').read_bytes(), 'Python/browser firmware differs')
+        modes = {}
+        for profiling in (True, False):
+            profile = copy.deepcopy(kit['profile'])
+            for patch in profile['patches']:
+                if not patch_active(patch, services, profiling):
+                    patch['after'] = patch['before']
+                elif patch['kind'] == 'hook':
+                    patch['after'] = hook_instruction(patch, symbols[patch['symbol']]['value']).hex()
+                elif patch['kind'] == 'startup':
+                    patch['after'] = startup_label.jump(symbols[patch['symbol']]['value']).hex()
+            expected = assemble(stock, module, profile, kit['profile'], len(profile['patches']), services, profiling)
+            suffix = '.ldr' if profiling else '.profiling-off.ldr'
+            require(expected == prefix.with_suffix(suffix).read_bytes(), 'Python/browser firmware differs: ' + suffix)
+            modes[profiling] = expected
+        # The modes differ only inside the reviewed profiling hook windows.
+        restored = bytearray(modes[False])
+        for patch in kit['profile']['patches']:
+            if patch.get('profiling') is False:
+                at, count = int(patch['file_offset'], 16), patch['length']
+                require(modes[True][at:at + count] == bytes.fromhex(patch['before']),
+                        'SDK default changed profiling instructions')
+                restored[at:at + count] = modes[True][at:at + count]
+        require(bytes(restored) == modes[True], 'Profiling mode changed unrelated bytes')
+        expected = modes[True]
         selected = [m for m in kit['machines'] if m['id'] in result['selected']]
         catalog = json.loads((content / 'op1_factory.json').read_bytes())
         for machine in selected:

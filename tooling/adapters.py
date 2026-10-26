@@ -176,6 +176,7 @@ def generate_registration(directory, m):
             screen = '&screen'
             entries[p + '_screen_register()'] = 'sdk_register_screen(&record, &screen)'
         entries[p + '_register()'] = 'sdk_register_engine(&record)'
+        entries[p + '_record_ready()'] = 'sdk_engine_ready(&record, nullptr)'
         entries[p + '_name_matches(const void* string)'] = 'sdk_name_matches(&record, string)'
         entries[p + '_ready()'] = f'sdk_engine_ready(&record, {screen})'
     declarations += [f'int {signature} __asm__("{signature.split("(")[0]}");' for signature in entries]
@@ -291,8 +292,13 @@ def control_cycles(definition):
 
 def generate_synth_controls(directory, machines):
     """Synth ownership, alternate selection and continuous fine controls."""
-    declarations, rows, formatters = [], [], []
+    declarations, rows, formatters, lfo_rows = [], [], [], []
     for m in machines:
+        if m.kind != 'effect':
+            declarations.append(f'int {m.prefix}_record_ready() __asm__("{m.prefix}_record_ready");')
+            declarations.append(f'extern const char {m.prefix}_engine_id[] __asm__("{m.prefix}_engine_id");')
+            controls = ', '.join(str(position % 4) for position in control_positions(m.definition))
+            lfo_rows.append(f'    {{{m.prefix}_engine_id, {m.prefix}_record_ready, {len(m.definition["parameters"])}, {{{controls}}}}},')
         if m.kind not in ('synth', 'effect'):
             continue
         effect = m.kind == 'effect'
@@ -301,7 +307,8 @@ def generate_synth_controls(directory, machines):
         declarations.append(f'int {m.prefix}_ready() __asm__("{m.prefix}_ready");')
         # The engine or effect ID is an absolute symbol the linker supplies.
         id_symbol = m.prefix + ('_fx_id' if effect else '_engine_id')
-        declarations.append(f'extern const char {id_symbol}[] __asm__("{id_symbol}");')
+        if effect:
+            declarations.append(f'extern const char {id_symbol}[] __asm__("{id_symbol}");')
         body = [f'static bool {m.prefix}_format(opxy::u32 slot, opxy::i32 value, char* text) {{', '    switch (slot) {']
         for i, p in enumerate(m.definition['parameters']):
             mapping = p['mapping']
@@ -327,7 +334,7 @@ def generate_synth_controls(directory, machines):
         body.extend(['    default: return false;', '    }', '}'])
         formatters.append('\n'.join(body))
         rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, {m.prefix}_format, {'true' if effect else 'false'}}},")
-    return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows), FORMATTERS='\n'.join(formatters)),
+    return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows), FORMATTERS='\n'.join(formatters), LFO_MACHINES='\n'.join(lfo_rows)),
                   Path(directory) / 'synth_control_table.cpp')
 
 

@@ -10,6 +10,7 @@ extern "C" {
 void sdk_synth_press(opxy::u32) __asm__("sdk_synth_press");
 opxy::u32 sdk_synth_turn(opxy::u32, opxy::u32, opxy::u32, opxy::u32) __asm__("sdk_synth_turn");
 opxy::u32 sdk_effect_turn(opxy::u32, opxy::u32, opxy::u32, opxy::u32) __asm__("sdk_effect_turn");
+const char* sdk_synth_title(opxy::u32, opxy::u32) __asm__("sdk_synth_title");
 }
 
 namespace {
@@ -68,12 +69,17 @@ void sdk_synth_shown(u32 track, u8* slots) {
     for (u32 i = 0; i < opxy::page_controls; ++i) slots[i] = static_cast<u8>(shown(track, i));
 }
 
-// Reads only the selection the screen shell refreshed for this frame (no stock
-// getters), so any caller of the record's name callback may use it.
+// Reads only the selection the screen shell refreshed for this frame.
 u32 sdk_synth_title_slot(u32 engine, u32 index) {
     const u32 track = byte(kSelectedTrack);
     if (track >= kTracks || index >= opxy::page_controls || !engine || tracks[track].engine != engine) return index;
     return tracks[track].slots[index];
+}
+
+// 8d545b2e: only the engine screen's four titles follow alternate selection.
+// The record callback itself keeps real slot names for modulation destinations.
+const char* sdk_synth_title(u32 engine, u32 index) {
+    return stock<const char*(u32, u32)>(0x8d5065fc)(engine, sdk_synth_title_slot(engine, index));
 }
 
 // 8c0b66d2: the GUI's key dispatcher records the click of encoder 0..3 (key
