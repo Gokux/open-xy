@@ -67,7 +67,7 @@ RESOURCES = {
 # declares its frame's budget within these limits.
 DISPLAY_FIELDS = ('stateBytes', 'stateAlignment', 'paths', 'points', 'nodes', 'texts', 'palette')
 DISPLAY_LIMITS = dict(paths=(0, 4), points=(0, 64), nodes=(1, 256), texts=(0, 16), palette=(1, 16))
-# Up to this many text slots need SDK 1.3's sixteen (tooling.machines).
+# More text slots than this need SDK 1.3 (tooling.machines).
 SDK_1_2_TEXTS = 4
 # Analysis storage is allocated from the stock heap at runtime, which also holds
 # stock samples; a collection's analysis budgets together take at most this much.
