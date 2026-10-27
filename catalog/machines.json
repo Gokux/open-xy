@@ -177,6 +177,12 @@
         "runs": 3,
         "block_percent": 3.39971
       }
+    },
+    {
+      "id": "matrixy",
+      "kind": "synth",
+      "maintainer": "frankoooooooo",
+      "status": "reserved"
     }
   ]
 }
