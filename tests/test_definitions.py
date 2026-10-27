@@ -250,7 +250,7 @@ class Definitions(unittest.TestCase):
                     hidden = dict(creationflags=subprocess.CREATE_NO_WINDOW) if os.name == 'nt' else {}
                     result = subprocess.run(
                         [LAYOUT_CXX, '-m32', '-std=gnu++11', '-fsyntax-only', '-Wall', '-Werror', '-ffreestanding',
-                         *('-I' + str(path) for path in (ROOT / 'sdk/include', ROOT / 'sdk/platform/opxy-1.2.0',
+                         *('-I' + str(path) for path in (ROOT / 'sdk/include', ROOT / 'sdk/platform/opxy-1.2.1',
                                                          FOLDER / 'probesynth')), source.name],
                         cwd=directory, capture_output=True, text=True, timeout=120, **hidden)
                     self.assertEqual(result.returncode, 0, result.stderr)

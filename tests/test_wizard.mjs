@@ -222,7 +222,7 @@ test('missing OS recovery disables the menu before reinstalling, then restarts t
     assert.equal($('recovery-downloads').hidden, true);
     await click('recovery-disable');
     assert.equal(connects, 1); assert.equal(disables, 1);
-    assert.equal($('flow-title').textContent, 'Power cycle and reinstall OS 1.2.0.');
+    assert.equal($('flow-title').textContent, 'Power cycle and reinstall OS 1.2.1.');
     assert.equal($('recovery-downloads').hidden, false);
     assert.equal($('flow-back').hidden, true);
     assert.ok($('flow-instructions').children.some(li => li.children[0].textContent.includes('hold COM')));

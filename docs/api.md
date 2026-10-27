@@ -30,7 +30,7 @@ fails the build or, for the artwork rule, halts the device's SVG parser.
 | Effects | State fits in 476 bytes and holds no resources (no destructor ever runs) |
 | Artwork | At most four decimal places and no exponent notation in any number; explicit paint on every leaf; no `style`, events or external references |
 
-The [firmware contract](abi-1.2.0.md) explains where each rule comes from.
+The [firmware contract](abi-1.2.1.md) explains where each rule comes from.
 
 ## Memory and limits
 

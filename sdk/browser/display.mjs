@@ -100,7 +100,7 @@ const attributes = new Set(['id', 'd', 'x', 'y', 'width', 'height', 'cx', 'cy', 
 
 const escape = text => String(text).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 // The device page's four-control header, as the SDK screen template draws it
-// (sdk/platform/opxy-1.2.0/screen.svg): a stepped grey bar 20 px tall with each
+// (sdk/platform/opxy-1.2.1/screen.svg): a stepped grey bar 20 px tall with each
 // position's title above its value, light text on the dark half and dark text
 // on the light half. Browser fonts stand in for the device's.
 export function headerSvg(titles, values) {

@@ -292,7 +292,9 @@ def read_layout(path):
     profile = config()
     require(isinstance(value, dict) and value.get('format') == LAYOUT_FORMAT and isinstance(value.get('machines'), dict),
             f'{path} is not a machine layout ({LAYOUT_FORMAT})')
-    require(value.get('profile') == profile['id'], f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
+    # Earlier profiles with the same identity rules number machines the same way.
+    require(value.get('profile') in (profile['id'], *profile.get('layout_profiles', ())),
+            f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
     return check_layout_numbers(value['machines'], 'the layout')
 
 

@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = '8af6e704fff3470f3d0acfd901f3e2bb32ea79e03b1ce15b96a332d45c4ea5a0';
+export const PROFILE_SHA256 = 'c6bd3b4eaca27b280bb5dfc50a22014002bf8afed10a5d4c0941d7a60d2b7c94';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -180,7 +180,9 @@ export function numberLayout(rules, fixed, layout, machines) {
 // A saved layout (layout.json from a build, or a saved selection): its numbers and selection.
 // Saved selections from before layouts listed the selected machines' numbers as identities.
 export function readLayout(kit, saved) {
-  check(saved && typeof saved === 'object' && saved.profile === kit.profile.id,
+  // Earlier profiles with the same identity rules number machines the same way.
+  check(saved && typeof saved === 'object' &&
+    [kit.profile.id, ...(kit.profile.layout_profiles ?? [])].includes(saved.profile),
     'This layout is for a different OS version.');
   const numbers = saved.format === LAYOUT_FORMAT ? saved.machines : saved.format === 'opxy-kit/1' ? saved.identities : null;
   check(numbers && typeof numbers === 'object' && !Array.isArray(numbers), 'This file is not a machine layout.');
@@ -403,7 +405,7 @@ export async function patchFirmware(kit, linked, stock, {profiling = true} = {})
   check(typeof profiling === 'boolean', 'Profiling must be a boolean');
   const p = kit.profile;
   check(stock.length === p.stock_bytes && await sha256(stock) === p.stock_sha256,
-    'Only OP–XY OS 1.2.0 is supported. Choose the OS file, os.ldr, copied from your OP–XY, not a .tfw update file.');
+    'Only OP–XY OS 1.2.1 is supported. Choose the OS file, os.ldr, copied from your OP–XY, not a .tfw update file.');
   const blocks = readLdr(stock), first = blocks[0], final = blocks.at(-1);
   check(blocks.length === p.stock_records && first.count === 0 && (first.code & 0xffff) === 0x5004 &&
     final.count === 0 && (final.code & 0xffff) === 0x8004, 'Unexpected stock loader layout');
@@ -455,13 +457,14 @@ export async function patchFirmware(kit, linked, stock, {profiling = true} = {})
   return candidate;
 }
 
-// Recover stock OS 1.2.0 from the stock file or from any open-xy OS made from
+// Recover stock OS 1.2.1 from the stock file or from any open-xy OS made from
 // it, including an earlier release's, whose module may sit elsewhere. The stock
 // image is rebuilt by undoing every reviewed edit and accepted only by its
 // SHA-256; the uploaded module is never executed or reused for a build. An exact
 // output of this curated collection also restores its machine selection.
 const RECOVERABLE_MACHINES = 10;
-const UNSUPPORTED = 'Only OP–XY OS 1.2.0 is supported. This file is not OS 1.2.0 or an open-xy OS made from it. Install OS 1.2.0 on your OP–XY, then copy its OS file (os.ldr) again; a .tfw update file will not work.';
+const UPDATE = 'Update your OP–XY to OS 1.2.1 with teenage engineering’s updater, then copy its OS file (os.ldr) again; a .tfw update file will not work.';
+const UNSUPPORTED = 'Only OP–XY OS 1.2.1 is supported. This file is not OS 1.2.1 or an open-xy OS made from it. ' + UPDATE;
 export async function recoverFirmware(kit, input, layout = null) {
   const p = kit.profile;
   if (input.length === p.stock_bytes && await sha256(input) === p.stock_sha256) {
@@ -479,7 +482,7 @@ export async function recoverFirmware(kit, input, layout = null) {
   // Every released profile's edits are among these (tests/test_profile_parity.py).
   for (const edit of p.patches) stock.set(unhex(edit.before), Number(edit.file_offset));
   check(await sha256(stock) === p.stock_sha256,
-    'Only OP–XY OS 1.2.0 is supported. This open-xy OS was not made from OS 1.2.0.');
+    'Only OP–XY OS 1.2.1 is supported. This open-xy OS was not made from OS 1.2.1. ' + UPDATE);
   const payload = input.subarray(module.offset + 16, final.offset);
   if (module.target === p.module_base && module.count <= moduleBytes(p) && kit.machines.length <= RECOVERABLE_MACHINES) {
     // Reconstruct every selection's entire image; never trust the uploaded

@@ -17,7 +17,7 @@ from .definitions import ROOT, control_positions, paged, validate_definition
 from .formats import require
 from .stock_tables import REGISTRATION as RELOCATED
 
-TEMPLATES = ROOT / 'sdk/platform/opxy-1.2.0'
+TEMPLATES = ROOT / 'sdk/platform/opxy-1.2.1'
 
 
 def expand(template, values, destination, root=TEMPLATES):
@@ -355,11 +355,11 @@ def generate_project_companion_table(directory, machines):
     return expand('project_companion_table.cpp.in', dict(DECLARATIONS='\n'.join(declarations), MACHINES='\n'.join(rows)),
                   Path(directory) / 'project_companion_table.cpp')
 
-# A send slot's stock scratch memory: scratch(slot, bytes) (0x8d50d9c8), as stock
-# delay and reverb use it, only for the two send slots (docs/abi-1.2.0.md).
+# A send slot's stock scratch memory: scratch(slot, bytes) (0x8d50e048), as stock
+# delay and reverb use it, only for the two send slots (docs/abi-1.2.1.md).
 FX_BUFFER_INIT = '''    // Stock's per-send scratch memory, which stock delay and reverb use the same way.
     object->buffer = slot == 14 || slot == 15
-        ? opxy::platform::stock<opxy::i32*(opxy::u32, opxy::u32)>(0x8d50d9c8)(slot, {bytes}u) : nullptr;'''
+        ? opxy::platform::stock<opxy::i32*(opxy::u32, opxy::u32)>(0x8d50e048)(slot, {bytes}u) : nullptr;'''
 
 
 def generate_fx_object(directory, m, benchmark=False):
