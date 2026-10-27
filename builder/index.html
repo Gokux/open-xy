@@ -43,10 +43,27 @@
   <section data-page="1" class="input-page" aria-labelledby="input-title">
     <div class="page-header"><div><span class="eyebrow">Step 1 of 3 · OS</span><h1 id="input-title" class="sr-only" tabindex="-1">Choose OS</h1></div></div>
     <!-- Step 1 screens share the guide's layout: the OP–XY on the left, the step on the right. -->
-    <section id="computer-choice" class="panel flow-shell step-screen" aria-labelledby="computer-title">
+    <!-- The OS version comes first: an open-xy OS made from an older OS is not 1.2.1. -->
+    <section id="os-version" class="panel flow-shell step-screen" aria-labelledby="os-version-title">
+      <div class="flow-body"><div class="flow-visual" data-device-art></div><div class="flow-copy">
+        <h2 id="os-version-title" tabindex="-1">Is your OP–XY on OS 1.2.1?</h2>
+        <p>open-xy builds only from teenage engineering’s OS 1.2.1. An open-xy OS made from an older OS does not count: if your OP–XY shows OPEN at startup, it must end in 1.2.1.</p>
+        <div class="flow-actions"><button id="os-version-yes" class="primary">Yes, it’s on 1.2.1</button><button id="os-version-no" class="secondary">No, or I’m not sure</button></div>
+      </div></div>
+    </section>
+    <section id="os-update" class="panel flow-shell step-screen" aria-labelledby="os-update-title" hidden>
+      <div class="flow-body"><div class="flow-visual" data-device-art></div><div class="flow-copy">
+        <h2 id="os-update-title" tabindex="-1">Install OS 1.2.1 first.</h2>
+        <p>Install it with teenage engineering’s updater, as for any OS update. It keeps your projects and replaces an open-xy OS.</p>
+        <p><a href="https://teenage.engineering/_software/op-xy/opxy_firmware_1_2_1.tfw" target="_blank" rel="noopener noreferrer">Download official OS 1.2.1 (.tfw)</a> · <a href="https://teenage.engineering/guides/op-xy/te-boot" target="_blank" rel="noopener noreferrer">Official installation guide</a></p>
+        <div class="flow-actions"><button id="os-update-done" class="primary">It’s on 1.2.1 now</button></div>
+        <div class="flow-navigation"><button id="os-update-back" class="text-button">← Back</button></div>
+      </div></div>
+    </section>
+    <section id="computer-choice" class="panel flow-shell step-screen" aria-labelledby="computer-title" hidden>
       <div class="flow-body"><div class="flow-visual" data-device-art></div><div class="flow-copy">
         <h2 id="computer-title" tabindex="-1">Which computer are you using?</h2>
-        <p>open-xy supports only OP–XY OS 1.2.1. Update your OP–XY to 1.2.1 before you start, then choose your computer so we can show the right file transfer steps.</p>
+        <p>Choose your computer so we can show the right file transfer steps.</p>
         <div class="flow-actions"><button id="source-mac" class="primary">Mac</button><button id="source-windows" class="secondary">Windows</button></div>
       </div></div>
     </section>
