@@ -66,7 +66,7 @@ def validate(value):
             required = COMMON | RELEASE
         if 'cpu' in entry:
             require('commit' in entry and status != 'reserved', f'{name}: cpu needs a pinned release')
-            cpu_measurement.validate(entry['cpu'], entry.get('kind'), entry['commit'])
+            cpu_measurement.validate(entry['cpu'], entry.get('kind'))
             required = required | {'cpu'}
         require(set(entry) == required, f'{name}: catalog fields for a {status} machine: '
                 + ', '.join(sorted(required)))
@@ -103,7 +103,12 @@ def changes(before, after):
     for entry in after:
         if entry['status'] in ('draft', 'published') and entry != previous.get(entry['id']):
             require('cpu' in entry, f"{entry['id']}: new or updated submissions require hardware cpu measurements (docs/profiling.md)")
-            cpu_measurement.validate(entry['cpu'], entry['kind'], entry['commit'])
+            cpu_measurement.validate(entry['cpu'], entry['kind'])
+            # An update may carry its previous measurement over unchanged, still naming the
+            # commit it measured; any other measurement must be of the pinned commit.
+            carried = entry['cpu'] == previous.get(entry['id'], {}).get('cpu')
+            require(carried or entry['cpu']['commit'] == entry['commit'],
+                    f"{entry['id']}: cpu must measure the pinned commit, or be the previous release's measurement unchanged")
     for entry in before:
         name = entry['id']
         require(name in current, f'{name}: catalog entries are never removed; retire the machine instead')
