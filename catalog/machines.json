@@ -170,8 +170,8 @@
       "maintainer": "etcetc000",
       "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-oldsun",
-      "tag": "v0.20.0",
-      "commit": "ce965da802ddddf4aec0f98d8eca8689055a03b1",
+      "tag": "v0.20.1",
+      "commit": "9511d63a1c7b327a78025a2c8884354d8c76960b",
       "path": ".",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
@@ -180,6 +180,23 @@
         "runs": 3,
         "block_percent": 3.327993,
         "report": "https://github.com/etcetc000/open-xy/pull/149#issuecomment-6450652945"
+      }
+    },
+    {
+      "id": "metal",
+      "kind": "synth",
+      "maintainer": "johnnywagner",
+      "status": "published",
+      "repository": "https://github.com/johnnywagner/open-xy-metal",
+      "tag": "v1.0.0",
+      "commit": "948d8cbc04184fd3fb87dbc00cf68959e6a07ec7",
+      "path": "machines/metal",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "948d8cbc04184fd3fb87dbc00cf68959e6a07ec7",
+        "firmware_sha256": "d1860b7af4d675541a714f02a5ba8f1bf02d05ce4d8af13c1b5792900c2c15b9",
+        "runs": 3,
+        "block_percent": 3.39971
       }
     }
   ]
