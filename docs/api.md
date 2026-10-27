@@ -139,15 +139,19 @@ every parameter's value (`slots`), so a [header value](display.md#frame)
 can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position.
 
-A synth with eight parameters, each position with exactly one alternate, may
-declare `"press": "page"` at the top of `definition.json` (SDK 1.3): its four
-own parameters are page 1, its alternates page 2, and pressing any encoder
-switches all four positions to the other page. `shown` tells the display
-which page is up. Browser previews show the page of the parameter last
-edited. See
-[Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json),
-which draws its own header: both pages in two rows, the page the encoders edit
-large and bright and the other small and grey.
+A synth with five to eight parameters may declare `"press": "page"` at the
+top of `definition.json`: pressing any encoder switches the whole page. Each
+position may have at most one alternate. Positions without an alternate show
+and edit their original parameter on both pages, with one saved value, not a
+duplicate parameter. Eight-parameter pages require SDK 1.3; partial second
+pages require SDK 1.4. The four `shown` entries identify the selection: look
+for any alternate, since the first column may be shared.
+
+Browser previews select a page when editing one of its distinct parameters;
+editing a shared control keeps the current page. Use the SDK's
+[two-page header](display.md#two-page-header) for fixed rows, active-row
+emphasis and motion. `sdk.py new` supplies it by default. Macro Osc is the
+[worked reference](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json).
 
 On instrument tracks, the Value, Random and Element LFOs can target every
 declared parameter of a custom synth or sample engine, including all eight
@@ -453,7 +457,7 @@ preset entries, its screen file, its symbol prefix and its C++ namespace. It is 
 | Field | Contract |
 | --- | --- |
 | `schema` | 1 |
-| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.3 and builds 1.0 to 1.3 machines |
+| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.4 and builds 1.0 to 1.4 machines |
 | `kind` | `synth`, `sample` or `effect` |
 | `description` | Plain text of at most 160 characters, shown by the builder and preview |
 | `identity` | The numbers it asks for: `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |
