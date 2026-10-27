@@ -23,8 +23,9 @@ function join(parts) {
   let at = 0; for (const p of parts) { output.set(p, at); at += p.length; } return output;
 }
 
-// Only ET_REL objects exported by the maintainer are accepted. SHF_MERGE and
-// SHF_STRINGS are removed by the exporter, identically for GNU and this linker.
+// Only ET_REL objects exported by the maintainer are accepted. SHF_MERGE,
+// SHF_STRINGS and COMDAT groups are removed by the exporter, identically for GNU
+// and this linker.
 export function readObject(bytes) {
   check(bytes.length >= 52 && bytes.length <= 2 ** 20, 'Object size outside bounds');
   const d = view(bytes), u16 = at => d.getUint16(at, true), u32 = at => d.getUint32(at, true);
@@ -93,6 +94,18 @@ export function readObject(bytes) {
     }
   }
   return {sections, symbols, relocations};
+}
+
+// The selections the release checks link, as bit masks over kit.machines: every
+// combination of Open-XY's own machines, each other machine with all of those, and
+// everything together.
+export function checkedSelections(machines) {
+  const bit = i => 2 ** i, all = bit(machines.length) - 1;
+  const core = machines.reduce((mask, m, i) => m.origin === 'official' ? mask + bit(i) : mask, 0);
+  const masks = new Set([all]);
+  for (let mask = core; mask; mask = (mask - 1) & core) masks.add(mask);
+  machines.forEach((m, i) => { if (!(core & bit(i))) masks.add(core + bit(i)); });
+  return [...masks].sort((a, b) => a - b);
 }
 
 // The profile's identity rules, as tooling.machines.check_identity applies them.

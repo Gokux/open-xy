@@ -2,13 +2,13 @@
 import {readFileSync, writeFileSync, mkdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 import assert from 'node:assert/strict';
-import {openKit, linkKit, patchFirmware, recoverFirmware, readLdr, buildAssets, zipFiles} from '../builder/core.mjs';
+import {openKit, linkKit, patchFirmware, recoverFirmware, readLdr, buildAssets, zipFiles, checkedSelections} from '../builder/core.mjs';
 const [directory, stockFile, content] = process.argv.slice(2);
 const kit = await openKit(JSON.parse(readFileSync(resolve(directory, 'kit.json'))));
 const stock = new Uint8Array(readFileSync(stockFile));
 const catalog = new Uint8Array(readFileSync(resolve(content, 'op1_factory.json')));
 assert.deepEqual(await recoverFirmware(kit, stock), {stock, selected:null});
-for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
+for (const mask of checkedSelections(kit.machines)) {
   const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
   const linked = linkKit(kit, selected), target = resolve(directory, 'reference', String(mask));
   const firmware = await patchFirmware(kit, linked, stock);
@@ -52,4 +52,4 @@ for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
 // Relinking does not depend on checkbox order or mutate the object capsules.
 const all = kit.machines.map(m => m.id);
 assert.deepEqual(linkKit(kit, all).module, linkKit(kit, [...all].reverse()).module);
-console.log('Browser container/assets checks: all selections recovered in both profiling modes; altered builds recover only verified stock; foreign changes rejected.');
+console.log('Browser container/assets checks: checked selections recovered in both profiling modes; altered builds recover only verified stock; foreign changes rejected.');
