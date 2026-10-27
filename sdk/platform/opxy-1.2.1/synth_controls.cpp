@@ -10,6 +10,7 @@ extern "C" {
 void sdk_synth_press(opxy::u32) __asm__("sdk_synth_press");
 opxy::u32 sdk_synth_turn(opxy::u32, opxy::u32, opxy::u32, opxy::u32) __asm__("sdk_synth_turn");
 opxy::u32 sdk_effect_turn(opxy::u32, opxy::u32, opxy::u32, opxy::u32) __asm__("sdk_effect_turn");
+const char* sdk_fx_title(opxy::u32, opxy::u32) __asm__("sdk_fx_title");
 const char* sdk_synth_title(opxy::u32, opxy::u32) __asm__("sdk_synth_title");
 }
 
@@ -23,6 +24,10 @@ using namespace opxy::platform;
 // word is 0 on the engine page and 1..3 on the other three pages.
 const u32 kInstrumentController = 0x8400dff8;  // its vtable
 const u32 kInstrumentPage = 0x080238bc;
+// The auxiliary-track controller, which shows a send track's FX page: its
+// vtable, laid out as the instrument controller's (its turn handler at entry 6).
+const u32 kAuxController = 0x0803fb6c;
+const u32 kSendTracks = 14;  // send tracks 14 and 15
 // The controller on top of the GUI stack, which receives key events.
 u32 top_controller_vtable() { return *stock<const u32*()>(0x8c0944b0)(); }
 
@@ -38,6 +43,10 @@ const SynthControls* owned(u32 engine, bool effect = false) {
 // engine. Engine 0 is never a synth, so zeroed state starts on slots 0..3.
 struct Track { u32 engine; u8 slots[opxy::page_controls]; };
 Track tracks[kTracks];
+// The same for the effects on the two send tracks, and whether an owned effect
+// newly on a send still has its controls 5..8 to store (sdk_send_refresh).
+Track sends[2];
+bool unstored[2];
 
 Track* state(u32 track, u32 engine) {
     if (track >= kTracks) return nullptr;
@@ -64,6 +73,34 @@ const SynthControls* machine(u32 track, Track*& t) {
 const SynthControls* editor(u32 track) {
     if (track < kTracks) return owned(track_engine(track));
     return track == 14 || track == 15 ? owned(track_engine(track), true) : nullptr;
+}
+
+// The owned effect on a send track and its selection, or null. Any other
+// effect clears the selection.
+const SynthControls* send_effect(u32 track, Track*& t) {
+    if (track != kSendTracks && track != kSendTracks + 1) return nullptr;
+    const u32 effect = track_engine(track);
+    const SynthControls* m = owned(effect, true);
+    t = &sends[track - kSendTracks];
+    if (t->engine != (m ? effect : 0)) {
+        t->engine = m ? effect : 0;
+        for (u32 i = 0; i < opxy::page_controls; ++i) t->slots[i] = static_cast<u8>(i);
+        unstored[track - kSendTracks] = m != nullptr;
+    }
+    return m;
+}
+
+// A send track's current value of a control: stock's editor reads and writes
+// these (0x8d5ad5bc), all eight words of every track. GUI only: the track
+// object's getter follows the GUI's pattern state.
+opxy::i32 current_value(u32 track, u32 slot) {
+    return *reinterpret_cast<const volatile opxy::i32*>(stock<u32(u32)>(0x8d587708)(track) + 0x3864 + slot * 4);
+}
+// The GUI's project, as the send page's controller passes it to stock's editor
+// (8c08fad6), and a track's stored word in it: what a project saves.
+const u32 kProject = 0x86bd027c;
+opxy::i32 stored_value(u32 track, u32 slot) {
+    return *reinterpret_cast<const volatile opxy::i32*>(kProject + 0x4080 + track * 0xe8 + slot * 4);
 }
 
 u32 shown(u32 track, u32 position) {
@@ -98,13 +135,18 @@ void sdk_synth_press(u32 encoder) {
     stock<void(u32)>(0x8d51f1fc)(encoder);
     Track* t;
     const SynthControls* m;
-    if (encoder < opxy::page_controls && top_controller_vtable() == kInstrumentController &&
-        word(kInstrumentPage) == 0 && (m = machine(byte(kSelectedTrack), t))) {
+    if (encoder >= opxy::page_controls) return;
+    const u32 controller = top_controller_vtable();
+    if (controller == kInstrumentController && word(kInstrumentPage) == 0 && (m = machine(byte(kSelectedTrack), t))) {
         for (u32 i = 0; i < opxy::page_controls; ++i) {
             if (i != encoder && !m->page) continue;
             const u32 next = m->next[t->slots[i]];
             if (next < opxy::parameter_slots) t->slots[i] = static_cast<u8>(next);
         }
+    } else if (controller == kAuxController && (m = send_effect(selected_track(), t))) {
+        // An owned effect's send page: the click selects the position's next parameter.
+        const u32 next = m->next[t->slots[encoder]];
+        if (next < opxy::parameter_slots) t->slots[encoder] = static_cast<u8>(next);
     }
 }
 
@@ -152,7 +194,9 @@ u32 sdk_synth_turn(u32 project, u32 track, u32 index, u32 event) {
 // folds Shift into the same 0..3 positions before this call, unlike instruments.
 // Ownership is checked against the FX registry, not the synth registry.
 u32 sdk_effect_turn(u32 project, u32 track, u32 index, u32 event) {
-    const SynthControls* m = (track == 14 || track == 15) && index < 4 ? owned(track_engine(track), true) : nullptr;
+    Track* t;
+    const SynthControls* m = index < opxy::page_controls ? send_effect(track, t) : nullptr;
+    if (m) index = t->slots[index];  // the position's shown parameter
     if (m && event && (m->continuous & (1u << index)) && shift_held()) {
         const opxy::i32* source = reinterpret_cast<const opxy::i32*>(event);
         const opxy::i32 fine[3] = {source[0] / 10, source[1], source[2]};
@@ -166,16 +210,60 @@ u32 sdk_effect_turn(u32 project, u32 track, u32 index, u32 event) {
 // name the value instead; the text is copied before this returns.
 u32 sdk_fx_value_text(u32 widget, const char* text, u32 index, opxy::i32 value) {
     static char caption[16];
+    Track* t;
     const u32 track = selected_track();
-    const SynthControls* m = (track == 14 || track == 15) && index < 4 ? owned(track_engine(track), true) : nullptr;
-    if (m && m->format(index, value, caption)) text = caption;
+    const SynthControls* m = index < opxy::page_controls ? send_effect(track, t) : nullptr;
+    if (m) {
+        // A position showing an alternate reads its current value.
+        const u32 slot = t->slots[index];
+        if (slot != index) value = current_value(track, slot);
+        if (m->format(slot, value, caption)) {
+            text = caption;
+        } else if (slot != index) {
+            // Stock's caption: the word as 00..99.
+            const u32 n = value < 0 ? 0 : (static_cast<u32>(value) >> 8) * 100 >> 23;
+            caption[0] = static_cast<char>('0' + n / 10 % 10);
+            caption[1] = static_cast<char>('0' + n % 10);
+            caption[2] = 0;
+            text = caption;
+        }
+    }
     return stock<u32(u32, const char*)>(0x8d6011f0)(widget, text);
+}
+
+// 8d53b642: the send page names each position through the effect record's
+// parameter-name callback (0x8d506c90). An owned effect's position names its
+// shown parameter; the record itself keeps naming raw slots.
+const char* sdk_fx_title(u32 effect, u32 index) {
+    Track* t;
+    const SynthControls* m = index < opxy::page_controls ? send_effect(selected_track(), t) : nullptr;
+    if (m && m->engine() == effect) index = t->slots[index];
+    return stock<const char*(u32, u32)>(0x8d506c90)(effect, index);
 }
 
 bool sdk_synth_value(u32 track, u32 slot, opxy::i32 value, char* text) {
     Track* t;
     const SynthControls* m = machine(track, t);
     return m && m->format(slot, value, text);
+}
+
+// Once a frame on the GUI: when an owned effect is new on a send, its controls
+// 5..8 that stock has not stored, through stock's set (0x8d5acf28), which
+// stores the word and sends it to the audio side (0x8d5acd9c) as it does for
+// every edit. Only then: a parameter lock may later move a current value away
+// from the stored one on purpose.
+void sdk_send_refresh() {
+    for (u32 s = 0; s < 2; ++s) {
+        Track* t;
+        const u32 track = kSendTracks + s;
+        if (!send_effect(track, t) || !unstored[s]) continue;
+        unstored[s] = false;
+        for (u32 slot = opxy::page_controls; slot < opxy::parameter_slots; ++slot) {
+            const opxy::i32 current = current_value(track, slot);
+            if (stored_value(track, slot) != current)
+                stock<void(u32, u32, u32, opxy::i32)>(0x8d5acf28)(kProject, track, slot, current);
+        }
+    }
 }
 
 namespace opxy { namespace platform {

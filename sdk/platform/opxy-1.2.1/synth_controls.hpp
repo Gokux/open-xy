@@ -52,4 +52,12 @@ opxy::u32 sdk_fx_value_text(opxy::u32 widget, const char* text, opxy::u32 index,
 // Stock's step count for a parameter's encoder edits, through the hook at
 // 8d5ad306; an owned machine's enum slots answer their choice count.
 opxy::u32 sdk_param_steps(opxy::u32 track, opxy::u32 index, opxy::u32* scale) __asm__("sdk_param_steps");
+// Once a frame on the GUI (from the compositor): an owned effect on a send
+// gets its controls 5..8 stored and sent to the audio side as stock's current
+// values hold them. Stock stores and sends only the first four of an effect's
+// defaults when it is put on a send; every later edit it stores and sends itself.
+void sdk_send_refresh() __asm__("sdk_send_refresh");
+// The send page's title for position `index` of the effect on the selected send
+// track: the name of the slot it shows, which a press may have moved to an alternate.
+const char* sdk_fx_title(opxy::u32 effect, opxy::u32 index) __asm__("sdk_fx_title");
 }
