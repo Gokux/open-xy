@@ -18,7 +18,7 @@ below, `<private>` is that external folder and `<machine>` is your machine folde
 
 ```sh
 python -m pip install python-rtmidi
-python sdk.py build --machine <machine> --profiling on --stock-os <private>/stock-1.2.0/os.ldr --out <private>/cpu-build-001
+python sdk.py build --machine <machine> --profiling on --stock-os <private>/stock-1.2.1/os.ldr --out <private>/cpu-build-001
 ```
 
 Repeat `--machine` or use `--collection` to build a batch. Keep the package:
@@ -46,7 +46,7 @@ python sdk.py profile benchmark --package <private>/cpu-build-001 --installed --
 ```
 
 `--installed` confirms that this exact package is on the device and your work is
-saved. Metadata identifies normal OS 1.2.0 but does not attest the installed image
+saved. Metadata identifies normal OS 1.2.1 but does not attest the installed image
 hash. The collector checks CRCs, endpoint, packet size, and the complete ordered
 report count before assigning results to machines. A missing or failed
 registration cannot silently shift the reported names. Do not operate the

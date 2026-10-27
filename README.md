@@ -1,7 +1,7 @@
 # OP-XY SDK
 
 Write an instrument in C++, audition it in a browser, and build it into
-firmware for an OP-XY running OS 1.2.0. The same sound and display code
+firmware for an OP-XY running OS 1.2.1. The same sound and display code
 compiles to WebAssembly for previews and to Blackfin for the device.
 
 This repository is the SDK and the [catalog](docs/catalog.md) of published
@@ -20,7 +20,7 @@ against `staging`.** It is the development branch; `main` receives reviewed
 releases from `staging`. See the [contributor workflow](CONTRIBUTING.md#branch-workflow).
 
 This is an unofficial, experimental SDK. A build statically links a curated
-collection of machines into exact stock OS 1.2.0; arbitrary engine installation
+collection of machines into exact stock OS 1.2.1; arbitrary engine installation
 and dynamic loading are not implemented. Native code is not sandboxed, and
 build checks cannot guarantee recovery from a faulty image. Browser previews
 work on any OS; firmware builds need Windows x86_64, Apple-silicon macOS or
@@ -103,6 +103,6 @@ carries its own licence in its repository. Timestretch, in the
 AGPL-3.0; the SDK carries no copyleft code, but firmware and builder kits that
 include Timestretch are distributed under the AGPL-3.0. No firmware is included: all firmware comes from the user's own
 device. The one stock file in this repository is the instrument catalog every
-build extends, [`op1_factory.json`](profiles/opxy-1.2.0/content/op1_factory.json),
+build extends, [`op1_factory.json`](profiles/opxy-1.2.1/content/op1_factory.json),
 kept for development; the builder distributes it too. The
 [toolchain](docs/toolchain.md) release ships its GPL sources.

@@ -1,6 +1,6 @@
-// Stock OS 1.2.0 project companions (docs/projects.md). Stock saves every project,
-// the workspace included, through one call of save(project, path) (8d5973ac, from
-// 8d584576). After a save that succeeds, the hook writes the .oxy beside the .xy: the
+// Stock OS 1.2.1 project companions (docs/projects.md). Stock saves every project,
+// the workspace included, through one call of save(project, path) (8d599074, from
+// 8d585eda). After a save that succeeds, the hook writes the .oxy beside the .xy: the
 // saved file's size and CRC-32, then this firmware's machine numbers, in the canonical
 // form tooling/projects.py writes. It runs where stock saves, never on the audio role.
 // A failure leaves the previous companion, which no longer matches, or a partial
@@ -16,18 +16,18 @@ extern "C" u32 sdk_project_save(void* project, const char* path) __asm__("sdk_pr
 
 namespace {
 typedef void File;
-// newlib, as stock's project reader and writer call it (8d58f184, 8d58f230, 8d58f70c, 8d58f1aa).
+// newlib, as stock's project reader and writer call it (8d590d7c, 8d590e28, 8d591304, 8d590da2).
 File* file_open(const char* path, const char* mode) {
-    return stock<File*(const char*, const char*)>(0x8fed0350)(path, mode);
+    return stock<File*(const char*, const char*)>(0x8fed0348)(path, mode);
 }
 u32 file_read(void* data, u32 size, u32 count, File* file) {
-    return stock<u32(void*, u32, u32, File*)>(0x8fed05c8)(data, size, count, file);
+    return stock<u32(void*, u32, u32, File*)>(0x8fed05bc)(data, size, count, file);
 }
 u32 file_write(const void* data, u32 size, u32 count, File* file) {
-    return stock<u32(const void*, u32, u32, File*)>(0x8fed078c)(data, size, count, file);
+    return stock<u32(const void*, u32, u32, File*)>(0x8fed0780)(data, size, count, file);
 }
-void file_close(File* file) { stock<int(File*)>(0x8fed00b6)(file); }
-u32 save(void* project, const char* path) { return stock<u32(void*, const char*)>(0x8d5973ac)(project, path); }
+void file_close(File* file) { stock<int(File*)>(0x8fed00ae)(file); }
+u32 save(void* project, const char* path) { return stock<u32(void*, const char*)>(0x8d599074)(project, path); }
 
 const u32 kPathBytes = 256;
 const u32 kTextBytes = 8192;
@@ -120,7 +120,7 @@ void write_companion(u32 bytes, u32 crc) {
         w.put("\n        }");
     }
     w.put(listed ? "\n      },\n" : "},\n");
-    w.put("      \"profile\": \"opxy-1.2.0\",\n      \"version\": 1\n    }\n  },\n  \"version\": 1\n}\n");
+    w.put("      \"profile\": \"opxy-1.2.1\",\n      \"version\": 1\n    }\n  },\n  \"version\": 1\n}\n");
     if (w.full) return;
     File* file = file_open(companion, "wb");
     if (!file) return;

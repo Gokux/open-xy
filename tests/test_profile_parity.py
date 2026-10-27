@@ -1,6 +1,6 @@
 """The Python SDK and the browser builder apply the profile's rules identically.
 
-Both read profiles/opxy-1.2.0.json; this public check catches drift in the code
+Both read profiles/opxy-1.2.1.json; this public check catches drift in the code
 that interprets it: identity rules and hook/startup redirect encodings.
 """
 import json
@@ -72,13 +72,15 @@ class ProfileParity(unittest.TestCase):
 
 
     def test_released_open_xy_os_remains_recoverable(self):
-        # The builder rebuilds stock OS 1.2.0 from an uploaded open-xy OS by undoing
-        # this profile's edits (builder/core.mjs recoverFirmware). Every edit a
-        # released profile made must stay among them with the same stock bytes, or
-        # devices running that release could no longer be upgraded from their own
-        # os.ldr. Add each release's edits to the fixture when it ships.
-        current = {p['file_offset']: p['before'] for p in config()['patches']}
+        # The builder rebuilds stock OS from an uploaded open-xy OS by undoing this
+        # profile's edits (builder/core.mjs recoverFirmware). Every edit a profile
+        # released for this stock OS made must stay among them with the same stock
+        # bytes, or devices running that release could no longer be upgraded from
+        # their own os.ldr. Add each release's edits to the fixture when it ships.
+        profile = config()
+        current = {p['file_offset']: p['before'] for p in profile['patches']}
         released = json.loads((ROOT / 'tests/fixtures/released_profiles.json').read_text(encoding='utf-8'))
+        self.assertEqual(released['stock_sha256'], profile['stock_sha256'])
         for release, edits in released['releases'].items():
             for offset, before in edits:
                 with self.subTest(release=release, offset=offset):

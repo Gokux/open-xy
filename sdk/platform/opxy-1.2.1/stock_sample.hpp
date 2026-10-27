@@ -1,4 +1,4 @@
-// Stock OS 1.2.0 sample layouts: the sample object the allocator publishes,
+// Stock OS 1.2.1 sample layouts: the sample object the allocator publishes,
 // the pad record the GUI edits, the region record audio reads, and how the SDK
 // keeps machine settings in them. Every raw sample offset lives here.
 #pragma once
@@ -25,7 +25,7 @@ inline SampleView stock_sample_view(const void* opaque) {
 // file loads truncated.
 const u32 kLoaderFrames = 882000;
 
-// The 32-byte pad record the GUI edits (from stock 8d587904): words, then bytes.
+// The 32-byte pad record the GUI edits (from stock 8d58926c): words, then bytes.
 namespace pad_record {
 const u32 kFrames = 0, kStart = 1, kEnd = 2;  // outer markers; words 3/4 are inner loop markers
 const u32 kFade = 5;                          // stock fade word; carries SDK pad settings
@@ -182,12 +182,12 @@ inline void sample_gui_pitch(void* raw, i32 cents) {
     bytes[pad_record::kRoot] = static_cast<unsigned char>(root);
     bytes[pad_record::kFine] = static_cast<unsigned char>(root * 100 - (kNeutralRootCents - cents));
 }
-// Stock note-start (8d519f40 / 8d51a09c): parameter 52 spans -36..36.
+// Stock note-start (8d51ab30 / 8d51ac8c): parameter 52 spans -36..36.
 inline i32 sample_track_transpose(i32 value) {
     if (value < 0) value = 0;
     return i32(((u32(value) >> 8) * 73u) >> 23) - 36;
 }
-// Same 24-pad map as stock 8d5b6800, using an already-published octave.
+// Same 24-pad map as stock 8d5b8688, using an already-published octave.
 // This arithmetic helper is safe in audio: it does not access GUI projects.
 inline u32 sample_drum_key(u32 key, i32 octave) {
     return 53u + static_cast<u32>((i32(key) + 19 + 12 * (octave % 2)) % 24);

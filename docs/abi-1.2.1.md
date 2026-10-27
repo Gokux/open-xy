@@ -1,23 +1,23 @@
-# OP-XY 1.2.0 firmware contract
+# OP-XY 1.2.1 firmware contract
 
-How the SDK integrates machines into stock OP-XY OS 1.2.0. This is a
+How the SDK integrates machines into stock OP-XY OS 1.2.1. This is a
 reverse-engineered, version-bound contract for SDK maintainers, not a
 manufacturer ABI; machine authors need only the [engine API](api.md).
 
-[The firmware profile](../profiles/opxy-1.2.0.json) is the single source
+[The firmware profile](../profiles/opxy-1.2.1.json) is the single source
 both the Python SDK and the browser builder read: stock and tool hashes, the
 reservation and its table bytes, identity ranges, stock catalog insertion
 offsets and every edit. Heap, table and text edits carry their replacement bytes; a
 hook names the module symbol it calls or jumps to, and each build computes and
 verifies its bytes. The builder pins the profile digest. Stock
 addresses live beside the code that uses them: the adapter templates in
-`sdk/platform/opxy-1.2.0/`,
+`sdk/platform/opxy-1.2.1/`,
 [`stock_tables.py`](../tooling/stock_tables.py) and
 [`firmware.py`](../tooling/firmware.py). This page says what they mean.
 
 ## What a build changes
 
-The input is decrypted stock `os.ldr` 1.2.0
+The input is decrypted stock `os.ldr` 1.2.1
 (`e9dbdaa1…98f2`, pinned in the profile). An encrypted `.tfw` or any other
 version is rejected. The output differs from stock in exactly these places:
 
@@ -37,7 +37,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
 | Diagnostic benchmark | 1 | Extends explicit command 0xc8 with the selected machines; no normal-playback callbacks added |
 | Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
-| Startup label | 1 | Shows `OPEN <version>-1.2.0` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
+| Startup label | 1 | Shows `OPEN <version>-1.2.1` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
 | Module | 1 record | One loader block holding the linked module |
 
 The sample rows (sample dispatch, analysis, drum-page services and recorder)
@@ -53,7 +53,7 @@ per-voice profiling. SDK builds default to on; the website selects off
 ([build flag](build.md#4-build)). Six hooks cover the normal renderer's
 oscillator, filter and whole-voice measurements, and four cover the alternate
 renderer's oscillator and whole-voice measurements. The shims in
-[`profiling.s`](../sdk/platform/opxy-1.2.0/profiling.s) replay useful loads mixed
+[`profiling.s`](../sdk/platform/opxy-1.2.1/profiling.s) replay useful loads mixed
 into stock bookkeeping and jump to stock continuations in the existing frame.
 They preserve audio processing and voice-lifetime return paths. Counter
 initialization, resets, exporters, coarse timing and deadline clocks remain
@@ -83,11 +83,11 @@ name map must not point elsewhere. The stock initializer clears and refills the
 records on every run, so registration is re-checked each time rather than cached.
 
 The startup and catalog glue is C++ generated per collection
-([`startup.cpp.in`](../sdk/platform/opxy-1.2.0/startup.cpp.in)); the checks are
-[`registration.cpp`](../sdk/platform/opxy-1.2.0/registration.cpp), bound to the
+([`startup.cpp.in`](../sdk/platform/opxy-1.2.1/startup.cpp.in)); the checks are
+[`registration.cpp`](../sdk/platform/opxy-1.2.1/registration.cpp), bound to the
 stock tables in `registration_stock.cpp.in`. The two initializer hooks jump
 into the middle of stock functions, so
-[`startup_exit.s`](../sdk/platform/opxy-1.2.0/startup_exit.s) calls the C++
+[`startup_exit.s`](../sdk/platform/opxy-1.2.1/startup_exit.s) calls the C++
 and then completes the stock epilogue it replaced.
 
 ## Identities
@@ -110,7 +110,7 @@ numbering.
 Stock asks the factory for a voice object per voice index (0–255) and calls
 it through an 11-entry method table: render once per 64-sample block, start on
 a note, and unchanged stock defaults for the rest (see
-[`voice.cpp.in`](../sdk/platform/opxy-1.2.0/voice.cpp.in)). It never checks
+[`voice.cpp.in`](../sdk/platform/opxy-1.2.1/voice.cpp.in)). It never checks
 for a missing object, so the factory gives every index a small handle. A
 machine's `voiceCapacity` voices go to handles as their notes start: a free
 voice, or the one whose note started longest ago. A handle that has lost its
@@ -123,20 +123,20 @@ velocity, envelope, filter and mixing run afterwards.
 
 A synth's page is a stock screen object: 76 stock bytes, plus adapter state,
 plus an SVG asset named after the machine. The SDK screen shell
-([`screen.hpp`](../sdk/platform/opxy-1.2.0/screen.hpp)) supplies the four
+([`screen.hpp`](../sdk/platform/opxy-1.2.1/screen.hpp)) supplies the four
 control titles and values that stock fills in. The machine's artwork
 supplies the rest. One drawing renderer
-([`screen_drawing.hpp`](../sdk/platform/opxy-1.2.0/screen_drawing.hpp)),
+([`screen_drawing.hpp`](../sdk/platform/opxy-1.2.1/screen_drawing.hpp)),
 sized by the machine's declaration (see the [display API](display.md)), binds
 the artwork's nodes, text slots and palette entries by ID and applies each
 frame through stock's own setters: matrix words for a node's transform, palette
 selectors for its paint, path commands rewritten in place for outlines, and
 text leaves. Nothing is created or freed.
 
-Drawing input reads the GUI's existing note-start counter at `8d4d75c0` and
-the per-track 128-pitch note map at `86be3f14` (the reader at `8d5b5e88`, set
-at `8d5b5ecc`, clear at `8d5b5ea4`). The calls to clear at `8d5937ea` and
-`8d59384c` route through `sdk_note_off`: it checks whether that pitch was held,
+Drawing input reads the GUI's existing note-start counter at `8d4d6c08` and
+the per-track 128-pitch note map at `86bda258` (the reader at `8d5b7d10`, set
+at `8d5b7d54`, clear at `8d5b7d2c`). The calls to clear at `8d5954b2` and
+`8d595514` route through `sdk_note_off`: it checks whether that pitch was held,
 delegates the unchanged clear exactly once, preserves its result, and counts
 the closure. The screen reads the held count and release serial on the GUI
 side; no audio callback or cross-role publication is added. The two calls are
@@ -161,7 +161,7 @@ locks and publication; shifted turns edit `4 + e`. The engine page's
 parameters are the first eight words of the vector the voice renders. Stock's
 key dispatcher passes an encoder click (released without a turn or shift) to a
 handler the engine page ignores.
-[`synth_controls.cpp`](../sdk/platform/opxy-1.2.0/synth_controls.cpp) replaces
+[`synth_controls.cpp`](../sdk/platform/opxy-1.2.1/synth_controls.cpp) replaces
 both calls: while the engine page shows an owned synth with
 [alternates](api.md#alternate-controls), a press moves the position to its next
 parameter slot and a turn edits that slot. For owned synths, Shift's indices
@@ -186,44 +186,44 @@ of the vector with each position's shown word in place. Generated metadata
 then supplies one-decimal amounts (0.0–100.0 without a suffix) and bounded positive
 anchor-ratio captions on custom synth screens; enums and machine text overrides remain
 discrete. FX pages retain their stock captions, except that a send page
-hook (`8d53aa6e`, the value-text call in its loop over positions) lets an owned
+hook (`8d53b636`, the value-text call in its loop over positions) lets an owned
 effect name a `division` control's value, as stock does only for its delay
-(effect 0, table `0x840535fc`).
+(effect 0, table `0x84056aa0`).
 
 ### LFO destinations
 
-[`lfo.cpp`](../sdk/platform/opxy-1.2.0/lfo.cpp) extends the engine destination
+[`lfo.cpp`](../sdk/platform/opxy-1.2.1/lfo.cpp) extends the engine destination
 group of the Value, Random and Element LFOs on instrument tracks 0..7.
 Generated metadata supplies each instrument's declared parameter count, encoder assignments and
 record-ownership probe, without requiring its screen to be loaded. Only an
 owned machine with five to eight parameters uses the extended routing.
 
-Four calls to the stock range helper (`8d53ec60`, `8d53ef50`, `8d53ff32`,
-`8d5426b8`) retain the selector's eight positions instead of folding them
-into four. The live and parameter-lock quantizer calls (`8d5ab8ce`,
-`8d5ab7ea`) step among the declared slots and store their Q31 midpoints.
-The instrument controller's click-publication call (`8c0b38b4`) cycles the
+Four calls to the stock range helper (`8d53f828`, `8d53fb18`, `8d540afa`,
+`8d543280`) retain the selector's eight positions instead of folding them
+into four. The live and parameter-lock quantizer calls (`8d5ad59e`,
+`8d5ad4ba`) step among the declared slots and store their Q31 midpoints.
+The instrument controller's click-publication call (`8c0b2d54`) cycles the
 current full slot modulo the declared count before delegating to stock's
 original setter. This bypasses its four-position click quantization without
 changing other parameters or destination groups.
-The engine-group audio call (`11a03f20`) takes the full selector from R4,
+The engine-group audio call (`11a04260`) takes the full selector from R4,
 decodes the same slot and delegates to stock's modulation function, which
 still owns saturation and restoration. This path reads the audio engine
 table and record ownership only; it does not call GUI or project getters.
-It also corrects stock's destination scratch word (`84044a58`) before the
-existing modulation telemetry publication (`11a042e8`). The GUI therefore
+It also corrects stock's destination scratch word (`84047950`) before the
+existing modulation telemetry publication (`11a04628`). The GUI therefore
 animates the same full parameter slot that audio modulates, while stock
 retains the publication timing, amount and selected-track filtering.
 Other destination groups and stock engines retain their original routing.
-Three icon-strip animation calls (`8d53f676`, `8d540b6e`, `8d5431ca`)
+Three icon-strip animation calls (`8d54023e`, `8d541736`, `8d543d92`)
 map slots 4..7 to their declared encoder using the caller's decoded group
 and slot; sample engines repeat the four positions for their second row.
-Element's name call (`8d53f3e8`) also restores the strip's
-visibility for those slots. Its initializer's offset calculation (`8d53ecc0`)
+Element's name call (`8d53ffb0`) also restores the strip's
+visibility for those slots. Its initializer's offset calculation (`8d53f888`)
 uses the same mapping after stock stores the full slot, so reopening the page also shows the
 correct icon. The full slot still selects the label and audio
 destination; only the strip's scroll position is remapped.
-The three name calls (`8d53f3e8`, `8d5404b6`, `8d542da8`) and icon mapping
+The three name calls (`8d53ffb0`, `8d54107e`, `8d543970`) and icon mapping
 clamp retained selectors beyond the declared count to the last slot, just
 as audio does. Changing from a larger machine therefore keeps a valid name
 and icon until the user edits the destination.
@@ -250,8 +250,8 @@ touches the sample cache or its lock.
 
 Stock's sample predicate and note-region dispatcher also have explicit engine
 ID checks. One generated table describes the collection's sample machines
-([`sample_callbacks.cpp.in`](../sdk/platform/opxy-1.2.0/sample_callbacks.cpp.in));
-[`sample_machines.cpp`](../sdk/platform/opxy-1.2.0/sample_machines.cpp)
+([`sample_callbacks.cpp.in`](../sdk/platform/opxy-1.2.1/sample_callbacks.cpp.in));
+[`sample_machines.cpp`](../sdk/platform/opxy-1.2.1/sample_machines.cpp)
 admits an ID only while its registration is still ours, and an owned engine
 borrows the multisampler payload. Track and voice IDs stay unchanged. Stock,
 absent and conflicting registrations follow the original paths. The first
@@ -267,14 +267,14 @@ canonical pad, and checked before DSP or analysis lookup.
 
 Hooks that replace a CALL are C++ with the C ABI. Hooks entered inside a stock
 function are tiny assembly stubs: they save everything compiled C++ may
-clobber through one routine pair ([`hook.s`](../sdk/platform/opxy-1.2.0/hook.s):
+clobber through one routine pair ([`hook.s`](../sdk/platform/opxy-1.2.1/hook.s):
 R0-R3, P0-P2, ASTAT, the I/M/B/L registers, both hardware loops and both
 accumulators), call C++, and replay or deliver what stock expects. Stubs remain
 only where the contract is not C: an argument in R5, outputs in R5/R7/P4/CC, a
 return-address marker, the caller's frame, and replayed instructions.
 Stock addresses used by more than one unit are in
-[`stock.hpp`](../sdk/platform/opxy-1.2.0/stock.hpp); every sample record
-offset is in [`stock_sample.hpp`](../sdk/platform/opxy-1.2.0/stock_sample.hpp).
+[`stock.hpp`](../sdk/platform/opxy-1.2.1/stock.hpp); every sample record
+offset is in [`stock_sample.hpp`](../sdk/platform/opxy-1.2.1/stock_sample.hpp).
 
 ### Sample analysis
 
@@ -328,17 +328,17 @@ the canonical pad; the raw note minus the canonical pad is `drum_transpose`.
 ## Project companions
 
 Stock saves every project, the workspace included, through one function,
-`save(project, path)` (`0x8d5973ac`), which `0x8d584534` calls once, at
-`0x8d584576`, with stock's project object. That call is hooked: the SDK calls
+`save(project, path)` (`0x8d599074`), which `0x8d585e98` calls once, at
+`0x8d585eda`, with stock's project object. That call is hooked: the SDK calls
 stock `save`, and when it succeeds reads the saved file back with stock's
-newlib `fopen`, `fread` and `fclose` (`0x8fed0350`, `0x8fed05c8`,
-`0x8fed00b6`) for its size and CRC-32, then writes the companion beside it with
-`fwrite` (`0x8fed078c`) ([`project_companion.cpp`](../sdk/platform/opxy-1.2.0/project_companion.cpp)).
+newlib `fopen`, `fread` and `fclose` (`0x8fed0348`, `0x8fed05bc`,
+`0x8fed00ae`) for its size and CRC-32, then writes the companion beside it with
+`fwrite` (`0x8fed0780`) ([`project_companion.cpp`](../sdk/platform/opxy-1.2.1/project_companion.cpp)).
 The machines it lists are the collection's, from their link-time numbers; a
 kit leaves out machines with number 0. A failed save writes nothing.
 
 Stock's MTP view lists only paths matching a table of regular expressions
-(`0x840aade4`…), and under `/projects` only `.xy`. Three text edits rewrite
+(`0x840ae0c4`…), and under `/projects` only `.xy`. Three text edits rewrite
 the workspace and project patterns in place to `\.o?xy$`. Dropping a redundant
 `\d` (already in `\w`) from one character class keeps each string's length;
 the workspace pattern uses its padding.
@@ -348,8 +348,8 @@ the workspace pattern uses its padding.
 Effects live in a separate registry (19 stock entries, 63 relocated). Stock
 registers send effects and the per-track filter types in it; the filter setter
 keeps the stock bound, so IDs above 18 are send effects only. Stock firmware's
-send-slot setter (`0x8d50e0c4`) rejects types above 18. The audio mixer keeps one
-**480-byte** slot per track (`0x84c6e3b8 + 480 * slot`); the two sends are
+send-slot setter (`0x8d50e740`) rejects types above 18. The audio mixer keeps one
+**480-byte** slot per track (`0x84c66b9c + 480 * slot`); the two sends are
 slots 14 and 15, and either may hold any effect, including the same one. When a
 send's effect changes, the old object fades out over a few blocks and only
 then is the new one constructed in place, so a slot never holds two live
@@ -360,7 +360,7 @@ hold no resources. The first slot word is the object's method table, which
 leaves 476 bytes of effect state.
 
 A send track reports its effect ID where an instrument track reports its
-engine, and stock's parameter stepping (`0x8d5ab584`) treats that ID as an
+engine, and stock's parameter stepping (`0x8d5ad254`) treats that ID as an
 engine. On the first four controls, ID 2 gets engine 2's eighth-size steps,
 which round a detent to nothing, and IDs 3 and 4 get pitch stepping in cents.
 Other stock paths test engines 6 and 29–31, and split at 29. Effects
@@ -371,7 +371,7 @@ hook that asks about an engine number never mistakes a send track for an SDK
 engine.
 
 Stock delay, reverb and chorus keep their delay lines in a static per-send
-scratchpad, two 1 MiB regions that `scratch(slot, bytes)` (`0x8d50d9c8`)
+scratchpad, two 1 MiB regions that `scratch(slot, bytes)` (`0x8d50e048`)
 returns for slots 14 and 15, at most 512 KiB per request; it is never cleared
 or freed. An effect that declares `bufferBytes` gets the same memory: the
 adapter's `init` asks `scratch` for its slot, only for slots 14 and 15, and

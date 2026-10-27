@@ -35,11 +35,15 @@ CONTEXT, WINDOW = 48, 40000
 # identical edit bytes are also accepted with weaker context and a clear lead.
 AGREE, MARGIN = 0.8, 0.2
 IDENTICAL_AGREE, IDENTICAL_MARGIN = 0.7, 0.25
-# Where the SDK names stock addresses: platform layer, tooling, linker script, tools and tests.
-SOURCES = ('sdk/platform/opxy-1.2.0', 'tooling', 'linker', 'tools', 'tests')
-SUFFIXES = ('.py', '.mjs', '.cpp', '.hpp', '.s', '.in', '.ld')
-# A stock address in an area the OS loads; round region bases (low half-word 0) are constants.
-ADDRESS = re.compile(r'0x(?:8[4cdf]|08|11[89ab])[0-9a-fA-F]{5,6}\b')
+# Where the SDK names stock addresses: platform layer, tooling, linker script, tools, tests and docs.
+SOURCES = ('sdk/platform/opxy-1.2.1', 'tooling', 'linker', 'tools', 'tests', 'docs')
+SUFFIXES = ('.py', '.mjs', '.cpp', '.hpp', '.s', '.in', '.inc', '.ld', '.md')
+# A stock address in code, data or RAM, with or without 0x (comments and docs name them
+# bare); round region bases (low half-word 0) are constants.
+ADDRESS = re.compile(r'(?<![0-9a-fA-F\w])(?:0x)?((?:8[4-9a-f]|08|11[89ab])[0-9a-fA-F]{5,6})(?![0-9a-fA-F])')
+# An address assembly builds from half-words: `P0.H = 0x11a0; P0.L = 0x969c;`, a `.short`
+# absolute call or jump (0xde00/0xdc00, high, low, 0) or a high, low macro argument pair.
+HALVES = re.compile(r'0x((?:8[4-9a-f]|08|11[89ab])[0-9a-fA-F]{2})(?:;\s*\w+\.L =|,) 0x([0-9a-fA-F]{4})\b')
 # A table edit's immediate form by its length (tooling.stock_tables).
 IMMEDIATE = {8: 'imm32', 4: 'imm16', 2: 'imm7'}
 
@@ -226,8 +230,10 @@ def port_addresses(source, target, loads, anchors, edits=(), own=()):
         path = ROOT / name
         for file in ([path] if path.is_file() else sorted(path.rglob('*'))):
             if file.is_file() and file.suffix in SUFFIXES and '__pycache__' not in file.parts:
-                for match in ADDRESS.finditer(file.read_text(encoding='utf-8', errors='replace')):
-                    value = int(match.group(), 16)
+                text = file.read_text(encoding='utf-8', errors='replace')
+                values = [int(m.group(1), 16) for m in ADDRESS.finditer(text)]
+                values += [int(m.group(1), 16) << 16 | int(m.group(2), 16) for m in HALVES.finditer(text)]
+                for value in values:
                     if value & 0xffff:
                         found.setdefault(value, set()).add(str(file.relative_to(ROOT).as_posix()))
     shift = lambda offset: min(anchors, key=lambda a: abs(a[0] - offset))[1] if anchors else 0
@@ -327,7 +333,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--source', required=True, type=Path, help='stock os.ldr the profile was made for')
     parser.add_argument('--target', required=True, type=Path, help='stock os.ldr of the new release')
-    parser.add_argument('--profile', default=ROOT / 'profiles/opxy-1.2.0.json', type=Path)
+    parser.add_argument('--profile', default=ROOT / 'profiles/opxy-1.2.1.json', type=Path)
     parser.add_argument('--out', required=True, type=Path)
     args = parser.parse_args(argv)
     require(not args.out.exists(), 'Use a fresh output directory')

@@ -35,7 +35,7 @@ contains:
 | --- | --- |
 | `report.txt` | Counts, then each edit and address that needs review |
 | `report.json` | Every edit and address, how it was found and where |
-| `address-map.json` | Each stock address the platform layer, tooling and linker script name, in the new release |
+| `address-map.json` | Each stock address the platform layer, tooling, tests and docs name, in the new release |
 | `profile-candidate.json` | The profile with each placed edit's new address, offset and stock bytes; unplaced edits marked `port_status: review` |
 
 An edit is *verified* when its bytes are identical at the matching place, or
@@ -43,6 +43,11 @@ when it replaces a call that still reaches the same stock function. *Located*
 edits sit at the matching place with changed bytes: an address load whose
 target moved (the relocated-table edits) or reworked code. Read each located
 and review edit.
+
+The address scan finds addresses with or without `0x`, in code, comments and
+docs, and those assembly builds from half-words. An address in RAM outside the
+loaded image, and one inside a structure, is mapped through the code that loads
+it ("references"): confirm those against a load in the new release.
 
 ## 3. Resolve what the report leaves
 
@@ -60,9 +65,12 @@ Check in particular:
 - **The boot label** ([`tooling/startup_label.py`](../tooling/startup_label.py)):
   the stub replays a stack load whose offset can change, then calls the stock
   renderer and resumes after the site.
+- **Hooks that replace an instruction**: the replaced instruction can use
+  another register, or move next to a different one, in the new release (a
+  load stub returns its result in the register stock reads next; see
+  `HOOK_RESULT_R3` in `hook.inc`).
 - **Hooks that replay displaced instructions**, such as the profiling bypasses
-  in `profiling.s`: their continuation addresses are split into half-word
-  constants the address scan does not see.
+  in `profiling.s`: compare the code between each site and its continuation.
 - **Generated code**: [`tooling/adapters.py`](../tooling/adapters.py) and other
   generators emit stock calls; the scan covers all of `tooling/`.
 - **Protected ranges** in [`tooling/pipeline.py`](../tooling/pipeline.py).
@@ -72,7 +80,23 @@ Check in particular:
 - **The stock benchmark table** used by profiling: the same engines in the
   same order.
 
-## 4. Build and test on hardware
+## 4. Move the SDK
+
+One OS is supported at a time. Rename the profile, its content folder, the
+platform folder, the linker script and the firmware ABI page to the new
+version, apply the address map and your resolutions, and set the profile's
+identity, hashes and layout. Then:
+
+- Add the old profile's ID to `layout_profiles` when the identity rules are
+  unchanged, so layouts from the old release keep their machines' numbers.
+- Empty `tests/fixtures/released_profiles.json` and set its stock hash: builds
+  of the old OS cannot be recovered, and TE's updater replaces them.
+- Update the builder's version text and its `.tfw` link, and the tests that pin
+  stock addresses or bytes.
+
+Run `python sdk.py check` and [release verification](build.md#release-verification).
+
+## 5. Build and test on hardware
 
 Build a profiling-enabled package for the new release and verify it
 (`sdk.py verify`). Clear `__pycache__` folders after regenerating sources: a
@@ -84,7 +108,7 @@ effects, including one with a delay buffer; several machines and stock engines
 across tracks; project companions after a power cycle. Photograph any exception
 screen: its fault address, `RETX` and call stack point at the code.
 
-## 5. Compare CPU
+## 6. Compare CPU
 
 Run the [benchmark](profiling.md) three times on each release and compare:
 

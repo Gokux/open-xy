@@ -2,10 +2,10 @@
 #include "stock.hpp"
 
 namespace {
-// Stock 8d5b5e88 reads map[track * 128 + note]; 8d5b5ecc sets it,
-// 8d5b5ea4 clears it. Both note-off routes in 8d593758 call the latter.
+// Stock 8d5b7d10 reads map[track * 128 + note]; 8d5b7d54 sets it,
+// 8d5b7d2c clears it. Both note-off routes in 8d595420 call the latter.
 // The same map paints stock's keyboard, independently of voice/envelope life.
-const opxy::u32 kNoteMap = 0x86be3f14;
+const opxy::u32 kNoteMap = 0x86bda258;
 opxy::u32 releases[opxy::platform::kTracks];
 }
 
@@ -14,7 +14,7 @@ extern "C" opxy::u32 sdk_note_off(opxy::u32 track, opxy::u32 note) {
     const bool held = track < kTracks && note < 128 && byte(kNoteMap + track * 128 + note);
     // Always delegate, including unowned engines and tracks outside the display
     // API. Preserve stock's return value and exactly one clear per call.
-    const opxy::u32 result = stock<opxy::u32(opxy::u32, opxy::u32)>(0x8d5b5ea4)(track, note);
+    const opxy::u32 result = stock<opxy::u32(opxy::u32, opxy::u32)>(0x8d5b7d2c)(track, note);
     if (held) ++releases[track];
     return result;
 }

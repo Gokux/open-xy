@@ -1,4 +1,4 @@
-// Stock OS 1.2.0 instrument-track encoders for synths with alternate controls.
+// Stock OS 1.2.1 instrument-track encoders for synths with alternate controls.
 // Both hooks replace a CALL.A of a C function, so stock calls them with the C
 // ABI. A press of an owned synth's encoder selects the position's next
 // parameter; a turn edits the selected one. Everything else reaches stock as before.
@@ -21,10 +21,10 @@ using namespace opxy::platform;
 
 // Tracks 0..7 show the instrument track controller (GUI screen 0); its page
 // word is 0 on the engine page and 1..3 on the other three pages.
-const u32 kInstrumentController = 0x8400b208;  // its vtable
-const u32 kInstrumentPage = 0x08023c74;
+const u32 kInstrumentController = 0x8400dff8;  // its vtable
+const u32 kInstrumentPage = 0x080238bc;
 // The controller on top of the GUI stack, which receives key events.
-u32 top_controller_vtable() { return *stock<const u32*()>(0x8c095008)(); }
+u32 top_controller_vtable() { return *stock<const u32*()>(0x8c0944b0)(); }
 
 const SynthControls* owned(u32 engine, bool effect = false) {
     for (u32 i = 0; i < sdk_synth_control_count; ++i) {
@@ -76,19 +76,19 @@ u32 sdk_synth_title_slot(u32 engine, u32 index) {
     return tracks[track].slots[index];
 }
 
-// 8d545b2e: only the engine screen's four titles follow alternate selection.
+// 8d5466f6: only the engine screen's four titles follow alternate selection.
 // The record callback itself keeps real slot names for modulation destinations.
 const char* sdk_synth_title(u32 engine, u32 index) {
-    return stock<const char*(u32, u32)>(0x8d5065fc)(engine, sdk_synth_title_slot(engine, index));
+    return stock<const char*(u32, u32)>(0x8d506c4c)(engine, sdk_synth_title_slot(engine, index));
 }
 
-// 8c0b66d2: the GUI's key dispatcher records the click of encoder 0..3 (key
+// 8c0b5b72: the GUI's key dispatcher records the click of encoder 0..3 (key
 // codes 10..13, released without a turn and without shift) before passing it
 // to the top controller; the instrument controller's engine page ignores it
 // for every engine with alternates. On that page of an owned synth the click
 // also selects the position's next parameter, or every position's on a paged synth.
 void sdk_synth_press(u32 encoder) {
-    stock<void(u32)>(0x8d51e634)(encoder);
+    stock<void(u32)>(0x8d51f1fc)(encoder);
     Track* t;
     const SynthControls* m;
     if (encoder < opxy::page_controls && top_controller_vtable() == kInstrumentController &&
@@ -101,7 +101,7 @@ void sdk_synth_press(u32 encoder) {
     }
 }
 
-// 8c0b210a: the instrument controller's encoder turn edits parameter `index`
+// 8c0b15aa: the instrument controller's encoder turn edits parameter `index`
 // of the selected track through stock, which owns stepping, parameter locks
 // and publication. Indices 0..3 come only from the engine page's unshifted
 // encoders, so an owned synth's position edits the parameter it shows.
@@ -121,13 +121,13 @@ u32 sdk_synth_turn(u32 project, u32 track, u32 index, u32 event) {
             // acceleration intact for its parameter-lock/quantized paths.
             const opxy::i32* source = reinterpret_cast<const opxy::i32*>(event);
             const opxy::i32 fine[3] = {source[0] / 10, source[1], source[2]};
-            return stock<u32(u32, u32, u32, const opxy::i32*)>(0x8d5ab8ec)(project, track, index, fine);
+            return stock<u32(u32, u32, u32, const opxy::i32*)>(0x8d5ad5bc)(project, track, index, fine);
         }
     } else index = original_index;
-    return stock<u32(u32, u32, u32, u32)>(0x8d5ab8ec)(project, track, index, event);
+    return stock<u32(u32, u32, u32, u32)>(0x8d5ad5bc)(project, track, index, event);
 }
 
-// 8c090636: auxiliary-track page, including send FX tracks 14/15. Its controller
+// 8c08fade: auxiliary-track page, including send FX tracks 14/15. Its controller
 // folds Shift into the same 0..3 positions before this call, unlike instruments.
 // Ownership is checked against the FX registry, not the synth registry.
 u32 sdk_effect_turn(u32 project, u32 track, u32 index, u32 event) {
@@ -135,20 +135,20 @@ u32 sdk_effect_turn(u32 project, u32 track, u32 index, u32 event) {
     if (m && event && (m->continuous & (1u << index)) && shift_held()) {
         const opxy::i32* source = reinterpret_cast<const opxy::i32*>(event);
         const opxy::i32 fine[3] = {source[0] / 10, source[1], source[2]};
-        return stock<u32(u32, u32, u32, const opxy::i32*)>(0x8d5ab8ec)(project, track, index, fine);
+        return stock<u32(u32, u32, u32, const opxy::i32*)>(0x8d5ad5bc)(project, track, index, fine);
     }
-    return stock<u32(u32, u32, u32, u32)>(0x8d5ab8ec)(project, track, index, event);
+    return stock<u32(u32, u32, u32, u32)>(0x8d5ad5bc)(project, track, index, event);
 }
 
-// 8d53aa6e: the send page sets each position's value text (stock's "%02i" of
-// the word) with 0x8d5ff080(widget, text). An owned effect on a send track may
+// 8d53b636: the send page sets each position's value text (stock's "%02i" of
+// the word) with 0x8d6011f0(widget, text). An owned effect on a send track may
 // name the value instead; the text is copied before this returns.
 u32 sdk_fx_value_text(u32 widget, const char* text, u32 index, opxy::i32 value) {
     static char caption[16];
     const u32 track = selected_track();
     const SynthControls* m = (track == 14 || track == 15) && index < 4 ? owned(track_engine(track), true) : nullptr;
     if (m && m->format(index, value, caption)) text = caption;
-    return stock<u32(u32, const char*)>(0x8d5ff080)(widget, text);
+    return stock<u32(u32, const char*)>(0x8d6011f0)(widget, text);
 }
 
 bool sdk_synth_value(u32 track, u32 slot, opxy::i32 value, char* text) {

@@ -2,7 +2,7 @@
  * decisions are C++ (sample_machines.cpp, drum_controls_stock.cpp); these
  * stubs only save state, call it and replay or deliver what stock expects.
  */
-.include "sdk/platform/opxy-1.2.0/hook.inc"
+.include "sdk/platform/opxy-1.2.1/hook.inc"
 .section .text
 .align 2
 .extern sdk_sample_alias

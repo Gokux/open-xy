@@ -165,7 +165,7 @@ Authored numbers allow at most four fractional digits; exponent notation and
 unsupported elements/references are rejected. Do not rely on browser-only SVG
 features or group style inheritance. The native packager combines the machine
 fragment with the SDK-owned
-[OP-XY screen template](../sdk/platform/opxy-1.2.0/screen.svg). It supplies a black
+[OP-XY screen template](../sdk/platform/opxy-1.2.1/screen.svg). It supplies a black
 480 × 220 canvas and the stock synth header: a stepped grey bar 20 pixels tall
 with four titles (10 px) above four values (20 px), light text on the dark half
 and dark text on the light half, at the stock positions. Machine artwork starts
@@ -183,7 +183,7 @@ Template validation checks structure, not actual device text rendering.
 See [2op display.cpp](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/fm2op/display.cpp) (outlines and pulses) and
 [Macro display.cpp](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/display.cpp) (segment characters,
 glow, dials and header text) for implementations.
-How screens reach stock is described in the [firmware ABI](abi-1.2.0.md#screens).
+How screens reach stock is described in the [firmware ABI](abi-1.2.1.md#screens).
 
 ## Migrating from before SDK 1.0
 

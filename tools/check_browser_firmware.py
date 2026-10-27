@@ -45,9 +45,9 @@ def main():
     definitions = {m.id: m.definition for m in configuration(package_collection(directory / 'source'))[1]}
     stock = stock_file.read_bytes()
     require(sha(stock) == kit['profile']['stock_sha256'], 'Unexpected stock input')
-    # 0x8c0c88bc measures the text using this stock width table, adding
+    # 0x8c0c7d04 measures the text using this stock width table, adding
     # one pixel per glyph. The existing draw call centers it at x=240.
-    offset = mapped_offset(ldr(stock), 0x840131c4, 96)
+    offset = mapped_offset(ldr(stock), 0x84015fb4, 96)
     widths = stock[offset:offset + 96]
     boot_label = startup_label.label(kit['version'])
     label = boot_label[:-1]

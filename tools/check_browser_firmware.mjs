@@ -38,12 +38,12 @@ for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
   }
   writeFileSync(target + '.zip', zipFiles({'os.ldr': firmware, ...files}));
   const changed = stock.slice(); changed[50] ^= 1;
-  await assert.rejects(patchFirmware(kit, linked, changed), /Only OP–XY OS 1.2.0 is supported/);
-  await assert.rejects(patchFirmware(kit, linked, firmware), /Only OP–XY OS 1.2.0 is supported/);
-  // Corruption outside the reviewed edits is not OS 1.2.0. Inside a hook or the
+  await assert.rejects(patchFirmware(kit, linked, changed), /Only OP–XY OS 1.2.1 is supported/);
+  await assert.rejects(patchFirmware(kit, linked, firmware), /Only OP–XY OS 1.2.1 is supported/);
+  // Corruption outside the reviewed edits is not OS 1.2.1. Inside a hook or the
   // module, reversing the edits still recovers verified stock, without a selection.
   const outside = firmware.slice(); outside[50] ^= 1;
-  await assert.rejects(recoverFirmware(kit, outside), /not made from OS 1.2.0/);
+  await assert.rejects(recoverFirmware(kit, outside), /not made from OS 1.2.1/);
   for (const offset of [Number(kit.profile.patches[2].file_offset), readLdr(firmware).at(-2).offset + 16]) {
     const damaged = firmware.slice(); damaged[offset] ^= 1;
     assert.deepEqual(await recoverFirmware(kit, damaged), earlier);

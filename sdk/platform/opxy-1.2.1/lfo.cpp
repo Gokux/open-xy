@@ -65,7 +65,7 @@ const char* sdk_lfo_label(u32 group, u32 slot, u32 flag) {
     return lfo::name(group, slot, flag);
 }
 
-// 8c0b38b4: the instrument controller's encoder-click path publishes after
+// 8c0b2d54: the instrument controller's encoder-click path publishes after
 // its own four-way cycle, bypassing the turn quantizer. Read the unchanged
 // selector and cycle its full slot before delegating the original publication.
 u32 sdk_lfo_cycle(u32 project, u32 track, u32 index, i32 value) {

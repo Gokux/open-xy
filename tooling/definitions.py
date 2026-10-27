@@ -21,7 +21,7 @@ def identifier(value):
     require(isinstance(value, str) and re.fullmatch(r'[a-z][a-z0-9_-]{0,31}', value), 'Invalid identifier')
 
 
-# The stock firmware's own engine and effect types (stock 1.2.0 catalog).
+# The stock firmware's own engine and effect types (stock 1.2.1 catalog).
 STOCK_TYPES = frozenset({'sampler', 'drum', 'drumline', 'organ', 'epiano', 'prism', 'hardsync', 'dissolve', 'axis',
                          'wavetable', 'simple', 'midi', 'multisampler',
                          'delay', 'reverb', 'chorus', 'phaser', 'dist', 'lofi'})
