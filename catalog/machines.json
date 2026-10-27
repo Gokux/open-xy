@@ -149,8 +149,8 @@
       "maintainer": "etcetc000",
       "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-oldsun",
-      "tag": "v0.20.0",
-      "commit": "ce965da802ddddf4aec0f98d8eca8689055a03b1",
+      "tag": "v0.20.1",
+      "commit": "9511d63a1c7b327a78025a2c8884354d8c76960b",
       "path": ".",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
