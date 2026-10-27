@@ -54,8 +54,8 @@ figures. State usually dominates, since a synth's voice pool is
 
 `voiceBytes`, `sharedBytes` and display state have no limit of their own
 beyond whole words and module memory. Browser previews run 8 voices in
-512 KiB of WebAssembly memory; a machine that needs more still builds for the
-device.
+2 MiB of fixed WebAssembly memory, with growth disabled. This browser allowance
+does not change the native collection's module limit or measure its footprint.
 
 ## CPU
 

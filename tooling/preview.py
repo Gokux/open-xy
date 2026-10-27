@@ -27,7 +27,9 @@ SDK_FOLDERS = ('sdk/include', 'sdk/browser', 'sdk/platform/blackfin/freestanding
 FLAGS = ['--target=wasm32', '-std=c++11', '-O2', '-ffreestanding', '-fno-exceptions', '-fno-rtti',
          '-fno-threadsafe-statics', '-fno-use-cxa-atexit', '-fno-c++-static-destructors', '-nostdlib',
          '-Wall', '-Werror', '-Wno-unused']
-MEMORY = 524288
+# Fixed browser allowance for code/data/state; no memory growth during audio.
+# Native collections have a separate 2040 KiB linker limit.
+MEMORY = 2 * 1024 * 1024
 
 
 def compile_preview(compiler, definition, out, root, sources=(), includes=()):
