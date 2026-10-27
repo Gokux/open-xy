@@ -476,6 +476,31 @@ export async function patchFirmware(kit, linked, stock, {profiling = true} = {})
 // SHA-256; the uploaded module is never executed or reused for a build. An exact
 // output of this curated collection also restores its machine selection.
 const RECOVERABLE_MACHINES = 10;
+
+// The machines whose code an uploaded module appears to hold: each machine's
+// largest code section, byte for byte outside its relocated fields. Only a
+// guess; recoverFirmware accepts it only by rebuilding it exactly.
+function presentMachines(kit, payload) {
+  return kit.machines.filter(m => {
+    let best = null;
+    for (const o of kit.objects) if (o.owner === m.id) for (const s of o.sections)
+      if (s.group === 'text' && (!best || s.size > best.s.size)) best = {o, s};
+    if (!best || best.s.size < 16) return false;
+    const {o, s} = best, fixed = new Uint8Array(s.size).fill(1);
+    for (const r of o.relocations) if (r.section === s.index) {
+      fixed.fill(0, [10, 13].includes(r.type) ? r.offset - 2 : r.offset, r.offset + (r.type === 18 ? 4 : 2));
+    }
+    const anchor = fixed.indexOf(1);
+    if (anchor < 0) return false;
+    for (let at = 0; at + s.size <= payload.length; at += 2) {
+      if (payload[at + anchor] !== s.data[anchor]) continue;
+      let i = anchor;
+      while (i < s.size && (!fixed[i] || payload[at + i] === s.data[i])) i++;
+      if (i === s.size) return true;
+    }
+    return false;
+  }).map(m => m.id);
+}
 const UPDATE = 'Update your OP–XY to OS 1.2.1 with teenage engineering’s updater, then copy its OS file (os.ldr) again; a .tfw update file will not work.';
 const UNSUPPORTED = 'Only OP–XY OS 1.2.1 is supported. This file is not OS 1.2.1 or an open-xy OS made from it. ' + UPDATE;
 export async function recoverFirmware(kit, input, layout = null) {
@@ -497,24 +522,33 @@ export async function recoverFirmware(kit, input, layout = null) {
   check(await sha256(stock) === p.stock_sha256,
     'Only OP–XY OS 1.2.1 is supported. This open-xy OS was not made from OS 1.2.1. ' + UPDATE);
   const payload = input.subarray(module.offset + 16, final.offset);
-  if (module.target === p.module_base && module.count <= moduleBytes(p) && kit.machines.length <= RECOVERABLE_MACHINES) {
-    // Reconstruct every selection's entire image; never trust the uploaded
-    // module or infer ownership from its label. At most 1,023 deterministic links,
-    // each under a millisecond.
-    // Yield between candidates so file changes and navigation remain responsive;
-    // the caller discards stale results.
-    for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
-      const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
+  if (module.target === p.module_base && module.count <= moduleBytes(p)) {
+    // Reconstruct a selection's entire image; never trust the uploaded module
+    // or infer ownership from its label. SDK builds retain timing; site builds
+    // omit the per-voice bookkeeping. Accept only a complete reconstruction of
+    // one mode, never mixed hooks.
+    const rebuilds = async selected => {
       const linked = linkKit(kit, selected, layout);
-      if (equal(linked.module, payload)) {
-        // SDK builds retain timing; site builds omit the per-voice bookkeeping.
-        // Accept only a complete reconstruction of one mode, never mixed hooks.
-        for (const profiling of [true, false]) {
-          if (equal(await patchFirmware(kit, linked, stock, {profiling}), input))
-            return {stock, selected};
-        }
+      if (!equal(linked.module, payload)) return false;
+      for (const profiling of [true, false]) {
+        if (equal(await patchFirmware(kit, linked, stock, {profiling}), input)) return true;
       }
-      await new Promise(resolve => setTimeout(resolve, 0));
+      return false;
+    };
+    // First the machines whose code the module holds, one link at any kit size.
+    const present = presentMachines(kit, payload);
+    try {
+      if (present.length && await rebuilds(present)) return {stock, selected: present};
+    } catch {}  // a guess that cannot link is not this kit's build
+    // Small kits also try every selection: at most 1,023 deterministic links,
+    // each under a millisecond. Yield between candidates so file changes and
+    // navigation remain responsive; the caller discards stale results.
+    if (kit.machines.length <= RECOVERABLE_MACHINES) {
+      for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
+        const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
+        if (await rebuilds(selected)) return {stock, selected};
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
   }
   // Another open-xy OS: an earlier release, other machines or another build.
