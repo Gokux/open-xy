@@ -83,10 +83,11 @@ python sdk.py compile --collection local/catalog/collection.json --out <folder>
    and changes only your entry in `catalog/machines.json`. CI fetches the pinned
    source and checks the entry; maintainer review follows below.
 
-Updates follow the same checks: tag a new machine revision and update `tag` and
-`commit`. Remeasure and replace `cpu` when the change could affect CPU cost;
-otherwise the previous `cpu` record may stay unchanged, still naming the commit it
-measured. Preserve the published
+Updates follow the same checks: tag a new machine revision, remeasure it and
+update `tag`, `commit` and `cpu` together. For a change that cannot affect CPU
+cost, a catalog maintainer can approve keeping the previous `cpu` record unchanged
+(still naming the commit it measured) by adding the `cpu-carried` label; the
+workflow runs again and passes `--allow-carried-cpu`. Preserve the published
 [control contract](#controls). Removal marks an entry `retired`; its ID is never
 reused, and retirement needs no new measurement.
 
