@@ -202,6 +202,125 @@
         "runs": 3,
         "block_percent": 2.178988
       }
+    },
+    {
+      "id": "mmdyn",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-MNMD",
+      "tag": "v1.0.0",
+      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "path": "machines/mmdyn",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "runs": 3,
+        "block_percent": 2.790875
+      }
+    },
+    {
+      "id": "mmens",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-MNMD",
+      "tag": "v1.0.0",
+      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "path": "machines/mmens",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "runs": 3,
+        "block_percent": 2.743572
+      }
+    },
+    {
+      "id": "mmpar",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-MNMD",
+      "tag": "v1.0.0",
+      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "path": "machines/mmpar",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "runs": 3,
+        "block_percent": 3.389029
+      }
+    },
+    {
+      "id": "mmpulse",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-MNMD",
+      "tag": "v1.0.0",
+      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "path": "machines/mmpulse",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "runs": 3,
+        "block_percent": 2.650492
+      }
+    },
+    {
+      "id": "mmsid",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-MNMD",
+      "tag": "v1.0.0",
+      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "path": "machines/mmsid",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "runs": 3,
+        "block_percent": 1.850919
+      }
+    },
+    {
+      "id": "mmstat",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-MNMD",
+      "tag": "v1.0.0",
+      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "path": "machines/mmstat",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "runs": 3,
+        "block_percent": 2.536049
+      }
+    },
+    {
+      "id": "mmvo6",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-MNMD",
+      "tag": "v1.0.0",
+      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "path": "machines/mmvo6",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "runs": 3,
+        "block_percent": 3.331044
+      }
     }
   ]
 }
