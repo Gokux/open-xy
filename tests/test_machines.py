@@ -152,12 +152,15 @@ class OutsideMachines(unittest.TestCase):
         self.assertTrue(m.contains(self.folder / 'out') and not m.contains(self.folder.parent / 'out'))
 
     def test_collections_list_machine_folders(self):
-        collection = Path(self.temporary.name) / 'collection.json'
-        probe = Path(os.path.relpath(FOLDER / 'probefx', self.folder.parent)).as_posix()
-        collection.write_text(json.dumps({'schema': 1, 'machines': [{'path': probe}, {'path': 'opxy-fmcopy'}]}),
-                              encoding='utf-8')
+        # Paths are relative to the collection's folder; both stay on its drive, as relpath needs on Windows.
+        probefx = self.folder.parent / 'shelf' / 'probefx'
+        shutil.copytree(FOLDER / 'probefx', probefx)
+        collection = self.folder.parent / 'lists' / 'collection.json'
+        collection.parent.mkdir()
+        collection.write_text(json.dumps({'schema': 1, 'machines': [{'path': '../shelf/probefx'},
+                                                                    {'path': '../opxy-fmcopy'}]}), encoding='utf-8')
         entries = machines.read_collection(collection)
-        self.assertEqual(entries, [{'path': str(FOLDER / 'probefx')}, {'path': str(self.folder)}])
+        self.assertEqual(entries, [{'path': str(probefx)}, {'path': str(self.folder)}])
         self.assertEqual([m.id for m in machines.collection(entries)], ['probefx', 'fmcopy'])
         extra = machines.read_collection(collection, [FOLDER / 'probesynth'])
         self.assertEqual([m.id for m in machines.collection(extra)], ['probefx', 'fmcopy', 'probesynth'])
