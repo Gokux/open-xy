@@ -16,7 +16,7 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from tooling.benchmark import decode  # noqa: E402
-from tooling.formats import require  # noqa: E402
+from tooling.formats import require, sha  # noqa: E402
 from tooling.profile_report import package_data  # noqa: E402
 
 # The stock diagnostic's stages that the whole-voice synth benchmark reports (METHODS), and
@@ -25,18 +25,27 @@ NAMED = {5: 'whole voice', 15: 'block total'}
 
 
 def medians(package, runs):
-    """{(case name, stage index): median budget percent} over the runs."""
-    _, report, _ = package_data(package)
-    values = {}
+    """{(case name, stage index): median budget percent} over the runs. Each capture must be a
+    benchmark of exactly this package, used once (as tooling.profile_report requires). A case is
+    kept only where every run sounded it, and a stage only where every run recorded it."""
+    _, report, identity = package_data(package)
+    expected, seen, values = report['benchmark_cases'], set(), {}
     for run in runs:
         capture = json.loads((Path(run) / 'capture.json').read_text(encoding='utf-8'))
-        for result in decode(capture, report['benchmark_cases']):
+        fingerprint = sha(json.dumps(capture, sort_keys=True).encode())
+        require(fingerprint not in seen, f'{run}: the same capture given twice')
+        seen.add(fingerprint)
+        require(capture.get('mode') == 'benchmark' and capture.get('package') == identity and
+                capture.get('expected_cases') == expected, f'{run}: a capture of another build or workload')
+        for result in decode(capture, expected):
+            name = result['machine']['name']
             for metric in result['metrics']:
-                if metric['encoded_average']:
-                    key = (result['machine']['name'], metric['index'])
-                    values.setdefault(key, []).append(metric['average_budget_percent'])
-    require(values, 'No benchmark results in these captures')
-    return {key: statistics.median(v) for key, v in values.items()}
+                stage = values.setdefault((name, metric['index']), [])
+                stage.append(None if result['insufficient_voice_activity'] or not metric['encoded_average']
+                             else metric['average_budget_percent'])
+    kept = {key: statistics.median(v) for key, v in values.items() if len(v) == len(runs) and None not in v}
+    require(kept, 'No stage was recorded by every run')
+    return kept
 
 
 def main(argv=None):

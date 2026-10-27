@@ -17,6 +17,7 @@ import argparse
 import json
 from pathlib import Path
 import re
+import struct
 import sys
 
 import numpy as np
@@ -24,30 +25,38 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from tooling.firmware import absolute_target, decode_branch  # noqa: E402
-from tooling.formats import ldr, require  # noqa: E402
+from tooling.formats import ldr, mapped_offset, require, sha  # noqa: E402
+from tooling.release import outside_checkouts  # noqa: E402
+from tooling.stock_tables import decode as decode_immediate  # noqa: E402
 
-# Bytes compared either side of an edit, and how far from its old place to look.
+# Bytes compared either side of an edit, and how far around its expected place to look.
 CONTEXT, WINDOW = 48, 40000
 # Agreement of the context and its lead over the next best place, for a confident match;
 # identical edit bytes are also accepted with weaker context and a clear lead.
 AGREE, MARGIN = 0.8, 0.2
 IDENTICAL_AGREE, IDENTICAL_MARGIN = 0.7, 0.25
-# Where the platform layer and tooling name stock addresses.
-SOURCES = ('sdk/platform/opxy-1.2.0', 'tooling', 'linker')
+# Where the SDK names stock addresses: platform layer, tooling, linker script, tools and tests.
+SOURCES = ('sdk/platform/opxy-1.2.0', 'tooling', 'linker', 'tools', 'tests')
+SUFFIXES = ('.py', '.mjs', '.cpp', '.hpp', '.s', '.in', '.ld')
+# A stock address in an area the OS loads; round region bases (low half-word 0) are constants.
 ADDRESS = re.compile(r'0x(?:8[4cdf]|08|11[89ab])[0-9a-fA-F]{5,6}\b')
+# A table edit's immediate form by its length (tooling.stock_tables).
+IMMEDIATE = {8: 'imm32', 4: 'imm16', 2: 'imm7'}
 
 
 class Image:
-    def __init__(self, path):
-        self.data = Path(path).read_bytes()
+    def __init__(self, path=None, data=None):
+        self.data = Path(path).read_bytes() if data is None else bytes(data)
         self.bytes = np.frombuffer(self.data, np.uint8)
-        self.blocks = [b for b in ldr(self.data) if not b['fill'] and b['count']]
+        self.records = ldr(self.data)
+        self.blocks = [b for b in self.records if not b['fill'] and b['count']]
 
     def offset(self, address):
-        for b in self.blocks:
-            if b['target'] <= address < b['target'] + b['count']:
-                return b['offset'] + 16 + address - b['target']
-        return None
+        """The file offset of a stored byte at `address`, or None (RAM, a fill or ambiguous)."""
+        try:
+            return mapped_offset(self.records, address, 1)
+        except ValueError:
+            return None
 
     def address(self, offset):
         for b in self.blocks:
@@ -58,14 +67,16 @@ class Image:
 
 
 def locate(source, target, offset, length, context=CONTEXT, window=WINDOW, expected=None):
-    """(target offset, agreement, margin) of the source bytes [offset, offset+length) with context.
-    Among equally good places (repeated code), the one nearest `expected` wins, its margin
-    then measured against places that agree less."""
+    """(target offset, agreement, margin) of the source bytes [offset, offset+length) with context,
+    searched within `window` of `expected` (default: the same offset). Among equally good places
+    (repeated code), the one nearest `expected` wins, its margin then measured against places
+    that agree less."""
     low = max(0, offset - context)
     pattern = source.bytes[low: offset + length + context]
     size = len(pattern)
-    start = max(0, low - window)
-    stop = min(len(target.bytes) - size, low + window)
+    centre = low + ((expected - offset) if expected is not None else 0)
+    start = max(0, centre - window)
+    stop = min(len(target.bytes) - size, centre + window)
     if stop <= start:
         return None, 0.0, 0.0
     views = np.lib.stride_tricks.sliding_window_view(target.bytes[start: stop + size], size)
@@ -100,43 +111,55 @@ def same_function(source, target, old, new, length=64):
 
 
 def port_edits(source, target, profile, loads):
-    """loads: constant_loads of the source and the target, to find hooks through their calls."""
-    rows = []
-    for edit in profile['patches']:
-        offset, length = int(edit['file_offset'], 16), edit['length']
-        before = bytes.fromhex(edit['before'])
-        require(source.data[offset: offset + length] == before, 'Source image is not this profile\'s stock OS')
-        found, agree, margin = locate(source, target, offset, length)
-        row = dict(name=edit.get('name') or edit.get('symbol'), kind=edit['kind'], address=edit['address'],
-                   agree=round(agree, 3), margin=round(margin, 3))
-        identical = found is not None and target.data[found: found + length] == before
-        weak = found is None or agree < AGREE or margin < MARGIN
-        if weak and not (identical and agree >= IDENTICAL_AGREE and margin >= IDENTICAL_MARGIN):
-            # A hook replacing a call: find the called function in the target through
-            # its callers, then the call to it whose surroundings match best.
-            old = call_target(int(edit['address'], 16), before) if edit['kind'] == 'hook' else None
-            found = by_call_site(source, target, offset, old, loads) if old is not None else None
-            if found is None:
-                rows.append(dict(row, status='review', reason='no confident match'))
-                continue
-            row['how'] = 'call site'
-        new_before = target.data[found: found + length]
-        row.update(target_address=hex(target.address(found)), target_offset=hex(found), target_before=new_before.hex(),
-                   delta=found - offset)
-        if new_before == before:
-            rows.append(dict(row, status='verified', reason='identical bytes'))
-            continue
-        old = call_target(int(edit['address'], 16), before) if edit['kind'] == 'hook' else None
-        new = call_target(target.address(found), new_before) if old is not None else None
-        if old is not None and new is not None:
-            similar = same_function(source, target, old, new)
-            status = 'verified' if similar >= 0.7 else 'review'
-            rows.append(dict(row, status=status, reason=f'calls {hex(old)} -> {hex(new)} ({similar:.0%} alike)'))
-        else:
-            # Found in place, but the replaced instructions themselves changed
-            # (an address load, a moved table or reworked code): read them.
-            rows.append(dict(row, status='located', reason=f'{edit["kind"]} bytes differ at the matching place'))
+    """loads: constant_loads of the source and the target, to find hooks through their calls.
+    A first pass searches around each edit's old offset; edits it misses are searched again
+    around the shift of the nearest edit the first pass verified, so a region that moved
+    further than the window is still found."""
+    rows = [place_edit(source, target, edit, loads) for edit in profile['patches']]
+    anchors = [(int(e['file_offset'], 16), r['delta']) for e, r in zip(profile['patches'], rows)
+               if r['status'] == 'verified']
+    for i, (edit, row) in enumerate(zip(profile['patches'], rows)):
+        if row['status'] == 'review' and anchors:
+            offset = int(edit['file_offset'], 16)
+            shift = min(anchors, key=lambda a: abs(a[0] - offset))[1]
+            again = place_edit(source, target, edit, loads, expected=offset + shift)
+            if again['status'] != 'review':
+                rows[i] = again
     return rows
+
+
+def place_edit(source, target, edit, loads, expected=None):
+    """One edit's row: where it is in the target and how sure that is."""
+    offset, length = int(edit['file_offset'], 16), edit['length']
+    before = bytes.fromhex(edit['before'])
+    require(source.data[offset: offset + length] == before, "Source image is not this profile's stock OS")
+    found, agree, margin = locate(source, target, offset, length, expected=expected)
+    row = dict(name=edit.get('name') or edit.get('symbol'), kind=edit['kind'], address=edit['address'],
+               agree=round(agree, 3), margin=round(margin, 3))
+    identical = found is not None and target.data[found: found + length] == before
+    weak = found is None or agree < AGREE or margin < MARGIN
+    if weak and not (identical and agree >= IDENTICAL_AGREE and margin >= IDENTICAL_MARGIN):
+        # A hook replacing a call: find the called function in the target through
+        # its callers, then the call to it whose surroundings match best.
+        old = call_target(int(edit['address'], 16), before) if edit['kind'] == 'hook' else None
+        found = by_call_site(source, target, offset, old, loads) if old is not None else None
+        if found is None:
+            return dict(row, status='review', reason='no confident match')
+        row['how'] = 'call site'
+    new_before = target.data[found: found + length]
+    row.update(target_address=hex(target.address(found)), target_offset=hex(found), target_before=new_before.hex(),
+               delta=found - offset)
+    if new_before == before:
+        return dict(row, status='verified', reason='identical bytes')
+    old = call_target(int(edit['address'], 16), before) if edit['kind'] == 'hook' else None
+    new = call_target(target.address(found), new_before) if old is not None else None
+    if old is not None and new is not None:
+        similar = same_function(source, target, old, new)
+        return dict(row, status='verified' if similar >= 0.7 else 'review',
+                    reason=f'calls {hex(old)} -> {hex(new)} ({similar:.0%} alike)')
+    # Found in place, but the replaced instructions themselves changed (an address
+    # load, a moved table or reworked code): read them.
+    return dict(row, status='located', reason=f'{edit["kind"]} bytes differ at the matching place')
 
 
 def by_call_site(source, target, offset, function, loads, context=48):
@@ -202,9 +225,11 @@ def port_addresses(source, target, loads, anchors, edits=(), own=()):
     for name in SOURCES:
         path = ROOT / name
         for file in ([path] if path.is_file() else sorted(path.rglob('*'))):
-            if file.is_file() and file.suffix in ('.py', '.cpp', '.hpp', '.s', '.in', '.ld'):
+            if file.is_file() and file.suffix in SUFFIXES and '__pycache__' not in file.parts:
                 for match in ADDRESS.finditer(file.read_text(encoding='utf-8', errors='replace')):
-                    found.setdefault(int(match.group(), 16), set()).add(str(file.relative_to(ROOT).as_posix()))
+                    value = int(match.group(), 16)
+                    if value & 0xffff:
+                        found.setdefault(value, set()).add(str(file.relative_to(ROOT).as_posix()))
     shift = lambda offset: min(anchors, key=lambda a: abs(a[0] - offset))[1] if anchors else 0
     (source_loads, _), (_, target_loads) = loads
     bases = sorted(source_loads)
@@ -262,6 +287,33 @@ def port_addresses(source, target, loads, anchors, edits=(), own=()):
     return rows
 
 
+def heap_fill(image, base=None, near=None):
+    """The stock heap's zero-fill record: the one at `base` (the profile's heap_fill_base), else
+    the fill nearest `near` bytes long (the source heap's size)."""
+    fills = [b for b in image.records if b['fill']]
+    if base is not None:
+        exact = [b for b in fills if b['target'] == base]
+        require(len(exact) == 1, "No heap fill at the profile's heap_fill_base: is this its stock OS?")
+        return exact[0]
+    require(fills and near is not None, 'No zero-fill record (the stock heap) in this image')
+    return min(fills, key=lambda b: abs(b['count'] - near))
+
+
+def candidate_table_after(edit, before, reservation, shift):
+    """A relocated-table edit's replacement at its new place: the new stock instruction with the
+    relocated value, moved with the reservation when that value is an address inside it."""
+    kind = IMMEDIATE[edit['length']]
+    _, value = decode_immediate(kind, bytes.fromhex(edit['after']))
+    if reservation[0] <= value < reservation[1]:
+        value += shift
+    opcode, _ = decode_immediate(kind, before)
+    if kind == 'imm32':
+        return struct.pack('<4H', opcode, value >> 16, value & 0xffff, 0).hex()
+    if kind == 'imm16':
+        return struct.pack('<2H', opcode, value & 0xffff).hex()
+    return struct.pack('<H', opcode | (value & 0x7f) << 3).hex()
+
+
 def regions(image):
     """Loaded bytes per memory area, by the address's top byte."""
     totals = {}
@@ -279,16 +331,19 @@ def main(argv=None):
     parser.add_argument('--out', required=True, type=Path)
     args = parser.parse_args(argv)
     require(not args.out.exists(), 'Use a fresh output directory')
+    require(outside_checkouts(args.out), 'The report holds stock code: write it outside every checkout '
+            '(the private folder, docs/porting.md)')
     profile = json.loads(args.profile.read_text(encoding='utf-8'))
     source, target = Image(args.source), Image(args.target)
     loads = constant_loads(source), constant_loads(target)
     edits = port_edits(source, target, profile, loads)
     # The module reservation sits below stock code at the top of the shrunk heap; stock code
     # starts where the heap fill ends, so the reservation moves with it.
-    fill = lambda image: max((b for b in ldr(image.data) if b['fill']), key=lambda b: b['count'] if b['count'] < 32 << 20 else 0)
-    old_fill, new_fill = fill(source), fill(target)
+    old_fill = heap_fill(source, base=profile['heap_fill_base'])
+    new_fill = heap_fill(target, near=old_fill['count'])
     old_end, new_end = old_fill['target'] + old_fill['count'], new_fill['target'] + new_fill['count']
-    own = [(old_end - profile['reserved_bytes'], old_end, new_end - old_end)]
+    reservation, shift = (old_end - profile['reserved_bytes'], old_end), new_end - old_end
+    own = [(*reservation, shift)]
     addresses = port_addresses(source, target, loads, [(int(r['target_offset'], 16) - r['delta'], r['delta'])
                                                        for r in edits if r['status'] == 'verified'], edits, own)
     report_layout = dict(heap_fill_base=hex(new_fill['target']), heap_fill_bytes=new_fill['count'],
@@ -305,13 +360,21 @@ def main(argv=None):
     candidate = []
     for edit, row in zip(profile['patches'], edits):
         if 'target_address' in row and row['status'] != 'review':
-            candidate.append(dict(edit, address=row['target_address'], file_offset=row['target_offset'],
-                                  before=row['target_before'], port_status=row['status']))
+            moved = dict(edit, address=row['target_address'], file_offset=row['target_offset'],
+                         before=row['target_before'], port_status=row['status'])
+            if edit['kind'] == 'table':
+                moved['after'] = candidate_table_after(edit, bytes.fromhex(row['target_before']), reservation, shift)
+            candidate.append(moved)
         else:
             candidate.append(dict(edit, port_status='review'))
-    (args.out / 'profile-candidate.json').write_text(
-        json.dumps(dict(profile, stock_sha256=None, stock_bytes=len(target.data), patches=candidate), indent=2) + '\n',
-        encoding='utf-8')
+    # The target image's own facts. What the port also changes (the linker script, stock
+    # content) and the release naming stay null until they are reviewed and set.
+    candidate_profile = dict(profile, id=None, firmware_version=None, stock_sha256=sha(target.data),
+                             stock_bytes=len(target.data), stock_records=len(target.records),
+                             module_base=new_end - profile['reserved_bytes'], heap_fill_base=new_fill['target'],
+                             heap_fill_bytes=new_fill['count'], linker_sha256=None, stock_catalog_sha256=None,
+                             stock_svg_sha256=None, patches=candidate)
+    (args.out / 'profile-candidate.json').write_text(json.dumps(candidate_profile, indent=2) + '\n', encoding='utf-8')
     count = lambda rows, status: sum(r['status'] == status for r in rows)
     lines = [f'Edits: {count(edits, "verified")} verified, {count(edits, "located")} located with changed bytes, '
              f'{count(edits, "review")} to review, of {len(edits)}.',
