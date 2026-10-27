@@ -13,12 +13,12 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
   // Set when the OS-copy guide ends in file transfer mode, so the install guide
   // can continue there; `resumed` marks an install guide that started there.
   let inTransfer = false, resumed = false, transferComputer = null, sourceReadDirectly = false;
-  let computer = null, busy = false;
+  let computer = null, busy = false, versionChecked = false;  // versionChecked: the user confirmed OS 1.2.1
   let hostPage = 1;
   let previewMode = false, previousComputer = null;
   const previewStages = new Set(['boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit',
     'transfer', 'exit-transfer', 'write-os', 'write-result', 'write-help', 'restart']);
-  const sourcePreviewStages = new Set(['version', 'boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit', 'transfer', 'missing-os']);
+  const sourcePreviewStages = new Set(['boot', 'menu', 'open-dev-menu', 'start-transfer', 'close-field-kit', 'transfer', 'missing-os']);
   // Installing from this page: the chosen device, progress through the build,
   // a log of what happened, and whether every file arrived. `manual` means the user chose to copy.
   let mtp = null, sending = null, log = [], delivered = false, manual = false, downloaded = false;
@@ -70,8 +70,6 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
         'Leave your OP–XY in file transfer mode. Installing continues from here.');
     }
     return {
-      version: ['Is your OP–XY on OS 1.2.1?', 'open-xy supports only OS 1.2.1. Install it on your OP–XY before you copy the OS file.', [action('Yes, it’s on 1.2.1', 'boot', 'version-yes'), action('No, or I’m not sure', 'version-help', 'version-no')]],
-      'version-help': ['Install OS 1.2.1 first.', 'Use teenage engineering’s usual update steps to put OS 1.2.1 on your OP–XY, then come back. open-xy can’t work from any other version.', [action('It’s on 1.2.1 now', 'boot', 'version-done')]],
       boot: ['Start in the te-boot menu.', disabling ? 'Finish any file transfers or OS installation before disabling the menu.' : install ? '' : 'The OS file, os.ldr, is your device’s firmware. It is not the .tfw update file on teenage engineering’s site. Follow these steps to copy it.', [action('Connected and at te-boot', 'menu')], [
         'Power off your OP–XY.', 'Hold COM while switching it on.',
         'Release COM when the te-boot menu appears.', 'Connect it to this computer with USB.',
@@ -205,14 +203,14 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     previousComputer = computer;
     previewMode = !!preview;
     if (preview) { computer = preview.computer; manual = downloaded = false; }
-    $('computer-choice').hidden = true;
+    $('os-version').hidden = $('os-update').hidden = $('computer-choice').hidden = true;
     if (hostPage === 1) $('source-start').hidden = $('file-panel').hidden = $('file-actions').hidden = true;
     else $('download-overview').hidden = $('download-actions').hidden = true;
     $(hostPage === 1 ? 'source-flow-host' : 'install-flow-host').append($('device-flow'));
     $('device-flow').hidden = false;
     // Resume only in the transfer mode the device is already in.
     resumed = !previewMode && purpose === 'install' && inTransfer && !!computer && computer === transferComputer;
-    advance(preview?.stage ?? (purpose === 'source' ? 'version' : !resumed ? 'boot' : sendsDirectly() && !sourceReadDirectly ? 'close-field-kit' : 'transfer'));
+    advance(preview?.stage ?? (!resumed ? 'boot' : sendsDirectly() && !sourceReadDirectly ? 'close-field-kit' : 'transfer'));
   }
   function exit(focus = true) {
     const previous = purpose, wasPreview = previewMode;
@@ -222,7 +220,10 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     busy = false; session.close(); release(); status();
     $('device-flow').hidden = true;
     $('download-overview').hidden = $('download-actions').hidden = false;
-    if (previous && (hostPage === 1 || wasPreview)) { $('source-start').hidden = !computer; $('computer-choice').hidden = !!computer; }
+    if (previous && (hostPage === 1 || wasPreview)) {
+      $('source-start').hidden = !computer; $('computer-choice').hidden = !!computer || !versionChecked;
+      $('os-version').hidden = !!computer || versionChecked;
+    }
     if (focus && wasPreview) { onPreviewExit(); return; }
     if (focus && previous) {
       $(hostPage === 1 ? 'source-title' : 'download-title').focus();
@@ -442,6 +443,15 @@ export function createWizard({getKit, getSelected, hasDownload, getFiles, onFirm
     $('computer-choice').hidden = true; $('source-start').hidden = false;
     $('source-title').focus(); Visuals.reveal($('source-start'));
   };
+  // The version question comes before everything that reads or loads an OS.
+  const showScreen = (from, to, title) => {
+    $(from).hidden = true; $(to).hidden = false;
+    $(title).focus(); Visuals.reveal($(to));
+  };
+  $('os-version-yes').onclick = () => { versionChecked = true; showScreen('os-version', 'computer-choice', 'computer-title'); };
+  $('os-version-no').onclick = () => showScreen('os-version', 'os-update', 'os-update-title');
+  $('os-update-done').onclick = () => { versionChecked = true; showScreen('os-update', 'computer-choice', 'computer-title'); };
+  $('os-update-back').onclick = () => showScreen('os-update', 'os-version', 'os-version-title');
   $('source-computer-change').onclick = () => {
     $('source-start').hidden = true; $('computer-choice').hidden = false;
     $('computer-title').focus(); Visuals.reveal($('computer-choice'));
