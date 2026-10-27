@@ -81,9 +81,16 @@
       "maintainer": "Gokux",
       "status": "draft",
       "repository": "https://github.com/Gokux/opxy-machines",
-      "tag": "v1.0.0",
-      "commit": "35aefa7235b71032fd858e58112a15e0560754f8",
-      "path": "drone"
+      "tag": "v1.1.0",
+      "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
+      "path": "drone",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
+        "firmware_sha256": "da28ede778b55867418de729d2df497eb0f43b061bcb9bf33531b6ec666a7ac4",
+        "runs": 3,
+        "block_percent": 4.156558
+      }
     },
     {
       "id": "solar",
@@ -91,9 +98,16 @@
       "maintainer": "Gokux",
       "status": "draft",
       "repository": "https://github.com/Gokux/opxy-machines",
-      "tag": "v1.0.0",
-      "commit": "35aefa7235b71032fd858e58112a15e0560754f8",
-      "path": "solar"
+      "tag": "v1.1.0",
+      "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
+      "path": "solar",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
+        "firmware_sha256": "da28ede778b55867418de729d2df497eb0f43b061bcb9bf33531b6ec666a7ac4",
+        "runs": 3,
+        "block_percent": 4.193179
+      }
     },
     {
       "id": "papasrapa",
@@ -101,9 +115,16 @@
       "maintainer": "Gokux",
       "status": "draft",
       "repository": "https://github.com/Gokux/opxy-machines",
-      "tag": "v1.0.0",
-      "commit": "35aefa7235b71032fd858e58112a15e0560754f8",
-      "path": "papasrapa"
+      "tag": "v1.1.0",
+      "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
+      "path": "papasrapa",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
+        "firmware_sha256": "da28ede778b55867418de729d2df497eb0f43b061bcb9bf33531b6ec666a7ac4",
+        "runs": 3,
+        "block_percent": 3.013657
+      }
     },
     {
       "id": "hurdygurdy",
