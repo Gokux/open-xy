@@ -46,7 +46,10 @@ The ID follows the [machine name rule](api.md#registration-boundary): a
 lowercase letter, then up to 14 lowercase letters, digits or underscores. It
 must differ from every [catalog](catalog.md) machine's.
 
-`sdk.py new` starts a synth; `--kind effect` starts a send effect instead
+`sdk.py new` starts an eight-control synth with the shared two-page header.
+`--controls 5`, `6` or `7` repeats first-page controls in unused second-page
+columns; those controls retain one saved value. `--controls 4` uses the stock
+four-control header. `--kind effect` starts a four-control send effect instead
 (effects have no browser preview). Every starter has a sound check in
 `tests/sound.cpp`. `--repository` also writes README.md, AGENTS.md, LICENSE,
 .gitignore and a GitHub Actions workflow beside the machine. It creates files without running
@@ -55,17 +58,21 @@ ready. Omit the flag to create just a machine folder in an existing repository.
 The workflow checks the root-level machine against SDK `staging`; pin a compatible
 SDK commit when releasing. Read the
 [core machines](https://github.com/etcetc000/open-xy-core-machines) as the worked
-examples: Karplus and 2op FM for synths, Ring Mod and Ping Pong for effects, and
+examples: Macro Osc for two-page synths, Karplus and 2op FM for four-control
+synths, Ring Mod and Ping Pong for effects, and
 Timestretch for sample engines. Sample engines use the public sample API;
 `new` currently supplies synth and effect starters.
 
 Open http://127.0.0.1:8917/. You should see **My Machine**, **Local authoring**,
-four controls and the **Triangle** and **Pulse** presets. Click **Enable audio**,
+eight controls, a fixed two-row header and the **Triangle** and **Pulse** presets. Click **Enable audio**,
 then use the on-screen keys or `A W S E D F T G Y H U J K`. Start with a low
 monitor gain. **Stop all** or Escape releases the notes.
 
 **Blend** moves from triangle to pulse, **Width** changes the pulse's duty cycle,
-and **Level** changes its output level. **Motion** changes the display animation.
+and **Level** changes its output level. **Motion** changes the display animation
+while notes are held. Page 2 adds **Drive**, **Crush**, **Rectify** and **Smooth**,
+all off by default. On the device, pressing any encoder switches the whole page;
+in the preview, editing a parameter selects its page. Both rows stay in place.
 The starter is a learning oscillator; its pulse needs band-limiting before use
 as a production instrument.
 
@@ -110,7 +117,7 @@ does not change your machine.
 
 | File | Purpose |
 | --- | --- |
-| `definition.json` | Name, four controls, presets and declared state sizes |
+| `definition.json` | Name, controls, page switching, presets and declared state sizes |
 | `core.h`, `engine.cpp` | `Voice` and `Shared` state, lifecycle callbacks and the 64-sample render |
 | `display.h`, `display.cpp` | Display state and drawing callback |
 | `panel.svg.fragment` | Artwork; IDs carry the machine's ID (`<id>_panel`, `<id>_node_N`, `<id>_palette_N`) |
@@ -127,7 +134,9 @@ the machines given.
 Change labels and presets directly in `definition.json`; custom previews read it
 when building, with no separate JavaScript definition generator. Parameter
 order determines the C++ control indices. See the [engine API](api.md) for
-buffer ownership and the [display API](display.md) for drawing.
+buffer ownership and the [display API](display.md#two-page-header) for the shared
+header. Keep parameter captions in real units and artwork below the header at
+y=38. The [UX conventions](ux.md) and Macro Osc are the layout reference.
 
 Keep callbacks bounded: no allocation, blocking, logging, I/O, OS headers or
 platform conditionals. The SDK supplies the adapters and memory. A custom

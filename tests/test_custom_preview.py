@@ -69,6 +69,32 @@ class CustomPreviewTests(unittest.TestCase):
         for m in (machine_at(folder), machine_at(self.source)):
             self.assertEqual(host_tests(m, HOST_CXX, self.root), 1)
 
+    def test_control_counts_share_unused_columns_and_require_the_new_sdk(self):
+        from tooling.adapters import control_cycles
+        for count in range(4, 9):
+            with self.subTest(controls=count), redirect_stdout(io.StringIO()):
+                folder = self.root / ('controls%d' % count)
+                custom.scaffold(folder, 'counted', 'Counted', controls=count)
+                m = machine_at(folder)
+                self.assertEqual(len(m.definition['parameters']), count)
+                self.assertEqual(m.definition.get('press'), 'page' if count > 4 else None)
+                for preset in m.definition['presets'].values():
+                    self.assertEqual(len(preset), count)
+                if count > 4:
+                    self.assertEqual(m.definition['resources']['display']['texts'], 16)
+                    cycles = control_cycles(m.definition)
+                    self.assertEqual(cycles[:4], [i + 4 if i + 4 < count else i for i in range(4)])
+                    self.assertIn('page_header(', (folder / 'display.cpp').read_text())
+                    record = json.loads((folder / 'machine.json').read_text())
+                    record['sdk'] = '1.3'
+                    (folder / 'machine.json').write_text(json.dumps(record))
+                    if count < 8:
+                        with self.assertRaisesRegex(ValueError, 'partially filled second page'):
+                            machine_at(folder)
+        with self.assertRaisesRegex(ValueError, 'effects use 4'):
+            custom.scaffold(self.root / 'bad-effect', 'badfx', 'Bad FX', 'effect', controls=8)
+        self.assertFalse((self.root / 'bad-effect').exists())
+
     def test_repository_cli_keeps_machine_at_root_and_adds_agent_and_ci_entry_points(self):
         for kind in custom.STARTERS:
             with self.subTest(kind=kind), redirect_stdout(io.StringIO()):

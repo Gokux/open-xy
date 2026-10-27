@@ -27,9 +27,15 @@ is the reference for each of them.
 ## More than four controls
 
 - **Two pages.** A synth with five to eight parameters uses
-  [`"press": "page"`](api.md#alternate-controls) with all eight: page 1 holds
+  [`"press": "page"`](api.md#alternate-controls): page 1 holds
   what is played most, page 2 the rest. A press of any encoder switches all
-  four, so a press means the same thing everywhere.
+  four, so a press means the same thing everywhere. If a position has no
+  alternate, repeat its first-page control in the second row; both edit the
+  same saved parameter. Do not add filler parameters to reach eight.
+- **Use the shared header.** New synths with five to eight controls use
+  [`opxy/page_header.hpp`](display.md#two-page-header), already wired up by
+  `sdk.py new`. `--controls 5..8` chooses the count (eight by default). Macro
+  Osc remains the visual reference.
 - **Show both pages in place.** Page 1 stays on top and page 2 under it; a
   press does not swap them. The page the encoders edit is the stock header's
   size and sits on the stepped bar; the other is smaller and grey. Cover the
@@ -51,8 +57,6 @@ is the reference for each of them.
   With page 2 up, page 1 shrinks to a grey row with both baselines at 13 px,
   and page 2 grows into the bar, moved down to 18 to 38 px: titles at 28 px
   and values at 35.4 px. Keep the rest of the artwork below about 38 px.
-  Machines that keep the stock header and draw the other page in a grey row
-  under it (baseline 33 px) remain accepted.
 - **Author text at its resting size.** Scaling a text slot is decoration for
   a moment of motion: a layout must read correctly at unit scale.
 
