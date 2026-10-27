@@ -185,6 +185,23 @@
         "runs": 3,
         "block_percent": 3.39971
       }
+    },
+    {
+      "id": "matrixy",
+      "kind": "synth",
+      "maintainer": "frankoooooooo",
+      "status": "published",
+      "repository": "https://github.com/frankoooooooo/matrixy",
+      "tag": "v1.0.1",
+      "commit": "a36ff65728f7701ccf81f0f5f572dbd0e06347b5",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "a36ff65728f7701ccf81f0f5f572dbd0e06347b5",
+        "firmware_sha256": "6a61fd8e7f2f26652c1e0fb7b4bf546d4bdeb2b5c94fb87e77aba16a531b5043",
+        "runs": 3,
+        "block_percent": 2.178988
+      }
     }
   ]
 }
