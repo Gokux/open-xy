@@ -142,6 +142,12 @@
         "block_percent": 3.503471,
         "report": "https://github.com/etcetc000/open-xy/pull/112#issuecomment-6433839213"
       }
+    },
+    {
+      "id": "oldsun",
+      "kind": "synth",
+      "maintainer": "etcetc000",
+      "status": "reserved"
     }
   ]
 }
