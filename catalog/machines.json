@@ -64,9 +64,16 @@
       "maintainer": "etcetc000",
       "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-core-machines",
-      "tag": "v1.1.0",
-      "commit": "32b257d924f65338ac6eb82639647ade90e8ac05",
-      "path": "machines/karplus"
+      "tag": "v1.3.0",
+      "commit": "ec44ae53656ca6a363908eefdc2d406b926b06e6",
+      "path": "machines/karplus",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "ec44ae53656ca6a363908eefdc2d406b926b06e6",
+        "firmware_sha256": "97738f18ed403681d082910b81e707e484f900404c83d703c7143f7821be1bb5",
+        "runs": 3,
+        "block_percent": 3.291371
+      }
     },
     {
       "id": "drone",
