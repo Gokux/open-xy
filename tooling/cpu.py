@@ -26,7 +26,7 @@ GUIDE = 'docs/api.md#cpu'
 # the cost above which a machine is likely to drop audio. A synth's is per voice;
 # an effect runs once per track. Host timings vary by about a tenth between runs.
 LIMITS = {'synth': (15000, 24000), 'effect': (30000, 48000)}
-# Bundled machines for scale, as this estimate measured them.
+# Open-XY's core machines for scale, as this estimate measured them.
 EXAMPLES = {'synth': '2op FM about 14,000, Macro Osc (Braids) about 9,000', 'effect': 'Ring Mod about 10,500'}
 # The reference loop's Blackfin instructions per block, from the pinned compiler
 # (-O2 -mcpu=bf707): 9 per sample in a zero-overhead hardware loop, plus setup.
@@ -100,6 +100,7 @@ EFFECT = r'''
 // A stereo noise burst through the effect.
 int main() {
     static @NS@::State state;
+@BUFFER_STORAGE@
     static opxy::i32 noise[opxy::block_frames], left[opxy::block_frames], right[opxy::block_frames];
     opxy::u32 seed = 1;
     for (unsigned i = 0; i < opxy::block_frames; ++i)
@@ -108,7 +109,7 @@ int main() {
     @NS@::initialize(state);
     std::printf("%.1f\n", worst_block([] {}, [&](const opxy::i32* parameters, int b) {
         for (unsigned i = 0; i < opxy::block_frames; ++i) left[i] = right[i] = noise[i];
-        @NS@::process(state, left, right, parameters);
+        @NS@::process(state, @BUFFER@@TRANSPORT@left, right, parameters);
         sink = sink + left[b & (opxy::block_frames - 1)];
     }));
     return 0;
@@ -184,13 +185,21 @@ def block_cost(m, host_cxx, scratch):
         return None
     parameters = m.definition['parameters']
     defaults = [round(p['default'] * 0x7fffffff) for p in parameters]
+    # A buffered effect runs with a send slot's buffer of its declared size.
+    words = m.definition['resources'].get('bufferBytes', 0) // 4
+    buffer_storage = f'    static opxy::i32 words[{words}];' if words else ''
+    buffer_argument = f'opxy::Buffer{{words, {words}u}}, ' if words else ''
+    # A tempo-aware effect runs at 120 BPM, playing.
+    transport_argument = 'opxy::Transport{1200u, 0u, true}, ' if m.definition['resources'].get('transport') else ''
     positions = [sweep(p) for p in parameters]
     counts = [len(values) for values in positions] + [0] * (8 - len(positions))
     source = (template.replace('@NS@', m.definition['id']).replace('@BLOCKS@', '400')
               .replace('@POSITIONS@', ', '.join(str(v) for values in positions for v in values))
               .replace('@COUNTS@', ', '.join(map(str, counts)))
               .replace('@POSITION_COUNT@', str(sum(counts)))
-              .replace('@DEFAULTS@', ', '.join(map(str, defaults + [0] * (8 - len(defaults))))))
+              .replace('@DEFAULTS@', ', '.join(map(str, defaults + [0] * (8 - len(defaults)))))
+              .replace('@BUFFER_STORAGE@', buffer_storage).replace('@BUFFER@', buffer_argument)
+              .replace('@TRANSPORT@', transport_argument))
     folder = Path(scratch) / ('cpu-' + m.id)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / 'bench.cpp').write_text(source, encoding='utf-8')
@@ -207,7 +216,7 @@ def block_cost(m, host_cxx, scratch):
 
 def summary(m, host_cxx, scratch):
     """One line for sdk.py test: the machine's estimated Blackfin instructions per block,
-    with the limits to stay under and the bundled machines for scale."""
+    with the limits to stay under and Open-XY's core machines for scale."""
     try:
         own = block_cost(m, host_cxx, scratch)
         if own is None:

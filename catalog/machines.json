@@ -2,6 +2,53 @@
   "schema": 1,
   "machines": [
     {
+      "id": "fm2op",
+      "kind": "synth",
+      "maintainer": "etcetc000",
+      "status": "published",
+      "repository": "https://github.com/etcetc000/open-xy-core-machines",
+      "tag": "v1.1.0",
+      "commit": "32b257d924f65338ac6eb82639647ade90e8ac05",
+      "path": "machines/fm2op"
+    },
+    {
+      "id": "macroosc",
+      "kind": "synth",
+      "maintainer": "etcetc000",
+      "status": "published",
+      "repository": "https://github.com/etcetc000/open-xy-core-machines",
+      "tag": "v1.2.0",
+      "commit": "725052b8d0512bc6646636d25766ce06dbe48601",
+      "path": "machines/macroosc",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "725052b8d0512bc6646636d25766ce06dbe48601",
+        "firmware_sha256": "20086c70a89158f46d831468cf81a017ed94a817a9b3022721c6b2219a87b04d",
+        "runs": 3,
+        "block_percent": 2.639811
+      }
+    },
+    {
+      "id": "timestretch",
+      "kind": "sample",
+      "maintainer": "etcetc000",
+      "status": "published",
+      "repository": "https://github.com/etcetc000/open-xy-core-machines",
+      "tag": "v1.1.0",
+      "commit": "32b257d924f65338ac6eb82639647ade90e8ac05",
+      "path": "machines/timestretch"
+    },
+    {
+      "id": "ringmod",
+      "kind": "effect",
+      "maintainer": "etcetc000",
+      "status": "published",
+      "repository": "https://github.com/etcetc000/open-xy-core-machines",
+      "tag": "v1.1.0",
+      "commit": "32b257d924f65338ac6eb82639647ade90e8ac05",
+      "path": "machines/ringmod"
+    },
+    {
       "id": "pluck",
       "kind": "synth",
       "maintainer": "etcetc000",
@@ -16,16 +63,23 @@
       "kind": "synth",
       "maintainer": "etcetc000",
       "status": "published",
-      "repository": "https://github.com/etcetc000/open-xy-karplus",
+      "repository": "https://github.com/etcetc000/open-xy-core-machines",
       "tag": "v1.3.0",
-      "commit": "617e321f8037541f283cfe46fd39ff90d5e9db8c",
-      "path": "."
+      "commit": "ec44ae53656ca6a363908eefdc2d406b926b06e6",
+      "path": "machines/karplus",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "ec44ae53656ca6a363908eefdc2d406b926b06e6",
+        "firmware_sha256": "97738f18ed403681d082910b81e707e484f900404c83d703c7143f7821be1bb5",
+        "runs": 3,
+        "block_percent": 3.291371
+      }
     },
     {
       "id": "drone",
       "kind": "synth",
       "maintainer": "Gokux",
-      "status": "published",
+      "status": "draft",
       "repository": "https://github.com/Gokux/opxy-machines",
       "tag": "v1.0.0",
       "commit": "35aefa7235b71032fd858e58112a15e0560754f8",
@@ -35,7 +89,7 @@
       "id": "solar",
       "kind": "synth",
       "maintainer": "Gokux",
-      "status": "published",
+      "status": "draft",
       "repository": "https://github.com/Gokux/opxy-machines",
       "tag": "v1.0.0",
       "commit": "35aefa7235b71032fd858e58112a15e0560754f8",
@@ -45,7 +99,7 @@
       "id": "papasrapa",
       "kind": "synth",
       "maintainer": "Gokux",
-      "status": "published",
+      "status": "draft",
       "repository": "https://github.com/Gokux/opxy-machines",
       "tag": "v1.0.0",
       "commit": "35aefa7235b71032fd858e58112a15e0560754f8",
@@ -55,11 +109,39 @@
       "id": "hurdygurdy",
       "kind": "synth",
       "maintainer": "SammiBabe666",
-      "status": "published",
+      "status": "draft",
       "repository": "https://github.com/etcetc000/open-xy-hurdygurdy",
       "tag": "v1.0.0",
       "commit": "43df28f2cde2dd44b0bcadae57c30a1408b3bd73",
       "path": "."
+    },
+    {
+      "id": "pingpong",
+      "kind": "effect",
+      "maintainer": "etcetc000",
+      "status": "published",
+      "repository": "https://github.com/etcetc000/open-xy-core-machines",
+      "tag": "v1.1.0",
+      "commit": "32b257d924f65338ac6eb82639647ade90e8ac05",
+      "path": "machines/pingpong"
+    },
+    {
+      "id": "nightdrive",
+      "kind": "synth",
+      "maintainer": "V714",
+      "status": "published",
+      "repository": "https://github.com/V714/open-xy-nightdrive",
+      "tag": "v1.0.1",
+      "commit": "c28339571117094548767fd1873556bff80ef15e",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "c28339571117094548767fd1873556bff80ef15e",
+        "firmware_sha256": "e66ab954b2b7282e2d693c42e1198be2c72725277f052d3160a655eb29398d6e",
+        "runs": 3,
+        "block_percent": 3.503471,
+        "report": "https://github.com/etcetc000/open-xy/pull/112#issuecomment-6433839213"
+      }
     }
   ]
 }

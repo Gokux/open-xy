@@ -21,7 +21,7 @@ def identifier(value):
     require(isinstance(value, str) and re.fullmatch(r'[a-z][a-z0-9_-]{0,31}', value), 'Invalid identifier')
 
 
-# The stock firmware's own engine and effect types (stock 1.2.0 catalog).
+# The stock firmware's own engine and effect types (stock 1.2.1 catalog).
 STOCK_TYPES = frozenset({'sampler', 'drum', 'drumline', 'organ', 'epiano', 'prism', 'hardsync', 'dissolve', 'axis',
                          'wavetable', 'simple', 'midi', 'multisampler',
                          'delay', 'reverb', 'chorus', 'phaser', 'dist', 'lofi'})
@@ -66,14 +66,20 @@ RESOURCES = {
 # A synth's own screen: one drawing contract (opxy/draw.hpp); the machine
 # declares its frame's budget within these limits.
 DISPLAY_FIELDS = ('stateBytes', 'stateAlignment', 'paths', 'points', 'nodes', 'texts', 'palette')
-DISPLAY_LIMITS = dict(paths=(0, 4), points=(0, 64), nodes=(1, 256), texts=(0, 4), palette=(1, 16))
+DISPLAY_LIMITS = dict(paths=(0, 4), points=(0, 64), nodes=(1, 256), texts=(0, 16), palette=(1, 16))
+# More text slots than this need SDK 1.3 (tooling.machines).
+SDK_1_2_TEXTS = 4
 # Analysis storage is allocated from the stock heap at runtime, which also holds
 # stock samples; a collection's analysis budgets together take at most this much.
 ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
 # A sample engine's optional services: integer 0/1 flags and the analysis budget.
 SAMPLE_FLAGS = ('chokeSameKey', 'padSettings', 'drumControls', 'stereoOutput')
 SAMPLE_OPTIONS = ('sampleAnalysis', *SAMPLE_FLAGS)
-DISPLAY_FORMATS = ('ratio', 'percent', 'bipolar', 'duration', 'semitones', 'enum')
+# An effect's optional delay memory (SDK 1.2): stock's per-send scratch, at most
+# 512 KiB; and transport 1 for the tempo in process (SDK 1.2).
+EFFECT_OPTIONS = ('bufferBytes', 'transport')
+EFFECT_BUFFER_LIMIT = 524288
+DISPLAY_FORMATS = ('ratio', 'percent', 'bipolar', 'duration', 'semitones', 'enum', 'division')
 # Every kind's parameters occupy the stock eight-word parameter vector in order.
 # A synth's first four fill the four-control page; up to four more are alternates
 # (see control_positions). Sample engines and effects use one to eight.
@@ -93,12 +99,19 @@ def control_positions(definition):
     return [parameter.get('control', i) for i, parameter in enumerate(definition['parameters'])]
 
 
+def paged(definition):
+    """Whether a press switches the synth's whole page (`"press": "page"`, SDK 1.3)."""
+    return definition.get('press') == 'page'
+
+
 def validate_definition(value, kind):
-    keys(value, ('schema', 'id', 'name', 'parameters', 'presets', 'resources'), 'definition')
+    keys(value, ('schema', 'id', 'name', 'parameters', 'presets', 'resources', *(('press',) if 'press' in value else ())),
+         'definition')
     require(type(value['schema']) is int and value['schema'] == 1, 'Unknown definition schema')
     stock_name(value['id']); label(value['name'])
     resources = value['resources']
-    optional = tuple(k for k in SAMPLE_OPTIONS if kind == 'sample' and isinstance(resources, dict) and k in resources)
+    options = SAMPLE_OPTIONS if kind == 'sample' else EFFECT_OPTIONS if kind == 'effect' else ()
+    optional = tuple(k for k in options if isinstance(resources, dict) and k in resources)
     keys(resources, (*RESOURCES[kind], *optional), 'resources')
     require(all(type(v) is int for k, v in resources.items() if k != 'display'),
             'Numeric resource requirements must be integers')
@@ -118,6 +131,13 @@ def validate_definition(value, kind):
             require(resources.get(flag, 0) in (0, 1), flag + ' must be 0 or 1')
         require(resources.get('padSettings', 0) or not resources.get('drumControls', 0),
                 'drumControls edits pad settings: it needs padSettings')
+    if kind == 'effect' and 'bufferBytes' in resources:
+        size = resources['bufferBytes']
+        require(4 <= size <= EFFECT_BUFFER_LIMIT and size % 4 == 0,
+                'bufferBytes is whole words, at most %d: the per-send scratch memory stock gives an effect'
+                % EFFECT_BUFFER_LIMIT)
+    if kind == 'effect':
+        require(resources.get('transport', 0) in (0, 1), 'transport must be 0 or 1')
     if kind == 'synth':
         validate_synth_resources(resources)
     parameters = value['parameters']
@@ -130,6 +150,12 @@ def validate_definition(value, kind):
         validate_parameter(parameter, alternate)
         require(parameter['id'] not in names, 'Duplicate parameter identity')
         names.add(parameter['id'])
+    # A paged synth's eight parameters are two pages of four: each position has
+    # exactly one alternate, and a press of any encoder switches all four.
+    if 'press' in value:
+        require(kind == 'synth' and value['press'] == 'page' and len(parameters) == 8 and
+                sorted(control_positions(value)[SYNTH_POSITIONS:]) == list(range(SYNTH_POSITIONS)),
+                '"press": "page" is for a synth with eight parameters: each position has exactly one alternate')
     require(isinstance(value['presets'], dict) and len(value['presets']) <= 64, 'Invalid presets')
     for name, preset in value['presets'].items():
         label(name); keys(preset, names, 'preset')
@@ -174,6 +200,8 @@ def validate_parameter(parameter, alternate=False):
     identifier(parameter['id']); control_label(parameter['label'])
     number(parameter['default'], 0, 1, 'normalized default')
     require(parameter['display'] in DISPLAY_FORMATS, 'Unsupported display format')
+    require(parameter['display'] != 'division' or parameter['mapping'] == {'kind': 'linear', 'minimum': 0, 'maximum': 1},
+            'A division control maps linearly from 0 to 1')
     mapping = parameter['mapping']
     require(isinstance(mapping, dict), 'Invalid mapping')
     kind = mapping.get('kind')

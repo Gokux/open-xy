@@ -14,9 +14,9 @@ import sys
 
 from .adapters import catalog_entry, sample_callbacks
 from .catalog import official
-from .definitions import control_positions
+from .definitions import control_positions, paged
 from .formats import require, sha
-from .machines import discovered
+from .machines import FIXED_NUMBERS
 from .pipeline import ROOT, child, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
 from . import native, preview, screen
 
@@ -32,13 +32,13 @@ def notices(machines):
 
 def catalog_sources(machines, personal):
     """The release of each catalog machine at its pinned commit, by ID. A published kit
-    holds reviewed machines only: bundled ones, and those. A personal kit may hold any folder."""
+    holds reviewed machines only: those. A personal kit may hold any folder."""
     from .catalog import load, pinned
     entries = load()
     sources = {m.id: next(e for e in entries if e['id'] == m.id) for m in machines
-               if not m.bundled and pinned(m, entries)}
-    require(personal or all(m.bundled or m.id in sources for m in machines),
-            'A published kit holds the bundled machines and catalog machines at their pinned commits '
+               if pinned(m, entries)}
+    require(personal or all(m.id in sources for m in machines),
+            'A published kit holds catalog machines at their pinned commits '
             '(sdk.py catalog fetch); build other folders into a --personal kit')
     return sources
 
@@ -53,27 +53,33 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
         # The numbers it asks for; the builder numbers each selection (core.mjs assignNumbers).
         entry = dict(id=m.id, name=m.name, kind=m.kind, prefix=m.prefix, description=m.description,
                      identity=m.requested or m.identity, controls=[p['label'] for p in m.definition['parameters']],
-                     positions=control_positions(m.definition))
+                     positions=control_positions(m.definition), pages=paged(m.definition))
         entry['catalog'] = catalog_entry(m)
         # Where the machine comes from, for the builder to show (core.mjs validOrigin): a
         # catalog machine is Open-XY's own only when maintainers list it (catalog.OFFICIAL).
-        entry['origin'] = ('bundled' if m.bundled else 'personal' if m.id not in sources
+        entry['origin'] = ('personal' if m.id not in sources
                            else 'official' if official(sources[m.id]) else 'catalog')
         if m.id in sources:
             entry['source'] = {key: sources[m.id][key] for key in ('repository', 'tag', 'commit', 'maintainer')}
+            if 'cpu' in sources[m.id]:
+                entry['cpu'] = sources[m.id]['cpu']
         entry['presetDefaults'] = m.preset_defaults
+        if m.presets:
+            entry['presets'] = m.presets
         if m.icon:
             entry['icon'] = m.icon
         # An unselected machine's startup and catalog callbacks decline.
         if m.kind == 'effect':
             entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_fx_register', '_ready')}
         else:
-            entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_register', '_name_matches', '_ready')}
+            entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_register', '_name_matches', '_ready', '_record_ready')}
             if m.display == 'stock':
                 # The shared sample table names these; unselected, its ready check declines first.
                 entry['absent'].update({symbol: 'kit_absent' for symbol in sample_callbacks(m)})
             else:
                 entry['absent'][m.prefix + '_screen_register'] = 'kit_absent'
+        if m.kind in ('effect', 'sample'):
+            entry['absent'][m.prefix + '_benchmark'] = 'kit_absent'
         if m.display != 'stock':
             entry['artwork'] = read(m.root / 'panel.svg.fragment').decode('utf-8')
             entry['asset'] = m.native_name + '.svg'
@@ -103,7 +109,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
     # The release version, as the firmware's boot label shows it.
     kit = dict(format='opxy-browser-kit/1', version=native.package_version(package), profile=profile,
                profileSource=base64.b64encode(read(ROOT / ('profiles/' + profile['id'] + '.json'))).decode('ascii'),
-               definitions=stock, fixed={m.id: m.identity for m in discovered()},
+               definitions=stock, fixed=FIXED_NUMBERS,
                machines=kit_machines, objects=objects, notices=notices(machines),
                stockCatalog=base64.b64encode(stock_catalog).decode('ascii'),
                screenTemplate=screen.template().decode('utf-8'))
@@ -130,15 +136,15 @@ def write_builder(kit, output):
                "import * as Retained from '../sdk/browser/display.mjs';\n"
                "import * as Visuals from './visuals.mjs';\n"
                "import {Audition} from './audition.mjs';\n"
-               "import {shownControls} from '../sdk/browser/controls.mjs';\n"
+               "import {editedShown, shownControls} from '../sdk/browser/controls.mjs';\n"
                "import {supportsDeviceApis} from './browser.mjs';\n")
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
     exports = ('requireThat decode64 sha256 equal readObject readLayout assignNumbers chosenByDefault moduleBytes openKit linkKit readLdr '
-               'patchFirmware recoverFirmware presetPath buildAssets zipFiles sourceUrl sourceName').split()
+               'patchFirmware recoverFirmware presetFiles buildAssets zipFiles sourceUrl sourceName').split()
     bundled = 'const Core = (() => {\n' + script + '\nreturn {' + ','.join(exports) + '};\n})();\n'
-    bundled += 'const {shownControls, inputWords} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode(
-        'utf-8').replace('export ', '') + '\nreturn {shownControls, inputWords};\n})();\n'
+    bundled += 'const {editedShown, shownControls, inputWords} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode(
+        'utf-8').replace('export ', '') + '\nreturn {editedShown, shownControls, inputWords};\n})();\n'
     controls_import = "import { inputWords } from './controls.mjs';\n"
     for namespace, file, classes in (('Retained', 'display.mjs', 'PreviewDisplay,SvgDisplay,headerSvg,NoteActivity'),):
         source = read(ROOT / 'sdk/browser' / file).decode('utf-8')
@@ -155,9 +161,9 @@ def write_builder(kit, output):
     wizard_import = ("import * as Ferret from './ferret.mjs';\n"
                      "import * as Mtp from './mtp.mjs';\n"
                      "import * as Visuals from './visuals.mjs';\n"
-                     "import {presetPath, sha256} from './core.mjs';\n")
+                     "import {presetFiles, sha256} from './core.mjs';\n")
     require(wizard.startswith(wizard_import), 'Unexpected wizard imports')
-    bundled += 'const Wizard = (() => {\nconst {presetPath, sha256} = Core;\n' + wizard[len(wizard_import):].replace(
+    bundled += 'const Wizard = (() => {\nconst {presetFiles, sha256} = Core;\n' + wizard[len(wizard_import):].replace(
         'export ', '') + '\nreturn {createWizard};\n})();\n'
     audition = read(ROOT / 'builder/audition.mjs').decode('utf-8')
     audition_imports = ("import engineSource from '../sdk/browser/engine.mjs?raw';\n"

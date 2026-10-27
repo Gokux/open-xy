@@ -3,11 +3,12 @@
 catalog/machines.json lists each machine once, for good:
 
 - reserved: an ID held for a machine being written;
+- draft: a release pinned for review, like a published one, but not built yet;
 - published: also a repository, the release tag and its commit, and the
   machine's folder in that repository. Builds fetch exactly that commit;
 - retired: no longer built, but its ID is never given to another machine.
 
-Bundled machines (machines/) hold their IDs the same way. A machine's engine,
+Open-XY's own machines are catalog entries like any other. A machine's engine,
 effect and page numbers are not the catalog's: each firmware's layout gives them
 (tooling.machines.assign_numbers).
 """
@@ -21,14 +22,15 @@ import subprocess
 import sys
 
 from .definitions import stock_name
+from . import cpu_measurement
 from .formats import require
-from .machines import COLLECTION, discovered, machine_at, read_collection, relative_path
+from .machines import machine_at, relative_path
 from .pipeline import NO_WINDOW, ROOT
 
 CATALOG = ROOT / 'catalog/machines.json'
 # Fetched machine sources: third-party code, never firmware, so it may live in local/.
 CACHE = ROOT / 'local/catalog'
-STATUSES = ('reserved', 'published', 'retired')
+STATUSES = ('reserved', 'draft', 'published', 'retired')
 COMMON = {'id', 'kind', 'maintainer', 'status'}
 RELEASE = {'repository', 'tag', 'commit', 'path'}
 # A release's fields; builder/core.mjs validSource checks kits with the same patterns
@@ -37,10 +39,10 @@ REPOSITORY = r'https://github\.com/[A-Za-z0-9-]+/(?!\.\.?$)[A-Za-z0-9._-]+'
 TAG = r'[A-Za-z0-9._/-]{1,64}'
 COMMIT = r'[0-9a-f]{40}'
 MAINTAINER = r'[A-Za-z0-9-]{1,39}'
-# Catalog machines that are Open-XY's own examples rather than community ones, by
+# Catalog machines that are Open-XY's own rather than community ones, by
 # ID. Maintainers keep this list; a catalog entry has no field to claim it, and
 # who hosts the repository does not decide it.
-OFFICIAL = ('karplus',)
+OFFICIAL = ('fm2op', 'macroosc', 'karplus', 'timestretch', 'ringmod', 'pingpong')
 
 
 def official(entry):
@@ -48,21 +50,24 @@ def official(entry):
     return entry['id'] in OFFICIAL
 
 
-def validate(value, bundled=None):
-    """A catalog document's entries, checked against each other and the bundled machines."""
+def validate(value):
+    """A catalog document's entries, checked against each other."""
     require(isinstance(value, dict) and set(value) == {'schema', 'machines'} and value['schema'] == 1 and
             isinstance(value['machines'], list), 'Unsupported catalog')
-    bundled = discovered() if bundled is None else bundled
-    names = {m.id: 'bundled' for m in bundled}
+    names = {}
     for entry in value['machines']:
         require(isinstance(entry, dict) and isinstance(entry.get('id'), str), 'Catalog entries need an id')
         name = entry['id']
         status = entry.get('status')
         require(status in STATUSES, f'{name}: status is one of {", ".join(STATUSES)}')
-        required = COMMON | (RELEASE if status == 'published' else set())
+        required = COMMON | (RELEASE if status in ('draft', 'published') else set())
         # A retired machine keeps its whole last release, or none of it.
         if status == 'retired' and RELEASE & set(entry):
             required = COMMON | RELEASE
+        if 'cpu' in entry:
+            require('commit' in entry and status != 'reserved', f'{name}: cpu needs a pinned release')
+            cpu_measurement.validate(entry['cpu'], entry.get('kind'), entry['commit'])
+            required = required | {'cpu'}
         require(set(entry) == required, f'{name}: catalog fields for a {status} machine: '
                 + ', '.join(sorted(required)))
         stock_name(name)
@@ -83,8 +88,10 @@ def validate(value, bundled=None):
     return value['machines']
 
 
-# A machine's status only moves forward; retired is final.
-MOVES = {'reserved': {'reserved', 'published', 'retired'}, 'published': {'published', 'retired'},
+# A machine's status moves forward, except that a published machine may go back to
+# draft until it is ready, keeping its ID; retired is final.
+MOVES = {'reserved': {'reserved', 'draft', 'published', 'retired'},
+         'draft': {'draft', 'published', 'retired'}, 'published': {'published', 'draft', 'retired'},
          'retired': {'retired'}}
 
 
@@ -92,6 +99,11 @@ def changes(before, after):
     """An updated catalog keeps every machine it held, with its kind, and only moves a
     status forward."""
     current = {e['id']: e for e in after}
+    previous = {e['id']: e for e in before}
+    for entry in after:
+        if entry['status'] in ('draft', 'published') and entry != previous.get(entry['id']):
+            require('cpu' in entry, f"{entry['id']}: new or updated submissions require hardware cpu measurements (docs/profiling.md)")
+            cpu_measurement.validate(entry['cpu'], entry['kind'], entry['commit'])
     for entry in before:
         name = entry['id']
         require(name in current, f'{name}: catalog entries are never removed; retire the machine instead')
@@ -233,7 +245,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog='sdk.py catalog', description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     command = parser.add_subparsers(dest='command', required=True)
-    checking = command.add_parser('check', help='validate catalog/machines.json against itself and the bundled machines')
+    checking = command.add_parser('check', help='validate catalog/machines.json')
     checking.add_argument('--base', help='a git revision to compare with, such as the pull request target')
     checking.add_argument('--allow-control-changes', action='store_true',
                           help="accept releases that change what saved parameter values mean (a catalog maintainer's approval)")
@@ -264,7 +276,7 @@ def main(argv=None):
                 for line in release_controls(before, entries, args.cache, args.allow_control_changes):
                     print(line)
             print(f'PASS: {len(entries)} catalog entr{"y" if len(entries) == 1 else "ies"}; '
-                  'IDs are unique, including against the bundled machines.')
+                  'IDs are unique.')
             return 0
         published = [e for e in entries if e['status'] == 'published']
         folders = []
@@ -275,10 +287,9 @@ def main(argv=None):
             m = fetch(entry, args.cache)
             folders.append(m.root)
             print(f"Fetched {m.id} {entry['tag']} ({entry['commit'][:12]}): {m.root}")
-        # The bundled machines, then every published machine: a collection for any build command.
+        # Every published machine, in catalog order: a collection for any build command.
         collection = Path(args.cache) / 'collection.json'
-        entries = read_collection(COLLECTION) + [{'path': os.path.relpath(f, Path(args.cache).resolve())}
-                                                 for f in folders]
+        entries = [{'path': os.path.relpath(f, Path(args.cache).resolve())} for f in folders]
         collection.parent.mkdir(parents=True, exist_ok=True)
         collection.write_text(json.dumps({'schema': 1, 'machines': entries}, indent=2) + '\n', encoding='utf-8')
         print(f'Collection: {collection} (pass it to build, compile or kit with --collection)')
