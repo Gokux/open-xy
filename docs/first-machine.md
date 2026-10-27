@@ -46,10 +46,10 @@ The ID follows the [machine name rule](api.md#registration-boundary): a
 lowercase letter, then up to 14 lowercase letters, digits or underscores. It
 must differ from every [catalog](catalog.md) machine's.
 
-`sdk.py new` starts an eight-control synth with the shared two-page header.
-`--controls 5`, `6` or `7` repeats first-page controls in unused second-page
-columns; those controls retain one saved value. `--controls 4` uses the stock
-four-control header. `--kind effect` starts a four-control send effect instead
+`sdk.py new` starts a four-control synth with the stock header. Choose
+`--controls 5`, `6`, `7` or `8` when the sound needs more controls; these use
+the shared two-page header. Unused second-page columns repeat first-page
+controls with one saved value. `--kind effect` starts a four-control send effect instead
 (effects have no browser preview). Every starter has a sound check in
 `tests/sound.cpp`. `--repository` also writes README.md, AGENTS.md, LICENSE,
 .gitignore and a GitHub Actions workflow beside the machine. It creates files without running
@@ -64,15 +64,16 @@ Timestretch for sample engines. Sample engines use the public sample API;
 `new` currently supplies synth and effect starters.
 
 Open http://127.0.0.1:8917/. You should see **My Machine**, **Local authoring**,
-eight controls, a fixed two-row header and the **Triangle** and **Pulse** presets. Click **Enable audio**,
+four controls and the **Triangle** and **Pulse** presets. Click **Enable audio**,
 then use the on-screen keys or `A W S E D F T G Y H U J K`. Start with a low
 monitor gain. **Stop all** or Escape releases the notes.
 
 **Blend** moves from triangle to pulse, **Width** changes the pulse's duty cycle,
-and **Level** changes its output level. **Motion** changes the display animation
-while notes are held. Page 2 adds **Drive**, **Crush**, **Rectify** and **Smooth**,
-all off by default. On the device, pressing any encoder switches the whole page;
-in the preview, editing a parameter selects its page. Both rows stay in place.
+and **Level** changes its output level. **Motion** changes the display animation.
+The optional second page adds up to four teaching controls: **Drive**, **Crush**,
+**Rectify** and **Smooth**, all off by default. On a two-page synth, pressing any
+encoder switches the whole page; in the preview, editing a parameter selects
+its page. Both rows stay in place.
 The starter is a learning oscillator; its pulse needs band-limiting before use
 as a production instrument.
 

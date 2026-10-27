@@ -71,6 +71,9 @@ class CustomPreviewTests(unittest.TestCase):
 
     def test_control_counts_share_unused_columns_and_require_the_new_sdk(self):
         from tooling.adapters import control_cycles
+        default = machine_at(self.source).definition
+        self.assertEqual(len(default['parameters']), 4)
+        self.assertNotIn('press', default)
         for count in range(4, 9):
             with self.subTest(controls=count), redirect_stdout(io.StringIO()):
                 folder = self.root / ('controls%d' % count)

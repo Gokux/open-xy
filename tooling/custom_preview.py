@@ -147,7 +147,7 @@ STARTERS = ('synth', 'effect')
 
 def scaffold(out, identity, name, kind='synth', repository=False, controls=None):
     require(kind in STARTERS, 'sdk.py new starts a ' + ' or '.join(STARTERS))
-    controls = (8 if kind == 'synth' else 4) if controls is None else controls
+    controls = 4 if controls is None else controls
     require(type(controls) is int and 4 <= controls <= 8 and (kind == 'synth' or controls == 4),
             'Use 4 to 8 controls for a synth; effects use 4')
     custom_identity(identity); label(name)
@@ -253,7 +253,7 @@ def main(argv=None):
     parser.add_argument('--name', required=True, help='name shown on the OP-XY')
     parser.add_argument('--kind', choices=STARTERS, default='synth', help='machine kind to start (default: synth)')
     parser.add_argument('--controls', type=int, choices=range(4, 9),
-                        help='synth controls: 5..8 use two pages (default: 8), 4 uses the stock header; effects use 4')
+                        help='control count (default: 4); synths with 5..8 use two pages; effects use 4')
     parser.add_argument('--out', required=True, type=Path, help='new source folder, such as ../mymachine')
     parser.add_argument('--repository', action='store_true', help='include README, agent instructions, licence and CI for a standalone repository')
     args = parser.parse_args(argv)

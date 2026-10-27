@@ -11,7 +11,8 @@ Adjust that path if the user already has the SDK elsewhere.
    Macro Osc for two-page synths, Karplus or 2op FM for four-control synths,
    Ring Mod or Ping Pong for effects, Timestretch
    for sample engines. They are the worked examples; this repository holds the
-   user's implementation. For five to eight controls, keep the generated shared
+   user's implementation. Use the actual parameter count: four controls keep
+   the stock header. For five to eight controls, keep the generated shared
    `opxy/page_header.hpp` header and its SVG bindings: fixed rows, lowercase
    titles, active-row emphasis, any encoder press switches pages. Repeat the
    same saved parameter in columns without alternates; never invent filler

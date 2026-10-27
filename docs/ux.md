@@ -34,8 +34,9 @@ is the reference for each of them.
   same saved parameter. Do not add filler parameters to reach eight.
 - **Use the shared header.** New synths with five to eight controls use
   [`opxy/page_header.hpp`](display.md#two-page-header), already wired up by
-  `sdk.py new`. `--controls 5..8` chooses the count (eight by default). Macro
-  Osc remains the visual reference.
+  `sdk.py new` when `--controls` is 5, 6, 7 or 8. Choose the actual parameter
+  count; the default is four controls with the stock header. Macro Osc remains
+  the two-page visual reference.
 - **Show both pages in place.** Page 1 stays on top and page 2 under it; a
   press does not swap them. The page the encoders edit is the stock header's
   size and sits on the stepped bar; the other is smaller and grey. Cover the

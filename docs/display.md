@@ -148,9 +148,10 @@ checks the complete frame before painting; an invalid frame is not applied.
 ## Two-page header
 
 SDK 1.4 supplies `<opxy/page_header.hpp>` for synths using `"press": "page"`.
-`sdk.py new` generates it with eight controls; `--controls 5`, `6` or `7`
-shares unchanged controls between the rows. `--controls 4` keeps the stock
-header. This helper uses the existing drawing ABI and the [UX layout](ux.md#more-than-four-controls).
+`sdk.py new --controls 8` generates it with eight controls; `--controls 5`,
+`6` or `7` shares unchanged controls between the rows. The default four-control
+starter keeps the stock header. This helper uses the existing drawing ABI and
+the [UX layout](ux.md#more-than-four-controls).
 
 Store `opxy::draw::PageHeader` in `DisplayState` and call its `reset()` from
 `display_reset`. It occupies 20 bytes with four-byte alignment. Reserve eight
