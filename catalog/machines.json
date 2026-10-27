@@ -209,15 +209,15 @@
       "maintainer": "mmockett",
       "status": "published",
       "repository": "https://github.com/mmockett/OP-XY-MNMD",
-      "tag": "v1.0.0",
-      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "tag": "v1.0.1",
+      "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
       "path": "machines/mmdyn",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
-        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
+        "firmware_sha256": "3b24494edd37901fe6a179fd6801765b61cb30d5cb79be2b87cb865054e48b1e",
         "runs": 3,
-        "block_percent": 2.790875
+        "block_percent": 2.769512
       }
     },
     {
@@ -226,15 +226,15 @@
       "maintainer": "mmockett",
       "status": "published",
       "repository": "https://github.com/mmockett/OP-XY-MNMD",
-      "tag": "v1.0.0",
-      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "tag": "v1.0.1",
+      "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
       "path": "machines/mmens",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
-        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
+        "firmware_sha256": "3b24494edd37901fe6a179fd6801765b61cb30d5cb79be2b87cb865054e48b1e",
         "runs": 3,
-        "block_percent": 2.743572
+        "block_percent": 2.778668
       }
     },
     {
@@ -243,15 +243,15 @@
       "maintainer": "mmockett",
       "status": "published",
       "repository": "https://github.com/mmockett/OP-XY-MNMD",
-      "tag": "v1.0.0",
-      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "tag": "v1.0.1",
+      "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
       "path": "machines/mmpar",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
-        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
+        "firmware_sha256": "3b24494edd37901fe6a179fd6801765b61cb30d5cb79be2b87cb865054e48b1e",
         "runs": 3,
-        "block_percent": 3.389029
+        "block_percent": 3.369192
       }
     },
     {
@@ -260,15 +260,15 @@
       "maintainer": "mmockett",
       "status": "published",
       "repository": "https://github.com/mmockett/OP-XY-MNMD",
-      "tag": "v1.0.0",
-      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "tag": "v1.0.1",
+      "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
       "path": "machines/mmpulse",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
-        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
+        "firmware_sha256": "3b24494edd37901fe6a179fd6801765b61cb30d5cb79be2b87cb865054e48b1e",
         "runs": 3,
-        "block_percent": 2.650492
+        "block_percent": 2.662699
       }
     },
     {
@@ -277,15 +277,15 @@
       "maintainer": "mmockett",
       "status": "published",
       "repository": "https://github.com/mmockett/OP-XY-MNMD",
-      "tag": "v1.0.0",
-      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "tag": "v1.0.1",
+      "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
       "path": "machines/mmsid",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
-        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
+        "firmware_sha256": "3b24494edd37901fe6a179fd6801765b61cb30d5cb79be2b87cb865054e48b1e",
         "runs": 3,
-        "block_percent": 1.850919
+        "block_percent": 1.821927
       }
     },
     {
@@ -294,15 +294,15 @@
       "maintainer": "mmockett",
       "status": "published",
       "repository": "https://github.com/mmockett/OP-XY-MNMD",
-      "tag": "v1.0.0",
-      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "tag": "v1.0.1",
+      "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
       "path": "machines/mmstat",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
-        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
+        "firmware_sha256": "3b24494edd37901fe6a179fd6801765b61cb30d5cb79be2b87cb865054e48b1e",
         "runs": 3,
-        "block_percent": 2.536049
+        "block_percent": 2.549783
       }
     },
     {
@@ -311,15 +311,15 @@
       "maintainer": "mmockett",
       "status": "published",
       "repository": "https://github.com/mmockett/OP-XY-MNMD",
-      "tag": "v1.0.0",
-      "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
+      "tag": "v1.0.1",
+      "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
       "path": "machines/mmvo6",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "d1887992495a239a0d4f3fbdceb0583ddb0366a3",
-        "firmware_sha256": "79f15d275d77f6cdf39c5778bf3d872479c024b432a668655403b52980c6a39b",
+        "commit": "f1d522dece8b24eef43ddb13e000148f8a0a9f0e",
+        "firmware_sha256": "3b24494edd37901fe6a179fd6801765b61cb30d5cb79be2b87cb865054e48b1e",
         "runs": 3,
-        "block_percent": 3.331044
+        "block_percent": 3.329519
       }
     }
   ]
