@@ -155,6 +155,12 @@ Elements bind by index and the machine's symbol prefix:
 | Text slot `i` | `<prefix>_text_<i>`: a `text` with explicit font, positioned by its transform, with no `x` or `y` |
 | Palette entry `i` | `<prefix>_palette_<i>`: a `path` or `circle` with explicit `#RRGGBB` fill and stroke and a stroke width; it lends them to the nodes that select it. Park entries off screen. |
 
+Every outline a frame draws must enclose area. A line traced out and back over
+itself, or an outline that turns straight back at a point, has none there, and the
+OP-XY draws streaks from its ends. Draw a line as a thin closed ribbon: one edge
+out, the other back a fraction of a pixel away, every point distinct. `sdk.py test`
+warns about outlines that break this in its preview frames.
+
 Every frame sets a bound element's whole transform, so its authored transform
 is `matrix(1 0 0 1 x y)` or none: the pose before the first frame, which the
 frame then replaces. Fill-and-stroke paint changes a node's fill

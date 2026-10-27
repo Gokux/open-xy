@@ -37,6 +37,34 @@ export class NoteActivity {
   }
 }
 
+// Outlines the OP-XY draws as streaks: one with no area, such as a line traced out
+// and back over itself, or one that turns straight back on itself at a point.
+// `frame` is a PreviewDisplay frame with `paths` outlines of `points` points.
+export function outlineFaults(frame, paths, points) {
+  const faults = [];
+  for (let p = 0; p < paths; ++p) {
+    const at = p * (1 + 2 * points) + 1, xy = [];
+    for (let i = 0; i < points; ++i) {
+      const x = frame[at + 2 * i], y = frame[at + 2 * i + 1], last = xy[xy.length - 1];
+      if (!last || last[0] !== x || last[1] !== y) xy.push([x, y]);
+    }
+    const first = xy[0], end = xy[xy.length - 1];
+    if (xy.length > 1 && first[0] === end[0] && first[1] === end[1]) xy.pop();
+    if (xy.length < 3) continue;  // a point or a collapsed outline draws nothing
+    let area = 0;
+    for (let i = 0; i < xy.length; ++i) {
+      const [ax, ay] = xy[i], [bx, by] = xy[(i + 1) % xy.length];
+      area += ax * by - bx * ay;
+    }
+    if (area === 0) { faults.push(`outline ${p} has no area`); continue; }
+    for (let i = 0; i < xy.length; ++i) {
+      const before = xy[(i + xy.length - 1) % xy.length], after = xy[(i + 1) % xy.length];
+      if (before[0] === after[0] && before[1] === after[1]) { faults.push(`outline ${p} turns straight back`); break; }
+    }
+  }
+  return faults;
+}
+
 export class PreviewDisplay {
   constructor(module) {
     if (!(module instanceof WebAssembly.Module) || WebAssembly.Module.imports(module).length) {

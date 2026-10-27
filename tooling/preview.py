@@ -46,12 +46,13 @@ def compile_preview(compiler, definition, out, root, sources=(), includes=()):
                             creationflags=NO_WINDOW)
     require(result.returncode == 0, 'Preview compilation failed:\n' + result.stderr +
             f'\nCheck the compiler with: python sdk.py doctor --preview --cxx "{compiler}"')
-    check_runtime(out / 'engine.wasm')
+    display = definition.get('resources', {}).get('display', {})
+    check_runtime(out / 'engine.wasm', display.get('paths', 0), display.get('points', 0))
 
 
-def check_runtime(module):
+def check_runtime(module, paths=0, points=0):
     """Smoke-test host contracts without requiring a particular sound."""
-    result = subprocess.run(['node', str(ROOT / 'tools/check_preview_contract.mjs'), str(module)],
+    result = subprocess.run(['node', str(ROOT / 'tools/check_preview_contract.mjs'), str(module), str(paths), str(points)],
                             capture_output=True, text=True, timeout=120,
                             creationflags=NO_WINDOW)
     require(result.returncode == 0, 'Preview contract check failed:\n' + result.stdout + result.stderr)
