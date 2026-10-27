@@ -6,9 +6,12 @@ the same code in the target image by its surrounding bytes, tolerant of the
 relative branches and addresses that change when code moves, and for a hook
 that replaces a call it checks the call reaches the same stock function. For
 every stock address the platform layer and tooling name, it finds the same
-bytes in the target. The report says which map cleanly and which need review.
+bytes in the target. The report says which map cleanly and which need review, and
+it writes the address map and a candidate profile for the new release. The output
+holds excerpts of stock code, so it belongs in the private folder, never a checkout.
+See docs/porting.md.
 
-    python tools/os_port.py --source <stock-1.2.0>/os.ldr --target <stock-1.2.1>/os.ldr --out local/port-1.2.1
+    python tools/os_port.py --source <private>/stock-1.2.0/os.ldr --target <private>/stock-1.2.1/os.ldr --out <private>/ports/1.2.1-001
 """
 import argparse
 import json
@@ -25,8 +28,10 @@ from tooling.formats import ldr, require  # noqa: E402
 
 # Bytes compared either side of an edit, and how far from its old place to look.
 CONTEXT, WINDOW = 48, 40000
-# Agreement of the context and its lead over the next best place, for a confident match.
+# Agreement of the context and its lead over the next best place, for a confident match;
+# identical edit bytes are also accepted with weaker context and a clear lead.
 AGREE, MARGIN = 0.8, 0.2
+IDENTICAL_AGREE, IDENTICAL_MARGIN = 0.7, 0.25
 # Where the platform layer and tooling name stock addresses.
 SOURCES = ('sdk/platform/opxy-1.2.0', 'tooling', 'linker')
 ADDRESS = re.compile(r'0x(?:8[4cdf]|08|11[89ab])[0-9a-fA-F]{5,6}\b')
@@ -94,7 +99,8 @@ def same_function(source, target, old, new, length=64):
     return float((source.bytes[a: a + length] == target.bytes[b: b + length]).mean())
 
 
-def port_edits(source, target, profile):
+def port_edits(source, target, profile, loads):
+    """loads: constant_loads of the source and the target, to find hooks through their calls."""
     rows = []
     for edit in profile['patches']:
         offset, length = int(edit['file_offset'], 16), edit['length']
@@ -103,9 +109,17 @@ def port_edits(source, target, profile):
         found, agree, margin = locate(source, target, offset, length)
         row = dict(name=edit.get('name') or edit.get('symbol'), kind=edit['kind'], address=edit['address'],
                    agree=round(agree, 3), margin=round(margin, 3))
-        if found is None or agree < AGREE or margin < MARGIN:
-            rows.append(dict(row, status='review', reason='no confident match'))
-            continue
+        identical = found is not None and target.data[found: found + length] == before
+        weak = found is None or agree < AGREE or margin < MARGIN
+        if weak and not (identical and agree >= IDENTICAL_AGREE and margin >= IDENTICAL_MARGIN):
+            # A hook replacing a call: find the called function in the target through
+            # its callers, then the call to it whose surroundings match best.
+            old = call_target(int(edit['address'], 16), before) if edit['kind'] == 'hook' else None
+            found = by_call_site(source, target, offset, old, loads) if old is not None else None
+            if found is None:
+                rows.append(dict(row, status='review', reason='no confident match'))
+                continue
+            row['how'] = 'call site'
         new_before = target.data[found: found + length]
         row.update(target_address=hex(target.address(found)), target_offset=hex(found), target_before=new_before.hex(),
                    delta=found - offset)
@@ -123,6 +137,30 @@ def port_edits(source, target, profile):
             # (an address load, a moved table or reworked code): read them.
             rows.append(dict(row, status='located', reason=f'{edit["kind"]} bytes differ at the matching place'))
     return rows
+
+
+def by_call_site(source, target, offset, function, loads, context=48):
+    """The target offset of the call, to `function`'s counterpart, whose surroundings best match
+    the source call at `offset`, when it clearly beats the other calls; else None."""
+    (source_values, _), (target_values, target_offsets) = loads
+    votes = {}
+    for at in source_values.get(function, [])[:20]:
+        new, agree, _ = locate(source, target, at, 8, context=24)
+        if new is not None and agree >= 0.75 and new in target_offsets and \
+                target.data[new + 1] == source.data[at + 1]:
+            votes[target_offsets[new]] = votes.get(target_offsets[new], 0) + 1
+    if not votes:
+        return None
+    counterpart = max(votes, key=votes.get)
+    if same_function(source, target, function, counterpart) < 0.7:
+        return None
+    pattern = source.bytes[offset - context: offset + context]
+    scored = sorted(((float((pattern == target.bytes[b - context: b + context]).mean()), b)
+                     for b in target_values.get(counterpart, [])
+                     if len(target.bytes[b - context: b + context]) == len(pattern)), reverse=True)
+    if not scored or scored[0][0] < 0.85 or (len(scored) > 1 and scored[0][0] - scored[1][0] < 0.1):
+        return None
+    return scored[0][1]
 
 
 def constant_loads(image):
@@ -156,7 +194,7 @@ def constant_loads(image):
     return by_value, by_offset
 
 
-def port_addresses(source, target, anchors, edits=(), own=()):
+def port_addresses(source, target, loads, anchors, edits=(), own=()):
     """anchors: (source file offset, file offset shift) of verified matches, to place repeated code;
     edits: the edit rows, whose sites tooling also names; own: (start, end, shift) of SDK-owned
     memory (the module reservation), which moves with the stock heap rather than by content."""
@@ -168,8 +206,7 @@ def port_addresses(source, target, anchors, edits=(), own=()):
                 for match in ADDRESS.finditer(file.read_text(encoding='utf-8', errors='replace')):
                     found.setdefault(int(match.group(), 16), set()).add(str(file.relative_to(ROOT).as_posix()))
     shift = lambda offset: min(anchors, key=lambda a: abs(a[0] - offset))[1] if anchors else 0
-    source_loads, _ = constant_loads(source)
-    _, target_loads = constant_loads(target)
+    (source_loads, _), (_, target_loads) = loads
     bases = sorted(source_loads)
 
     def by_references(address):
@@ -244,21 +281,37 @@ def main(argv=None):
     require(not args.out.exists(), 'Use a fresh output directory')
     profile = json.loads(args.profile.read_text(encoding='utf-8'))
     source, target = Image(args.source), Image(args.target)
-    edits = port_edits(source, target, profile)
+    loads = constant_loads(source), constant_loads(target)
+    edits = port_edits(source, target, profile, loads)
     # The module reservation sits below stock code at the top of the shrunk heap; stock code
     # starts where the heap fill ends, so the reservation moves with it.
     fill = lambda image: max((b for b in ldr(image.data) if b['fill']), key=lambda b: b['count'] if b['count'] < 32 << 20 else 0)
     old_fill, new_fill = fill(source), fill(target)
     old_end, new_end = old_fill['target'] + old_fill['count'], new_fill['target'] + new_fill['count']
     own = [(old_end - profile['reserved_bytes'], old_end, new_end - old_end)]
-    addresses = port_addresses(source, target, [(int(r['target_offset'], 16) - r['delta'], r['delta']) for r in edits
-                                                if r['status'] == 'verified'], edits, own)
+    addresses = port_addresses(source, target, loads, [(int(r['target_offset'], 16) - r['delta'], r['delta'])
+                                                       for r in edits if r['status'] == 'verified'], edits, own)
     report_layout = dict(heap_fill_base=hex(new_fill['target']), heap_fill_bytes=new_fill['count'],
                          module_base=hex(new_end - profile['reserved_bytes']), code_start=hex(new_end))
     report = dict(source_bytes=len(source.data), target_bytes=len(target.data), target_layout=report_layout,
                   source_regions=regions(source), target_regions=regions(target), edits=edits, addresses=addresses)
     args.out.mkdir(parents=True)
     (args.out / 'report.json').write_text(json.dumps(report, indent=1) + '\n', encoding='utf-8')
+    # The address map (source -> target) and the profile's edits at their target places, as
+    # the starting point for the new release's profile and platform address tables. Edits
+    # still to review keep their source values and a port_status of 'review'.
+    mapped = {r['address']: r['target_address'] for r in addresses if r['status'] == 'mapped'}
+    (args.out / 'address-map.json').write_text(json.dumps(mapped, indent=1, sort_keys=True) + '\n', encoding='utf-8')
+    candidate = []
+    for edit, row in zip(profile['patches'], edits):
+        if 'target_address' in row and row['status'] != 'review':
+            candidate.append(dict(edit, address=row['target_address'], file_offset=row['target_offset'],
+                                  before=row['target_before'], port_status=row['status']))
+        else:
+            candidate.append(dict(edit, port_status='review'))
+    (args.out / 'profile-candidate.json').write_text(
+        json.dumps(dict(profile, stock_sha256=None, stock_bytes=len(target.data), patches=candidate), indent=2) + '\n',
+        encoding='utf-8')
     count = lambda rows, status: sum(r['status'] == status for r in rows)
     lines = [f'Edits: {count(edits, "verified")} verified, {count(edits, "located")} located with changed bytes, '
              f'{count(edits, "review")} to review, of {len(edits)}.',
