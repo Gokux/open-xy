@@ -28,7 +28,7 @@ CONTEXT, WINDOW = 48, 40000
 # Agreement of the context and its lead over the next best place, for a confident match.
 AGREE, MARGIN = 0.8, 0.2
 # Where the platform layer and tooling name stock addresses.
-SOURCES = ('sdk/platform/opxy-1.2.0', 'tooling/stock_tables.py', 'tooling/firmware.py', 'tooling/native.py')
+SOURCES = ('sdk/platform/opxy-1.2.0', 'tooling', 'linker')
 ADDRESS = re.compile(r'0x(?:8[4cdf]|08|11[89ab])[0-9a-fA-F]{5,6}\b')
 
 
@@ -164,7 +164,7 @@ def port_addresses(source, target, anchors, edits=(), own=()):
     for name in SOURCES:
         path = ROOT / name
         for file in ([path] if path.is_file() else sorted(path.rglob('*'))):
-            if file.is_file():
+            if file.is_file() and file.suffix in ('.py', '.cpp', '.hpp', '.s', '.in', '.ld'):
                 for match in ADDRESS.finditer(file.read_text(encoding='utf-8', errors='replace')):
                     found.setdefault(int(match.group(), 16), set()).add(str(file.relative_to(ROOT).as_posix()))
     shift = lambda offset: min(anchors, key=lambda a: abs(a[0] - offset))[1] if anchors else 0
