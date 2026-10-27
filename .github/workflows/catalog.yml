@@ -20,6 +20,7 @@ concurrency:
 jobs:
   machines:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,8 +32,10 @@ jobs:
         with:
           node-version: '22'
       - name: Preview and host test tools
+        timeout-minutes: 5
         run: |
-          sudo apt-get update && sudo apt-get install -y clang lld
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y clang lld
           python -m pip install numpy==2.3.5
       - name: A machine submission changes only the catalog
         # Machines live in their own repositories: a pull request from a fork that
@@ -65,6 +68,7 @@ jobs:
   firmware:
     # The pinned Blackfin tools run on Windows x86_64 and macOS arm64.
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
