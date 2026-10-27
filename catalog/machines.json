@@ -160,6 +160,16 @@
         "block_percent": 3.327993,
         "report": "https://github.com/etcetc000/open-xy/pull/149#issuecomment-6450652945"
       }
+    },
+    {
+      "id": "metal",
+      "kind": "synth",
+      "maintainer": "johnnywagner",
+      "status": "published",
+      "repository": "https://github.com/johnnywagner/open-xy-metal",
+      "tag": "v1.0.0",
+      "commit": "948d8cbc04184fd3fb87dbc00cf68959e6a07ec7",
+      "path": "machines/metal"
     }
   ]
 }
