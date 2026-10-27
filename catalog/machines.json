@@ -219,6 +219,12 @@
         "runs": 3,
         "block_percent": 2.569619
       }
+    },
+    {
+      "id": "breadboard",
+      "kind": "synth",
+      "maintainer": "meemknight",
+      "status": "reserved"
     }
   ]
 }
