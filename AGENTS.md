@@ -25,8 +25,8 @@ This repository holds no machines. Examples to read before writing one are Open-
 sample engine, and the Ring Mod and Ping Pong send effects, each published
 through the catalog like any other machine.
 
-For machine work, follow the complete [authoring journey](docs/first-machine.md):
-implement and test, offer audition where supported, then prepare a development
+For machine work, follow the complete [authoring journey](docs/first-machine.md)
+and the [UX conventions](docs/ux.md): implement and test, offer audition where supported, then prepare a development
 build and propose an authorized hardware test. Follow [hardware profiling](docs/profiling.md)
 to collect the revision-bound CPU readout required for catalog submission.
 If hardware is unavailable, say that validation remains pending; a maintainer

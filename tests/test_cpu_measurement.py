@@ -79,6 +79,9 @@ class Measurements(unittest.TestCase):
         for kind in cpu_measurement.BENCHMARKS:
             entry = dict(PUBLISHED, kind=kind, cpu=measurement(kind))
             catalog.validate(document(entry))
+            # The evidence link is optional.
+            unlinked = dict(entry['cpu']); del unlinked['report']
+            catalog.validate(document(dict(entry, cpu=unlinked)))
             for change in ({'commit': 'b'*40}, {'runs': True}, {'runs': 2}, {'block_percent': float('nan')},
                            {'block_percent': 0}, {'block_percent': 100}, {'block_percent': True},
                            {'report': 'javascript:alert(1)'}, {'report': 'https://user:pass@example.com/x'},
@@ -110,6 +113,8 @@ class Measurements(unittest.TestCase):
             result, values, case = aggregate(captures, expected, identity, name, 'e'*40, measurement()['report'])
             self.assertEqual(result['benchmark'], cpu_measurement.BENCHMARKS[kind])
             self.assertAlmostEqual(result['block_percent'], 100000/65535, places=5)
+        # Without an evidence URL the record has no report link.
+        self.assertNotIn('report', aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)[0])
         broken = [captures[:2], [captures[0]]*3,
                   [dict(captures[0], package={}), *captures[1:]],
                   [dict(captures[0], errors=['CRC']), *captures[1:]],

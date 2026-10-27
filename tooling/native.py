@@ -561,7 +561,7 @@ def check_bindings(by_id, prefix, display):
                 'Bound elements take transform="matrix(1 0 0 1 x y)" or none: ' + name)
     for name in texts:
         node = by_id[name]
-        require(not {'x', 'y'} & node.keys() and len(node.text or '') < 24,
+        require(not {'x', 'y'} & set(node.keys()) and len(node.text or '') < 24,
                 'Text slots are positioned by their transform and hold at most 23 characters: ' + name)
     return palette
 

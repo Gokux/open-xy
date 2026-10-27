@@ -52,7 +52,7 @@ The ZIP contains:
 | `os.ldr` | Device root, replacing the existing file |
 | `content/op1_factory.json` | Replaces the menu file |
 | `content/display/*.svg` | New screens for the selected machines; keep the stock files |
-| `content/presets/<machine>/default.json` | One init preset in each selected instrument's own folder |
+| `content/presets/<machine>/*.json` | Each selected instrument's init preset, `default.json`, and its own [presets](api.md#presets), in the instrument's folder |
 | `layout.json`, hashes | Keep `layout.json`: it holds your machines' numbers, and loading it into the builder next time keeps them for your projects |
 
 Every build shows its release at boot, `OPEN 0.0.2-1.2.0` for 0.0.2, the version in
@@ -60,11 +60,13 @@ Every build shows its release at boot, `OPEN 0.0.2-1.2.0` for 0.0.2, the version
 `build.json`. Timestretch starts without a sample;
 choose one on its sample page. Ring Mod is a send effect and has no preset.
 
-The builder accepts only the exact stock file or an exact Open-XY output of the
-same collection. Encrypted `.tfw`, unknown patches and damaged files are
-rejected. Opening an Open-XY build restores its machine selection by rebuilding
-the stock image from it; projects, presets and samples on the device are not
-touched.
+The builder accepts the stock OS 1.2.0 file or any Open-XY OS made from it,
+including one from an earlier release: it rebuilds the stock image by undoing
+the reviewed edits and accepts it only if it matches OS 1.2.0 exactly. An exact
+output of the same collection also restores its machine selection; for any
+other, choose the machines again (the layout still keeps their numbers).
+Encrypted `.tfw`, unknown patches and damaged files are rejected. Projects,
+presets and samples on the device are not touched.
 
 ### Dev menu
 

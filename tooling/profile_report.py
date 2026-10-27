@@ -43,7 +43,9 @@ def aggregate(captures, expected, identity, name, commit, url):
         values.append(metric['average_budget_percent'])
     require(len(collectors) == 1 and None not in collectors, 'Use the same collector for all runs')
     measurement = dict(benchmark=case['benchmark'], commit=commit, firmware_sha256=identity['firmware_sha256'],
-                       runs=len(captures), block_percent=round(statistics.median(values), 6), report=url)
+                       runs=len(captures), block_percent=round(statistics.median(values), 6))
+    if url is not None:
+        measurement['report'] = url
     validate(measurement, case['kind'], commit)
     return measurement, values, case
 

@@ -86,15 +86,18 @@ const char* sdk_synth_title(u32 engine, u32 index) {
 // codes 10..13, released without a turn and without shift) before passing it
 // to the top controller; the instrument controller's engine page ignores it
 // for every engine with alternates. On that page of an owned synth the click
-// also selects the position's next parameter.
+// also selects the position's next parameter, or every position's on a paged synth.
 void sdk_synth_press(u32 encoder) {
     stock<void(u32)>(0x8d51e634)(encoder);
     Track* t;
     const SynthControls* m;
     if (encoder < opxy::page_controls && top_controller_vtable() == kInstrumentController &&
         word(kInstrumentPage) == 0 && (m = machine(byte(kSelectedTrack), t))) {
-        const u32 next = m->next[t->slots[encoder]];
-        if (next < opxy::parameter_slots) t->slots[encoder] = static_cast<u8>(next);
+        for (u32 i = 0; i < opxy::page_controls; ++i) {
+            if (i != encoder && !m->page) continue;
+            const u32 next = m->next[t->slots[i]];
+            if (next < opxy::parameter_slots) t->slots[i] = static_cast<u8>(next);
+        }
     }
 }
 

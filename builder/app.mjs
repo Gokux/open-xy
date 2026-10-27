@@ -3,7 +3,7 @@ import * as Wizard from './wizard.mjs';
 import * as Retained from '../sdk/browser/display.mjs';
 import * as Visuals from './visuals.mjs';
 import {Audition} from './audition.mjs';
-import {shownControls} from '../sdk/browser/controls.mjs';
+import {editedShown, shownControls} from '../sdk/browser/controls.mjs';
 import {supportsDeviceApis} from './browser.mjs';
 
 const $ = id => document.getElementById(id);
@@ -153,6 +153,8 @@ async function acceptFirmware(file, isCurrent = () => true) {
       selected = recovered.selected; renderMachines(); recalculate();
       $('firmware-result').textContent = '✓ open-xy OS with ' +
         kit.machines.filter(m => selected.includes(m.id)).map(m => m.name).join(' + ');
+    } else if (recovered.earlier) {
+      $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 recovered from an earlier open-xy OS · choose your machines again';
     } else $('firmware-result').textContent = '✓ OP–XY OS 1.2.0 verified · ' + file.name;
     wizard.setFirmwareState('loaded');
     $('files-title').focus();
@@ -312,7 +314,8 @@ async function inspect(id) {
         input.type = 'range'; input.min = '0'; input.max = '1000'; input.step = '1';
         input.value = String(parameters[i] / 0x7fffffff * 1000); input.setAttribute('aria-label', name + ' preview');
         input.oninput = () => {
-          parameters[i] = Math.round(Number(input.value) / 1000 * 0x7fffffff); shown[m.positions[i]] = i;
+          parameters[i] = Math.round(Number(input.value) / 1000 * 0x7fffffff);
+          shown.splice(0, 4, ...editedShown(shown, m.positions, i, m.pages));
           frame(0); audio.setParameters(parameters);
         };
         label.append(input); return label;

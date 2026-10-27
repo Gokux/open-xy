@@ -8,6 +8,8 @@ reshapes, recolours and relabels them. It is not executable SVG animation. The
 same C++ computes the browser preview and the device frames; fonts, framing and
 rasterization can differ.
 
+The [UX conventions](ux.md) say how machine screens look and move.
+
 There is one display contract. Characters, dials, keyboards, meters and other
 patterns are the machine's own code filling nodes; see
 [Macro Osc's segment characters](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/segments.hpp).
@@ -35,7 +37,7 @@ void display(DisplayState& state, const opxy::draw::Input& input, Frame& output)
 | `paths` | 0..4 mutable outlines; they are nodes `0..paths-1` |
 | `points` | 2..64 points per outline; 0 when there are no paths |
 | `nodes` | `paths`..256 transformable elements |
-| `texts` | 0..4 text slots |
+| `texts` | 0..16 text slots; more than 4 need `"sdk": "1.3"` |
 | `palette` | 1..16 paint entries |
 | `stateBytes`, `stateAlignment` | `DisplayState` size (whole words) and alignment, checked against the compiled type |
 
