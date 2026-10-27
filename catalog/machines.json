@@ -81,15 +81,15 @@
       "maintainer": "Gokux",
       "status": "draft",
       "repository": "https://github.com/Gokux/opxy-machines",
-      "tag": "v1.1.0",
-      "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
+      "tag": "v1.1.2",
+      "commit": "e682f1a79ebd82f15f712e0d89d5f0d600893cf6",
       "path": "drone",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
-        "firmware_sha256": "da28ede778b55867418de729d2df497eb0f43b061bcb9bf33531b6ec666a7ac4",
+        "commit": "e682f1a79ebd82f15f712e0d89d5f0d600893cf6",
+        "firmware_sha256": "51fb0ee13b43542ea66affae924d0199e8a698f924f321a97f1bd9df6f8461c5",
         "runs": 3,
-        "block_percent": 4.156558
+        "block_percent": 2.627604
       }
     },
     {
@@ -98,15 +98,15 @@
       "maintainer": "Gokux",
       "status": "draft",
       "repository": "https://github.com/Gokux/opxy-machines",
-      "tag": "v1.1.0",
-      "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
+      "tag": "v1.1.2",
+      "commit": "e682f1a79ebd82f15f712e0d89d5f0d600893cf6",
       "path": "solar",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
-        "firmware_sha256": "da28ede778b55867418de729d2df497eb0f43b061bcb9bf33531b6ec666a7ac4",
+        "commit": "e682f1a79ebd82f15f712e0d89d5f0d600893cf6",
+        "firmware_sha256": "51fb0ee13b43542ea66affae924d0199e8a698f924f321a97f1bd9df6f8461c5",
         "runs": 3,
-        "block_percent": 4.193179
+        "block_percent": 2.293431
       }
     },
     {
@@ -115,15 +115,15 @@
       "maintainer": "Gokux",
       "status": "draft",
       "repository": "https://github.com/Gokux/opxy-machines",
-      "tag": "v1.1.0",
-      "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
+      "tag": "v1.1.2",
+      "commit": "e682f1a79ebd82f15f712e0d89d5f0d600893cf6",
       "path": "papasrapa",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "c28dd10c5005743c4cb225afda309a0e38c5b94f",
-        "firmware_sha256": "da28ede778b55867418de729d2df497eb0f43b061bcb9bf33531b6ec666a7ac4",
+        "commit": "e682f1a79ebd82f15f712e0d89d5f0d600893cf6",
+        "firmware_sha256": "51fb0ee13b43542ea66affae924d0199e8a698f924f321a97f1bd9df6f8461c5",
         "runs": 3,
-        "block_percent": 3.013657
+        "block_percent": 2.961776
       }
     },
     {
