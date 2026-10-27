@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 import re
 
-from .definitions import ANALYSIS_HEAP_LIMIT, ROOT, stock_name, validate_definition
+from .definitions import ANALYSIS_HEAP_LIMIT, ROOT, SDK_1_2_TEXTS, paged, stock_name, validate_definition
 from .formats import require
 from .pipeline import config
 
@@ -25,7 +25,8 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includ
 # callbacks. A machine names the version it was written for; the SDK builds a
 # machine of the same major version and an equal or older minor version.
 # 1.1 adds display note activity; 1.2 an effect's delay buffer (resources.bufferBytes),
-# its tempo (resources.transport) and division captions; 1.3 the machine's own presets.
+# its tempo (resources.transport) and division captions; 1.3 the machine's own presets,
+# a press that switches a synth's whole page and up to 16 display text slots.
 SDK_VERSION = (1, 3)
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
@@ -213,6 +214,10 @@ def machine_at(root, identity=None):
         require_sdk(version, (1, 2), "An effect's tempo (transport)")
     if any(p['display'] == 'division' for p in definition['parameters']):
         require_sdk(version, (1, 2), 'A division control')
+    if paged(definition):
+        require_sdk(version, (1, 3), 'A press that switches the page ("press": "page")')
+    if kind == 'synth' and definition['resources']['display']['texts'] > SDK_1_2_TEXTS:
+        require_sdk(version, (1, 3), 'More than %d display text slots' % SDK_1_2_TEXTS)
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
     dry_parameter = None
     if 'dryParameter' in value:
@@ -287,7 +292,9 @@ def read_layout(path):
     profile = config()
     require(isinstance(value, dict) and value.get('format') == LAYOUT_FORMAT and isinstance(value.get('machines'), dict),
             f'{path} is not a machine layout ({LAYOUT_FORMAT})')
-    require(value.get('profile') == profile['id'], f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
+    # Earlier profiles with the same identity rules number machines the same way.
+    require(value.get('profile') in (profile['id'], *profile.get('layout_profiles', ())),
+            f"{path} is a layout for {value.get('profile')}, not {profile['id']}")
     return check_layout_numbers(value['machines'], 'the layout')
 
 

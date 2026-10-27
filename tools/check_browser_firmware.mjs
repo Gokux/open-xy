@@ -25,10 +25,12 @@ for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
   const mixed = profilingOff.slice(), firstHook = timingHooks[0];
   const offset = Number(firstHook.file_offset);
   mixed.set(firmware.subarray(offset, offset + firstHook.length), offset);
-  await assert.rejects(recoverFirmware(kit, mixed));
+  // Not an exact build: stock is still recovered and verified, but no selection.
+  const earlier = {stock, selected:null, earlier:true};
+  assert.deepEqual(await recoverFirmware(kit, mixed), earlier);
   const damagedLabel = firmware.slice();
   damagedLabel[Number(kit.profile.patches.at(-1).file_offset)] ^= 1;
-  await assert.rejects(recoverFirmware(kit, damagedLabel));
+  assert.deepEqual(await recoverFirmware(kit, damagedLabel), earlier);
   writeFileSync(target + '.ldr', firmware);
   const files = await buildAssets(kit, selected, catalog, linked.numbers);
   for (const [path, bytes] of Object.entries(files)) {
@@ -36,16 +38,18 @@ for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
   }
   writeFileSync(target + '.zip', zipFiles({'os.ldr': firmware, ...files}));
   const changed = stock.slice(); changed[50] ^= 1;
-  await assert.rejects(patchFirmware(kit, linked, changed), /Only OP–XY OS 1.2.0 is supported/);
-  await assert.rejects(patchFirmware(kit, linked, firmware), /Only OP–XY OS 1.2.0 is supported/);
-  // Corruption outside allowed edits, inside a hook, and inside the module
-  // must all reject, even when reversing the profile can recover stock bytes.
-  for (const offset of [50, Number(kit.profile.patches[2].file_offset), readLdr(firmware).at(-2).offset + 16]) {
+  await assert.rejects(patchFirmware(kit, linked, changed), /Only OP–XY OS 1.2.1 is supported/);
+  await assert.rejects(patchFirmware(kit, linked, firmware), /Only OP–XY OS 1.2.1 is supported/);
+  // Corruption outside the reviewed edits is not OS 1.2.1. Inside a hook or the
+  // module, reversing the edits still recovers verified stock, without a selection.
+  const outside = firmware.slice(); outside[50] ^= 1;
+  await assert.rejects(recoverFirmware(kit, outside), /not made from OS 1.2.1/);
+  for (const offset of [Number(kit.profile.patches[2].file_offset), readLdr(firmware).at(-2).offset + 16]) {
     const damaged = firmware.slice(); damaged[offset] ^= 1;
-    await assert.rejects(recoverFirmware(kit, damaged));
+    assert.deepEqual(await recoverFirmware(kit, damaged), earlier);
   }
 }
 // Relinking does not depend on checkbox order or mutate the object capsules.
 const all = kit.machines.map(m => m.id);
 assert.deepEqual(linkKit(kit, all).module, linkKit(kit, [...all].reverse()).module);
-console.log('Browser container/assets checks: all selections recovered in both profiling modes; corrupt/mixed inputs rejected.');
+console.log('Browser container/assets checks: all selections recovered in both profiling modes; altered builds recover only verified stock; foreign changes rejected.');

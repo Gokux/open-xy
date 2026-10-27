@@ -13,11 +13,11 @@ import math
 from pathlib import Path
 
 from .benchmark import append_callback
-from .definitions import ROOT, control_positions, validate_definition
+from .definitions import ROOT, control_positions, paged, validate_definition
 from .formats import require
 from .stock_tables import REGISTRATION as RELOCATED
 
-TEMPLATES = ROOT / 'sdk/platform/opxy-1.2.0'
+TEMPLATES = ROOT / 'sdk/platform/opxy-1.2.1'
 
 
 def expand(template, values, destination, root=TEMPLATES):
@@ -349,7 +349,10 @@ def generate_synth_controls(directory, machines):
                              '        return true;'])
         body.extend(['    default: return false;', '    }', '}'])
         formatters.append('\n'.join(body))
-        rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, {{{', '.join(map(str, steps))}}}, {m.prefix}_format, {'true' if effect else 'false'}}},")
+        page = not effect and paged(m.definition)
+        rows.append(f"    {{{id_symbol}, {m.prefix}_ready, {{{', '.join(map(str, following))}}}, {continuous}, "
+                    f"{{{', '.join(map(str, steps))}}}, {m.prefix}_format, "
+                    f"{'true' if effect else 'false'}, {'true' if page else 'false'}}},")
     return expand('synth_control_table.cpp.in', dict(READY_DECLS='\n'.join(declarations), MACHINES='\n'.join(rows), FORMATTERS='\n'.join(formatters), LFO_MACHINES='\n'.join(lfo_rows)),
                   Path(directory) / 'synth_control_table.cpp')
 
@@ -367,11 +370,11 @@ def generate_project_companion_table(directory, machines):
     return expand('project_companion_table.cpp.in', dict(DECLARATIONS='\n'.join(declarations), MACHINES='\n'.join(rows)),
                   Path(directory) / 'project_companion_table.cpp')
 
-# A send slot's stock scratch memory: scratch(slot, bytes) (0x8d50d9c8), as stock
-# delay and reverb use it, only for the two send slots (docs/abi-1.2.0.md).
+# A send slot's stock scratch memory: scratch(slot, bytes) (0x8d50e048), as stock
+# delay and reverb use it, only for the two send slots (docs/abi-1.2.1.md).
 FX_BUFFER_INIT = '''    // Stock's per-send scratch memory, which stock delay and reverb use the same way.
     object->buffer = slot == 14 || slot == 15
-        ? opxy::platform::stock<opxy::i32*(opxy::u32, opxy::u32)>(0x8d50d9c8)(slot, {bytes}u) : nullptr;'''
+        ? opxy::platform::stock<opxy::i32*(opxy::u32, opxy::u32)>(0x8d50e048)(slot, {bytes}u) : nullptr;'''
 
 
 def generate_fx_object(directory, m, benchmark=False):

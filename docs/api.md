@@ -30,7 +30,7 @@ fails the build or, for the artwork rule, halts the device's SVG parser.
 | Effects | State fits in 476 bytes and holds no resources (no destructor ever runs) |
 | Artwork | At most four decimal places and no exponent notation in any number; explicit paint on every leaf; no `style`, events or external references |
 
-The [firmware contract](abi-1.2.0.md) explains where each rule comes from.
+The [firmware contract](abi-1.2.1.md) explains where each rule comes from.
 
 ## Memory and limits
 
@@ -125,7 +125,8 @@ choice per encoder detent (two when turned fast), in plain and locked edits
 alike, and stores the middle of the choice's range; a larger enum keeps stock's
 0..99 stepping. Its value text on the engine or send page is the selected
 choice's label.
-Parameter order and mapping changes affect saved sounds. The stock parameter
+Parameter order and mapping changes affect saved sounds; the
+[UX conventions](ux.md) cover direction, defaults and adding parameters. The stock parameter
 page shows labels in lower case.
 
 ### Alternate controls
@@ -141,9 +142,16 @@ per track, starts on the position's own parameter and is not saved. Display
 inputs carry each position's shown value, its parameter index (`shown`) and
 every parameter's value (`slots`), so a [header value](display.md#frame)
 can format whichever is shown while dials follow their own parameters.
-Browser previews show the parameter last edited at each position. See
-[Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json), whose fourth encoder
-switches between FM ratio and depth.
+Browser previews show the parameter last edited at each position.
+
+A synth with eight parameters, each position with exactly one alternate, may
+declare `"press": "page"` at the top of `definition.json` (SDK 1.3): its four
+own parameters are page 1, its alternates page 2, and pressing any encoder
+switches all four positions to the other page. `shown` tells the display
+which page is up. Browser previews show the page of the parameter last
+edited. See
+[Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json),
+whose header shows one page and whose row of text slots under it the other.
 
 On instrument tracks, the Value, Random and Element LFOs can target every
 declared parameter of a custom synth or sample engine, including all eight

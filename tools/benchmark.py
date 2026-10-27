@@ -102,7 +102,7 @@ def main(argv=None):
     p.add_argument('--installed', action='store_true', help='confirm --package is installed and unsaved work is saved')
     p.add_argument('--capture', type=Path, action='append', default=[], help='report: capture.json from each independent run')
     p.add_argument('--machine', help='report: machine ID in the package')
-    p.add_argument('--report-url', help='report: public HTTPS location where you will publish report.md')
+    p.add_argument('--report-url', help='report: optional public HTTPS location where you will publish report.md')
     a = p.parse_args(argv)
     a.route = VERIFIED_BENCHMARK_ROUTE
     selftest()
@@ -110,7 +110,7 @@ def main(argv=None):
         print('PASS: codec vectors/roundtrip/rejection; no device access')
         return
     if a.mode == 'report':
-        require(a.package and a.out and a.machine and a.report_url, 'report needs --package, --out, --machine and --report-url')
+        require(a.package and a.out and a.machine, 'report needs --package, --out and --machine')
         from tooling.profile_report import create
         print(create(a.package, a.capture, a.machine, a.report_url, a.out))
         return
@@ -219,7 +219,7 @@ def main(argv=None):
         if a.mode == 'benchmark':
             if VERIFIED_BENCHMARK_ROUTE != a.route:
                 raise RuntimeError('Benchmark endpoint routing unverified; command not sent')
-            if ident.get('mode') != 'normal' or ident.get('product') not in ('OP-XY', 'OP-1') or ident.get('os_version') != '1.2.0':
+            if ident.get('mode') != 'normal' or ident.get('product') not in ('OP-XY', 'OP-1') or ident.get('os_version') != '1.2.1':
                 raise RuntimeError('Normal OS identity not confirmed; benchmark not sent')
             send(0xc8)
             receive(a.seconds)

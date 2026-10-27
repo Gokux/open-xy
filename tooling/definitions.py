@@ -21,7 +21,7 @@ def identifier(value):
     require(isinstance(value, str) and re.fullmatch(r'[a-z][a-z0-9_-]{0,31}', value), 'Invalid identifier')
 
 
-# The stock firmware's own engine and effect types (stock 1.2.0 catalog).
+# The stock firmware's own engine and effect types (stock 1.2.1 catalog).
 STOCK_TYPES = frozenset({'sampler', 'drum', 'drumline', 'organ', 'epiano', 'prism', 'hardsync', 'dissolve', 'axis',
                          'wavetable', 'simple', 'midi', 'multisampler',
                          'delay', 'reverb', 'chorus', 'phaser', 'dist', 'lofi'})
@@ -66,7 +66,9 @@ RESOURCES = {
 # A synth's own screen: one drawing contract (opxy/draw.hpp); the machine
 # declares its frame's budget within these limits.
 DISPLAY_FIELDS = ('stateBytes', 'stateAlignment', 'paths', 'points', 'nodes', 'texts', 'palette')
-DISPLAY_LIMITS = dict(paths=(0, 4), points=(0, 64), nodes=(1, 256), texts=(0, 4), palette=(1, 16))
+DISPLAY_LIMITS = dict(paths=(0, 4), points=(0, 64), nodes=(1, 256), texts=(0, 16), palette=(1, 16))
+# More text slots than this need SDK 1.3 (tooling.machines).
+SDK_1_2_TEXTS = 4
 # Analysis storage is allocated from the stock heap at runtime, which also holds
 # stock samples; a collection's analysis budgets together take at most this much.
 ANALYSIS_HEAP_LIMIT = 2 * 1024 * 1024
@@ -97,8 +99,14 @@ def control_positions(definition):
     return [parameter.get('control', i) for i, parameter in enumerate(definition['parameters'])]
 
 
+def paged(definition):
+    """Whether a press switches the synth's whole page (`"press": "page"`, SDK 1.3)."""
+    return definition.get('press') == 'page'
+
+
 def validate_definition(value, kind):
-    keys(value, ('schema', 'id', 'name', 'parameters', 'presets', 'resources'), 'definition')
+    keys(value, ('schema', 'id', 'name', 'parameters', 'presets', 'resources', *(('press',) if 'press' in value else ())),
+         'definition')
     require(type(value['schema']) is int and value['schema'] == 1, 'Unknown definition schema')
     stock_name(value['id']); label(value['name'])
     resources = value['resources']
@@ -142,6 +150,12 @@ def validate_definition(value, kind):
         validate_parameter(parameter, alternate)
         require(parameter['id'] not in names, 'Duplicate parameter identity')
         names.add(parameter['id'])
+    # A paged synth's eight parameters are two pages of four: each position has
+    # exactly one alternate, and a press of any encoder switches all four.
+    if 'press' in value:
+        require(kind == 'synth' and value['press'] == 'page' and len(parameters) == 8 and
+                sorted(control_positions(value)[SYNTH_POSITIONS:]) == list(range(SYNTH_POSITIONS)),
+                '"press": "page" is for a synth with eight parameters: each position has exactly one alternate')
     require(isinstance(value['presets'], dict) and len(value['presets']) <= 64, 'Invalid presets')
     for name, preset in value['presets'].items():
         label(name); keys(preset, names, 'preset')

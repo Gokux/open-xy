@@ -25,8 +25,8 @@ This repository holds no machines. Examples to read before writing one are Open-
 sample engine, and the Ring Mod and Ping Pong send effects, each published
 through the catalog like any other machine.
 
-For machine work, follow the complete [authoring journey](docs/first-machine.md):
-implement and test, offer audition where supported, then prepare a development
+For machine work, follow the complete [authoring journey](docs/first-machine.md)
+and the [UX conventions](docs/ux.md): implement and test, offer audition where supported, then prepare a development
 build and propose an authorized hardware test. Follow [hardware profiling](docs/profiling.md)
 to collect the revision-bound CPU readout required for catalog submission.
 If hardware is unavailable, say that validation remains pending; a maintainer
@@ -37,7 +37,7 @@ as its worked example; `new` currently scaffolds synths and effects.
 ## SDK changes
 
 Read README.md and CONTRIBUTING.md. For native changes also read
-[the firmware ABI](docs/abi-1.2.0.md) and [building firmware](docs/build.md).
+[the firmware ABI](docs/abi-1.2.1.md) and [building firmware](docs/build.md).
 
 - Engine-specific source, metadata, generators and sound tests belong under that
   engine. Keep `tooling/` and root `tests/` focused on shared contracts.
@@ -69,7 +69,7 @@ User instructions take precedence over this file.
 All firmware comes from the user's device. Firmware, extracted firmware,
 firmware-containing packages and stock content must live outside every
 checkout, including ignored local/ directories. The one exception is the stock
-instrument catalog, profiles/opxy-1.2.0/content/op1_factory.json, kept for
+instrument catalog, profiles/opxy-1.2.1/content/op1_factory.json, kept for
 development and checked against the profile's hash; never add other stock
 files beside it. The docs use %LOCALAPPDATA%/OPXY-SDK/private/ (Windows),
 ~/Library/Application Support/OPXY-SDK/private/ (macOS) or

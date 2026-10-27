@@ -37,15 +37,15 @@ extern "C" {
 // slot 2 a 17-choice enum and slot 3 a 256-choice one stock steps itself;
 // slot 1 is continuous. Effect 8 has a four-choice enum in slot 1.
 const opxy::platform::SynthControls sdk_synth_controls[] = {
-    {reinterpret_cast<const char*>(40), ready, {0, 1, 2, 3, 4, 5, 6, 7}, 0x2, {3, 0, 17, 0, 0, 0, 0, 0}, format, false},
-    {reinterpret_cast<const char*>(8), ready, {0, 1, 2, 3, 4, 5, 6, 7}, 0xd, {0, 4, 0, 0, 0, 0, 0, 0}, format, true},
-    {nullptr, nullptr, {0, 1, 2, 3, 4, 5, 6, 7}, 0, {0, 0, 0, 0, 0, 0, 0, 0}, nullptr, false}};
+    {reinterpret_cast<const char*>(40), ready, {0, 1, 2, 3, 4, 5, 6, 7}, 0x2, {3, 0, 17, 0, 0, 0, 0, 0}, format, false, false},
+    {reinterpret_cast<const char*>(8), ready, {0, 1, 2, 3, 4, 5, 6, 7}, 0xd, {0, 4, 0, 0, 0, 0, 0, 0}, format, true, false},
+    {nullptr, nullptr, {0, 1, 2, 3, 4, 5, 6, 7}, 0, {0, 0, 0, 0, 0, 0, 0, 0}, nullptr, false, false}};
 const opxy::u32 sdk_synth_control_count = 2;
 }
 
 opxy::platform::Address opxy::platform::host_stock_address(opxy::platform::Address address) {
-    if (address == 0x8d585eb4) return reinterpret_cast<Address>(&stock_engine);
-    if (address == 0x8c0b2fc8) return reinterpret_cast<Address>(&stock_steps);
+    if (address == 0x8d58781c) return reinterpret_cast<Address>(&stock_engine);
+    if (address == 0x8c0b2468) return reinterpret_cast<Address>(&stock_steps);
     std::abort();
 }
 

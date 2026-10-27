@@ -79,7 +79,10 @@ class Measurements(unittest.TestCase):
         for kind in cpu_measurement.BENCHMARKS:
             entry = dict(PUBLISHED, kind=kind, cpu=measurement(kind))
             catalog.validate(document(entry))
-            for change in ({'commit': 'b'*40}, {'runs': True}, {'runs': 2}, {'block_percent': float('nan')},
+            # The evidence link is optional.
+            unlinked = dict(entry['cpu']); del unlinked['report']
+            catalog.validate(document(dict(entry, cpu=unlinked)))
+            for change in ({'commit': 'b'}, {'runs': True}, {'runs': 2}, {'block_percent': float('nan')},
                            {'block_percent': 0}, {'block_percent': 100}, {'block_percent': True},
                            {'report': 'javascript:alert(1)'}, {'report': 'https://user:pass@example.com/x'},
                            {'firmware_sha256': 'x'}, {'benchmark': 'host-estimate'}):
@@ -95,8 +98,15 @@ class Measurements(unittest.TestCase):
                     catalog.changes(before, after)
             measured = dict(entry, cpu=measurement(kind))
             catalog.changes([entry], [measured])
-            with self.assertRaisesRegex(ValueError, 'catalog commit'):
-                catalog.changes([measured], [dict(measured, commit='b'*40)])
+            # An update may carry its previous measurement over unchanged, naming the commit it measured.
+            catalog.changes([measured], [dict(measured, tag='v2', commit='b'*40)])
+            for before, after in (
+                    ([], [dict(entry, cpu=measurement(kind, commit='b'*40))]),
+                    ([entry], [dict(entry, cpu=measurement(kind, commit='b'*40))]),
+                    ([measured], [dict(measured, commit='b'*40, cpu=dict(measured['cpu'], block_percent=1.5))]),
+                    ([measured], [dict(measured, commit='b'*40, cpu=measurement(kind, commit='c'*40))])):
+                with self.subTest(kind=kind, after=after), self.assertRaisesRegex(ValueError, 'pinned commit'):
+                    catalog.changes(before, after)
             catalog.changes([entry], [dict(entry, status='retired')])
 
     def test_report_rejects_repeated_wrong_build_incomplete_or_inactive_runs(self):
@@ -110,6 +120,8 @@ class Measurements(unittest.TestCase):
             result, values, case = aggregate(captures, expected, identity, name, 'e'*40, measurement()['report'])
             self.assertEqual(result['benchmark'], cpu_measurement.BENCHMARKS[kind])
             self.assertAlmostEqual(result['block_percent'], 100000/65535, places=5)
+        # Without an evidence URL the record has no report link.
+        self.assertNotIn('report', aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)[0])
         broken = [captures[:2], [captures[0]]*3,
                   [dict(captures[0], package={}), *captures[1:]],
                   [dict(captures[0], errors=['CRC']), *captures[1:]],

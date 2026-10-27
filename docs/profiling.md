@@ -18,7 +18,7 @@ below, `<private>` is that external folder and `<machine>` is your machine folde
 
 ```sh
 python -m pip install python-rtmidi
-python sdk.py build --machine <machine> --profiling on --stock-os <private>/stock-1.2.0/os.ldr --out <private>/cpu-build-001
+python sdk.py build --machine <machine> --profiling on --stock-os <private>/stock-1.2.1/os.ldr --out <private>/cpu-build-001
 ```
 
 Repeat `--machine` or use `--collection` to build a batch. Keep the package:
@@ -46,7 +46,7 @@ python sdk.py profile benchmark --package <private>/cpu-build-001 --installed --
 ```
 
 `--installed` confirms that this exact package is on the device and your work is
-saved. Metadata identifies normal OS 1.2.0 but does not attest the installed image
+saved. Metadata identifies normal OS 1.2.1 but does not attest the installed image
 hash. The collector checks CRCs, endpoint, packet size, and the complete ordered
 report count before assigning results to machines. A missing or failed
 registration cannot silently shift the reported names. Do not operate the
@@ -62,36 +62,39 @@ requests metadata without running the benchmark. `profile selftest` exercises
 the protocol codec without opening a device. An inactive/failed workload, missing
 reports, or disabled profiling is a failed measurement, never a zero-cost machine.
 
-## Publish the readout and add the catalog field
+## Add the catalog field
 
-Choose a public HTTPS URL for the report, such as your machine's GitHub issue,
-PR comment, or a versioned report in its repository. The following is offline;
-`--machine` here takes the machine ID, not its folder. It verifies that the clean,
-committed machine source still matches the measured package.
+The following is offline; `--machine` here takes the machine ID, not its
+folder. It verifies that the clean, committed machine source still matches the
+measured package.
 
 ```sh
-python sdk.py profile report --package <private>/cpu-build-001 --machine mymachine --capture <private>/cpu-run-001/capture.json --capture <private>/cpu-run-002/capture.json --capture <private>/cpu-run-003/capture.json --report-url https://github.com/you/your-machine/issues/1 --out <private>/cpu-report-001
+python sdk.py profile report --package <private>/cpu-build-001 --machine mymachine --capture <private>/cpu-run-001/capture.json --capture <private>/cpu-run-002/capture.json --capture <private>/cpu-run-003/capture.json --out <private>/cpu-report-001
 ```
 
-Publish the generated `report.md` at that URL, then copy the `cpu` member from
-`catalog-cpu.json` into your machine's entry in `catalog/machines.json`.
-The report omits serial numbers and local paths. Share the raw captures privately
-with a maintainer if needed; never publish firmware or firmware-containing packages.
-If you only learn a comment's permalink after posting, rerun the offline report
-command into a new directory with that permalink; no new device run is needed.
+Copy the `cpu` member from `catalog-cpu.json` into your machine's entry in
+`catalog/machines.json`. To link evidence as well, publish the generated
+`report.md` (an issue, PR comment or file in your repository) and pass its URL
+with `--report-url`; if you only learn a comment's permalink after posting,
+rerun the offline report command into a new directory with it. No new device
+run is needed. The report omits serial numbers and local paths. Share the raw
+captures privately with a maintainer if needed; never publish firmware or
+firmware-containing packages.
 
 | `cpu` field | Meaning |
 | --- | --- |
 | `benchmark` | Versioned workload from the table below; must match the machine kind |
-| `commit` | Full machine source SHA, equal to the catalog entry's `commit` |
+| `commit` | Full machine source SHA that was measured: the catalog entry's `commit`, or an earlier release's when carried over |
 | `firmware_sha256` | Exact tested candidate OS image |
 | `runs` | 3 to 100 independent, complete captures of the same build and collector |
 | `block_percent` | Median of the per-run mean costs, as a percentage of the stock 580,352-cycle block budget |
-| `report` | Public HTTPS evidence URL containing the generated readout |
+| `report` | Optional: public HTTPS evidence URL containing the generated readout |
 
-Updating a machine's commit requires a new measurement. CI rejects stale results,
-host estimates, non-finite/zero/saturated values and missing records on changed
-submissions. Retiring an entry does not require a new run. Validate your submission:
+An update may keep the previous release's `cpu` record unchanged; its `commit`
+then names the release that was measured, not the new one. Remeasure when the
+change could affect CPU cost. CI rejects any other record whose commit differs from
+the entry's, host estimates, non-finite/zero/saturated values and missing records
+on changed submissions. Retiring an entry does not require a new run. Validate your submission:
 
 ```sh
 python sdk.py catalog check --base origin/staging

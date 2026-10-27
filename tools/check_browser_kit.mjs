@@ -8,7 +8,7 @@ import {openKit, linkKit, sha256} from '../builder/core.mjs';
 const [kitFile, objectDir, ld, objcopy] = process.argv.slice(2);
 const kit = await openKit(JSON.parse(readFileSync(kitFile, 'utf8')));
 const destination = resolve(dirname(kitFile), 'reference'); mkdirSync(destination);
-const layout = resolve('linker/opxy-1.2.0.ld');
+const layout = resolve('linker/opxy-1.2.1.ld');
 const results = [];
 for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
   const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);

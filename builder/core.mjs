@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = 'a42f0c8123d72cd252d1b959cd5fe6cc50c6aa2999797c136f3ad254f252c622';
+export const PROFILE_SHA256 = '1054d2cbc5d79b1afa9d80684b1aa50e54a693e5a0e0cc60392e7fa83a8b9359';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -180,7 +180,9 @@ export function numberLayout(rules, fixed, layout, machines) {
 // A saved layout (layout.json from a build, or a saved selection): its numbers and selection.
 // Saved selections from before layouts listed the selected machines' numbers as identities.
 export function readLayout(kit, saved) {
-  check(saved && typeof saved === 'object' && saved.profile === kit.profile.id,
+  // Earlier profiles with the same identity rules number machines the same way.
+  check(saved && typeof saved === 'object' &&
+    [kit.profile.id, ...(kit.profile.layout_profiles ?? [])].includes(saved.profile),
     'This layout is for a different OS version.');
   const numbers = saved.format === LAYOUT_FORMAT ? saved.machines : saved.format === 'opxy-kit/1' ? saved.identities : null;
   check(numbers && typeof numbers === 'object' && !Array.isArray(numbers), 'This file is not a machine layout.');
@@ -403,7 +405,7 @@ export async function patchFirmware(kit, linked, stock, {profiling = true} = {})
   check(typeof profiling === 'boolean', 'Profiling must be a boolean');
   const p = kit.profile;
   check(stock.length === p.stock_bytes && await sha256(stock) === p.stock_sha256,
-    'Only OP–XY OS 1.2.0 is supported. Choose the OS file, os.ldr, copied from your OP–XY, not a .tfw update file.');
+    'Only OP–XY OS 1.2.1 is supported. Choose the OS file, os.ldr, copied from your OP–XY, not a .tfw update file.');
   const blocks = readLdr(stock), first = blocks[0], final = blocks.at(-1);
   check(blocks.length === p.stock_records && first.count === 0 && (first.code & 0xffff) === 0x5004 &&
     final.count === 0 && (final.code & 0xffff) === 0x8004, 'Unexpected stock loader layout');
@@ -455,50 +457,56 @@ export async function patchFirmware(kit, linked, stock, {profiling = true} = {})
   return candidate;
 }
 
-// Recover only an exact output of this curated collection. The uploaded module
-// is compared with freshly linked code, never executed or reused for a build.
+// Recover stock OS 1.2.1 from the stock file or from any open-xy OS made from
+// it, including an earlier release's, whose module may sit elsewhere. The stock
+// image is rebuilt by undoing every reviewed edit and accepted only by its
+// SHA-256; the uploaded module is never executed or reused for a build. An exact
+// output of this curated collection also restores its machine selection.
 const RECOVERABLE_MACHINES = 10;
+const UPDATE = 'Update your OP–XY to OS 1.2.1 with teenage engineering’s updater, then copy its OS file (os.ldr) again; a .tfw update file will not work.';
+const UNSUPPORTED = 'Only OP–XY OS 1.2.1 is supported. This file is not OS 1.2.1 or an open-xy OS made from it. ' + UPDATE;
 export async function recoverFirmware(kit, input, layout = null) {
   const p = kit.profile;
   if (input.length === p.stock_bytes && await sha256(input) === p.stock_sha256) {
     readLdr(input);
     return {stock: input.slice(), selected: null};
   }
-  check(kit.machines.length <= RECOVERABLE_MACHINES, 'This open-xy OS can’t be recognized. Choose the original OP–XY OS 1.2.0.');
   const blocks = readLdr(input), first = blocks[0], module = blocks.at(-2), final = blocks.at(-1);
   check(blocks.length === p.stock_records + 1 && first.count === 0 &&
     (first.code & 0xffff) === 0x5004 && first.argument === input.length - 16 &&
     final.count === 0 && (final.code & 0xffff) === 0x8004 &&
     module.offset === p.stock_bytes - 16 && (module.code & 0xffff) === 4 &&
-    module.target === p.module_base && module.argument === 0 &&
-    module.count > 0 && module.count <= moduleBytes(p) &&
-    input.length === p.stock_bytes + 16 + module.count,
-    'Only OP–XY OS 1.2.0 is supported. This file is not OS 1.2.0 or an open-xy OS made from it. Install OS 1.2.0 on your OP–XY, then copy its OS file (os.ldr) again; a .tfw update file will not work.');
+    module.argument === 0 && module.count > 0 && input.length === p.stock_bytes + 16 + module.count, UNSUPPORTED);
   const stock = join([input.subarray(0, module.offset), input.subarray(final.offset)]);
   stock.set(header(0x5004, first.target, 0, stock.length - 16));
+  // Every released profile's edits are among these (tests/test_profile_parity.py).
   for (const edit of p.patches) stock.set(unhex(edit.before), Number(edit.file_offset));
   check(await sha256(stock) === p.stock_sha256,
-    'Only OP–XY OS 1.2.0 is supported. This open-xy OS was not made from OS 1.2.0.');
+    'Only OP–XY OS 1.2.1 is supported. This open-xy OS was not made from OS 1.2.1. ' + UPDATE);
   const payload = input.subarray(module.offset + 16, final.offset);
-  // Reconstruct every selection's entire image; never trust the uploaded
-  // module or infer ownership from its label. At most 1,023 deterministic links,
-  // each under a millisecond.
-  // Yield between candidates so file changes and navigation remain responsive;
-  // the caller discards stale results.
-  for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
-    const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
-    const linked = linkKit(kit, selected, layout);
-    if (equal(linked.module, payload)) {
-      // SDK builds retain timing; site builds omit the per-voice bookkeeping.
-      // Accept only a complete reconstruction of one mode, never mixed hooks.
-      for (const profiling of [true, false]) {
-        if (equal(await patchFirmware(kit, linked, stock, {profiling}), input))
-          return {stock, selected};
+  if (module.target === p.module_base && module.count <= moduleBytes(p) && kit.machines.length <= RECOVERABLE_MACHINES) {
+    // Reconstruct every selection's entire image; never trust the uploaded
+    // module or infer ownership from its label. At most 1,023 deterministic links,
+    // each under a millisecond.
+    // Yield between candidates so file changes and navigation remain responsive;
+    // the caller discards stale results.
+    for (let mask = 1; mask < 2 ** kit.machines.length; mask++) {
+      const selected = kit.machines.filter((_, i) => mask & 2 ** i).map(m => m.id);
+      const linked = linkKit(kit, selected, layout);
+      if (equal(linked.module, payload)) {
+        // SDK builds retain timing; site builds omit the per-voice bookkeeping.
+        // Accept only a complete reconstruction of one mode, never mixed hooks.
+        for (const profiling of [true, false]) {
+          if (equal(await patchFirmware(kit, linked, stock, {profiling}), input))
+            return {stock, selected};
+        }
       }
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
-    await new Promise(resolve => setTimeout(resolve, 0));
   }
-  throw new Error('This open-xy OS has machines this site doesn’t offer. Choose the original OP–XY OS 1.2.0.');
+  // Another open-xy OS: an earlier release, other machines or another build.
+  // Its stock OS is verified above; its machines are chosen again.
+  return {stock, selected: null, earlier: true};
 }
 
 export function presetPath(machine) {

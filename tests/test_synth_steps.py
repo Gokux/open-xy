@@ -50,9 +50,9 @@ class SynthSteps(unittest.TestCase):
         hooks = [p for p in config()['patches'] if p.get('symbol') == 'sdk_param_steps']
         self.assertEqual(len(hooks), 1)
         hook = hooks[0]
-        self.assertEqual((int(hook['address'], 16), hook['length'], hook['call']), (0x8d5ab636, 8, True))
-        # CALL.A 0x8c0b2fc8, the step-count query of stock's encoder step 8d5ab618.
-        self.assertEqual(hook['before'], '00de0b8cc82f0000')
+        self.assertEqual((int(hook['address'], 16), hook['length'], hook['call']), (0x8d5ad306, 8, True))
+        # CALL.A 0x8c0b2468, the step-count query of stock's encoder step 8d5ad2e8.
+        self.assertEqual(hook['before'], '00de0b8c68240000')
         self.assertNotIn('service', hook)
 
     @unittest.skipUnless(STOCK_OS, 'Set OPXY_TEST_STOCK_OS to the stock os.ldr')
@@ -65,7 +65,7 @@ class SynthSteps(unittest.TestCase):
 
     @unittest.skipUnless(HOST_CXX, 'No working host C++ compiler (set OPXY_TEST_HOST_CXX)')
     def test_real_platform_adapter(self):
-        platform = ROOT / 'sdk/platform/opxy-1.2.0'
+        platform = ROOT / 'sdk/platform/opxy-1.2.1'
         with tempfile.TemporaryDirectory(prefix='synth-steps-') as directory:
             folder = Path(directory)
             # Substitute only the stock-address boundary, as other SDK fixtures do.

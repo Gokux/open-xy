@@ -8,6 +8,8 @@ reshapes, recolours and relabels them. It is not executable SVG animation. The
 same C++ computes the browser preview and the device frames; fonts, framing and
 rasterization can differ.
 
+The [UX conventions](ux.md) say how machine screens look and move.
+
 There is one display contract. Characters, dials, keyboards, meters and other
 patterns are the machine's own code filling nodes; see
 [Macro Osc's segment characters](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/segments.hpp).
@@ -35,7 +37,7 @@ void display(DisplayState& state, const opxy::draw::Input& input, Frame& output)
 | `paths` | 0..4 mutable outlines; they are nodes `0..paths-1` |
 | `points` | 2..64 points per outline; 0 when there are no paths |
 | `nodes` | `paths`..256 transformable elements |
-| `texts` | 0..4 text slots |
+| `texts` | 0..16 text slots; more than 4 need `"sdk": "1.3"` |
 | `palette` | 1..16 paint entries |
 | `stateBytes`, `stateAlignment` | `DisplayState` size (whole words) and alignment, checked against the compiled type |
 
@@ -163,7 +165,7 @@ Authored numbers allow at most four fractional digits; exponent notation and
 unsupported elements/references are rejected. Do not rely on browser-only SVG
 features or group style inheritance. The native packager combines the machine
 fragment with the SDK-owned
-[OP-XY screen template](../sdk/platform/opxy-1.2.0/screen.svg). It supplies a black
+[OP-XY screen template](../sdk/platform/opxy-1.2.1/screen.svg). It supplies a black
 480 × 220 canvas and the stock synth header: a stepped grey bar 20 pixels tall
 with four titles (10 px) above four values (20 px), light text on the dark half
 and dark text on the light half, at the stock positions. Machine artwork starts
@@ -181,7 +183,7 @@ Template validation checks structure, not actual device text rendering.
 See [2op display.cpp](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/fm2op/display.cpp) (outlines and pulses) and
 [Macro display.cpp](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/display.cpp) (segment characters,
 glow, dials and header text) for implementations.
-How screens reach stock is described in the [firmware ABI](abi-1.2.0.md#screens).
+How screens reach stock is described in the [firmware ABI](abi-1.2.1.md#screens).
 
 ## Migrating from before SDK 1.0
 
