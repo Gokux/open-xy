@@ -17,8 +17,8 @@
       "maintainer": "etcetc000",
       "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-core-machines",
-      "tag": "v1.2.0",
-      "commit": "725052b8d0512bc6646636d25766ce06dbe48601",
+      "tag": "v1.4.0",
+      "commit": "4bc104f14856500fecc5eee72be51eb952b67942",
       "path": "machines/macroosc",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
@@ -109,11 +109,19 @@
       "id": "hurdygurdy",
       "kind": "synth",
       "maintainer": "SammiBabe666",
-      "status": "draft",
+      "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-hurdygurdy",
-      "tag": "v1.0.0",
-      "commit": "43df28f2cde2dd44b0bcadae57c30a1408b3bd73",
-      "path": "."
+      "tag": "v1.3.0",
+      "commit": "1354c31b122aa3c05a3c028ff57cc7f198a9bea8",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "1354c31b122aa3c05a3c028ff57cc7f198a9bea8",
+        "firmware_sha256": "a753e810d2cf55f25cfbaa747493b97344b2396d98c7327f6057765b3e76b033",
+        "runs": 3,
+        "block_percent": 3.550774,
+        "report": "https://github.com/etcetc000/open-xy/pull/147"
+      }
     },
     {
       "id": "pingpong",
