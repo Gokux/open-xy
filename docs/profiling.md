@@ -84,15 +84,17 @@ firmware-containing packages.
 | `cpu` field | Meaning |
 | --- | --- |
 | `benchmark` | Versioned workload from the table below; must match the machine kind |
-| `commit` | Full machine source SHA, equal to the catalog entry's `commit` |
+| `commit` | Full machine source SHA that was measured: the catalog entry's `commit`, or an earlier release's when carried over |
 | `firmware_sha256` | Exact tested candidate OS image |
 | `runs` | 3 to 100 independent, complete captures of the same build and collector |
 | `block_percent` | Median of the per-run mean costs, as a percentage of the stock 580,352-cycle block budget |
 | `report` | Optional: public HTTPS evidence URL containing the generated readout |
 
-Updating a machine's commit requires a new measurement. CI rejects stale results,
-host estimates, non-finite/zero/saturated values and missing records on changed
-submissions. Retiring an entry does not require a new run. Validate your submission:
+An update may keep the previous release's `cpu` record unchanged; its `commit`
+then names the release that was measured, not the new one. Remeasure when the
+change could affect CPU cost. CI rejects any other record whose commit differs from
+the entry's, host estimates, non-finite/zero/saturated values and missing records
+on changed submissions. Retiring an entry does not require a new run. Validate your submission:
 
 ```sh
 python sdk.py catalog check --base origin/staging
