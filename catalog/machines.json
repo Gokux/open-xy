@@ -264,6 +264,12 @@
       "kind": "synth",
       "maintainer": "blen2r",
       "status": "reserved"
+    },
+    {
+      "id": "grains",
+      "kind": "sample",
+      "maintainer": "mmockett",
+      "status": "reserved"
     }
   ]
 }
