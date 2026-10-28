@@ -1,6 +1,7 @@
 // Exact 1.2.1 call replacements. Each forwards the original C ABI unchanged.
 // Recovery calls the pattern editor, never the live/audio note dispatcher.
 #include "../extension_runtime.hpp"
+#include "note_container.hpp"
 #include "stock.hpp"
 
 extern "C" {
@@ -30,12 +31,7 @@ using Wide = __UINT64_TYPE__;
 struct LiveInput { u32 track, pitch, velocity, flags; bool active; };
 LiveInput live_input;
 
-struct PatternNote {
-    i32 position;
-    u32 length;
-    u8 pitch, velocity, flags, padding;
-};
-static_assert(sizeof(PatternNote) == 12, "Stock copies the first eleven payload bytes");
+using PatternNote = notes::Note;  // Stock copies the first eleven payload bytes.
 
 bool unmodified_record() {
     if (shift_held()) return false;
@@ -84,16 +80,20 @@ i32 extension_collision_radius(u32 track) {
     return 180u * numerator / denominator;
 }
 
-u32 extension_write(u32 track, const RecordedNote* notes, u32 count) {
+u32 extension_write(u32 track, const RecordedNote* notes, u32 count, bool replace) {
     if (!notes || !count || count > 120 || track >= 8) return 0;
     auto* container = stock<unsigned char*(u32, u32)>(0x8d5875c8)(track, 0);
-    if (!container || *reinterpret_cast<const i16*>(container + 0x786) >= 120) return 0;
+    if (!container || (!replace && *reinterpret_cast<const i16*>(container + 0x786) >= 120)) return 0;
+    auto& list = *reinterpret_cast<notes::Container*>(container);
+    if (replace && !notes::clearable(list)) return 0;
     const i32 radius = extension_collision_radius(track);
     if (radius < 0) return 0;
     // Start one stock undo transaction before changing any notes. This reset
     // only clears the previous note-undo identity; it does not move transport.
     stock<void(u32)>(0x8d591930)(kController);
     stock<void(u32, u32)>(0x8d593c18)(kController, track);
+    // Replacing clears the track's notes first, inside the same undo transaction.
+    if (replace && !notes::clear(list)) return 0;
     u32 written = 0;
     for (u32 i = 0; i < count; ++i) {
         const RecordedNote& note = notes[i];
@@ -102,7 +102,7 @@ u32 extension_write(u32 track, const RecordedNote* notes, u32 count) {
         if (static_cast<i16>(result >> 32) < 0) break;
         ++written;
     }
-    if (written) stock<void(u32)>(0x8d587668)(track);
+    if (written || replace) stock<void(u32)>(0x8d587668)(track);  // A cleared pattern is a change too.
     return written;
 }
 void extension_notify(const char* text) {

@@ -27,10 +27,11 @@ void edit_control(const extensions::Context& context, const extensions::Control&
     if (mode == 2) note.pitch = 128;
     if (mode == 3) note.position = -241;
     if (mode == 4) note.length = stock_context.length + 1;
-    result = actions.insert_notes(context, &note, 1);
+    result = mode == 6 ? actions.replace_notes(context, &note, 1) : actions.insert_notes(context, &note, 1);
     actions.notify("done");
     actions.notify("duplicate");
     if (mode == 5) result += actions.insert_notes(context, &good, 1);
+    if (mode == 7) result += actions.replace_notes(context, &good, 1);  // one write per callback
 }
 const extensions::Hooks first = {nullptr, first_note, nullptr, nullptr, nullptr, observe_control};
 const extensions::Hooks second = {nullptr, second_note, nullptr, nullptr, nullptr, edit_control};
@@ -42,7 +43,8 @@ RecordingContext extension_context(bool& p) { p = playing; return stock_context;
 i32 extension_position(u32) { return -12; }
 u32 extension_scaled_delta(u32, u32 delta) { return delta << 8; }
 i32 extension_collision_radius(u32) { return 180; }
-u32 extension_write(u32, const RecordedNote*, u32 count) { ++writes; return count; }
+bool replaced;
+u32 extension_write(u32, const RecordedNote*, u32 count, bool replace) { ++writes; replaced = replace; return count; }
 void extension_notify(const char*) { ++notices; }
 }}
 int main() {
@@ -59,10 +61,17 @@ int main() {
     }
     mode = 5;
     extensions_queued_control(50, false, true, true, 100);
-    CHECK(result == 1 && writes == 2 && notices == 2);
+    CHECK(result == 1 && writes == 2 && notices == 2 && !replaced);
+    mode = 6;
+    extensions_queued_control(50, false, true, true, 100);
+    CHECK(result == 1 && writes == 3 && replaced);
+    mode = 7;
+    extensions_queued_control(50, false, true, true, 100);
+    CHECK(result == 1 && writes == 4 && !replaced);
+    mode = 0;
     extensions_queued_control(50, false, false, true, 100);
     extensions_queued_control(12, false, true, true, 100);
-    CHECK(result == 0 && writes == 2 && notices == 2);
+    CHECK(result == 0 && writes == 4 && notices == 4);
     // Guard the generated registry at runtime as well as build time.
     initialized = false; entries = nullptr; collection[0].claims = claim_record_double_tap;
     extensions_recordable_note_on(0, 60, 100); CHECK(order_count == 2);

@@ -65,15 +65,34 @@ void undo_reset(u32 controller) { failed |= controller != 0x860c6adc; ++resets; 
 void undo_snapshot(u32 controller,u32 t) {
     failed |= controller != 0x860c6adc || t != selected || resets != undos + 1; ++undos;
 }
+notes::Container& pattern() { return *reinterpret_cast<notes::Container*>(pattern_notes); }
+// A valid stock list holding `filled` notes, the first `held` of them still recording.
+void fill_pattern(u32 filled, u32 held = 0) {
+    notes::Container& list = pattern();
+    for (u32 i = 0; i < notes::capacity; ++i) {
+        list.slots[i].previous = i < filled ? static_cast<i16>(i) - 1 : -1;
+        list.slots[i].next = i + 1 < notes::capacity && i + 1 != filled ? static_cast<i16>(i + 1) : -1;
+        list.slots[i].note = {static_cast<i32>(i) * 10, 10, 40, 50, static_cast<u8>(i < held ? notes::held_flag : 0), 0};
+    }
+    list.head = filled ? 0 : -1; list.tail = filled ? static_cast<i16>(filled - 1) : -1;
+    list.free = filled < notes::capacity ? static_cast<i16>(filled) : -1;
+    list.count = static_cast<i16>(filled);
+}
 // Stock insertion itself is qualified separately against authenticated firmware.
-// Here the boundary double rejects at capacity and checks transaction/payloads.
+// Here the boundary double appends to the list, rejects at capacity and checks
+// transaction/payloads.
 __UINT64_TYPE__ insert(void* c, const PatternNote* note, i32 radius) {
     failed |= c != pattern_notes || resets != undos || undos == 0 || note->flags != 0;
-    auto* count = reinterpret_cast<i16*>(pattern_notes + 0x786);
-    if (*count == 120) return 0xffffull << 32;
+    notes::Container& list = pattern();
+    if (list.count == 120 || list.free < 0) return 0xffffull << 32;
+    const i16 slot = list.free;
+    list.free = list.slots[slot].next;
+    list.slots[slot] = {list.tail, -1, *note};
+    if (list.tail >= 0) list.slots[list.tail].next = slot; else list.head = slot;
+    list.tail = slot; ++list.count;
     inserted[writes++ % 120] = {note->position,note->length,note->pitch,note->velocity};
     last_radius=radius;
-    return static_cast<__UINT64_TYPE__>((*count)++) << 32;
+    return static_cast<__UINT64_TYPE__>(slot) << 32;
 }
 void publish(u32 t) { failed |= t != selected; ++publishes; }
 const char* expected_popup="captured";
@@ -139,6 +158,7 @@ Address host_stock_address(Address address) {
 }}
 
 int main() {
+    fill_pattern(0);
     sdk_extensions_controller_update(0x860c6adc,17); CHECK(loop_calls==1);
     double_tap(); CHECK(!writes && !popups && !undos);
     play(); position=123; note(); advance(240); release(); stop();
@@ -173,10 +193,11 @@ int main() {
     other_held=55; double_tap(); other_held=0; CHECK(writes==2);
     consume_record=true; double_tap(); consume_record=false; CHECK(writes==2);
     input_enabled=0; double_tap(); input_enabled=1; CHECK(writes==2);
-    // Capacity failure keeps history, does not replace undo or claim success.
-    *reinterpret_cast<i16*>(pattern_notes+0x786)=120;
-    double_tap(); CHECK(writes==2 && popups==2 && undos==2);
-    *reinterpret_cast<i16*>(pattern_notes+0x786)=0;
+    // A note stock is still recording refuses the replacement before any undo,
+    // keeping history and the pattern.
+    fill_pattern(5, 1);
+    double_tap(); CHECK(writes==2 && popups==2 && undos==2 && pattern().count==5);
+    fill_pattern(0);
     // A Record release stock does not accept still ends the tap, so the next
     // double-tap is not mistaken for a key repeat.
     key(50,true); input_enabled=0; key(50,false); input_enabled=1;
@@ -191,38 +212,37 @@ int main() {
     key(50,true); key(50,false); note(62); release(62); key(50,true); key(50,false);
     CHECK(writes==3);
     key(10,true); key(10,false); stop();
-    // Stock accepts only the available prefix when the pattern fills mid-batch.
-    // The take is kept, not reported as captured: only part of it fit.
-    *reinterpret_cast<i16*>(pattern_notes+0x786)=119; expected_popup="pattern full";
-    double_tap(); CHECK(writes==4 && popups==4 && undos==4 && publishes==4);
-    expected_popup="captured";
-    *reinterpret_cast<i16*>(pattern_notes+0x786)=0;
+    // A take replaces the sequence, even a full one: only the two captured notes remain.
+    fill_pattern(120);
+    double_tap(); CHECK(writes==5 && popups==4 && undos==4 && publishes==4 && pattern().count==2);
+    bool used[notes::capacity]; CHECK(notes::valid(pattern(), used));
+    fill_pattern(0);
     play(); note(); advance(60);
     playing=counting=0; sdk_extensions_stop(0x860c6adc);
     playing=1; advance(1); // External restart before the next GUI/controller poll.
-    stop(); double_tap(); CHECK(writes==4 && stop_calls==1);
+    stop(); double_tap(); CHECK(writes==5 && stop_calls==1);
     // A sequencer call reaches the shared acceptance function without the live
     // input scope. Rejected live notes and step entry must also stay out.
     play(); sdk_extensions_note_accepted(selected,60);
     reject_note=true; note(); reject_note=false;
     step_entry=true; note(); step_entry=false;
-    stop(); double_tap(); CHECK(writes==4);
+    stop(); double_tap(); CHECK(writes==5);
 
     // An early first note survives loop wrap and time spent making the gesture.
     scale=3; play(); position=-12; note(65,97); advance(40); release(65);
     advance(track_length*480-28);
     key(50,true); advance(300); key(50,false); key(50,true); key(50,false);
-    CHECK(writes==5 && popups==5 && inserted[4].position==-12);
-    CHECK(inserted[4].length==40 && inserted[4].pitch==65 && inserted[4].velocity==97);
+    CHECK(writes==6 && popups==5 && inserted[5].position==-12);
+    CHECK(inserted[5].length==40 && inserted[5].pitch==65 && inserted[5].velocity==97);
     // An expired pair must take a fresh snapshot, not reuse the earlier take.
     position=20; note(66); advance(20);
     key(50,true); key(50,false); advance(60);
     key(50,true,350001); key(50,false); key(50,true); key(50,false);
-    CHECK(writes==6 && inserted[5].length==80); release(66);
+    CHECK(writes==7 && inserted[6].length==80); release(66);
     // Context changes invalidate a snapshot already anchored by the first tap.
     position=0; note(); advance(30); release(); key(50,true); key(50,false);
     ++quantization; sdk_extensions_controller_update(0x860c6adc,17);
-    key(50,true); key(50,false); key(50,true); key(50,false); CHECK(writes==6);
+    key(50,true); key(50,false); key(50,true); key(50,false); CHECK(writes==7);
 
     // Reported workflow: two pages at 1x, quantization on, one silent pass,
     // early pickup into the next pass, then Stop after the loop wraps again.
@@ -236,9 +256,9 @@ int main() {
         note(67,90+pass); advance(60); release(67);
     }
     advance(7680); advance(7680); advance(960); stop(); double_tap();
-    CHECK(writes==8 && inserted[6].position==-12 && inserted[6].pitch==60);
-    CHECK(inserted[6].velocity==93 && inserted[6].length==12);
-    CHECK(inserted[7].position==480 && inserted[7].pitch==67 && inserted[7].velocity==92);
+    CHECK(writes==9 && inserted[7].position==-12 && inserted[7].pitch==60);
+    CHECK(inserted[7].velocity==93 && inserted[7].length==12);
+    CHECK(inserted[8].position==480 && inserted[8].pitch==67 && inserted[8].velocity==92);
     CHECK(!failed);
     return 0;
 }

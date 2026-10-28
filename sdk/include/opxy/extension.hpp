@@ -28,11 +28,16 @@ struct Control {
 };
 
 // Callable only during an authorized control callback. The SDK validates the
-// context again and owns undo/publication. Returns the inserted prefix length.
-// A notification is allowed only after this callback successfully edits notes.
+// context again and owns undo/publication: one stock undo transaction per
+// callback. Returns the inserted prefix length. A notification is allowed only
+// after this callback successfully edits notes. Append new actions at the end.
 struct Actions {
+    // Add notes to the selected track's pattern beside its existing notes.
     u32 (*insert_notes)(const Context&, const Note*, u32 count);
     void (*notify)(const char* text);
+    // Replace the selected track's pattern notes with these. Refused, changing
+    // nothing, while stock is still recording a held note.
+    u32 (*replace_notes)(const Context&, const Note*, u32 count);
 };
 
 // One callback per event, named for what it delivers. Each event lists its

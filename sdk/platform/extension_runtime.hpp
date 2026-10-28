@@ -31,6 +31,6 @@ i32 extension_position(u32 track);
 u32 extension_scaled_delta(u32 track, u32 delta);
 i32 extension_collision_radius(u32 track);
 bool extension_record_held();
-u32 extension_write(u32 track, const RecordedNote* notes, u32 count);
+u32 extension_write(u32 track, const RecordedNote* notes, u32 count, bool replace);
 void extension_notify(const char* text);
 }}

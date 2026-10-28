@@ -70,7 +70,7 @@ filters to that track for it.
 | Kind | What | Here |
 | --- | --- | --- |
 | Events | Something happened | The `Hooks` callbacks |
-| Actions | Change something through stock | `Actions::insert_notes`, `Actions::notify` |
+| Actions | Change something through stock | `Actions::insert_notes`, `Actions::replace_notes`, `Actions::notify` |
 | Surfaces | Add to the screen | None for extensions yet: menu rows, pages, overlays |
 | Saved state | Data kept with a project | None for extensions yet |
 
@@ -112,11 +112,14 @@ the collection.
   [`RecordTap`](../sdk/include/opxy/record_tap.hpp) helper for taps, holds,
   repeats and timeouts, without delaying stock controls.
 - **An action** is permission to change stock state, and may require a claim.
-  `edit_notes` requires `record_double_tap`: `Actions::insert_notes` works only
-  for its owner, inside an accepted Record `queued_control` callback. The SDK
-  rechecks the context, validates the bounded batch, opens one stock undo
-  transaction, keeps stock collision and capacity behavior, returns the
-  inserted prefix length and publishes once. A successful edit permits one
+  `edit_notes` requires `record_double_tap`: `Actions::insert_notes` (add
+  beside the existing notes) and `Actions::replace_notes` (clear the track's
+  notes, then add) work only for its owner, inside an accepted Record
+  `queued_control` callback. The SDK rechecks the context, validates the
+  bounded batch, opens one stock undo transaction, keeps stock collision and
+  capacity behavior, returns the inserted prefix length and publishes once.
+  Replacing is refused, changing nothing, while stock is still recording a
+  held note. A successful edit permits one
   short `Actions::notify`. Calls outside that callback, after a context change,
   or a second edit in one callback are rejected.
 

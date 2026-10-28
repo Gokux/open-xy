@@ -34,7 +34,7 @@ bool ready() {
     return true;
 }
 
-u32 insert_notes(const extensions::Context& expected, const RecordedNote* notes, u32 count) {
+u32 write_notes(const extensions::Context& expected, const RecordedNote* notes, u32 count, bool replace) {
     if (!can_edit || attempted || !notes || !count || count > 120) return 0;
     bool playing = false;
     const RecordingContext now = extension_context(playing);
@@ -46,7 +46,7 @@ u32 insert_notes(const extensions::Context& expected, const RecordedNote* notes,
             notes[i].position < -240 || notes[i].position >= static_cast<i32>(now.length) ||
             notes[i].length > now.length) return 0;
     attempted = true; // One undo transaction per callback, including failures.
-    const u32 written = extension_write(now.track, notes, count);
+    const u32 written = extension_write(now.track, notes, count, replace);
     edited = written != 0;
     return written;
 }
@@ -59,7 +59,13 @@ void notify(const char* text) {
     extension_notify(notification);
     edited = false; // At most one success notification per transaction.
 }
-const extensions::Actions actions = {insert_notes, notify};
+u32 insert_notes(const extensions::Context& expected, const RecordedNote* notes, u32 count) {
+    return write_notes(expected, notes, count, false);
+}
+u32 replace_notes(const extensions::Context& expected, const RecordedNote* notes, u32 count) {
+    return write_notes(expected, notes, count, true);
+}
+const extensions::Actions actions = {insert_notes, notify, replace_notes};
 }
 
 void extensions_sync() {

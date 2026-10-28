@@ -37,13 +37,11 @@ void queued_control(const Context& context, const Control& control, const Action
         return;
     }
     if (!tap.release(control.time) || !snapshot_count) return;
-    const u32 written = actions.insert_notes(context, snapshot, snapshot_count);
-    // Keep the take unless all of it fit; the written notes stay, with Undo.
-    if (written == snapshot_count) {
+    // The take replaces the track's sequence, with Undo. History holds at most
+    // one full pattern, so a take that is written fits completely.
+    if (actions.replace_notes(context, snapshot, snapshot_count) == snapshot_count) {
         history.clear();
         actions.notify("captured");
-    } else if (written) {
-        actions.notify("pattern full");
     }
 }
 }

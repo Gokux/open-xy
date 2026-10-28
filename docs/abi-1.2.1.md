@@ -167,12 +167,16 @@ pattern rejects new onsets before pruning, as the stock container does. Tick
 updates advance held-note duration, capped at one loop. The first clean Record
 press snapshots the take; completing the second tap commits that snapshot.
 Interrupted/expired pairs never commit the saved snapshot.
-Insertion calls the stock note container with its scale-dependent collision
-radius and 120-note capacity, after resetting and taking one stock undo snapshot.
-It publishes the pattern once, without calling the audible note dispatcher or
-moving the playhead. An empty cache or full pattern produces no success popup;
-when only part of the take fits, the written part stays (with Undo), the take is
-kept and the popup says `pattern full`. History
+Capture replaces the track's notes. After resetting and taking one stock undo
+snapshot, the SDK unlinks every note from the stock note list
+([`note_container.hpp`](../sdk/platform/opxy-1.2.1/note_container.hpp)), as
+stock's own editor does inline; it first validates the whole used and free
+lists and refuses, before the undo snapshot, if a note is still being recorded
+(flag bit 1). It then inserts the take through the stock note container with
+its scale-dependent collision radius, and publishes the pattern once, without
+calling the audible note dispatcher or moving the playhead. Stock undo restores
+the previous notes. Parameter locks and step components stay. An empty cache
+produces no success popup. History
 retains at most 120 notes and 20 simultaneously held notes; it is cleared
 after a successful insertion, on track/context changes and on a new playback
 start. Stop preserves the partial take. Host adapter tests use stock doubles;
