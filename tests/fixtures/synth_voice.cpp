@@ -139,6 +139,15 @@ int main() {
     if (!block({{15, 16}, {16, 17}}) || destroyed[21] != 1 || destroyed[22] != 1) return 31;
     for (unsigned i = 0; i < 256; ++i) call(i, 0);
     cycles += 4 * kBlockCycles;
+    // A whole chord that ends at once frees its voices for the next chord a few
+    // milliseconds later, though no block was counted in between.
+    note(50); note(51); note(52);
+    if (!sound({50, 51, 52}, 10)) return 41;
+    cycles += 5 * 400000;  // 5 ms with nothing of the machine rendering
+    note(53); note(54); note(55);
+    if (!block({{53, 54}, {54, 55}, {55, 56}})) return 42;
+    for (unsigned i = 0; i < 256; ++i) call(i, 0);
+    cycles += 4 * kBlockCycles;
     // A note stock stops rendering is destroyed within a few blocks while the
     // machine renders others, with no new note to reclaim its voice.
     note(30); note(31); note(32);

@@ -114,16 +114,18 @@ a note, and unchanged stock defaults for the rest (see
 for a missing object, so the factory gives every index a small handle. Stock
 asks for an index's object again before each note it starts there, renders the
 index once per block while its note sounds, and never calls the destructor
-entries for a note: a note ends when stock stops rendering its index. Stock
-limits each track to 8 notes (`8d51c994`); at the limit it takes the quietest
+entries for a note: a note ends when stock stops rendering its index. Stock's
+free-voice allocator (`8d51c994`) hands out its 27 voice slots and limits each
+track to 8 notes; at the limit it takes the quietest
 voice on the track, fades it over one block and restarts the same index
 (`8d51ca94`, `8d51ad04`).
 
 Stock has 27 voice slots, so the adapter keeps at most 27 voices, plus one
-spare unless `voiceCapacity` is 1: `min(voiceCapacity, 27) + 1`. They go to
-handles as their notes start: a free voice, else one whose index has missed two
-blocks of renders (blocks are counted from the renders themselves), or about
-50 ms of CPU cycles (`sdk_voice_ticks`) when nothing of the machine rendered. A factory call for an index
+spare: `min(voiceCapacity, 27) + 1`. They go to handles as their notes start: a
+free voice, else one whose index has missed two blocks of renders (blocks are
+counted from the renders themselves), or, once nothing of the machine has
+rendered for 12 ticks of CPU cycles (`sdk_voice_ticks`, about 4 ms), any whose
+note did not just start. Ended voices are released once per counted block. A factory call for an index
 frees the voice it held, so a voice stock takes keeps its place for the
 restarted note. The spare covers a note that ended just before another starts.
 Only with more notes sounding than that (a capacity below 8, or the machine on

@@ -84,12 +84,12 @@ opxy::u32 sdk_synth_title_slot(opxy::u32, opxy::u32 index) { return index + 4; }
 opxy::u32 sdk_voice_ticks() { return 0; }
 int main() { return sizeof(voices) / sizeof(voices[0]) == 28 ? 0 : 1; }
 ''')
-        # A capacity of 1 keeps one voice: no spare, so one note sounds at a time.
+        # A capacity of 1 keeps its voice and the spare.
         self.run_fixture(1, '''#include "voice.cpp"
 int destroyed[257];
 opxy::u32 sdk_synth_title_slot(opxy::u32, opxy::u32 index) { return index + 4; }
 opxy::u32 sdk_voice_ticks() { return 0; }
-int main() { return sizeof(voices) / sizeof(voices[0]) == 1 ? 0 : 1; }
+int main() { return sizeof(voices) / sizeof(voices[0]) == 2 ? 0 : 1; }
 ''')
 
 if __name__ == '__main__':
