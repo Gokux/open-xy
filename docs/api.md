@@ -248,8 +248,8 @@ renders other notes; after the machine's last note it notices at the next note
 start. A taken note renders one last block fading to silence, then renders
 silence; no voice index ever fails, whatever the capacity.
 Callbacks run serially per voice. The browser preview's voice stealing and
-panic use the same callbacks, but the preview keeps `min(voiceCapacity, 8)`
-voices and takes the oldest at once: it does not model stock's renders, the
+panic use the same callbacks, but the preview always keeps 8 voices and takes
+the oldest at once: it does not model `voiceCapacity`, stock's renders, the
 spare or the fade. The SDK adapter owns the firmware object header,
 method table and voice pool; none of that belongs in `Voice`.
 

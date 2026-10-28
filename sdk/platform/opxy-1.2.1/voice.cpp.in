@@ -116,15 +116,17 @@ static void forget(Slot& slot) {
     const Handle& waiter = handles[slot.next - 1];
     if (age(waiter.seen) > 2 && age(waiter.asked) > 2) slot.next = 0;
 }
+// Whether an owned voice's note has ended: no note waits for it (a waiting
+// note stock no longer renders is forgotten first) and stock no longer sounds it.
+static bool ended(Slot& voice, opxy::u32 now) {
+    forget(voice);
+    return !voice.next && !sounding(voice, now);
+}
 // Releases the voices of notes stock has stopped rendering, once per block, so
 // destroy runs soon after a note ends while the machine still renders.
 static void sweep(opxy::u32 now) {
-    for (opxy::u32 i = 0; i < kVoices; ++i) {
-        Slot& voice = voices[i];
-        if (!voice.owner) continue;
-        forget(voice);
-        if (!voice.next && !sounding(voice, now)) release(voice, now);
-    }
+    for (opxy::u32 i = 0; i < kVoices; ++i)
+        if (voices[i].owner && ended(voices[i], now)) release(voices[i], now);
 }
 // Which sounding voice a note takes first: one no other note waits for, then
 // one past its first 8 blocks, then the one rendered least recently, then the
@@ -148,8 +150,7 @@ static void acquire(Handle* handle, opxy::u32 now, bool steal) {
     for (opxy::u32 i = 0; i < kVoices; ++i) {
         Slot& voice = voices[i];
         if (!voice.owner) { open = &voice; break; }
-        forget(voice);
-        if (!voice.next && !sounding(voice, now)) {
+        if (ended(voice, now)) {
             if (!open) open = &voice;
         } else if (steal && (!chosen || before(voice, *chosen))) {
             chosen = &voice;
