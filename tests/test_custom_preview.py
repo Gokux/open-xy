@@ -2,9 +2,11 @@
 from contextlib import redirect_stdout
 import io
 import json
+import shutil
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tooling import custom_preview as custom
 from tooling.formats import sha
@@ -168,6 +170,22 @@ class CustomPreviewTests(unittest.TestCase):
         (out / 'panel.svg').write_text('<script/>')
         with self.assertRaisesRegex(ValueError, 'artifact identity'):
             preview_bundle(out)
+
+    @unittest.skipUnless(shutil.which('clang++') and shutil.which('node'), 'Clang with wasm-ld and Node are required')
+    def test_wavetable_larger_than_old_browser_allowance_builds_without_growth(self):
+        # Retained constant data alone exceeds the old 512 KiB allowance.
+        path = self.source / 'engine.cpp'
+        source = path.read_text().replace('namespace example {',
+            'namespace example {\nconst opxy::i32 table[160000] = {1};')
+        source = source.replace('output[i] = opxy::q31::multiply(mixed, parameters[2]);',
+                                'output[i] = table[voice.phase % 160000];')
+        path.write_text(source)
+        with patch('tooling.preview.MEMORY', 512 * 1024), self.assertRaisesRegex(ValueError, 'Preview compilation failed'):
+            custom.build('clang++', self.source, self.root / 'old-memory-preview')
+        # The real contract checker renders audio/display and refuses memory.grow.
+        with redirect_stdout(io.StringIO()):
+            custom.build('clang++', self.source, self.root / 'large-preview')
+        self.assertTrue((self.root / 'large-preview/engine.wasm').is_file())
 
     def test_custom_artwork_cannot_load_external_resources(self):
         files = custom.source_files(self.source)
