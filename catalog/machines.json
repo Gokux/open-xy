@@ -202,6 +202,41 @@
         "runs": 3,
         "block_percent": 2.178988
       }
+    },
+    {
+      "id": "troupe",
+      "kind": "synth",
+      "maintainer": "Hecedu",
+      "status": "published",
+      "repository": "https://github.com/Hecedu/open-xy-troupe",
+      "tag": "v1.0.0",
+      "commit": "453ff5288aa0000ecbb7f1c01654935560bbdd65",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "453ff5288aa0000ecbb7f1c01654935560bbdd65",
+        "firmware_sha256": "39d61231d10ae2074d7ca285412f8874e38a54f55c66b68b6f60e1b8d2066ba0",
+        "runs": 3,
+        "block_percent": 2.569619
+      }
+    },
+    {
+      "id": "breadboard",
+      "kind": "synth",
+      "maintainer": "lowlevelgamedev",
+      "status": "draft",
+      "repository": "https://github.com/meemknight/OPXY-breadboard",
+      "tag": "v1.1.0",
+      "commit": "4a5f90abd751164af85abfd850bc791df0c3ba8e",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "4a5f90abd751164af85abfd850bc791df0c3ba8e",
+        "firmware_sha256": "e279bff69e22d10570c972e60125127f0ec3a2b476632ed3c971e32e46c538f4",
+        "runs": 3,
+        "block_percent": 2.171,
+        "report": "https://github.com/meemknight/OPXY-breadboard/blob/4a5f90abd751164af85abfd850bc791df0c3ba8e/CPU_PROFILE.md"
+      }
     }
   ]
 }
