@@ -19,6 +19,15 @@ own stock `os.ldr`, without installing anything.
 against `staging`.** It is the development branch; `main` receives reviewed
 releases from `staging`. See the [contributor workflow](CONTRIBUTING.md#branch-workflow).
 
+With Retrospective capture enabled, firmware keeps a live-note ghost pattern for
+the selected instrument track. Double-tap Record to insert the performance at
+its original loop positions; **captured** confirms insertion. Stop preserves a partial take, while
+starting playback again clears it. Changing tracks, patterns, projects, track
+length, scale or quantization clears the ghost pattern. Notes survive loop wraps
+and silence; later playing replaces nearby same-pitch notes as in stock recording.
+It holds up to 120 notes, with stock collision and pattern-capacity limits. The
+first Record tap snapshots the take; the second confirms capture.
+
 This is an unofficial, experimental SDK. A build statically links a curated
 collection of machines into exact stock OS 1.2.1; arbitrary engine installation
 and dynamic loading are not implemented. Native code is not sandboxed, and
@@ -72,6 +81,7 @@ sound (`engine.cpp`) and display (`display.cpp` and artwork), a sample engine's
 previews, firmware builds and packaging.
 
 - [Machine API](docs/api.md): platform rules, schemas, callbacks for each kind, buffers and ownership.
+- [Firmware extensions](docs/extensions.md): shared controller events, callback order and exclusive commands.
 - [Display API](docs/display.md): retained drawing frames and asset constraints.
 - [Machine UX](docs/ux.md): the conventions machines share for controls, pages, screens and motion.
 - [Build your own firmware](docs/build.md): toolchain, stock files, adding a machine, build and install.
@@ -86,6 +96,7 @@ previews, firmware builds and packaging.
 
 | Path | Owns |
 | --- | --- |
+| `extensions/<id>/` | Firmware behavior extensions and their private helpers |
 | `sdk/` | C++ interfaces, adapter templates and browser runners |
 | `builder/` | The Open-XY browser builder |
 | `harness/` | The local preview workbench |

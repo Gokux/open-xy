@@ -93,6 +93,9 @@
   "services": {
     "samples": [
       "sample"
+    ],
+    "extensions": [
+      "extension"
     ]
   },
   "patches": [
@@ -1153,6 +1156,76 @@
       "before": "fee3b16f",
       "symbol": "sdk_benchmark_run",
       "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0baaf0",
+      "file_offset": "0xf1d2c",
+      "length": 8,
+      "before": "00de598db8860000",
+      "symbol": "sdk_capture_loop",
+      "call": true,
+      "service": "extensions"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0b6184",
+      "file_offset": "0xed3c0",
+      "length": 12,
+      "before": "ffe3eafd00da0208783c0000",
+      "symbol": "sdk_capture_queued_event",
+      "call": true,
+      "service": "extensions"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d594376",
+      "file_offset": "0x1cb5d2",
+      "length": 4,
+      "before": "00e3e109",
+      "symbol": "sdk_capture_note_on",
+      "call": true,
+      "service": "extensions"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d59420a",
+      "file_offset": "0x1cb466",
+      "length": 4,
+      "before": "00e30b09",
+      "symbol": "sdk_capture_note_off",
+      "call": true,
+      "service": "extensions"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d59819c",
+      "file_offset": "0x1cf3f8",
+      "length": 4,
+      "before": "ffe3b7c4",
+      "symbol": "sdk_capture_tick",
+      "call": true,
+      "service": "extensions"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d597db8",
+      "file_offset": "0x1cf014",
+      "length": 4,
+      "before": "ffe3d6cd",
+      "symbol": "sdk_capture_stop",
+      "call": true,
+      "service": "extensions"
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d595844",
+      "file_offset": "0x1ccaa0",
+      "length": 4,
+      "before": "01e38812",
+      "symbol": "sdk_capture_accepted",
+      "call": true,
+      "service": "extensions"
     },
     {
       "kind": "startup",
