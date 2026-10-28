@@ -578,6 +578,96 @@
     },
     {
       "kind": "hook",
+      "address": "0x8c090d64",
+      "file_offset": "0xc7fa0",
+      "length": 8,
+      "before": "00de588d1c780000",
+      "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a2c6c",
+      "file_offset": "0xd9ea8",
+      "length": 8,
+      "before": "00de588d1c780000",
+      "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a2dea",
+      "file_offset": "0xda026",
+      "length": 8,
+      "before": "00de588d1c780000",
+      "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a2f0c",
+      "file_offset": "0xda148",
+      "length": 8,
+      "before": "00de588d1c780000",
+      "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a3012",
+      "file_offset": "0xda24e",
+      "length": 8,
+      "before": "00de588d1c780000",
+      "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a33b6",
+      "file_offset": "0xda5f2",
+      "length": 8,
+      "before": "00de588d1c780000",
+      "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a33ca",
+      "file_offset": "0xda606",
+      "length": 8,
+      "before": "00de588d1c780000",
+      "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8c0a4df2",
+      "file_offset": "0xdc02e",
+      "length": 8,
+      "before": "00de588d1c780000",
+      "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d5686f0",
+      "file_offset": "0x19f94c",
+      "length": 4,
+      "before": "00e396f8",
+      "symbol": "sdk_sample_ui_engine",
+      "service": "samples",
+      "call": true
+    },
+    {
+      "kind": "hook",
       "address": "0x8c0a4440",
       "file_offset": "0xdb67c",
       "length": 8,
@@ -711,6 +801,15 @@
       "length": 8,
       "before": "00de5a8dbcd50000",
       "symbol": "sdk_synth_turn",
+      "call": true
+    },
+    {
+      "kind": "hook",
+      "address": "0x8d5ad306",
+      "file_offset": "0x1e455e",
+      "length": 8,
+      "before": "00de0b8c68240000",
+      "symbol": "sdk_param_steps",
       "call": true
     },
     {

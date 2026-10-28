@@ -25,13 +25,14 @@ version is rejected. The output differs from stock in exactly these places:
 | --- | --- | --- |
 | Reservation | 2 | Shrinks the application heap by 2 MiB (20 MiB to 18 MiB); the module lives in the freed tail |
 | Hooks | 5 | Branches from the synth initializer, both screen factories and both catalog-insertion calls into SDK startup code |
-| Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock multisampler audio payload |
+| Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock sampler's (page 2) or multisampler's (page 7) audio payload |
+| Sampler page | 9 | Shows an owned page-2 engine's track as the stock sampler's page, with its one sample in region 0 for every key |
 | Sample analysis | 10 | Schedules bounded background work, snapshots committed assignments, releases cached analysis and reports progress |
 | Drum-page services | 14 | Routes controls, octave publication, assignment and waveform projection for machines declaring pad settings or drum controls |
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
 | Relocated tables | 22 | Moves the effect records (63), engine records (63) and screen slots (128) into the last 8 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
-| Synth and effect controls | 5 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns and titles then follow; scales fine turns on owned synth and send-effect pages; names an owned effect's division values on the send page |
+| Synth and effect controls | 6 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns and titles then follow; scales fine turns on owned synth and send-effect pages; steps owned enums one choice per detent; names owned enums' choices, and an owned effect's division values on the send page |
 | LFO destinations | 15 | Selects and modulates all declared engine parameters on owned instrument machines with five to eight parameters, using their assigned encoder icons |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
 | Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
@@ -175,6 +176,17 @@ The auxiliary-track controller already folds Shift into positions 0..3; owned
 send effects on tracks 14/15 get the same fine scaling. Encoder turns clear the
 pending-click flag, so a press-and-turn does not also click on release.
 
+Both controllers' edits, plain or locked, reach stock's encoder step
+`8d5ad2e8(track, index, current, event)`. Its call at `8d5ad306` asks
+`8c0b2468(track, index, &scale)` for the parameter's step count, or -1 for a
+continuous one, with `scale` preset to 2. A stepped parameter moves
+`scale × count` buckets, one per detent at speed 0 (`event[2]`, else two, and
+more from 100 steps), from the bucket the current word falls in
+(`word × buckets >> 31`), and stores the bucket's centre; the product must stay
+below 256. The hook answers an owned synth's or send effect's enum slot with
+its choice count and `scale` 1, so a detent selects the next choice, and passes
+every other query to stock.
+
 Stock draws each position's title from the engine record's parameter-name
 callback and its value as a percentage of the vector word. The adapter
 passes the selected track to the screen's parameter-vector getter after
@@ -253,7 +265,9 @@ ID checks. One generated table describes the collection's sample machines
 ([`sample_callbacks.cpp.in`](../sdk/platform/opxy-1.2.1/sample_callbacks.cpp.in));
 [`sample_machines.cpp`](../sdk/platform/opxy-1.2.1/sample_machines.cpp)
 admits an ID only while its registration is still ours, and an owned engine
-borrows the multisampler payload. Track and voice IDs stay unchanged. Stock,
+borrows a stock payload: the sampler's on page 2, routed as the sampler's one
+sample for every key, and the multisampler's on page 7. Track and voice IDs
+stay unchanged. Stock,
 absent and conflicting registrations follow the original paths. The first
 sample machine in a build enables the `samples` service; further ones add no
 firmware patch sites.

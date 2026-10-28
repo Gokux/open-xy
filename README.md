@@ -56,6 +56,9 @@ worked examples. Create a repository-ready starter directly from the SDK:
 python sdk.py new --repository --id mymachine --name "My Machine" --out ../mymachine
 ```
 
+Synths start with four controls and the stock header. Choose `--controls 5`,
+`6`, `7` or `8` when the sound needs more controls; these use the shared
+two-page header. Unused second-page columns repeat the same control from page 1.
 It includes source, tests, README, agent instructions, licence and CI. Use
 `--kind effect` for a send effect; omit `--repository` when adding just a machine
 folder to an existing repository. Follow the generated instructions through

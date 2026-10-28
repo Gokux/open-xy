@@ -38,7 +38,11 @@ class SampleServices(unittest.TestCase):
             if name in ('sample_callbacks', 'benchmark'):
                 probe = replace(fixture('probesample'), id='probe', identity=dict(engine=46, page=7))
                 if name == 'sample_callbacks':
-                    generate_sample_callbacks(folder, [probe])
+                    # A page-2 engine with no services beside it: it plays like the sampler.
+                    plain = fixture('probesample')
+                    sampler = replace(plain, id='sampler', identity=dict(engine=47, page=2),
+                                      definition=dict(plain.definition, resources=dict(voiceCapacity=256)))
+                    generate_sample_callbacks(folder, [probe, sampler])
                 else:
                     from tooling.benchmark import generate
                     generate(folder, [replace(fixture('probesynth'), id='unfamiliar', identity=dict(engine=46, page=91))])
@@ -53,6 +57,13 @@ class SampleServices(unittest.TestCase):
                 (Path(folder) / 'stock.hpp').write_text(stock)
             if name == 'screen_order':
                 generate_screen_order(folder)
+            if name == 'screen_drawing':
+                # Copy the unchanged renderer so its quoted stock-header include
+                # can resolve to a host boundary double instead of a 32-bit ABI.
+                (Path(folder) / 'screen_drawing.hpp').write_bytes(
+                    (ROOT / 'sdk/platform/opxy-1.2.1/screen_drawing.hpp').read_bytes())
+                (Path(folder) / 'screen.hpp').write_bytes(
+                    (ROOT / 'tests/fixtures/screen_drawing_host.hpp').read_bytes())
             if name == 'startup':
                 generate_startup(folder, ['first', 'second', 'sampled'], ['effect'], ['sampled'])
             # A fixture that includes barrier.hpp supplies host_barrier for the Blackfin SSYNC.
@@ -79,6 +90,9 @@ class SampleServices(unittest.TestCase):
 
     def test_owned_primary_screen_precedes_stock_overlays(self):
         self.run_fixture('screen_order')
+
+    def test_display_activation_resets_state_and_invalidates_geometry_keys(self):
+        self.run_fixture('screen_drawing')
 
     def test_registration_never_overwrites_and_rechecks_stock_state(self):
         self.run_fixture('registration')
