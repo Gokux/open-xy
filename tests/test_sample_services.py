@@ -38,7 +38,11 @@ class SampleServices(unittest.TestCase):
             if name in ('sample_callbacks', 'benchmark'):
                 probe = replace(fixture('probesample'), id='probe', identity=dict(engine=46, page=7))
                 if name == 'sample_callbacks':
-                    generate_sample_callbacks(folder, [probe])
+                    # A page-2 engine with no services beside it: it plays like the sampler.
+                    plain = fixture('probesample')
+                    sampler = replace(plain, id='sampler', identity=dict(engine=47, page=2),
+                                      definition=dict(plain.definition, resources=dict(voiceCapacity=256)))
+                    generate_sample_callbacks(folder, [probe, sampler])
                 else:
                     from tooling.benchmark import generate
                     generate(folder, [replace(fixture('probesynth'), id='unfamiliar', identity=dict(engine=46, page=91))])

@@ -25,7 +25,8 @@ version is rejected. The output differs from stock in exactly these places:
 | --- | --- | --- |
 | Reservation | 2 | Shrinks the application heap by 2 MiB (20 MiB to 18 MiB); the module lives in the freed tail |
 | Hooks | 5 | Branches from the synth initializer, both screen factories and both catalog-insertion calls into SDK startup code |
-| Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock multisampler audio payload |
+| Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock sampler's (page 2) or multisampler's (page 7) audio payload |
+| Sampler page | 9 | Shows an owned page-2 engine's track as the stock sampler's page, with its one sample in region 0 for every key |
 | Sample analysis | 10 | Schedules bounded background work, snapshots committed assignments, releases cached analysis and reports progress |
 | Drum-page services | 14 | Routes controls, octave publication, assignment and waveform projection for machines declaring pad settings or drum controls |
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
@@ -264,7 +265,9 @@ ID checks. One generated table describes the collection's sample machines
 ([`sample_callbacks.cpp.in`](../sdk/platform/opxy-1.2.1/sample_callbacks.cpp.in));
 [`sample_machines.cpp`](../sdk/platform/opxy-1.2.1/sample_machines.cpp)
 admits an ID only while its registration is still ours, and an owned engine
-borrows the multisampler payload. Track and voice IDs stay unchanged. Stock,
+borrows a stock payload: the sampler's on page 2, routed as the sampler's one
+sample for every key, and the multisampler's on page 7. Track and voice IDs
+stay unchanged. Stock,
 absent and conflicting registrations follow the original paths. The first
 sample machine in a build enables the `samples` service; further ones add no
 firmware patch sites.

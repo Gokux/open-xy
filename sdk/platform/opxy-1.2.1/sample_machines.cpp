@@ -20,15 +20,19 @@ const SampleMachine* sdk_sample_machine(u32 engine) {
 }
 
 // Note-region hook, decoded by extensions_sample_note_region (sample_hooks.s).
-// An owned engine borrows the multisampler payload and keeps stock's
-// nearest-region test, except on the drum page (7), where notes map to its
-// canonical pads.
-enum NoteRoute : u32 { kStockRoute = 0, kOwnedNearest = 1, kOwnedDrumPads = 2 };
+// An owned engine on page 2 borrows the stock sampler's (2) payload and
+// route: one sample played chromatically across the keyboard. On the drum
+// page (7) notes map to its canonical pads.
+enum NoteRoute : u32 { kStockRoute = 0, kOwnedNearest = 1, kOwnedDrumPads = 2, kOwnedSampler = 3 };
 u32 sdk_sample_note_route(u32 engine) {
     const u32 page = opxy::platform::sample_page(engine);
-    return !page ? kStockRoute : page == 7 ? kOwnedDrumPads : kOwnedNearest;
+    return !page ? kStockRoute : page == 7 ? kOwnedDrumPads : kOwnedSampler;
 }
 
 // Stock's sample predicates know only stock engine IDs. Owned SDK engines
-// borrow the multisampler's (30) payload; the track keeps the real engine.
-u32 sdk_sample_alias(u32 engine) { return opxy::platform::sample_page(engine) ? 30 : engine; }
+// borrow a stock payload, the sampler's (2) on page 2 and the multisampler's
+// (30) on page 7; the track keeps the real engine.
+u32 sdk_sample_alias(u32 engine) {
+    const u32 page = opxy::platform::sample_page(engine);
+    return page == 2 ? 2 : page ? 30 : engine;
+}
