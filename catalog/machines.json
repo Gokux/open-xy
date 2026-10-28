@@ -226,16 +226,16 @@
       "maintainer": "lowlevelgamedev",
       "status": "draft",
       "repository": "https://github.com/meemknight/OPXY-breadboard",
-      "tag": "v1.0.0",
-      "commit": "fa4d2b1e9eb07b3256620e2ae0e9eafb9d20bebe",
+      "tag": "v1.1.0",
+      "commit": "4a5f90abd751164af85abfd850bc791df0c3ba8e",
       "path": ".",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "fa4d2b1e9eb07b3256620e2ae0e9eafb9d20bebe",
-        "firmware_sha256": "540382be005f66e0705d7e895b5918f9b146225bab0d3276be297d35551f0b39",
+        "commit": "4a5f90abd751164af85abfd850bc791df0c3ba8e",
+        "firmware_sha256": "e279bff69e22d10570c972e60125127f0ec3a2b476632ed3c971e32e46c538f4",
         "runs": 3,
-        "block_percent": 9.898528,
-        "report": "https://github.com/meemknight/OPXY-breadboard/blob/master/CPU_PROFILE.md"
+        "block_percent": 2.171,
+        "report": "https://github.com/meemknight/OPXY-breadboard/blob/4a5f90abd751164af85abfd850bc791df0c3ba8e/CPU_PROFILE.md"
       }
     }
   ]
