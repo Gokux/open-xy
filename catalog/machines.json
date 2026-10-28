@@ -258,6 +258,12 @@
         "block_percent": 2.171,
         "report": "https://github.com/meemknight/OPXY-breadboard/blob/4a5f90abd751164af85abfd850bc791df0c3ba8e/CPU_PROFILE.md"
       }
+    },
+    {
+      "id": "morphose",
+      "kind": "synth",
+      "maintainer": "blen2r",
+      "status": "reserved"
     }
   ]
 }
