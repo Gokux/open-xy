@@ -242,9 +242,11 @@ index plus one. Each of the machine's `voiceCapacity` voices serves one owner at
 a time: `initialize` runs when a voice goes to an owner and establishes all
 sound state; `start` runs on each note; `destroy` releases anything the voice
 holds in `Shared`, once stock has stopped rendering its note (it ended, or
-stock took it and restarted the index) or another note has taken the voice. A
-taken note renders one last block fading to silence, then renders silence; no
-voice index ever fails, whatever the capacity.
+stock took it and restarted the index) or another note has taken the voice.
+The adapter notices an ended note within about three blocks while the machine
+renders other notes; after the machine's last note it notices at the next note
+start. A taken note renders one last block fading to silence, then renders
+silence; no voice index ever fails, whatever the capacity.
 Callbacks run serially per voice. The browser preview's voice stealing and
 panic use the same lifecycle. The SDK adapter owns the firmware object header,
 method table and voice pool; none of that belongs in `Voice`.

@@ -20,6 +20,7 @@
 #include "engine.cpp"
 #include "stock.hpp"
 #include "synth_controls.hpp"
+#include <opxy/q31.hpp>
 // Stock assembly imports use explicit names; all other C symbols keep the ABI prefix.
 extern "C" {
 void* @PREFIX@_factory(opxy::u32) __asm__("@PREFIX@_factory");
@@ -35,8 +36,8 @@ using Shared = @NAMESPACE@::Shared;
 // Stock's voice indices; every one gets a handle.
 const opxy::u32 kVoiceIndices = 256;
 // slot: its voice plus one, or 0. seen: the block it last rendered in, heard:
-// the tick.
-struct Handle { const void* const* vtable; opxy::u32 slot, seen, heard; };
+// the tick. wants: its note started but lost its wait for a voice.
+struct Handle { const void* const* vtable; opxy::u32 slot, seen, heard, wants; };
 // owner: a voice ID, or 0 when free. born: the block its note started in,
 // since: the tick. next: the voice ID of a note waiting while this one fades.
 struct Slot { Voice voice; opxy::u32 owner, born, since, next; };
@@ -86,6 +87,7 @@ static void begin(Slot& slot, Handle* handle, opxy::u32 now) {
     slot.born = blocks;
     slot.since = now;
     handle->slot = static_cast<opxy::u32>(&slot - voices) + 1;
+    handle->wants = 0;
     @NAMESPACE@::initialize(slot.voice, shared, id);
     @NAMESPACE@::start(slot.voice, shared, id);
 }
@@ -100,6 +102,20 @@ static Slot* pending(const Handle* handle) {
     Slot* slot = handle->slot ? &voices[handle->slot - 1] : nullptr;
     return slot && slot->owner && slot->next == owner(handle) ? slot : nullptr;
 }
+// Forgets a note waiting for a voice once stock no longer renders it.
+static void forget(Slot& slot) {
+    if (slot.next && blocks - handles[slot.next - 1].seen > 2) slot.next = 0;
+}
+// Releases the voices of notes stock has stopped rendering, once per block, so
+// destroy runs soon after a note ends while the machine still renders.
+static void sweep(opxy::u32 now) {
+    for (opxy::u32 i = 0; i < kVoices; ++i) {
+        Slot& voice = voices[i];
+        if (!voice.owner) continue;
+        forget(voice);
+        if (!voice.next && !sounding(voice, now)) release(voice, now);
+    }
+}
 // Which sounding voice a note takes first: one no other note waits for, then
 // one past its first 8 blocks, then the one rendered least recently, then the
 // one whose note started first.
@@ -111,11 +127,44 @@ static bool before(const Slot& a, const Slot& b) {
     if (a_quiet != b_quiet) return a_quiet > b_quiet;
     return blocks - a.born > blocks - b.born;
 }
+// Finds a note a voice: a free one, else one stock no longer renders, else, if
+// it may steal, a sounding one (see before), whose note fades out over its
+// next block while this one waits. Should every voice already fade for a
+// waiting note, this note waits in place of that one, which has not yet
+// sounded and asks again for a free voice as it renders.
+static void acquire(Handle* handle, opxy::u32 now, bool steal) {
+    Slot* open = nullptr;
+    Slot* chosen = nullptr;
+    for (opxy::u32 i = 0; i < kVoices; ++i) {
+        Slot& voice = voices[i];
+        if (!voice.owner) { open = &voice; break; }
+        forget(voice);
+        if (!voice.next && !sounding(voice, now)) {
+            if (!open) open = &voice;
+        } else if (!chosen || before(voice, *chosen)) {
+            chosen = &voice;
+        }
+    }
+    if (open) {
+        if (open->owner) release(*open, now);  // its note has ended
+        begin(*open, handle, now);
+        return;
+    }
+    handle->slot = 0;
+    handle->wants = 1;
+    if (!steal) return;
+    if (chosen->next) {
+        Handle& displaced = handles[chosen->next - 1];
+        displaced.slot = 0;
+        displaced.wants = 1;
+    }
+    chosen->next = owner(handle);
+    handle->slot = static_cast<opxy::u32>(chosen - voices) + 1;
+    handle->wants = 0;
+}
 extern "C" {
 extern const void* const @PREFIX@_vtable[];
-// A note keeps its handle's voice or takes one: a free voice, else one stock no
-// longer renders, else a sounding one (see before), whose note fades out over
-// its next block while this one waits.
+// A note keeps its handle's voice or takes one (see acquire).
 int @PREFIX@_start(void* self) {
     Handle* handle = static_cast<Handle*>(self);
     const opxy::u32 now = sdk_voice_ticks();
@@ -131,28 +180,7 @@ int @PREFIX@_start(void* self) {
         }
         release(*slot, now);  // its voice is fading for another note: find another
     }
-    Slot* open = nullptr;
-    Slot* chosen = nullptr;
-    for (opxy::u32 i = 0; i < kVoices; ++i) {
-        Slot& voice = voices[i];
-        if (!voice.owner) { open = &voice; break; }
-        if (!voice.next && !sounding(voice, now)) {
-            if (!open) open = &voice;
-        } else if (!chosen || before(voice, *chosen)) {
-            chosen = &voice;
-        }
-    }
-    if (open) {
-        if (open->owner) release(*open, now);  // its note has ended
-        begin(*open, handle, now);
-        return 0;
-    }
-    // Every voice sounds: the chosen one fades out over its next block. Should
-    // every voice already fade for a waiting note, this note waits in place of
-    // that one, which has not yet sounded.
-    if (chosen->next) handles[chosen->next - 1].slot = 0;
-    chosen->next = owner(handle);
-    handle->slot = static_cast<opxy::u32>(chosen - voices) + 1;
+    acquire(handle, now, true);
     return 0;
 }
 // A note that ends or restarts gives up its voice, or its wait for one.
@@ -163,6 +191,7 @@ static void end(Handle* handle) {
         slot->next = 0;
     }
     handle->slot = 0;
+    handle->wants = 0;
 }
 int @PREFIX@_destroy(void* self) {
     end(static_cast<Handle*>(self));
@@ -180,19 +209,23 @@ void* @PREFIX@_factory(opxy::u32 index) {
 int @PREFIX@_render(void* self, opxy::i32* output, const opxy::i32* parameters) {
     Handle* handle = static_cast<Handle*>(self);
     const opxy::u32 now = sdk_voice_ticks();
-    if (handle->seen == blocks) ++blocks;
+    const bool next_block = handle->seen == blocks;
+    if (next_block) ++blocks;
     handle->seen = blocks;
     handle->heard = now;
+    if (next_block) sweep(now);
     // A waiting note takes its voice once stock has stopped rendering the note
     // there, which would otherwise fade itself out on its next render.
     if (Slot* slot = pending(handle))
         if (!sounding(*slot, now)) release(*slot, now);
+    // A note that lost its wait takes a voice once one is free.
+    if (handle->wants && !held(handle) && !pending(handle)) acquire(handle, now, false);
     if (Slot* slot = held(handle)) {
         @NAMESPACE@::render(slot->voice, shared, slot->owner, output, parameters, increments);
         // A taken note's last block fades linearly to silence, as stock fades one.
         if (slot->next) {
-            const opxy::i32 frames = static_cast<opxy::i32>(opxy::block_frames);
-            for (opxy::i32 i = 0; i < frames; ++i) output[i] = output[i] / frames * (frames - 1 - i);
+            const opxy::i32 frames = static_cast<opxy::i32>(opxy::block_frames), step = 0x7fffffff / frames;
+            for (opxy::i32 i = 0; i < frames; ++i) output[i] = opxy::q31::multiply(output[i], step * (frames - 1 - i));
             release(*slot, now);
         }
     } else {

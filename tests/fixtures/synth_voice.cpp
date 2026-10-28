@@ -10,6 +10,8 @@
 int destroyed[257];
 // Every encoder shows an alternate. Record names must still identify raw slots.
 opxy::u32 sdk_synth_title_slot(opxy::u32, opxy::u32 index) { return index + 4; }
+// A 64-sample block at 400 MHz, as stock budgets it.
+const unsigned long long kBlockCycles = 580352;
 unsigned long long cycles = 1ull << 40;
 opxy::u32 sdk_voice_ticks() { return static_cast<opxy::u32>(cycles >> 17); }
 
@@ -38,17 +40,17 @@ struct Expect { unsigned index; opxy::i32 owner; };
 bool block(std::initializer_list<Expect> expected) {
     bool ok = true;
     for (const Expect& e : expected) ok = rendered(e.index) == e.owner && ok;
-    cycles += 580352;
+    cycles += kBlockCycles;
     return ok;
 }
 // Blocks in which the listed indices sound as themselves.
 bool sound(std::initializer_list<unsigned> indices, unsigned count) {
+    bool ok = true;
     for (unsigned b = 0; b < count; ++b) {
-        for (unsigned index : indices)
-            if (rendered(index) != static_cast<opxy::i32>(index + 1)) return false;
-        cycles += 580352;
+        for (unsigned index : indices) ok = rendered(index) == static_cast<opxy::i32>(index + 1) && ok;
+        cycles += kBlockCycles;
     }
-    return true;
+    return ok;
 }
 // A note as stock starts it: a fresh object for the index, then start.
 void note(unsigned index) {
@@ -132,11 +134,42 @@ int main() {
     // notes sound in their first block, though nothing rendered in between.
     note(20); note(21);
     if (!sound({11, 20, 21}, 1)) return 30;
-    cycles += 44100 / 64 * 580352ull;  // a second without a render
+    cycles += 44100 / 64 * kBlockCycles;  // a second without a render
     note(15); note(16);
     if (!block({{15, 16}, {16, 17}}) || destroyed[21] != 1 || destroyed[22] != 1) return 31;
     for (unsigned i = 0; i < 256; ++i) call(i, 0);
-    cycles += 4 * 580352;
+    cycles += 4 * kBlockCycles;
+    // A note stock stops rendering is destroyed within a few blocks while the
+    // machine renders others, with no new note to reclaim its voice.
+    note(30); note(31); note(32);
+    if (!sound({30, 31, 32}, 10)) return 32;
+    if (!sound({30, 32}, 4) || destroyed[32] != 1) return 33;
+    // A waiting note that ends before its voice frees is forgotten: once the
+    // note it waited on ends too, the voice is released and free again.
+    note(33);
+    if (!sound({30, 32, 33}, 10)) return 34;
+    note(34);  // waits for 30's voice; then stock stops rendering both
+    if (!sound({32, 33}, 4) || destroyed[31] != 1 || destroyed[35]) return 35;
+    note(36);
+    if (!block({{32, 33}, {33, 34}, {36, 37}})) return 36;
+    // A note displaced from its wait takes a voice once one is free.
+    if (!sound({32, 33, 36}, 10)) return 37;
+    note(40); note(41); note(42); note(43);  // three wait; 43 displaces one
+    if (!block({{32, -1}, {33, -1}, {36, -1}, {40, 0}, {41, 42}, {42, 43}, {43, 44}})) return 38;
+    // 41, 42 and 43 hold the voices; stock ends 41, and 40 takes its voice.
+    unsigned voiced = 0;
+    for (unsigned b = 0; b < 8 && voiced != 3; ++b) {
+        voiced = 0;
+        for (unsigned index : {40u, 42u, 43u}) {
+            const opxy::i32 owner = rendered(index);
+            if (owner > 0 && owner != static_cast<opxy::i32>(index + 1)) return 39;
+            voiced += owner > 0;
+        }
+        cycles += kBlockCycles;
+    }
+    if (voiced != 3 || destroyed[42] != 1) return 40;
+    for (unsigned i = 0; i < 256; ++i) call(i, 0);
+    cycles += 4 * kBlockCycles;
     // A long run as stock plays with as many notes as the machine has voices:
     // notes end by going unrendered, a new note takes a free stock index, and
     // when all are busy stock takes one note and restarts on its index (as the
@@ -160,11 +193,11 @@ int main() {
                 if (owner != static_cast<opxy::i32>(sounding[i] + 1) && (b > 0 || sounding[i] != index || owner))
                     return 10;
             }
-            cycles += 580352;
+            cycles += kBlockCycles;
         }
     }
     for (unsigned i = 0; i < 256; ++i) call(i, 0);
-    cycles += 4 * 580352;
+    cycles += 4 * kBlockCycles;
     // A long run with more notes than voices (the machine on several tracks),
     // in a varying render order: the adapter takes sounding voices, and a note
     // that loses its voice always renders one fading block first, never a cut
@@ -197,7 +230,7 @@ int main() {
             if (owner == 0 && last[at] > 0) return 29;  // cut without a fade
             last[at] = owner;
         }
-        cycles += 580352;
+        cycles += kBlockCycles;
     }
     return 0;
 }
