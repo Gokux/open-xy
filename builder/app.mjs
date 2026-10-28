@@ -394,7 +394,9 @@ function renderExtensions() {
     input.setAttribute('aria-label', 'Include ' + extension.name); label.append(input);
     const button = node('button'); button.dataset.id = extension.id;
     button.setAttribute('aria-pressed', String(inspectedExtension === extension.id));
-    const ownBytes = kit.objects.filter(o => o.extension === extension.id)
+    // The first selected extension also links the shared extension runtime.
+    const others = selectedExtensions.some(id => id !== extension.id);
+    const ownBytes = kit.objects.filter(o => o.extension === extension.id || (!others && o.service === 'extensions'))
       .flatMap(o => o.sections.filter(s => s.group)).reduce((total, s) => total + s.size, 0);
     const meta = node('span', undefined, 'machine-meta');
     meta.append(node('span', 'Extension'), node('span', kib(ownBytes), 'machine-memory'));
