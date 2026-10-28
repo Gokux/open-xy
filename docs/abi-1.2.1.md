@@ -112,9 +112,34 @@ Stock asks the factory for a voice object per voice index (0–255) and calls
 it through an 11-entry method table: render once per 64-sample block, start on
 a note, and unchanged stock defaults for the rest (see
 [`voice.cpp.in`](../sdk/platform/opxy-1.2.1/voice.cpp.in)). It never checks
-for a missing object, so the factory gives every index a small handle. A
-machine's `voiceCapacity` voices go to handles as their notes start: a free
-voice, or the one whose note started longest ago. A handle that has lost its
+for a missing object, so the factory gives every index a small handle. Stock
+asks for an index's object again before each note it starts there, renders the
+index once per block while its note sounds, and never calls the destructor
+entries for a note: a note ends when stock stops rendering its index. Stock's
+free-voice allocator (`8d51c994`) hands out its 27 voice slots and limits each
+track to 8 notes; at the limit it takes the quietest
+voice on the track, fades it over one block and restarts the same index
+(`8d51ca94`, `8d51ad04`).
+
+Stock has 27 voice slots, so the adapter keeps at most 27 voices, plus one
+spare: `min(voiceCapacity, 27) + 1`. They go to handles as their notes start: a
+free voice, else one whose index has missed two blocks of renders (blocks are
+counted from the renders themselves), or, once nothing of the machine has
+rendered for 60 ticks of CPU cycles (`sdk_voice_ticks`, about 20 ms), any whose
+note did not just start. Ended voices are released once per counted block, and
+at a note start after such a pause. When a whole chord of `voiceCapacity` notes
+changes at once on new indices, the spare covers one note and the rest start
+about two blocks late, until their old notes have missed two blocks; a capacity
+above the chord size avoids that delay. A factory call for an index
+frees the voice it held, so a voice stock takes keeps its place for the
+restarted note. The spare covers a note that ended just before another starts.
+Only with more notes sounding than that (a capacity below 8, or the machine on
+several tracks) does a note take a sounding voice: one no other note waits for,
+then one past its first 8 blocks (as stock spares young voices), then the one
+rendered least recently, then the one whose note started first. As stock does
+with a voice it takes, that note fades linearly to silence over its next
+block, and the new note starts in the voice once it has, or once stock has
+stopped rendering the old note. A handle that has lost its
 voice renders silence. One adapter serves every synth.
 Render receives 64 output words and 8 parameter words. The SDK adds the stock
 per-sample pitch increments. Output is mono Q31 peaking at most at half scale. Stock
