@@ -41,7 +41,8 @@ is no per-machine allowance: a build that does not fit names each machine's
 share, and `sdk.py compile` and the builder's memory meter report the same
 figures. State usually dominates, since a synth's voice pool is
 `voiceBytes × (min(voiceCapacity, 27) + 1)`: stock never sounds more than 27
-notes, and one spare voice serves a note that ended as another starts.
+notes, and one spare voice serves a note that ended as another starts (no spare
+at a capacity of 1).
 
 | Limit | Value | Why |
 | --- | --- | --- |

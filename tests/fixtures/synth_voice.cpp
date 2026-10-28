@@ -108,10 +108,10 @@ int main() {
     note(11); note(12);
     if (!block({{5, -1}, {9, -1}, {10, 11}, {11, 12}, {12, 13}}) || destroyed[6] != 1 || destroyed[10] != 1) return 19;
     // A taken note stock stops rendering needs no fade: the waiting note starts
-    // once the old one has gone about two blocks unrendered.
+    // once the old one has missed two blocks of renders.
     if (!sound({10, 11, 12}, 10)) return 20;
     note(13);  // takes 10's voice, which stock then stops rendering
-    if (!block({{11, 12}, {12, 13}, {13, 0}}) || !block({{11, 12}, {12, 13}, {13, 0}})) return 21;
+    if (!block({{11, 12}, {12, 13}, {13, 0}}) || !block({{11, 12}, {12, 13}, {13, 0}}) || destroyed[11]) return 21;
     if (!block({{11, 12}, {12, 13}, {13, 14}}) || destroyed[11] != 1) return 22;
     // A note restarted while its voice fades for another hands the voice over
     // and takes the next one in turn.
@@ -128,14 +128,21 @@ int main() {
     if (destroyed[15] != 1 || !block({{14, 0}})) return 9;
     call(14, 0);
     if (destroyed[15] != 1) return 27;
+    // After a long pause, voices whose notes ended before it are free: two new
+    // notes sound in their first block, though nothing rendered in between.
+    note(20); note(21);
+    if (!sound({11, 20, 21}, 1)) return 30;
+    cycles += 44100 / 64 * 580352ull;  // a second without a render
+    note(15); note(16);
+    if (!block({{15, 16}, {16, 17}}) || destroyed[21] != 1 || destroyed[22] != 1) return 31;
     for (unsigned i = 0; i < 256; ++i) call(i, 0);
     cycles += 4 * 580352;
     // A long run as stock plays with as many notes as the machine has voices:
     // notes end by going unrendered, a new note takes a free stock index, and
     // when all are busy stock takes one note and restarts on its index (as the
     // OP-XY does once a track reaches its voice limit). No sounding note ever
-    // loses its voice, and a new note sounds within three blocks (a voice whose
-    // note just ended can take that long to look free).
+    // loses its voice, and a new note sounds by its second block (a voice whose
+    // note ended in the last block still looks sounding in this one).
     unsigned sounding[4] = {}, count = 0;
     for (unsigned n = 0; n < 20000; ++n) {
         if (count && random(3) == 0) {
@@ -150,7 +157,7 @@ int main() {
         for (unsigned b = 0; b < 4; ++b) {
             for (unsigned i = 0; i < count; ++i) {
                 const opxy::i32 owner = rendered(sounding[i]);
-                if (owner != static_cast<opxy::i32>(sounding[i] + 1) && (b == 3 || sounding[i] != index || owner))
+                if (owner != static_cast<opxy::i32>(sounding[i] + 1) && (b > 0 || sounding[i] != index || owner))
                     return 10;
             }
             cycles += 580352;

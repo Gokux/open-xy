@@ -120,9 +120,10 @@ voice on the track, fades it over one block and restarts the same index
 (`8d51ca94`, `8d51ad04`).
 
 Stock has 27 voice slots, so the adapter keeps at most 27 voices, plus one
-spare: `min(voiceCapacity, 27) + 1`. They go to handles as their notes start: a
-free voice, else one whose index has gone about two blocks (3.9 ms by the CPU
-cycle counter, `sdk_voice_ticks`) without a render. A factory call for an index
+spare unless `voiceCapacity` is 1: `min(voiceCapacity, 27) + 1`. They go to
+handles as their notes start: a free voice, else one whose index has missed two
+blocks of renders (blocks are counted from the renders themselves), or about
+50 ms of CPU cycles (`sdk_voice_ticks`) when nothing of the machine rendered. A factory call for an index
 frees the voice it held, so a voice stock takes keeps its place for the
 restarted note. The spare covers a note that ended just before another starts.
 Only with more notes sounding than that (a capacity below 8, or the machine on
