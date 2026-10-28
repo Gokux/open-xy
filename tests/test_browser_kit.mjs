@@ -257,6 +257,26 @@ test('curated profile and object authentication reject modified input', async ()
   k.objects[0].sha256='0'.repeat(64); await assert.rejects(openKit(k),/hash mismatch/);
   k.profile.patches[0].after='0000000000000000'; await assert.rejects(openKit(k),/reviewed profile/);
 });
+test('SDK 1.5 machines ask for no numbers and the selection gives them', async () => {
+  const k=fixture(); k.format='opxy-browser-kit/1'; k.profileSource=profileBytes.toString('base64');
+  k.objects=[{name:'a.o',owner:'a',bytes:Buffer.from(elf()).toString('base64'),sha256:await sha256(elf())}];
+  k.stockCatalog=''; k.screenTemplate=readFileSync(new URL('../sdk/platform/opxy-1.2.1/screen.svg',import.meta.url),'utf8');
+  // a has fixed numbers yet asks for none; a sample engine names only its base's page.
+  k.machines=[{...machine('a',null,null)},{...machine('b',null,null)},
+    {id:'d',prefix:'d',kind:'sample',identity:{engine:null,page:7},absent:{},origin:'personal'},
+    {id:'e',prefix:'e',kind:'effect',identity:{effect:null,page:21},absent:{},origin:'personal'}];
+  await openKit(k);
+  assert.deepEqual(assignNumbers(k,['a','b','d','e']),
+    {a:{engine:34,page:82},b:{engine:35,page:83},d:{engine:36,page:7},e:{effect:1,page:21}});
+  assert.deepEqual(assignNumbers(k,['b'],{b:{engine:50,page:100}}).b,{engine:50,page:100});
+  for (const identity of [{engine:null,page:82},{engine:null,page:null,base:'sampler'}]) {
+    k.machines[1].identity=identity; await assert.rejects(openKit(k),/Machine numbers/);
+  }
+  k.machines[1].identity={engine:null,page:null}; k.machines[2].identity={engine:null,page:null};
+  await assert.rejects(openKit(k),/Machine numbers/);
+  k.machines[2].identity={engine:null,page:7}; k.machines[0].identity={engine:34,page:83};
+  await assert.rejects(openKit(k),/Fixed machine numbers differ/);
+});
 test('a machine says where it comes from: a catalog release or a personal folder', async () => {
   const source = {repository:'https://github.com/someone/opxy-probe', tag:'v1.0.0', commit:'a'.repeat(40), maintainer:'someone'};
   assert.ok(validSource(source));

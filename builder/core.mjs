@@ -120,6 +120,20 @@ export function validIdentity(rules, kind, identity) {
     : kind === 'synth' && page > rules.page_none && page < rules.pages;
 }
 
+// The numbers a kit machine asks for (tooling.machines.check_request): valid ones,
+// or from SDK 1.5 null for each the layout gives. A sample engine still names its stock
+// page (its base) and an effect the FX page.
+export function validRequest(rules, kind, identity) {
+  if (!identity || typeof identity !== 'object') return false;
+  const slot = kind === 'effect' ? 'effect' : 'engine';
+  if (Object.keys(identity).sort().join() !== [slot, 'page'].sort().join() || identity[slot] !== null)
+    return validIdentity(rules, kind, identity);
+  return kind === 'effect' ? identity.page === rules.effect_page
+    : kind === 'sample' ? rules.sample_pages.includes(identity.page) : kind === 'synth' && identity.page === null;
+}
+// Whether numbers are what a machine asks for: the same fields, equal where it names one.
+const fits = (requested, numbers) => Object.keys(requested).length === Object.keys(numbers).length &&
+  Object.keys(requested).every(k => requested[k] === null || requested[k] === numbers[k]);
 // A kit's numbers: each machine asks for valid ones, and fixed numbers (kit.fixed,
 // tooling.machines.FIXED_NUMBERS) belong to their own machines and are never shared.
 function checkNumbers(kit) {
@@ -127,8 +141,8 @@ function checkNumbers(kit) {
   check(kit.fixed && typeof kit.fixed === 'object', 'Missing fixed machine numbers');
   check(new Set(kit.machines.map(m => m.id)).size === kit.machines.length, 'Duplicate machine');
   for (const m of kit.machines) {
-    check(validIdentity(rules, m.kind, m.identity), 'Machine numbers overlap a stock slot or exceed capacity: ' + m.id);
-    check(!Object.hasOwn(kit.fixed, m.id) || sameNumbers(kit.fixed[m.id], m.identity),
+    check(validRequest(rules, m.kind, m.identity), 'Machine numbers overlap a stock slot or exceed capacity: ' + m.id);
+    check(!Object.hasOwn(kit.fixed, m.id) || fits(m.identity, kit.fixed[m.id]),
       'Fixed machine numbers differ: ' + m.id);
   }
   numberLayout(rules, Object.entries(kit.fixed).map(([id, identity]) => [id, null, identity]), null, []);
@@ -137,7 +151,8 @@ function checkNumbers(kit) {
 // holds both). Projects store a track's engine, effect and page numbers, so a machine
 // keeps its numbers in a firmware for good. Open-XY's first machines' are fixed (kit.fixed);
 // a layout keeps every number it has given out, including to machines since dropped,
-// and a machine new to it gets the numbers it asks for when free, else the lowest free.
+// and a machine new to it gets the numbers it asks for when free (only machines before
+// SDK 1.5 ask for any), else the lowest free.
 export const LAYOUT_FORMAT = 'opxy-layout/1';
 export function numberPools(rules) {
   const range = (low, high) => Array.from({length: high - low}, (_, i) => low + i);
@@ -152,7 +167,8 @@ export function occupied(rules, identity) {
   return keys;
 }
 const sameNumbers = (a, b) => Object.keys(a).length === Object.keys(b).length && Object.keys(a).every(k => a[k] === b[k]);
-// fixed and machines are [id, kind, identity] (requested, for machines); returns the layout after.
+// fixed and machines are [id, kind, identity] (requested, null where a machine asks for
+// none, for machines); returns the layout after.
 export function numberLayout(rules, fixed, layout, machines) {
   const pools = numberPools(rules), numbers = {}, holders = new Map();
   const hold = (name, identity) => {
@@ -174,7 +190,7 @@ export function numberLayout(rules, fixed, layout, machines) {
     if (Object.hasOwn(numbers, name)) {
       check(validIdentity(rules, kind, numbers[name]), `${name}: the layout gives it numbers it cannot use`);
       check(kind !== 'sample' || numbers[name].page === requested.page,
-        `${name} now asks for stock page ${requested.page}; the layout holds another`);
+        `${name} now forks another stock sampler; the layout holds its numbers for the old one`);
       continue;
     }
     const identity = {...requested};

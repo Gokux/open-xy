@@ -3,10 +3,11 @@
 A machine lives in machines/<id>/ or in a folder of its own anywhere, such as
 its own repository. Its definition's id is its stock name: the engine type the
 device lists, its catalog and preset entries, its screen file and its symbol
-prefix. machine.json declares the kind, the SDK version it targets, stock IDs
-and build inputs. Saved presets and Open-XY layouts refer to the name and IDs,
-so they never change once published; the SDK checks them against the stock
-tables and the collection.
+prefix. machine.json declares the kind, the SDK version it targets and build
+inputs; a sample engine also names the stock sampler it forks. Each build's
+layout gives the machine its engine, effect and page numbers. Saved presets and
+Open-XY layouts refer to the name and numbers, so they never change once
+published; the SDK checks them against the stock tables and the collection.
 """
 from dataclasses import dataclass, replace
 import json
@@ -19,7 +20,7 @@ from .formats import require
 from .pipeline import config
 
 KINDS = ('synth', 'sample', 'effect')
-FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includes', 'icon', 'presetDefaults',
+FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'base', 'sources', 'includes', 'icon', 'presetDefaults',
           'presets', 'dryParameter'}
 # The public machine contract: headers, definition schema, artwork rules and
 # callbacks. A machine names the version it was written for; the SDK builds a
@@ -28,7 +29,12 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'sources', 'includ
 # its tempo (resources.transport) and division captions; 1.3 the machine's own presets,
 # a press that switches a synth's whole page and up to 16 display text slots.
 # 1.4 adds the reusable header and partial second pages sharing unassigned controls.
-SDK_VERSION = (1, 4)
+# 1.5 drops identity numbers: the layout gives every number, and a sample engine
+# names its base instead of a stock page.
+SDK_VERSION = (1, 5)
+# The stock samplers a sample engine forks (machine.json `base`), by their stock pages:
+# the keyboard sampler's and the drum sampler's, the profile's sample_pages.
+SAMPLE_BASES = {'sampler': 2, 'drumSampler': 7}
 # Builder card glyph: SVG path data in a 46 x 48 box, drawn as a stroke.
 ICON = re.compile(r'[MLHVCSQTAZmlhvcsqtaz][MLHVCSQTAZmlhvcsqtaz0-9 .,-]{0,511}')
 # A machine's own presets (machine.json `presets`): <name>.json files the builder
@@ -60,7 +66,7 @@ class Machine:
     sources: tuple
     includes: tuple
     definition: dict
-    identity: dict
+    identity: dict  # its numbers; None where machine.json asks for none, until a layout gives them
     preset_defaults: dict
     root: Path = None
     presets: dict = None  # name -> preset document, from machine.json `presets`
@@ -167,6 +173,41 @@ def check_identity(rules, kind, value):
     return {slot: number, 'page': page}
 
 
+def requested_numbers(rules, kind, value, version):
+    """The numbers machine.json asks for. Before SDK 1.5 it lists them, as preferences a
+    layout gives when free; from 1.5 it lists none (None) and a sample engine names its
+    base, the stock sampler whose page it shares. An effect always uses the stock FX page."""
+    if version < (1, 5):
+        if 'base' in value:
+            require_sdk(version, (1, 5), 'A sample base ("base")')
+        return check_identity(rules, kind, value.get('identity'))
+    bases = SAMPLE_BASES
+    names = ' or '.join('"%s"' % name for name in bases)
+    require('identity' not in value, 'From SDK 1.5 machine.json has no identity: each build gives the numbers. '
+            'Remove "identity"; a sample engine names its base instead ("base": %s)' % names)
+    if kind != 'sample':
+        require('base' not in value, 'Only a sample engine names a base')
+        return {'effect': None, 'page': rules['effect_page']} if kind == 'effect' else {'engine': None, 'page': None}
+    require(value.get('base') in bases, 'A sample engine names the stock sampler it forks: "base": ' + names)
+    return {'engine': None, 'page': bases[value['base']]}
+
+
+def check_request(rules, kind, value):
+    """Numbers a machine may ask for, as a builder kit lists them (builder/core.mjs
+    validRequest): valid ones, or the SDK 1.5 forms that leave them to the layout."""
+    if kind == 'effect':
+        forms = [{'effect': None, 'page': rules['effect_page']}]
+    else:
+        forms = [{'engine': None, 'page': page} for page in SAMPLE_BASES.values()] if kind == 'sample' else [
+            {'engine': None, 'page': None}]
+    return value if value in forms else check_identity(rules, kind, value)
+
+
+def fits(requested, numbers):
+    """Whether numbers are what a machine asks for: the same fields, equal where it names one."""
+    return set(requested) == set(numbers) and all(v is None or numbers[k] == v for k, v in requested.items())
+
+
 def sdk_version(text):
     """A machine's declared SDK version, checked against this SDK."""
     require(text is not None, 'machine.json needs "sdk": "%d.%d". A machine from before SDK 1.0: '
@@ -222,6 +263,8 @@ def machine_at(root, identity=None):
     if kind == 'synth' and definition['resources']['display']['texts'] > SDK_1_2_TEXTS:
         require_sdk(version, (1, 3), 'More than %d display text slots' % SDK_1_2_TEXTS)
     require(definition['id'] == identity, 'Machine directory and definition identity disagree')
+    # After the feature checks, which name the SDK version each feature needs.
+    requested = requested_numbers(config()['identities'], kind, value, version)
     dry_parameter = None
     if 'dryParameter' in value:
         require(kind == 'effect' and isinstance(value['dryParameter'], str),
@@ -238,7 +281,8 @@ def machine_at(root, identity=None):
         require(not sources and not includes, 'Sample engines and effects compile one fx.cpp or sample.cpp')
     # Pad settings live in the stock drum page's pad records, whose fade the SDK then owns.
     if kind == 'sample' and definition['resources'].get('padSettings', 0):
-        require(value['identity']['page'] == 7, 'Pad settings and drum controls need stock page 7')
+        require(requested['page'] == SAMPLE_BASES['drumSampler'],
+                'Pad settings and drum controls need the drum sampler base ("base": "drumSampler")')
     defaults = value.get('presetDefaults', {})
     require(isinstance(defaults, dict) and set(defaults) <= {'amp'}, 'Invalid preset defaults')
     amp = defaults.get('amp', {})
@@ -252,7 +296,7 @@ def machine_at(root, identity=None):
     return Machine(id=identity, kind=kind, name=definition['name'], description=value['description'],
                    display=display, sources=sources, includes=includes,
                    definition=definition,
-                   identity=check_identity(config()['identities'], kind, value['identity']), preset_defaults=defaults,
+                   identity=requested, preset_defaults=defaults,
                    root=root, icon=icon, dry_parameter=dry_parameter, presets=presets)
 
 
@@ -262,7 +306,8 @@ def machine_at(root, identity=None):
 # machine (FIXED_NUMBERS). Every other machine is given numbers by a layout: the firmware's record of
 # every number it has given out, including to machines since dropped, which stay
 # held so an old project never opens another machine. A machine new to a layout
-# gets the numbers it asks for when they are free, else the lowest free ones.
+# gets the numbers it asks for when they are free (only machines before SDK 1.5
+# ask for any), else the lowest free ones.
 # builder/core.mjs assignNumbers applies the same rules (tests/fixtures/numbers.json).
 LAYOUT_FORMAT = 'opxy-layout/1'
 FIXED_NUMBERS = {'fm2op': {'engine': 34, 'page': 82}, 'macroosc': {'engine': 26, 'page': 83},
@@ -316,8 +361,9 @@ def layout_document(numbers):
 
 def number_layout(rules, fixed, layout, machines):
     """The layout after numbering `machines`: every number `layout` held, the fixed
-    machines' and any given out now. Machines are (id, kind, requested identity), fixed
-    ones (id, kind, identity); a sample engine's stock page is its own."""
+    machines' and any given out now. Machines are (id, kind, requested identity), None
+    where they ask for no number; fixed ones (id, kind, identity). A sample engine's
+    stock page is its base's, part of what it is."""
     pools = number_pools(rules)
     numbers, holders = {}, {}
 
@@ -342,7 +388,7 @@ def number_layout(rules, fixed, layout, machines):
         if name in numbers:
             check_identity(rules, kind, numbers[name])
             require(kind != 'sample' or numbers[name]['page'] == requested['page'],
-                    f'{name} now asks for stock page {requested["page"]}; the layout holds another')
+                    f'{name} now forks another stock sampler; the layout holds its numbers for the old one')
             continue
         identity = dict(requested)
         for slot in ('effect',) if kind == 'effect' else ('engine', 'page') if kind == 'synth' else ('engine',):
@@ -360,20 +406,13 @@ def assign_numbers(machines, layout=None, fixed=None):
     IDs to fixed numbers, by default FIXED_NUMBERS; a machine with fixed numbers asks for them."""
     fixed = FIXED_NUMBERS if fixed is None else fixed
     for m in machines:
-        require(fixed.get(m.id, m.identity) == m.identity, f'{m.id} has fixed numbers; its machine.json asks for others')
+        require(m.id not in fixed or fits(m.identity, fixed[m.id]),
+                f'{m.id} has fixed numbers; its machine.json asks for others')
     numbers = number_layout(config()['identities'], [(name, None, identity) for name, identity in fixed.items()],
                             layout, [(m.id, m.kind, m.identity) for m in machines])
     assigned = [m if numbers[m.id] == m.identity else replace(m, identity=numbers[m.id], requested=m.identity)
                 for m in machines]
     return assigned, numbers
-
-
-def free_synth_identity():
-    """Numbers to ask for in a new synth's machine.json: the lowest that no fixed numbers hold."""
-    rules = config()['identities']
-    held = {key for identity in FIXED_NUMBERS.values() for key in occupied(rules, identity)}
-    pools = number_pools(rules)
-    return {slot: next(n for n in pools[slot] if (slot, n) not in held) for slot in ('engine', 'page')}
 
 
 def read_collection(path=None, extra=()):
@@ -391,15 +430,6 @@ def read_collection(path=None, extra=()):
                 'Collection entries are {"path": ...}: the SDK holds no machines of its own')
         entries.append({'path': str((path.parent / entry['path']).resolve())})
     return entries + [{'path': str(Path(folder).resolve())} for folder in extra]
-
-
-def free_effect_identity():
-    """Numbers to ask for in a new effect's machine.json: the lowest effect number not fixed."""
-    rules = config()['identities']
-    used = {identity.get('effect') for identity in FIXED_NUMBERS.values()}
-    free = [n for n in rules['effects'] if n not in used]
-    require(free, 'Every effect number is fixed')
-    return {'effect': free[0], 'page': rules['effect_page']}
 
 
 def collection(entries=None, layout=None):

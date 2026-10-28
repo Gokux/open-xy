@@ -1,5 +1,5 @@
 {
-  "about": "Machine numbering cases for tooling.machines.number_layout and builder/core.mjs numberLayout. Each case numbers `machines` ([id, kind, requested]) in order against `layout` and the fixed numbers (tooling.machines.FIXED_NUMBERS, with each machine's kind); `numbers` is the layout after, less the fixed machines, or `error` a fragment of the refusal.",
+  "about": "Machine numbering cases for tooling.machines.number_layout and builder/core.mjs numberLayout. Each case numbers `machines` ([id, kind, requested], null where a machine asks for no number, as SDK 1.5 machines do) in order against `layout` and the fixed numbers (tooling.machines.FIXED_NUMBERS, with each machine's kind); `numbers` is the layout after, less the fixed machines, or `error` a fragment of the refusal.",
   "fixed": [
     ["fm2op", "synth", {"engine": 34, "page": 82}],
     ["macroosc", "synth", {"engine": 26, "page": 83}],
@@ -72,9 +72,30 @@
                 "old62": {"effect": 62, "page": 21}},
      "machines": [["late", "effect", {"effect": 8, "page": 21}]],
      "error": "No free effect number for late"},
-    {"name": "a sample engine that changes its stock page cannot keep its layout entry",
+    {"name": "a sample engine that changes its base cannot keep its layout entry",
      "layout": {"sampler": {"engine": 36, "page": 2}},
      "machines": [["sampler", "sample", {"engine": 36, "page": 7}]],
-     "error": "now asks for stock page 7"}
+     "error": "now forks another stock sampler"},
+    {"name": "an SDK 1.5 machine asks for no numbers and gets the lowest free, in order",
+     "machines": [["pluck", "synth", {"engine": null, "page": null}], ["pad", "synth", {"engine": null, "page": null}]],
+     "numbers": {"pluck": {"engine": 36, "page": 84}, "pad": {"engine": 37, "page": 85}}},
+    {"name": "an SDK 1.5 sample engine's page is its base's and an effect's the FX page",
+     "machines": [["keys", "sample", {"engine": null, "page": 2}], ["drums", "sample", {"engine": null, "page": 7}],
+                  ["echo", "effect", {"effect": null, "page": 21}]],
+     "numbers": {"keys": {"engine": 36, "page": 2}, "drums": {"engine": 37, "page": 7},
+                 "echo": {"effect": 8, "page": 21}}},
+    {"name": "an SDK 1.5 machine keeps its layout numbers; dropped machines' stay held",
+     "layout": {"pluck": {"engine": 50, "page": 100}, "gone": {"engine": 36, "page": 84}},
+     "machines": [["pluck", "synth", {"engine": null, "page": null}], ["pad", "synth", {"engine": null, "page": null}]],
+     "numbers": {"pluck": {"engine": 50, "page": 100}, "gone": {"engine": 36, "page": 84},
+                 "pad": {"engine": 37, "page": 85}}},
+    {"name": "a machine moving to SDK 1.5 keeps the numbers its layout gave it",
+     "layout": {"drums": {"engine": 41, "page": 7}},
+     "machines": [["drums", "sample", {"engine": null, "page": 7}]],
+     "numbers": {"drums": {"engine": 41, "page": 7}}},
+    {"name": "an SDK 1.5 machine with fixed numbers keeps them",
+     "machines": [["fm2op", "synth", {"engine": null, "page": null}], ["timestretch", "sample", {"engine": null, "page": 7}],
+                  ["pluck", "synth", {"engine": null, "page": null}]],
+     "numbers": {"pluck": {"engine": 36, "page": 84}}}
   ]
 }
