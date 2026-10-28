@@ -204,7 +204,8 @@ details input { max-width:100%; }
 .capacity details { margin-bottom:0; }
 #download-overview { width:100%; text-align:center; max-width:760px; margin:auto; }
 .download-card h2 { font-size:19px; }
-#bundle-art { max-width:440px; margin:0 auto 28px; text-align:left; }
+#bundle-art { max-width:440px; max-height:240px; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; margin:0 auto 28px; text-align:left; }
+#bundle-art:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
 .download-card p { font-size:14px; }
 .download-card .primary { margin:12px 0; min-width:210px; }
 .qualification { font-size:12px; max-width:540px; margin:14px auto; }

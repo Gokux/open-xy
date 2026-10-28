@@ -1,7 +1,7 @@
 // Stock OS 1.2.1 instrument-track encoders for synths with alternate controls.
 // Both hooks replace a CALL.A of a C function, so stock calls them with the C
 // ABI. A press of an owned synth's encoder selects the position's next
-// parameter; a turn edits the selected one. Everything else reaches stock as before.
+// parameter; a turn edits the selected one, an enum one choice per detent. Everything else reaches stock as before.
 #include "synth_controls.hpp"
 #include <opxy/effect.hpp>
 #include "stock.hpp"
@@ -59,6 +59,13 @@ const SynthControls* machine(u32 track, Track*& t) {
     return m;
 }
 
+// The owned synth on instrument track 0..7, or the owned effect on send track
+// 14 or 15: the machines whose parameters stock edits by slot.
+const SynthControls* editor(u32 track) {
+    if (track < kTracks) return owned(track_engine(track));
+    return track == 14 || track == 15 ? owned(track_engine(track), true) : nullptr;
+}
+
 u32 shown(u32 track, u32 position) {
     Track* t;
     return position < opxy::page_controls && machine(track, t) ? t->slots[position] : position;
@@ -99,6 +106,20 @@ void sdk_synth_press(u32 encoder) {
             if (next < opxy::parameter_slots) t->slots[i] = static_cast<u8>(next);
         }
     }
+}
+
+// 8d5ad306: stock's encoder step 8d5ad2e8, which plain and lock edits share,
+// asks 8c0b2468(track, index, &scale) for a parameter's step count, or -1 when
+// it is continuous. It then moves scale * count buckets, one per detent (two
+// when turned fast), and stores the bucket's centre. An owned machine's enum
+// slot answers its choice count with scale 1: one choice per detent.
+u32 sdk_param_steps(u32 track, u32 index, u32* scale) {
+    const SynthControls* m = index < opxy::parameter_slots ? editor(track) : nullptr;
+    if (m && m->steps[index]) {
+        *scale = 1;
+        return m->steps[index];
+    }
+    return stock<u32(u32, u32, u32*)>(0x8c0b2468)(track, index, scale);
 }
 
 // 8c0b15aa: the instrument controller's encoder turn edits parameter `index`
@@ -172,6 +193,12 @@ void control_division(char* text, i32 value) {
     static const char* const names[8] = {"1/32", "1/32 dotted", "1/16", "1/16 dotted",
                                          "1/8", "1/8 dotted", "1/4", "1/2"};
     for (const char* name = names[division(value)]; (*text = *name); ++text, ++name) {}
+}
+u32 control_choice(i32 value, u32 count) {
+    return value < 0 ? 0 : ((static_cast<u32>(value) >> 16) * count) >> 15;
+}
+void control_label(char* text, i32 value, const char* const* labels, u32 count) {
+    for (const char* label = labels[control_choice(value, count)]; (*text = *label); ++text, ++label) {}
 }
 u32 control_ratio(i32 value, const u32* anchors, u32 count) {
     const u32 q15 = value < 0 ? 0 : static_cast<u32>(value) >> 16;

@@ -118,6 +118,9 @@ A maintainer then reviews a new machine once, in full:
 - It uses only the public headers: no assembly, raw addresses or platform code.
 - Its audio callbacks never allocate, block, log or do I/O.
 - Its name is sensible, and its licence allows redistribution.
+- New synths follow the [control and header conventions](ux.md): five to eight
+  controls use two fixed rows and whole-page switching, with repeated shared
+  controls where the second page has no alternate.
 - It sounds right in the browser preview from its CI.
 
 An update moves `tag` and `commit` and is reviewed as a diff. The workflow

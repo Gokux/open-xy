@@ -54,8 +54,8 @@ figures. State usually dominates, since a synth's voice pool is
 
 `voiceBytes`, `sharedBytes` and display state have no limit of their own
 beyond whole words and module memory. Browser previews run 8 voices in
-512 KiB of WebAssembly memory; a machine that needs more still builds for the
-device.
+2 MiB of fixed WebAssembly memory, with growth disabled. This browser allowance
+does not change the native collection's module limit or measure its footprint.
 
 ## CPU
 
@@ -120,6 +120,11 @@ are `ratio`, `percent` (the normalized value scaled to 0.0–100.0, without a su
 percentage), `duration`, `semitones`, `enum` and `division` (SDK 1.2: one of
 stock delay's eight note lengths, below). Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
+On the device, a synth's or send effect's enum of up to 255 choices moves one
+choice per encoder detent (two when turned fast), in plain and locked edits
+alike, and stores the middle of the choice's range; a larger enum keeps stock's
+0..99 stepping. Its value text on the engine or send page is the selected
+choice's label.
 Parameter order and mapping changes affect saved sounds; the
 [UX conventions](ux.md) cover direction, defaults and adding parameters. The stock parameter
 page shows labels in lower case.
@@ -139,15 +144,19 @@ every parameter's value (`slots`), so a [header value](display.md#frame)
 can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position.
 
-A synth with eight parameters, each position with exactly one alternate, may
-declare `"press": "page"` at the top of `definition.json` (SDK 1.3): its four
-own parameters are page 1, its alternates page 2, and pressing any encoder
-switches all four positions to the other page. `shown` tells the display
-which page is up. Browser previews show the page of the parameter last
-edited. See
-[Macro Osc](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json),
-which draws its own header: both pages in two rows, the page the encoders edit
-large and bright and the other small and grey.
+A synth with five to eight parameters may declare `"press": "page"` at the
+top of `definition.json`: pressing any encoder switches the whole page. Each
+position may have at most one alternate. Positions without an alternate show
+and edit their original parameter on both pages, with one saved value, not a
+duplicate parameter. Eight-parameter pages require SDK 1.3; partial second
+pages require SDK 1.4. The four `shown` entries identify the selection: look
+for any alternate, since the first column may be shared.
+
+Browser previews select a page when editing one of its distinct parameters;
+editing a shared control keeps the current page. Use the SDK's
+[two-page header](display.md#two-page-header) for fixed rows, active-row
+emphasis and motion. `sdk.py new` supplies it by default. Macro Osc is the
+[worked reference](https://github.com/etcetc000/open-xy-core-machines/blob/main/machines/macroosc/definition.json).
 
 On instrument tracks, the Value, Random and Element LFOs can target every
 declared parameter of a custom synth or sample engine, including all eight
@@ -166,12 +175,12 @@ machines with more than four parameters: their saved selector values now
 address eight slots instead of four.
 
 On custom synth engine pages, Shift + turn edits the same visible parameter
-at one tenth of the normal rate. Enum choices keep their ordinary stepping.
+at one tenth of the normal rate. Enum choices keep their one-choice stepping.
 Synth amounts and bounded positive anchor-ratio captions show one decimal
 place; amounts omit the percent suffix. A machine's display can replace them with
 its own [header text](display.md#frame). Custom send effects also
 use the slower Shift rate for continuous controls, with stock FX captions
-except for `division` controls.
+except for `enum` and `division` controls.
 
 A sample engine declares `voiceCapacity`, which must be 256 (stock creates a
 voice for each of its 256 voice indices and binds each to its sample), and the
@@ -258,6 +267,12 @@ void render_sample(Voice&, const opxy::SampleBlock&);
 `initialize` receives the read-only sample stock assigned to the voice, which
 the SDK retains until the voice is destroyed; a view with no frames means
 silence. `start` runs on each note. Never retain a block or its buffers.
+
+The stock page an engine asks for (`identity.page`) sets how it plays. On page
+2, the sampler's page, it plays like the stock sampler: one sample, played
+chromatically across the keyboard, its root key playing it as recorded. On
+page 7, the drum page, it plays like the stock drum engine: 24 pads, each with
+its own sample.
 
 ### Services
 
@@ -453,7 +468,7 @@ preset entries, its screen file, its symbol prefix and its C++ namespace. It is 
 | Field | Contract |
 | --- | --- |
 | `schema` | 1 |
-| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.3 and builds 1.0 to 1.3 machines |
+| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.4 and builds 1.0 to 1.4 machines |
 | `kind` | `synth`, `sample` or `effect` |
 | `description` | Plain text of at most 160 characters, shown by the builder and preview |
 | `identity` | The numbers it asks for: `{"engine": n, "page": p}`, or `{"effect": n, "page": 21}` for an effect; see below |

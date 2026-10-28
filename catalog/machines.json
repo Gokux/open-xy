@@ -204,6 +204,23 @@
       }
     },
     {
+      "id": "troupe",
+      "kind": "synth",
+      "maintainer": "Hecedu",
+      "status": "published",
+      "repository": "https://github.com/Hecedu/open-xy-troupe",
+      "tag": "v1.0.0",
+      "commit": "453ff5288aa0000ecbb7f1c01654935560bbdd65",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "453ff5288aa0000ecbb7f1c01654935560bbdd65",
+        "firmware_sha256": "39d61231d10ae2074d7ca285412f8874e38a54f55c66b68b6f60e1b8d2066ba0",
+        "runs": 3,
+        "block_percent": 2.569619
+      }
+    },
+    {
       "id": "mmdyn",
       "kind": "synth",
       "maintainer": "mmockett",

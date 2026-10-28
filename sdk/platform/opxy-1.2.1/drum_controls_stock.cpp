@@ -41,9 +41,10 @@ void publish_octave(u32 track, i32 octave) {
 }
 }
 
-// 8c0b1316 and the recorder's target selection, release and save completion
-// ask which engine the track uses. Owned sample engines borrow the
-// multisampler's branch; the track keeps its real engine. A send track's ID is
+// 8c0b1316, the recorder's target selection, release and save completion, and
+// the sample page's own engine checks ask which engine the track uses. Owned
+// sample engines borrow the branch of the stock engine whose payload they take
+// (sample_machines.cpp); the track keeps its real engine. A send track's ID is
 // its effect's, which may equal an SDK engine's number: leave it to stock.
 u32 sdk_sample_ui_engine(u32 track) {
     const u32 id = track_engine(track);
@@ -60,11 +61,14 @@ u32 sdk_sample_octave_store(u32 track, i32 octave) {
     return result;
 }
 
-// Stock's drum key lookup (through sample_hooks.s): an owned drum page maps
-// the note to its canonical pad with the track octave; the GUI-side lookup has
-// a valid project context, so it also publishes the octave for audio. Returns
-// kNotOwned to let stock continue.
+// Stock's key-to-region lookup (through sample_hooks.s): stock's sampler (2)
+// keeps its one sample in region 0 for every key, the multisampler a region
+// per key. An owned page-2 engine plays like the sampler: region 0. An owned
+// drum page maps the note to its canonical pad with the track octave; the
+// GUI-side lookup has a valid project context, so it also publishes the
+// octave for audio. Returns kNotOwned to let stock continue.
 u32 sdk_sample_key(u32 track, u32 key) {
+    if (track < kTracks && sample_page(track_engine(track)) == 2) return 0;
     if (track >= kTracks || sample_page(track_engine(track)) != 7) return kNotOwned;
     const i32 octave = stock<i32(u32)>(0x8d58f65c)(track);
     publish_octave(track, octave);
