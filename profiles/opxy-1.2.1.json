@@ -823,6 +823,16 @@
     },
     {
       "kind": "hook",
+      "name": "Send page titles follow alternate selection",
+      "address": "0x8d53b642",
+      "file_offset": "0x17289e",
+      "length": 4,
+      "before": "fee3275b",
+      "symbol": "sdk_fx_title",
+      "call": true
+    },
+    {
+      "kind": "hook",
       "address": "0x8d5954b2",
       "file_offset": "0x1cc70e",
       "length": 4,

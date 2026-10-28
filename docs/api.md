@@ -108,7 +108,7 @@ Every machine kind keeps its controls in `definition.json` (for example
 | `schema` | 1 |
 | `id` | The machine's name; also its C++ namespace |
 | `name` | Display name |
-| `parameters` | Ordered controls, each with `id`, `label`, `default`, `mapping`, `display`: four to eight for a synth (see [alternate controls](#alternate-controls)), one to eight for a sample engine or effect. Labels are at most eight letters, digits or spaces |
+| `parameters` | Ordered controls, each with `id`, `label`, `default`, `mapping`, `display`: four to eight for a synth (see [alternate controls](#alternate-controls)), one to eight for a sample engine or effect; an effect's after the fourth are alternates on its send page. Labels are at most eight letters, digits or spaces |
 | `presets` | Named maps containing exactly the declared controls; may be empty |
 | `resources` | What the kind declares about its storage (below) |
 
@@ -143,6 +143,16 @@ inputs carry each position's shown value, its parameter index (`shown`) and
 every parameter's value (`slots`), so a [header value](display.md#frame)
 can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position.
+
+A send effect's parameters after the first four are alternates on its send
+page in the same way. Each may name its position with `"control": 0..3`;
+without one, parameter `i` alternates on position `i - 4`. A press cycles the
+position, its turns edit the parameter shown, and the page shows that
+parameter's title and value. When an effect is put on a send, the SDK stores
+its fifth to eighth defaults as stock stores its first four, so `process`
+receives them before they are first edited. `"press": "page"` is for synths
+only. A send effect's LFOs keep stock's four destinations, its first four
+parameters.
 
 A synth with five to eight parameters may declare `"press": "page"` at the
 top of `definition.json`: pressing any encoder switches the whole page. Each
@@ -401,8 +411,8 @@ declared controls. Do not depend on the absolute level of the send buffers.
 
 `State` is at most `opxy::effect_state_bytes` (476) with alignment at most 4.
 No destructor ever runs, so it holds no resources. The generated adapter
-checks both limits at compile time. Effects use the stock FX page and have no
-browser preview.
+checks both limits at compile time. Effects use the stock FX page, with any controls after the fourth as
+[alternates](#alternate-controls), and have no browser preview.
 
 ### Effect buffers
 

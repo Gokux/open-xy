@@ -32,7 +32,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
 | Relocated tables | 22 | Moves the effect records (63), engine records (63) and screen slots (128) into the last 8 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
-| Synth and effect controls | 6 | Lets an encoder press on an owned synth's page select an alternate parameter, which its turns and titles then follow; scales fine turns on owned synth and send-effect pages; steps owned enums one choice per detent; names owned enums' choices, and an owned effect's division values on the send page |
+| Synth and effect controls | 7 | Lets an encoder press on an owned synth's or send effect's page select an alternate parameter, which its turns, titles and values then follow; scales fine turns on owned synth and send-effect pages; steps owned enums one choice per detent; names owned enums' choices, and an owned effect's division values on the send page |
 | LFO destinations | 15 | Selects and modulates all declared engine parameters on owned instrument machines with five to eight parameters, using their assigned encoder icons |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
 | Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
@@ -175,6 +175,28 @@ track's engine changes. Other pages and unowned engines retain stock routing.
 The auxiliary-track controller already folds Shift into positions 0..3; owned
 send effects on tracks 14/15 get the same fine scaling. Encoder turns clear the
 pending-click flag, so a press-and-turn does not also click on release.
+
+The same press handler sees clicks on a send track's FX page when the
+auxiliary controller (vtable `0803fb6c`) is on top. For an owned effect with
+alternates, a click moves the position to its next slot, and the turn hook
+passes stock the shown slot, so stock's editor (`8d5ad5bc`) steps and
+publishes it as any other. The selection is GUI state per send, reset when the
+send's effect changes. The send page titles each position through the effect
+record's parameter-name callback (`8d506c90`); its call at `8d53b642` is
+hooked to name the shown slot. The value-text hook (`8d53b636`) reads a shown
+alternate's current word (`8d587708(track) + 0x3864 + slot × 4`) and captions
+it as stock does, 00..99, or with the machine's enum or division text.
+
+When an effect is put on a send, stock fills all eight current words with the
+effect's defaults but stores and publishes only the first four, so the audio
+side would render words 4..7 as 0 until each is edited. Once per frame, from
+the compositor's advance at its first page, the SDK checks each send: for an
+owned effect new on it, it passes every word 4..7 whose stored value
+(`project + 0x4080 + track × 0xe8 + slot × 4`, project `86bd027c`) differs
+from the current one to stock's set (`8d5acf28`). Stock stores it and sends
+it to the audio side (`8d5acd9c`, message 0xa1) as it does for any edit. This
+runs once per placement, so a later parameter lock is left alone. GUI and
+audio share no memory: values reach audio only through stock's messages.
 
 Both controllers' edits, plain or locked, reach stock's encoder step
 `8d5ad2e8(track, index, current, event)`. Its call at `8d5ad306` asks
