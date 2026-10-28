@@ -120,6 +120,11 @@ are `ratio`, `percent` (the normalized value scaled to 0.0–100.0, without a su
 percentage), `duration`, `semitones`, `enum` and `division` (SDK 1.2: one of
 stock delay's eight note lengths, below). Mappings describe
 the control for previews and the builder; the C++ applies its own mapping. Enum quantization matches the native Q31-to-Q15 path.
+On the device, a synth's or send effect's enum of up to 255 choices moves one
+choice per encoder detent (two when turned fast), in plain and locked edits
+alike, and stores the middle of the choice's range; a larger enum keeps stock's
+0..99 stepping. Its value text on the engine or send page is the selected
+choice's label.
 Parameter order and mapping changes affect saved sounds; the
 [UX conventions](ux.md) cover direction, defaults and adding parameters. The stock parameter
 page shows labels in lower case.
@@ -170,12 +175,12 @@ machines with more than four parameters: their saved selector values now
 address eight slots instead of four.
 
 On custom synth engine pages, Shift + turn edits the same visible parameter
-at one tenth of the normal rate. Enum choices keep their ordinary stepping.
+at one tenth of the normal rate. Enum choices keep their one-choice stepping.
 Synth amounts and bounded positive anchor-ratio captions show one decimal
 place; amounts omit the percent suffix. A machine's display can replace them with
 its own [header text](display.md#frame). Custom send effects also
 use the slower Shift rate for continuous controls, with stock FX captions
-except for `division` controls.
+except for `enum` and `division` controls.
 
 A sample engine declares `voiceCapacity`, which must be 256 (stock creates a
 voice for each of its 256 voice indices and binds each to its sample), and the
