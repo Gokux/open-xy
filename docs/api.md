@@ -41,7 +41,8 @@ is no per-machine allowance: a build that does not fit names each machine's
 share, and `sdk.py compile` and the builder's memory meter report the same
 figures. State usually dominates, since a synth's voice pool is
 `voiceBytes × (min(voiceCapacity, 27) + 1)`: stock never sounds more than 27
-notes, and one spare voice serves a note that ended as another starts.
+notes, and one spare voice serves a note that ended as another starts. The SDK
+adds 12 bytes per stock voice index (3 KiB) and 16 per voice.
 
 | Limit | Value | Why |
 | --- | --- | --- |
@@ -247,8 +248,9 @@ renders other notes; after the machine's last note it notices at the next note
 start. A taken note renders one last block fading to silence, then renders
 silence; no voice index ever fails, whatever the capacity.
 Callbacks run serially per voice. The browser preview's voice stealing and
-panic use the same callbacks, but the preview keeps 8 voices and takes the
-oldest at once: it does not model stock's renders, the spare or the fade. The SDK adapter owns the firmware object header,
+panic use the same callbacks, but the preview keeps `min(voiceCapacity, 8)`
+voices and takes the oldest at once: it does not model stock's renders, the
+spare or the fade. The SDK adapter owns the firmware object header,
 method table and voice pool; none of that belongs in `Voice`.
 
 [LeasePool](../sdk/include/opxy/lease_pool.hpp) provides fixed typed resources.

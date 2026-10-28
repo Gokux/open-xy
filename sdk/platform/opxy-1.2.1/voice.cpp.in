@@ -35,13 +35,15 @@ using Voice = @NAMESPACE@::Voice;
 using Shared = @NAMESPACE@::Shared;
 // Stock's voice indices; every one gets a handle.
 const opxy::u32 kVoiceIndices = 256;
-// slot: its voice plus one, or 0. seen: the block it last rendered in, asked:
-// the block its note began to wait for a voice. wants: its note started but
-// lost its wait for a voice.
-struct Handle { const void* const* vtable; opxy::u32 slot, seen, asked, wants; };
+// One per stock index, 12 bytes: the method table first, as stock reads it.
+// seen: the block it last rendered in; asked: the block its note began to wait
+// for a voice; slot: its voice plus one, or 0; wants: its note started but lost
+// its wait for a voice.
+struct Handle { const void* const* vtable; opxy::u16 seen, asked; opxy::u8 slot, wants; };
+static_assert(sizeof(void*) != 4 || sizeof(Handle) == 12, "Handle layout");
 // owner: a voice ID, or 0 when free. born: the block its note started in,
 // since: the tick. next: the voice ID of a note waiting while this one fades.
-struct Slot { Voice voice; opxy::u32 owner, born, since, next; };
+struct Slot { Voice voice; opxy::u32 owner, since, next; opxy::u16 born; };
 static Handle handles[kVoiceIndices];
 // Stock sounds at most 27 notes at once, in its 27 voice slots (8d51c994), so
 // a larger pool would never be used. One voice beyond that or the capacity
@@ -62,10 +64,12 @@ static const opxy::u32* const increments = reinterpret_cast<const opxy::u32*>(op
 // that every note has ended. A sounding machine counts a block every 1.45 ms,
 // about 4.4 ticks; the threshold leaves room for stock rendering several
 // blocks per audio interrupt, and an idle core only slows the clock.
-static opxy::u32 blocks = 1;
+static opxy::u16 blocks = 1;  // block stamps wrap; only short ages matter
 static opxy::u32 counted;       // the tick of the last counted block
 const opxy::u32 kYoung = 8;     // blocks stock spares a new voice for
 const opxy::u32 kSilent = 60;   // ticks, about 20 ms of CPU, without a counted block: every note has ended
+// Blocks since a stamp.
+static opxy::u32 age(opxy::u16 stamp) { return static_cast<opxy::u16>(blocks - stamp); }
 // A stable nonzero voice ID: the stock voice index plus one.
 static opxy::u32 owner(const Handle* handle) { return static_cast<opxy::u32>(handle - handles) + 1; }
 // The voice a handle still holds, or none if its voice went to another note.
@@ -79,7 +83,7 @@ static Slot* held(const Handle* handle) {
 // in that same block still carries the previous count.
 static bool sounding(const Slot& slot, opxy::u32 now) {
     if (now - counted > kSilent && now - slot.since > kSilent) return false;
-    return blocks - handles[slot.owner - 1].seen <= 2 || blocks - slot.born <= 2;
+    return age(handles[slot.owner - 1].seen) <= 2 || age(slot.born) <= 2;
 }
 // Gives a voice to a note: zeroed, initialized and started.
 static void begin(Slot& slot, Handle* handle, opxy::u32 now) {
@@ -90,7 +94,7 @@ static void begin(Slot& slot, Handle* handle, opxy::u32 now) {
     slot.next = 0;
     slot.born = blocks;
     slot.since = now;
-    handle->slot = static_cast<opxy::u32>(&slot - voices) + 1;
+    handle->slot = static_cast<opxy::u8>(&slot - voices + 1);
     handle->wants = 0;
     @NAMESPACE@::initialize(slot.voice, shared, id);
     @NAMESPACE@::start(slot.voice, shared, id);
@@ -110,7 +114,7 @@ static Slot* pending(const Handle* handle) {
 static void forget(Slot& slot) {
     if (!slot.next) return;
     const Handle& waiter = handles[slot.next - 1];
-    if (blocks - waiter.seen > 2 && blocks - waiter.asked > 2) slot.next = 0;
+    if (age(waiter.seen) > 2 && age(waiter.asked) > 2) slot.next = 0;
 }
 // Releases the voices of notes stock has stopped rendering, once per block, so
 // destroy runs soon after a note ends while the machine still renders.
@@ -127,11 +131,11 @@ static void sweep(opxy::u32 now) {
 // one whose note started first.
 static bool before(const Slot& a, const Slot& b) {
     if (!a.next != !b.next) return !a.next;
-    const bool a_young = blocks - a.born < kYoung, b_young = blocks - b.born < kYoung;
+    const bool a_young = age(a.born) < kYoung, b_young = age(b.born) < kYoung;
     if (a_young != b_young) return !a_young;
-    const opxy::u32 a_quiet = blocks - handles[a.owner - 1].seen, b_quiet = blocks - handles[b.owner - 1].seen;
+    const opxy::u32 a_quiet = age(handles[a.owner - 1].seen), b_quiet = age(handles[b.owner - 1].seen);
     if (a_quiet != b_quiet) return a_quiet > b_quiet;
-    return blocks - a.born > blocks - b.born;
+    return age(a.born) > age(b.born);
 }
 // Finds a note a voice: a free one, else one stock no longer renders, else, if
 // it may steal, a sounding one (see before), whose note fades out over its
@@ -165,7 +169,7 @@ static void acquire(Handle* handle, opxy::u32 now, bool steal) {
         displaced.wants = 1;
     }
     chosen->next = owner(handle);
-    handle->slot = static_cast<opxy::u32>(chosen - voices) + 1;
+    handle->slot = static_cast<opxy::u8>(chosen - voices + 1);
     handle->asked = blocks;
     handle->wants = 0;
 }
