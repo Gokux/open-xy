@@ -59,12 +59,13 @@ static const opxy::u32* const increments = reinterpret_cast<const opxy::u32*>(op
 // index rendering a second time starts the next one. The count stands still
 // while nothing of the machine renders; the CPU cycle clock (voice_clock.s,
 // ticks of 2^17 cycles, about 0.33 ms, read once per counted block) then tells
-// that every note has ended. A sounding machine counts a block at least every
-// 1.45 ms, about 4.4 ticks, and an idle core only slows the clock.
+// that every note has ended. A sounding machine counts a block every 1.45 ms,
+// about 4.4 ticks; the threshold leaves room for stock rendering several
+// blocks per audio interrupt, and an idle core only slows the clock.
 static opxy::u32 blocks = 1;
 static opxy::u32 counted;       // the tick of the last counted block
 const opxy::u32 kYoung = 8;     // blocks stock spares a new voice for
-const opxy::u32 kSilent = 12;   // ticks without a counted block once every note has ended
+const opxy::u32 kSilent = 60;   // ticks, about 20 ms of CPU, without a counted block: every note has ended
 // A stable nonzero voice ID: the stock voice index plus one.
 static opxy::u32 owner(const Handle* handle) { return static_cast<opxy::u32>(handle - handles) + 1; }
 // The voice a handle still holds, or none if its voice went to another note.
@@ -174,7 +175,12 @@ extern const void* const @PREFIX@_vtable[];
 int @PREFIX@_start(void* self) {
     Handle* handle = static_cast<Handle*>(self);
     const opxy::u32 now = sdk_voice_ticks();
+    // Once the machine has stopped rendering, no block counts and sweep has not
+    // run: release every ended voice before the new note takes one.
+    if (now - counted > kSilent) sweep(now);
     if (pending(handle)) return 0;  // it starts once the voice it waits for is free
+    // Stock calls the factory before each note, which frees a held voice; a
+    // start without it restarts the note in place.
     if (Slot* slot = held(handle)) {
         if (!slot->next) {
             slot->born = blocks;

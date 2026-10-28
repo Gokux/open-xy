@@ -143,9 +143,17 @@ int main() {
     // milliseconds later, though no block was counted in between.
     note(50); note(51); note(52);
     if (!sound({50, 51, 52}, 10)) return 41;
-    cycles += 5 * 400000;  // 5 ms with nothing of the machine rendering
+    cycles += 25 * 400000;  // 25 ms with nothing of the machine rendering
     note(53); note(54); note(55);
+    if (destroyed[51] != 1 || destroyed[52] != 1 || destroyed[53] != 1) return 43;  // all ended voices released
     if (!block({{53, 54}, {54, 55}, {55, 56}})) return 42;
+    // Blocks counted far apart, as when stock renders several per interrupt,
+    // never make a sounding note look ended: a new note waits for a fade.
+    if (!sound({53, 54, 55}, 10)) return 44;
+    cycles += 10 * 400000;  // 10 ms since the last counted block
+    note(56);
+    if (destroyed[54] || destroyed[55] || destroyed[56]) return 45;
+    if (!block({{53, -1}, {54, 55}, {55, 56}, {56, 57}}) || destroyed[54] != 1) return 46;
     for (unsigned i = 0; i < 256; ++i) call(i, 0);
     cycles += 4 * kBlockCycles;
     // A note stock stops rendering is destroyed within a few blocks while the

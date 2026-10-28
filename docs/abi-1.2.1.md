@@ -124,8 +124,9 @@ Stock has 27 voice slots, so the adapter keeps at most 27 voices, plus one
 spare: `min(voiceCapacity, 27) + 1`. They go to handles as their notes start: a
 free voice, else one whose index has missed two blocks of renders (blocks are
 counted from the renders themselves), or, once nothing of the machine has
-rendered for 12 ticks of CPU cycles (`sdk_voice_ticks`, about 4 ms), any whose
-note did not just start. Ended voices are released once per counted block. A factory call for an index
+rendered for 60 ticks of CPU cycles (`sdk_voice_ticks`, about 20 ms), any whose
+note did not just start. Ended voices are released once per counted block, and
+at a note start after such a pause. A factory call for an index
 frees the voice it held, so a voice stock takes keeps its place for the
 restarted note. The spare covers a note that ended just before another starts.
 Only with more notes sounding than that (a capacity below 8, or the machine on
