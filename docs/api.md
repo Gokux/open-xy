@@ -540,7 +540,8 @@ held so an old project never opens another machine. The builder and
 the next build so every machine keeps its numbers. A machine new to the layout
 gets the lowest free numbers, in collection order.
 A [project companion](projects.md) records what a project's numbers meant by
-machine ID, for firmware with another layout.
+machine ID, so Open-XY firmware with another layout opens the project with the
+same machines.
 
 Machines targeting SDK 1.4 or earlier instead list the numbers they ask for in
 `identity`, `{"engine": n, "page": p}` or `{"effect": n, "page": 21}`, and
@@ -550,8 +551,6 @@ machine keeps working unchanged. To move it to `"sdk": "1.5"`, delete
 `identity` and, for a sample engine, add its `base`; a 1.5 machine with
 `identity` is refused. Its numbers in an existing `layout.json` stay its own,
 so build with the previous layout.
-A [project companion](projects.md) records what a project's numbers meant by
-machine ID, for firmware with another layout.
 
 Generated adapters check record/name ownership and screen readiness before
 catalog admission; the packager authenticates firmware and constrains writes.

@@ -8,7 +8,8 @@ user's firmware, can open the project with the right machines. Sections let
 other firmware features keep their own data in the same file.
 
 Open-XY firmware writes a companion after every project save, listing its
-machines; it does not read them yet ([firmware](abi-1.2.1.md#project-companions)).
+machines, and reads it whenever it opens a project, the workspace at startup
+included ([firmware](abi-1.2.1.md#project-companions)).
 [`tooling/projects.py`](../tooling/projects.py) is the reference reader and
 writer.
 
@@ -98,9 +99,11 @@ including ones the project does not use; the host writer lists its whole
 layout.
 
 A reader with the same profile maps each listed number to that machine's
-number in its own layout. A machine missing from its layout is shown as
-missing, never replaced by whatever holds its old number. Numbers the section
-does not list are read as saved. A section for another profile is ignored.
+number in its own layout. A machine missing from its layout is never replaced
+by whatever holds its old number: the firmware opens that track with stock's
+fallback for a machine it lacks, Prism (engine 18) or no send effect, and does
+not yet say which machine was missing. Numbers the section does not list are
+read as saved. A section for another profile is ignored.
 
 ## Commands
 

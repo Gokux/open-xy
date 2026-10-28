@@ -91,8 +91,8 @@ class Companions(unittest.TestCase):
 
 
 
-def host_writer(folder):
-    """The real firmware writer built for the host, its stock file calls on host stdio."""
+def host_writer(folder, fixture='project_companion.cpp'):
+    """The real firmware writer and reader built for the host, its stock file calls on host stdio."""
     from test_sample_services import HOST_CXX
     platform = ROOT / 'sdk/platform/opxy-1.2.1'
     stock = (platform / 'stock.hpp').read_text(encoding='utf-8')
@@ -100,10 +100,10 @@ def host_writer(folder):
     stock = stock.replace('reinterpret_cast<T*>(address)', 'reinterpret_cast<T*>(host_stock_address(address))')
     (folder / 'stock.hpp').write_text(stock, encoding='utf-8')
     (folder / 'project_companion.cpp').write_bytes((platform / 'project_companion.cpp').read_bytes())
-    binary = folder / ('writer.exe' if os.name == 'nt' else 'writer')
+    binary = folder / (Path(fixture).stem + ('.exe' if os.name == 'nt' else ''))
     result = subprocess.run([HOST_CXX, '-std=c++11', '-O2', '-Wall', '-Werror', '-I' + str(folder),
                              '-I' + str(ROOT / 'sdk/include'), '-I' + str(platform),
-                             str(ROOT / 'tests/fixtures/project_companion.cpp'), '-o', str(binary)],
+                             str(ROOT / 'tests/fixtures' / fixture), '-o', str(binary)],
                             capture_output=True, text=True, timeout=120)
     if result.returncode:
         raise AssertionError(result.stdout + result.stderr)
@@ -158,6 +158,144 @@ class FirmwareWriter(unittest.TestCase):
         ids = re.findall(r'\{"([a-z0-9]+)", ', source)
         self.assertEqual(ids, sorted(m.id for m in machines))
         self.assertIn('{"probefx", probefx_fx_id, probefx_fx_page_id, true},', source)
+
+
+# The reader fixture's firmware (tests/fixtures/project_load.cpp): what each machine is here.
+HERE = {'fm2op': {'engine': 35, 'page': 60}, 'karplus': {'engine': 41, 'page': 90},
+        'macroosc': {'engine': 36, 'page': 61}, 'pingpong': {'effect': 40, 'page': 21},
+        'ringmod': {'effect': 36, 'page': 21}}
+# Saved patterns by track: instrument tracks 0-7 hold engines, sends 14 and 15 effects,
+# tracks 8-13 no machine. 36 is karplus's old engine and ringmod's effect here.
+TRACKS = {0: [36, 35, 18, 41, 50], 7: [36], 9: [36, 35], 14: [40, 36, 5], 15: [36]}
+UNREGISTERED = -1
+
+
+def reference(raw, data, tracks):
+    """What tooling/projects.py makes of the project's numbers: a missing machine becomes
+    a number stock's validator never accepts."""
+    try:
+        saved = saved_numbers(parse(raw), data)
+    except ValueError:
+        saved = None
+    if saved is None:
+        return tracks
+    table = translation(saved, HERE)
+    slot = lambda track: 'engine' if track < 8 else 'effect'
+    return {t: [n if 8 <= t < 14 or (slot(t), n) not in table else
+                UNREGISTERED if table[(slot(t), n)] is None else table[(slot(t), n)] for n in numbers]
+            for t, numbers in tracks.items()}
+
+
+class FirmwareReader(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from test_sample_services import HOST_CXX
+        if not HOST_CXX:
+            raise unittest.SkipTest('No working host C++ compiler (set OPXY_TEST_HOST_CXX)')
+        cls.folder = tempfile.TemporaryDirectory(prefix='companion-reader-')
+        cls.reader = host_writer(Path(cls.folder.name), 'project_load.cpp')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def load(self, raw, data=PROJECT, tracks=TRACKS, result=1, project=PROJECT):
+        """The tracks after the firmware loads `project` beside companion bytes `raw`."""
+        with tempfile.TemporaryDirectory(prefix='companion-') as directory:
+            song = Path(directory) / 'song.xy'
+            song.write_bytes(project)
+            if raw is not None:
+                (Path(directory) / 'song.oxy').write_bytes(raw)
+            specs = [f"{t}:{','.join(map(str, n))}" for t, n in tracks.items()]
+            run = subprocess.run([str(self.reader), str(song), str(result), *specs], capture_output=True, text=True,
+                                 timeout=30)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        return {int(t): [int(n) for n in numbers.split(',')]
+                for t, numbers in (line.split(':') for line in run.stdout.split())}
+
+    def check(self, raw, expected, **kwargs):
+        loaded = self.load(raw, **kwargs)
+        self.assertEqual(loaded, expected)
+        self.assertEqual(loaded, reference(raw, PROJECT, kwargs.get('tracks', TRACKS)), 'tooling/projects.py agrees')
+
+    def test_maps_listed_numbers_by_machine_id_per_track_kind(self):
+        self.check(companion(PROJECT, SAVED), {
+            0: [41, UNREGISTERED, 18, 41, 50],  # karplus renumbered; timestretch missing, its 35 now fm2op's
+            7: [41],                            # every instrument track
+            9: [36, 35],                        # tracks 8-13 hold no machine
+            14: [40, 36, 5],                    # pingpong kept; effect 36 is not karplus's engine 36
+            15: [36]})
+
+    def test_numbers_trade_places_at_once(self):
+        saved = {'fm2op': {'engine': 41, 'page': 60}, 'karplus': {'engine': 35, 'page': 90},
+                 'pingpong': {'effect': 36, 'page': 21}, 'ringmod': {'effect': 40, 'page': 21}}
+        self.check(companion(PROJECT, saved), {0: [35, 41], 14: [36, 40]}, tracks={0: [41, 35], 14: [40, 36]})
+
+    def test_missing_machines_fall_back_and_never_open_another(self):
+        saved = {'gone': {'engine': 50, 'page': 99},       # free here
+                 'macroosc': {'engine': 37, 'page': 61},
+                 'skipped': {'engine': 38, 'page': 98},    # in this kit but left out
+                 'pingpong': {'engine': 39, 'page': 21},   # an effect here
+                 'ringmod': {'effect': 40, 'page': 21}}    # 40 is pingpong's here
+        self.check(companion(PROJECT, saved), {0: [UNREGISTERED, 36, UNREGISTERED, UNREGISTERED], 14: [36]},
+                   tracks={0: [50, 37, 38, 39], 14: [40]})
+
+    def test_two_machines_at_one_number_trust_neither(self):
+        raw = companion(PROJECT, SAVED).replace(b'"engine": 35', b'"engine": 36')
+        self.assertEqual(self.load(raw, tracks={0: [36, 35]}), {0: [UNREGISTERED, 35]})
+
+    def test_any_json_form_reads_the_same(self):
+        document = json.loads(companion(PROJECT, SAVED))
+        document['later'] = [1, {'nested': [True, None, -2.5e3]}]
+        document['sections']['someone.tuning'] = {'version': 3, 'scale': [0, 2, 4], 'name': 'café \U0001d11e'}
+        compact = json.dumps(dict(reversed(list(document.items()))), separators=(',', ':'), ensure_ascii=True)
+        compact = compact.replace('open-xy-project', 'open-xy-pr\\u006fject')
+        expected = self.load(companion(PROJECT, SAVED))
+        for raw in (compact.encode(), json.dumps(document, ensure_ascii=False, indent='\t').encode('utf-8'),
+                    b'\r\n ' + compact.encode() + b' \n'):
+            with self.subTest(raw=raw[:40]):
+                self.check(raw, expected)
+
+    def test_a_companion_that_does_not_apply_leaves_the_project_as_saved(self):
+        document = json.loads(companion(PROJECT, SAVED))
+        machines = document['sections'][MACHINES]
+        cases = {
+            'binding: project saved since': companion(PROJECT + b'!', SAVED),
+            'binding: same size, other bytes': companion(bytes(reversed(PROJECT)), SAVED),
+            'newer envelope': edited(document, version=2),
+            'newer section': edited(document, sections={MACHINES: dict(machines, version=2)}),
+            'other profile': companion(PROJECT, SAVED, profile='opxy-9.9.9'),
+            'other format': edited(document, format='other'),
+            'no binding': json.dumps({k: v for k, v in document.items() if k != 'project'}).encode(),
+            'uppercase crc': edited(document, project={'bytes': len(PROJECT), 'crc32': document['project']['crc32'].upper()}),
+            'float bytes': edited(document, project={'bytes': float(len(PROJECT)), 'crc32': document['project']['crc32']}),
+            'bad section name': edited(document, sections=dict(document['sections'], Bad={'version': 1})),
+            'section without version': edited(document, sections=dict(document['sections'], **{'a.b': {}})),
+            'machine with a float': edited(document, sections={MACHINES: dict(machines, machines={'karplus': {'engine': 41.0, 'page': 90}})}),
+            'machine without page': edited(document, sections={MACHINES: dict(machines, machines={'karplus': {'engine': 41}})}),
+            'truncated': companion(PROJECT, SAVED)[:-3],
+            'trailing data': companion(PROJECT, SAVED) + b'{}',
+            'invalid utf-8': companion(PROJECT, SAVED).replace(b'"version": 1\n}', b'"version": 1, "x": "\xc0\xaf"\n}'),
+            'over 64 KiB': companion(PROJECT, SAVED) + b' ' * LIMIT,
+            'empty': b'',
+        }
+        for name, raw in cases.items():
+            with self.subTest(name):
+                self.check(raw, TRACKS)
+
+    def test_exactly_64_kib_is_read(self):
+        raw = companion(PROJECT, SAVED)
+        raw += b' ' * (LIMIT - len(raw))
+        self.check(raw, self.load(companion(PROJECT, SAVED)))
+
+    def test_no_companion_or_a_failed_load_changes_nothing(self):
+        self.assertEqual(self.load(None), TRACKS)
+        self.assertEqual(self.load(companion(PROJECT, SAVED), result=0), TRACKS)
+
+    def test_every_load_reaches_the_reader_through_one_reviewed_call(self):
+        hooks = [p for p in config()['patches'] if p.get('symbol') == 'sdk_project_load']
+        self.assertEqual([(p['address'], p['file_offset'], p['before'], p['call']) for p in hooks],
+                         [('0x8d58913e', '0x1c039a', '00e3e984', True)])
 
 
 if __name__ == '__main__':
