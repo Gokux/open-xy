@@ -33,7 +33,7 @@ Three layers, kept apart:
 
 | Stage | Happens when | Event |
 | --- | --- | --- |
-| Input | A key or MIDI note arrives, before recording and the sequencer | `input_activity` (any track, accepted or not), `recordable_note_on`, `selected_note_off` |
+| Input | A key or MIDI note arrives, before recording and the sequencer | `recordable_note_on` and `selected_note_off` (selected track only); `input_activity` (any track, but without the note) |
 | Sequencer | A pattern step plays | Not exposed |
 | Track | Live and sequenced notes reach a track, before its instrument | Not exposed |
 | Voice | The instrument starts a voice | A machine's voice callbacks |
@@ -43,7 +43,8 @@ on: it is a live onset stock accepted for recording, on the selected track,
 while playing. A subscriber that wants a narrower scope filters; one that needs
 a wider scope widens the event (below), never adds a nearby site. The same
 holds for time (transport, GUI tick), controls (queued keys, keyboard keys,
-encoder edits, page keys) and the project lifecycle (load, clear, save).
+encoder edits, page keys) and the project lifecycle (loading, starting a new
+project, saving); of these, only queued keys are exposed.
 
 Adjacent sites are still separate sites. The controller update behind `context`
 follows stock's GUI tick in the same main loop; a GUI-tick event would be a site
@@ -72,6 +73,12 @@ filters to that track for it.
 | Actions | Change something through stock | `Actions::insert_notes`, `Actions::notify` |
 | Surfaces | Add to the screen | None for extensions yet: menu rows, pages, overlays |
 | Saved state | Data kept with a project | None for extensions yet |
+
+An event says something happened; an action asks stock to do something. Sending
+a note to a track, clearing a pattern or changing a parameter is an action, not
+an event. A feature that needs a kind with nothing here yet (a setting the user
+chooses, saved state, note input for effect machines) starts with an SDK pull
+request for that interface, which the feature then uses.
 
 ## Events
 
@@ -139,10 +146,18 @@ Reuse first: read the events table. Most needs are a subscriber that filters an
 existing event.
 
 **Widen an event** when it fires too rarely for you: a track other than the
-selected one, notes while stopped, keyboard keys. Add the field or relax the
-filter at the existing site, and keep every current subscriber's behavior by
-giving it what it relied on (a `selected` or `recordable` flag it can test).
-Do not add a second site for the same stage.
+selected one, notes while stopped, keyboard keys. Relax the filter at the
+existing site and add fields to its event struct (`LiveNote`, `Control`) that
+let every current subscriber keep its behavior: a `selected` or `recordable`
+flag it now tests. Do not add a second site for the same stage.
+
+If the event's name stops being true, rename it, and change its parameters if
+needed, in the same pull request. Extensions build from source in this
+repository, so update every subscriber there, and the profile's `events` tags.
+Prefer a new field in the event struct to a new callback parameter. For
+example, notes from every track, playing or stopped, widen the onset event to
+an `input_note_on` that carries `selected` and `recordable`; capture tests
+`recordable`.
 
 **Add an event** only for a stage, thread or kind no event covers. Append its
 callback to the end of `Hooks`: extensions initialize it by position. The pull
@@ -154,10 +169,23 @@ request states:
   how it was found and verified in the stock OS;
 - why widening an existing event would not serve.
 
+Adding a callback is the only change that must go at the end of `Hooks`, since
+extensions initialize it by position. Renaming or widening one updates every
+extension in the same pull request.
+
 **Add a claim or action** with one registry entry in `profiles/extensions.json`
 and one bit in
 [`extension_runtime.hpp`](../sdk/platform/extension_runtime.hpp); a test keeps
-them in step. Never add a per-claim field to the collection.
+them in step. Never add a per-claim field to the collection. Then enforce it in
+[`extension_runtime.cpp`](../sdk/platform/extension_runtime.cpp): where its
+owner may act (as `edit_notes` is allowed only inside an accepted Record
+`queued_control`), and its stock work in the version adapter,
+[`extension_stock.cpp`](../sdk/platform/opxy-1.2.1/extension_stock.cpp), never
+in the extension. An action that drives a stock path the SDK hooks (playing a
+note reaches the live-note sites) says how it avoids re-entry: events raised
+during a callback are dropped. An action that changes stock state uses one
+stock undo transaction. A claim exists only where stock behavior would
+otherwise conflict: say what stock already does with that gesture.
 
 ## Verify
 
