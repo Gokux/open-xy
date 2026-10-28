@@ -27,7 +27,7 @@ const char* @PREFIX@_parameter_name(opxy::u32) __asm__("@PREFIX@_parameter_name"
 extern const char @PREFIX@_name[] __asm__("@PREFIX@_name");
 // The engine ID: an absolute symbol the linker supplies.
 extern const char @PREFIX@_engine_id[] __asm__("@PREFIX@_engine_id");
-// The adapter's clock (benchmark_clock.s).
+// The adapter's clock (voice_clock.s).
 opxy::u32 sdk_voice_ticks() __asm__("sdk_voice_ticks");
 }
 using Voice = @NAMESPACE@::Voice;
@@ -52,7 +52,7 @@ static_assert(alignof(Voice) == @VOICE_ALIGNMENT@, "Declared voice alignment dif
 static_assert(@SHARED_BYTES@ == 0 ? __is_empty(Shared) : sizeof(Shared) == @SHARED_BYTES@,
               "Declared shared size differs from the compiled type");
 static const opxy::u32* const increments = reinterpret_cast<const opxy::u32*>(opxy::platform::kPitchIncrements);
-// Time in ticks of 2^17 CPU cycles (benchmark_clock.s); a 64-sample block is
+// Time in ticks of 2^17 CPU cycles (voice_clock.s); a 64-sample block is
 // 580352 cycles, about 4.4 ticks. Stock renders each sounding index once per
 // block, at most about two blocks apart under full load.
 const opxy::u32 kSounding = 12;  // ticks since a render, or a start, while a note may sound
