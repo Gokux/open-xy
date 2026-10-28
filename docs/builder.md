@@ -42,7 +42,7 @@ leaves the browser.
    example machines from the catalog are labelled as Open-XY machines. A
    [personal kit](#export-a-kit)'s own machines are marked **Yours**.
 4. Choose optional extensions using the same checkbox rows as machines. Select
-   a row to read its description and gesture in the details panel.
+   a row to read what it does and how to use it in the details panel.
    Extensions start off; continuing with none is valid. The summary lists your
    machines, extensions and combined memory use. Conflicting Record-double-tap
    claims cannot be selected together.

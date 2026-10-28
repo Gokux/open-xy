@@ -458,7 +458,7 @@ footer details[open] { flex-basis:100%; }
 .memory-breakdown .capacity-foot { margin:10px 0 0; font-size:11px; }
 
 .extension-inspector .selection-summary { margin-top:24px; padding-top:18px; border-top:1px solid var(--line); }
-.extension-gesture { font-size:13px; font-weight:600; margin-top:16px; }
+.extension-note { color:var(--muted); font-size:12px; margin-top:8px; }
 .extension-conflict { display:block; color:var(--muted); font-size:11px; margin:4px 0; }
 .extension-inspector .machine-facts { grid-template-columns:1fr; }
 .extension-inspector .machine-facts dd { text-align:left; margin-bottom:8px; }

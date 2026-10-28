@@ -16,6 +16,9 @@ RESERVED = {'runtime', 'collection', 'stock', *'''alignas alignof and and_eq asm
     reinterpret_cast return short signed sizeof static static_assert static_cast struct switch template this
     thread_local throw true try typedef typeid typename union unsigned using virtual void volatile wchar_t
     while xor xor_eq'''.split()}
+# The site's row and details: one line saying what it does and how, and an
+# optional note for its one limit. Short on purpose: people scan, not read.
+TEXT_LIMITS = {'name': 32, 'description': 140, 'note': 100}
 HEADER = 'sdk/include/opxy/extension.hpp'
 RUNTIME = 'sdk/platform/extension_runtime.hpp'
 
@@ -133,8 +136,8 @@ def metadata():
     result = []
     for entry in collection():
         data = document(ROOT / 'extensions' / entry['id'] / 'extension.json')
-        require(set(data) == {'name', 'description', 'gesture'} and
-                all(isinstance(value, str) and 0 < len(value) <= 600 for value in data.values()),
+        require({'name', 'description'} <= set(data) <= set(TEXT_LIMITS) and
+                all(isinstance(value, str) and 0 < len(value) <= TEXT_LIMITS[key] for key, value in data.items()),
                 'Invalid extension display metadata: ' + entry['id'])
         result.append(dict(entry, **data))
     return result

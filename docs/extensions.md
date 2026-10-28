@@ -130,9 +130,10 @@ Observers cannot transform notes or suppress stock input.
 2. Add `{"id": "<id>", "claims": [], "actions": []}` to the collection in
    `profiles/extensions.json`, with any claims and actions it needs from the
    registry. The collection's order is the callback order.
-3. Add `extensions/<id>/extension.json` with nonempty `name`, `description`
-   and `gesture`: the site's row and details panel. Say how it changes stock
-   behavior and when it clears its state.
+3. Add `extensions/<id>/extension.json` for the site's row and details panel:
+   a `name`, a one-line `description` saying what it does and how to use it
+   (140 characters at most), and optionally a `note` for its one limit (100).
+   People scan this; put the full behavior in the docs, not here.
 
 Native builds include the whole collection. The site's Extensions step follows
 Machines, starts with none selected, saves choices with the layout and omits

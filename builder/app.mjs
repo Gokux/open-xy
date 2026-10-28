@@ -427,7 +427,8 @@ function inspectExtension(id) {
   if (!extension) return;
   $('extension-name').textContent = extension.name;
   $('extension-description').textContent = extension.description;
-  $('extension-gesture').textContent = extension.gesture;
+  $('extension-note').textContent = extension.note ?? '';
+  $('extension-note').hidden = !extension.note;
   document.querySelectorAll('#extensions button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
 }
 function recalculate() {

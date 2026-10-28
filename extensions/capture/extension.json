@@ -1,5 +1,5 @@
 {
   "name": "Retrospective capture",
-  "description": "Recover recent live playing on the selected instrument track. Stop preserves the take; starting playback again or changing tracks or patterns clears it. Captured notes support stock Undo.",
-  "gesture": "Double-tap Record"
+  "description": "Not recording? Play, then double-tap Record to put what you just played into the sequencer.",
+  "note": "Captures up to the track's length, as set in its settings."
 }

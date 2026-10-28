@@ -63,6 +63,16 @@ class Extensions(unittest.TestCase):
             with self.assertRaises(ValueError):
                 extensions.check_profile(changed)
 
+    def test_site_text_is_one_short_line_and_an_optional_note(self):
+        for entry in extensions.metadata():
+            self.assertLessEqual(len(entry['description']), extensions.TEXT_LIMITS['description'])
+        text = {'name': 'Capture', 'description': 'Play, then double-tap Record.'}
+        for bad in (dict(text, description='x' * 141), dict(text, note=''), dict(text, gesture='Record'),
+                    {'name': 'Capture'}):
+            with mock.patch.object(extensions, 'document', side_effect=lambda path: (
+                    self.valid() if path.name == 'extensions.json' else bad)), self.assertRaises(ValueError):
+                extensions.metadata()
+
     def test_extension_source_and_selection_are_authenticated_build_inputs(self):
         sources = native.provenance([])
         self.assertIn('profiles/extensions.json', sources)

@@ -303,7 +303,8 @@ export async function openKit(kit) {
   const extensionIds = new Set();
   for (const e of extensions) {
     check(e && /^[a-z][a-z0-9_]{0,31}$/.test(e.id) && !extensionIds.has(e.id) &&
-      ['name', 'description', 'gesture'].every(key => typeof e[key] === 'string' && e[key].length > 0 && e[key].length <= 600) &&
+      Object.entries({name: 32, description: 140, note: 100}).every(([key, limit]) => key === 'note' && e[key] === undefined ||
+        typeof e[key] === 'string' && e[key].length > 0 && e[key].length <= limit) &&
       ['claims', 'actions'].every(key => Array.isArray(e[key]) && e[key].length <= 8 &&
         new Set(e[key]).size === e[key].length && e[key].every(n => /^[a-z][a-z0-9_]{0,31}$/.test(n))),
       'Invalid extension metadata');
