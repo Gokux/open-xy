@@ -333,16 +333,28 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
 
 
 def normalize_object(data):
-    """Disable GNU string pooling for reproducible, simple section placement.
+    """Disable GNU string pooling and COMDAT groups for reproducible, simple section placement.
 
+    An inline function the compiler keeps out of line, or a static inside one, comes
+    in a COMDAT group with a weak symbol. Each object is one translation unit, so its
+    sections become plain ones and its weak definitions global: a definition repeated
+    across objects then fails both linkers alike instead of being merged by one.
     Both linkers receive these exact bytes. No instructions or relocations change.
     """
     sections = elf_sections(data)
     require(struct.unpack_from('<H', data, 16)[0] == 1, 'Expected Blackfin ET_REL')
     out = bytearray(data)
-    for at, (_name, _kind, flags, *_rest) in sections:
-        if flags & 2:
-            struct.pack_into('<I', out, at + 8, flags & ~0x30)
+    for at, (_name, kind, flags, _addr, offset, size, *_rest) in sections:
+        if kind == 17:  # SHT_GROUP: deactivate the header without moving section indices
+            # PROGBITS leaves multiple orphan .group sections in GNU's final ELF.
+            # SHT_NULL makes the linker ignore the obsolete group records entirely.
+            struct.pack_into('<II', out, at + 4, 0, 0)
+            continue
+        struct.pack_into('<I', out, at + 8, flags & ~(0x30 if flags & 2 else 0) & ~0x200)
+        if kind == 2:  # the symbol table: defined weak symbols become global
+            for symbol in range(offset, offset + size, 16):
+                if out[symbol + 12] >> 4 == 2 and struct.unpack_from('<H', out, symbol + 14)[0]:
+                    out[symbol + 12] = 0x10 | out[symbol + 12] & 15
     return bytes(out)
 
 
