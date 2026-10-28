@@ -39,7 +39,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Diagnostic benchmark | 1 | Extends explicit command 0xc8 with the selected machines; no normal-playback callbacks added |
 | Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
 | Startup label | 1 | Shows `OPEN <version>-1.2.1` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
-| Retrospective notes | 7 | Observes live input and stock transport, then applies a double-Record capture through stock note editing and undo; linked only when an extension is selected |
+| Extension events | 7 | Observes live input, stock transport and queued controls for extensions, and lets a Record double-tap owner edit notes through stock editing and undo; linked only when an extension is selected |
 | Module | 1 record | One loader block holding the linked module |
 
 The sample rows (sample dispatch, analysis, drum-page services and recorder)
@@ -134,13 +134,15 @@ and release verification check the target ABI and reconstruction. Hardware
 observations must be tied to the tested image; host doubles do not establish
 device timing or acceptance.
 
-## Retrospective notes
+## Extension events
 
 The [extension runtime](extensions.md) shares these hooks among the statically
-selected extensions. `extensions/capture/` owns the bounded current-track ghost
-pattern and Record gesture; `ghost_capture_stock.cpp` supplies version-specific
-recording context, note editing and stock forwarding. Existing `sdk_capture_*`
-profile symbols remain the authenticated adapter entry points, not extension APIs.
+selected extensions; each hook's `events` field in the profile names the public
+events it feeds. `extension_stock.cpp` supplies version-specific recording
+context, note editing and stock forwarding. Its `sdk_extensions_*` symbols are
+named for the stock calls they replace; they are adapter entry points, not
+extension APIs. `extensions/capture/` is the first subscriber: it owns the
+bounded current-track ghost pattern and the Record gesture.
 
 The seven hooks replace the controller-update call at `0x8c0baaf0`, queued key
 dispatch at `0x8c0b6184`, normalized live onset/release at `0x8d594376` and

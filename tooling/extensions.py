@@ -7,26 +7,56 @@ from .pipeline import ROOT, document
 PROFILE = 'profiles/extensions.json'
 
 
-def collection():
+NAME = re.compile(r'[a-z][a-z0-9_]{0,31}')
+HEADER = 'sdk/include/opxy/extension.hpp'
+RUNTIME = 'sdk/platform/extension_runtime.hpp'
+
+
+def _document():
     data = document(ROOT / PROFILE)
-    require(set(data) == {'schema', 'extensions'} and data['schema'] == 1,
+    require(set(data) == {'schema', 'claims', 'actions', 'extensions'} and data['schema'] == 2,
             'Invalid extension collection schema')
+    claims, actions = data['claims'], data['actions']
+    require(isinstance(claims, dict) and isinstance(actions, dict), 'Claims and actions are registries')
+    for name, claim in claims.items():
+        require(NAME.fullmatch(name) and isinstance(claim, dict) and set(claim) == {'label'} and
+                isinstance(claim['label'], str) and 0 < len(claim['label']) <= 40, 'Invalid claim: ' + name)
+    for name, action in actions.items():
+        require(NAME.fullmatch(name) and isinstance(action, dict) and set(action) <= {'requires'} and
+                ('requires' not in action or action['requires'] in claims), 'Invalid action: ' + name)
+    return data
+
+
+def registry():
+    """The claims and actions an extension may declare: SDK contracts, one bit each in RUNTIME."""
+    data = _document()
+    return data['claims'], data['actions']
+
+
+def collection():
+    data = _document()
+    claims, actions = data['claims'], data['actions']
     entries = data['extensions']
     require(isinstance(entries, list) and len(entries) <= 16, 'At most 16 extensions')
-    ids, shortcut = set(), False
+    ids, owners = set(), {}
     for entry in entries:
-        require(isinstance(entry, dict) and set(entry) == {'id', 'record_double_tap', 'edit_notes'},
+        require(isinstance(entry, dict) and set(entry) == {'id', 'claims', 'actions'},
                 'Invalid extension declaration')
         name = entry['id']
-        require(isinstance(name, str) and re.fullmatch(r'[a-z][a-z0-9_]{0,31}', name), 'Invalid extension ID')
+        require(isinstance(name, str) and NAME.fullmatch(name), 'Invalid extension ID')
         require(name not in ids, 'Duplicate extension ID: ' + name)
         ids.add(name)
-        require(type(entry['record_double_tap']) is bool and type(entry['edit_notes']) is bool,
-                'Extension claims must be booleans')
-        require(not entry['record_double_tap'] or not shortcut, 'Record double-tap has multiple owners')
-        shortcut |= entry['record_double_tap']
-        require(not entry['edit_notes'] or entry['record_double_tap'],
-                'Note editing requires the Record double-tap claim')
+        for field, known in (('claims', claims), ('actions', actions)):
+            values = entry[field]
+            require(isinstance(values, list) and len(set(values)) == len(values) and
+                    all(isinstance(v, str) and v in known for v in values),
+                    f'Unknown or repeated {field[:-1]} in {name}: declare it in {PROFILE} and {RUNTIME}')
+        for claim in entry['claims']:
+            require(claim not in owners, f'{claims[claim]["label"]} has multiple owners: {owners.get(claim)}, {name}')
+            owners[claim] = name
+        for action in entry['actions']:
+            needed = actions[action].get('requires')
+            require(needed is None or needed in entry['claims'], f'{action} requires the {needed} claim')
         root = ROOT / 'extensions' / name
         require((root / 'extension.cpp').is_file(), 'Missing extension source: ' + name)
         for path in root.rglob('*'):
@@ -35,8 +65,32 @@ def collection():
     return entries
 
 
+def events():
+    """The public events: the Hooks callbacks in HEADER, in order."""
+    text = (ROOT / HEADER).read_text(encoding='utf-8')
+    body = re.search(r'struct Hooks \{(.*?)\};', text, re.S)
+    require(body, 'Missing Hooks in ' + HEADER)
+    return re.findall(r'\(\*(\w+)\)', body.group(1))
+
+
+def check_profile(profile):
+    """Every extension hook names the events it feeds, and every event has a site."""
+    known, fed = set(events()), set()
+    for patch in profile['patches']:
+        if patch.get('service') == 'extensions':
+            listed = patch.get('events')
+            require(patch['kind'] == 'hook' and isinstance(listed, list) and listed and
+                    len(set(listed)) == len(listed) and set(listed) <= known,
+                    'An extension hook names the events it feeds: ' + str(patch.get('symbol')))
+            fed |= set(listed)
+        else:
+            require('events' not in patch, 'Only extension hooks name events')
+    require(fed == known, 'Events without a firmware site: ' + ', '.join(sorted(known - fed)))
+
+
 def generate_collection(folder):
     entries = collection()
+    bits = lambda kind, names: ' | '.join(f'{kind}_{n}' for n in names) or '0'
     lines = ['#include "extension_runtime.hpp"']
     for entry in entries:
         symbol = 'sdk_extension_' + entry['id'] + '_hooks'
@@ -47,7 +101,7 @@ def generate_collection(folder):
     for entry in entries:
         lines += ['    if (const auto* hooks = sdk_extension_' + entry['id'] + '_hooks())',
                   '        collection_entries[count++] = {"%s", %s, %s, hooks};' % (
-                      entry['id'], str(entry['record_double_tap']).lower(), str(entry['edit_notes']).lower())]
+                      entry['id'], bits('claim', entry['claims']), bits('action', entry['actions']))]
     lines += ['    return collection_entries;', '}', '}}', '']
     target = folder / 'extension_collection.cpp'
     target.write_text('\n'.join(lines), encoding='utf-8')

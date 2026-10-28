@@ -19,13 +19,13 @@ bool ready() {
     u32 count = 0;
     const ExtensionEntry* list = extension_collection(count);
     if (!list || count > 16) return false;
-    bool shortcut = false;
+    u32 claimed = 0;
     for (u32 i = 0; i < count; ++i) {
         const ExtensionEntry& entry = list[i];
-        if (!entry.id || !*entry.id || !entry.hooks ||
-            (entry.edit_notes && !entry.record_double_tap) ||
-            (entry.record_double_tap && (!entry.hooks->control || shortcut))) return false;
-        shortcut |= entry.record_double_tap;
+        if (!entry.id || !*entry.id || !entry.hooks || (entry.claims & claimed) ||
+            ((entry.actions & action_edit_notes) && !(entry.claims & claim_record_double_tap)) ||
+            ((entry.claims & claim_record_double_tap) && !entry.hooks->queued_control)) return false;
+        claimed |= entry.claims;
         for (u32 j = 0; j < i; ++j)
             if (same_text(entry.id, list[j].id)) return false;
     }
@@ -70,14 +70,14 @@ void extensions_sync() {
         if (entries[i].hooks->context) entries[i].hooks->context(current);
     dispatching = false;
 }
-void extensions_activity() {
+void extensions_input_activity() {
     if (dispatching || !ready()) return;
     dispatching = true;
     for (u32 i = 0; i < entry_count; ++i)
-        if (entries[i].hooks->activity) entries[i].hooks->activity();
+        if (entries[i].hooks->input_activity) entries[i].hooks->input_activity();
     dispatching = false;
 }
-void extensions_note_on(u32 track, u32 pitch, u32 velocity) {
+void extensions_recordable_note_on(u32 track, u32 pitch, u32 velocity) {
     if (dispatching) return;
     extensions_sync();
     if (!entries || track != current.recording.track || !current.recording.eligible ||
@@ -88,21 +88,21 @@ void extensions_note_on(u32 track, u32 pitch, u32 velocity) {
                                        static_cast<u32>(radius)};
     dispatching = true;
     for (u32 i = 0; i < entry_count; ++i)
-        if (entries[i].hooks->note_on) entries[i].hooks->note_on(current, note);
+        if (entries[i].hooks->recordable_note_on) entries[i].hooks->recordable_note_on(current, note);
     dispatching = false;
 }
-void extensions_note_off(u32 track, u32 pitch) {
+void extensions_selected_note_off(u32 track, u32 pitch) {
     if (dispatching) return;
     extensions_sync();
-    extensions_activity();
+    extensions_input_activity();
     if (!entries || track != current.recording.track) return;
     const extensions::NoteOff note = {track, pitch};
     dispatching = true;
     for (u32 i = 0; i < entry_count; ++i)
-        if (entries[i].hooks->note_off) entries[i].hooks->note_off(current, note);
+        if (entries[i].hooks->selected_note_off) entries[i].hooks->selected_note_off(current, note);
     dispatching = false;
 }
-void extensions_tick(u32 delta) {
+void extensions_recording_tick(u32 delta) {
     if (dispatching) return;
     extensions_sync();
     if (!entries || !current.recording.eligible || !current.playing) return;
@@ -111,20 +111,20 @@ void extensions_tick(u32 delta) {
                                    discontinuity};
     dispatching = true;
     for (u32 i = 0; i < entry_count; ++i)
-        if (entries[i].hooks->tick) entries[i].hooks->tick(current, tick);
+        if (entries[i].hooks->recording_tick) entries[i].hooks->recording_tick(current, tick);
     dispatching = false;
 }
-void extensions_control(u32 key, bool pressed, bool accepted, bool unmodified, extensions::Time time) {
+void extensions_queued_control(u32 key, bool pressed, bool accepted, bool unmodified, extensions::Time time) {
     if (dispatching) return;
     extensions_sync();
     if (!entries) return;
     const extensions::Control control = {key, pressed, accepted, unmodified, time};
     dispatching = true;
     for (u32 i = 0; i < entry_count; ++i) {
-        can_edit = entries[i].edit_notes && entries[i].record_double_tap &&
+        can_edit = (entries[i].actions & action_edit_notes) && (entries[i].claims & claim_record_double_tap) &&
             key == extensions::Control::record_key && accepted;
         edited = attempted = false;
-        if (entries[i].hooks->control) entries[i].hooks->control(current, control, actions);
+        if (entries[i].hooks->queued_control) entries[i].hooks->queued_control(current, control, actions);
         can_edit = edited = attempted = false;
     }
     dispatching = false;

@@ -19,12 +19,13 @@ int main() {
     CHECK(count == 2 && entries[0].hooks == &capture_hooks && entries[1].hooks == &observer_hooks);
     capture_enabled = false;
     entries = extension_collection(count);
-    CHECK(count == 1 && entries[0].hooks == &observer_hooks && !entries[0].record_double_tap);
+    CHECK(count == 1 && entries[0].hooks == &observer_hooks && !entries[0].claims && !entries[0].actions);
     observer_enabled = false;
     entries = extension_collection(count);
     CHECK(entries && count == 0);
     capture_enabled = true;
     entries = extension_collection(count);
-    CHECK(count == 1 && entries[0].hooks == &capture_hooks && entries[0].record_double_tap);
+    CHECK(count == 1 && entries[0].hooks == &capture_hooks &&
+          entries[0].claims == claim_record_double_tap && entries[0].actions == action_edit_notes);
     return 0;
 }

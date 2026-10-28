@@ -3,7 +3,7 @@
 #include <extension_runtime.cpp>
 #include <extension_capture.cpp>
 #include <extension_collection.cpp>
-#include <ghost_capture_stock.cpp>
+#include <extension_stock.cpp>
 
 #define CHECK(value) do { if (!(value)) return __LINE__; } while (false)
 using namespace opxy;
@@ -52,7 +52,7 @@ void forward_on(u32 a0,u32 a1,u32 a2,u32 a3,u32 a4,u32 a5,u32 a6,u32 a7,u32 a8,u
     const u32 a[] = {a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10};
     for (u32 i=0;i<11;++i) args[i]=a[i];
     last_event=e; ++on_calls;
-    if (!reject_note) sdk_capture_accepted(a1,a2);
+    if (!reject_note) sdk_extensions_note_accepted(a1,a2);
 }
 void accepted_note(u32, u32) {}
 u32 steps_held() { return step_entry; }
@@ -84,16 +84,16 @@ void popup(const char* text,u32 a,u32 b,u32 duration) {
 void key(u32 key, bool pressed, u32 elapsed=50000) {
     clock_time += elapsed;
     const u32 event[4]={key, pressed ? 100u : 0u, 123, 456};
-    failed |= sdk_capture_queued_event(event) != 0x08023c78;
+    failed |= sdk_extensions_key_queue(event) != 0x08023c78;
 }
 void double_tap() { key(50,true); key(50,false); key(50,true); key(50,false); }
 void play() { key(51,true); key(51,false); }
 void stop() { key(52,true); key(52,false); }
 void note(u32 pitch=60,u32 velocity=87) {
-    sdk_capture_note_on(0x860c6adc,selected,pitch,0xffffffffu,0xffffffffu,velocity,0,1,123,456,33,nullptr);
+    sdk_extensions_live_note_on(0x860c6adc,selected,pitch,0xffffffffu,0xffffffffu,velocity,0,1,123,456,33,nullptr);
 }
-void advance(u32 delta) { sdk_capture_tick(0x860c072c,delta); }
-void release(u32 pitch=60) { sdk_capture_note_off(0x860c6adc,selected,pitch,1,2,nullptr); }
+void advance(u32 delta) { sdk_extensions_recorder_tick(0x860c072c,delta); }
+void release(u32 pitch=60) { sdk_extensions_live_note_off(0x860c6adc,selected,pitch,1,2,nullptr); }
 }
 
 namespace opxy { namespace platform {
@@ -139,7 +139,7 @@ Address host_stock_address(Address address) {
 }}
 
 int main() {
-    sdk_capture_loop(0x860c6adc,17); CHECK(loop_calls==1);
+    sdk_extensions_controller_update(0x860c6adc,17); CHECK(loop_calls==1);
     double_tap(); CHECK(!writes && !popups && !undos);
     play(); position=123; note(); advance(240); release(); stop();
     CHECK(on_calls==1 && off_calls==1 && tick_calls==1);
@@ -161,7 +161,7 @@ int main() {
             case 2: selected^=1; break; case 3: ++track_length; break;
             case 4: scale=5; break; case 5: ++quantization; break;
         }
-        sdk_capture_loop(0x860c6adc,17); double_tap(); CHECK(writes==1);
+        sdk_extensions_controller_update(0x860c6adc,17); double_tap(); CHECK(writes==1);
     }
     // Track scaling and stock's signed pickup placement survive capture.
     play(); position=track_length*480-10; note(67,99); advance(121); stop();
@@ -179,10 +179,10 @@ int main() {
     *reinterpret_cast<i16*>(pattern_notes+0x786)=0;
     double_tap(); CHECK(writes==3 && popups==3 && undos==3);
     // Other tracks and recorder workflows are forwarded but never captured.
-    play(); sdk_capture_note_on(0x860c6adc,7,72,1,2,80,3,4,5,6,7,nullptr);
+    play(); sdk_extensions_live_note_on(0x860c6adc,7,72,1,2,80,3,4,5,6,7,nullptr);
     stop(); double_tap(); CHECK(writes==3);
     recorder_mode=1; play(); note(); advance(20); stop(); double_tap(); CHECK(writes==3);
-    recorder_mode=0; sdk_capture_loop(0x860c6adc,17);
+    recorder_mode=0; sdk_extensions_controller_update(0x860c6adc,17);
     // Immediate live notes between taps cancel, even without a queued key event.
     play(); position=0; note(); advance(60); release();
     key(50,true); key(50,false); note(62); release(62); key(50,true); key(50,false);
@@ -193,12 +193,12 @@ int main() {
     double_tap(); CHECK(writes==4 && popups==4 && undos==4 && publishes==4);
     *reinterpret_cast<i16*>(pattern_notes+0x786)=0;
     play(); note(); advance(60);
-    playing=counting=0; sdk_capture_stop(0x860c6adc);
+    playing=counting=0; sdk_extensions_stop(0x860c6adc);
     playing=1; advance(1); // External restart before the next GUI/controller poll.
     stop(); double_tap(); CHECK(writes==4 && stop_calls==1);
     // A sequencer call reaches the shared acceptance function without the live
     // input scope. Rejected live notes and step entry must also stay out.
-    play(); sdk_capture_accepted(selected,60);
+    play(); sdk_extensions_note_accepted(selected,60);
     reject_note=true; note(); reject_note=false;
     step_entry=true; note(); step_entry=false;
     stop(); double_tap(); CHECK(writes==4);
@@ -216,7 +216,7 @@ int main() {
     CHECK(writes==6 && inserted[5].length==80); release(66);
     // Context changes invalidate a snapshot already anchored by the first tap.
     position=0; note(); advance(30); release(); key(50,true); key(50,false);
-    ++quantization; sdk_capture_loop(0x860c6adc,17);
+    ++quantization; sdk_extensions_controller_update(0x860c6adc,17);
     key(50,true); key(50,false); key(50,true); key(50,false); CHECK(writes==6);
 
     // Reported workflow: two pages at 1x, quantization on, one silent pass,

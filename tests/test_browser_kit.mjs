@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {activeServices, extensionSelection, assignNumbers, chosenByDefault, numberLayout, readLayout, readObject, linkKit, moduleBytes, openKit, patchFirmware, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
+import {activeServices, extensionChoices, extensionSelection, assignNumbers, chosenByDefault, numberLayout, readLayout, readObject, linkKit, moduleBytes, openKit, patchFirmware, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
 
 // Tiny authored ELF fixture, independent of private firmware/toolchains.
 function elf() {
@@ -145,7 +145,7 @@ test('exact deterministic section placement and immutable input capsules', () =>
 
 test('extensions omit code/state and resolve only shared registry imports to an absent accessor', () => {
   const k = fixture();
-  k.extensions = [{id:'capture', record_double_tap:true, edit_notes:true}];
+  k.extensions = [{id:'capture', claims:['record_double_tap'], actions:['edit_notes']}];
   k.definitions.kit_absent = k.profile.module_base;
   const extension = {...readObject(elf()), name:'extension.o', owner:null, extension:'capture'};
   extension.symbols[1].name = 'sdk_extension_capture_hooks';
@@ -165,10 +165,11 @@ test('extensions omit code/state and resolve only shared registry imports to an 
 });
 
 test('extension selections preserve collection order, empty choices and exclusive gestures', () => {
-  const k = {extensions:[{id:'observer'}, {id:'capture',record_double_tap:true}, {id:'replace',record_double_tap:true}]};
+  const k = {extensions:[{id:'observer', claims:[]}, {id:'capture', claims:['record_double_tap']}, {id:'replace', claims:['record_double_tap']}]};
   assert.deepEqual(extensionSelection(k, []), []);
   assert.deepEqual(extensionSelection(k, ['capture','observer']), ['observer','capture']);
-  assert.throws(() => extensionSelection(k, ['capture','replace']), /Record double-tap/);
+  assert.throws(() => extensionSelection(k, ['capture','replace']), /record double tap/);
+  assert.deepEqual(extensionChoices(k), [[], ['observer'], ['capture'], ['observer','capture'], ['replace'], ['observer','replace']]);
   for (const selection of [['missing'], ['capture','capture'], null, 'capture'])
     assert.throws(() => extensionSelection(k, selection), /available extension/);
   assert.deepEqual(extensionSelection({}), []);

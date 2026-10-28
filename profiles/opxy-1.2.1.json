@@ -1163,9 +1163,10 @@
       "file_offset": "0xf1d2c",
       "length": 8,
       "before": "00de598db8860000",
-      "symbol": "sdk_capture_loop",
+      "symbol": "sdk_extensions_controller_update",
       "call": true,
-      "service": "extensions"
+      "service": "extensions",
+      "events": ["context"]
     },
     {
       "kind": "hook",
@@ -1173,9 +1174,10 @@
       "file_offset": "0xed3c0",
       "length": 12,
       "before": "ffe3eafd00da0208783c0000",
-      "symbol": "sdk_capture_queued_event",
+      "symbol": "sdk_extensions_key_queue",
       "call": true,
-      "service": "extensions"
+      "service": "extensions",
+      "events": ["queued_control"]
     },
     {
       "kind": "hook",
@@ -1183,9 +1185,10 @@
       "file_offset": "0x1cb5d2",
       "length": 4,
       "before": "00e3e109",
-      "symbol": "sdk_capture_note_on",
+      "symbol": "sdk_extensions_live_note_on",
       "call": true,
-      "service": "extensions"
+      "service": "extensions",
+      "events": ["input_activity", "recordable_note_on"]
     },
     {
       "kind": "hook",
@@ -1193,9 +1196,10 @@
       "file_offset": "0x1cb466",
       "length": 4,
       "before": "00e30b09",
-      "symbol": "sdk_capture_note_off",
+      "symbol": "sdk_extensions_live_note_off",
       "call": true,
-      "service": "extensions"
+      "service": "extensions",
+      "events": ["selected_note_off"]
     },
     {
       "kind": "hook",
@@ -1203,9 +1207,10 @@
       "file_offset": "0x1cf3f8",
       "length": 4,
       "before": "ffe3b7c4",
-      "symbol": "sdk_capture_tick",
+      "symbol": "sdk_extensions_recorder_tick",
       "call": true,
-      "service": "extensions"
+      "service": "extensions",
+      "events": ["recording_tick"]
     },
     {
       "kind": "hook",
@@ -1213,9 +1218,10 @@
       "file_offset": "0x1cf014",
       "length": 4,
       "before": "ffe3d6cd",
-      "symbol": "sdk_capture_stop",
+      "symbol": "sdk_extensions_stop",
       "call": true,
-      "service": "extensions"
+      "service": "extensions",
+      "events": ["context"]
     },
     {
       "kind": "hook",
@@ -1223,9 +1229,10 @@
       "file_offset": "0x1ccaa0",
       "length": 4,
       "before": "01e38812",
-      "symbol": "sdk_capture_accepted",
+      "symbol": "sdk_extensions_note_accepted",
       "call": true,
-      "service": "extensions"
+      "service": "extensions",
+      "events": ["recordable_note_on"]
     },
     {
       "kind": "startup",

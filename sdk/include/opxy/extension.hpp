@@ -35,15 +35,29 @@ struct Actions {
     void (*notify)(const char* text);
 };
 
+// One callback per event, named for what it delivers. Each event lists its
+// firmware sites in the profile ("events"); docs/extensions.md says how to
+// widen one or propose another. Append new callbacks at the end only: an
+// extension initializes this aggregate by position.
+//
 // All callbacks are synchronous on the controller path, in collection order.
 // Arguments are borrowed for the callback. No allocation, blocking or I/O.
-// Note observers cannot transform live input or consume stock controls.
+// Observers cannot transform live input or consume stock controls.
 struct Hooks {
+    // Selected-track recording context and play state; before every other event.
     void (*context)(const Context&);
-    void (*note_on)(const Context&, const LiveNote&);
-    void (*note_off)(const Context&, const NoteOff&);
-    void (*tick)(const Context&, const Tick&);
-    void (*activity)();
-    void (*control)(const Context&, const Control&, const Actions&);
+    // A live onset stock accepted for recording, on the selected eligible
+    // instrument track, while playing. Sequenced notes and step entry excluded.
+    void (*recordable_note_on)(const Context&, const LiveNote&);
+    // A live release on the selected track, playing or not; it may have no
+    // preceding recordable onset.
+    void (*selected_note_off)(const Context&, const NoteOff&);
+    // The selected track's scaled recording time, while playing and eligible.
+    void (*recording_tick)(const Context&, const Tick&);
+    // Any live note input, accepted or not, on any track.
+    void (*input_activity)();
+    // A queued control (Record and other queued keys; not keyboard keys
+    // 26-49) after stock handled it. Actions act only for their claim owner.
+    void (*queued_control)(const Context&, const Control&, const Actions&);
 };
 }}

@@ -62,6 +62,7 @@ def configuration(entries=None, layout=None):
     IDs. Entries are machines.read_collection's."""
     profile = config()
     stock_tables.check_profile(profile)
+    extensions.check_profile(profile)
     require([p['kind'] for p in profile['patches']].count('startup') == 1, 'Expected one startup label edit')
     machines = collection(entries, layout)
     definitions = dict(DEFINITIONS)
@@ -180,13 +181,13 @@ SDK_UNITS = ('divide', 'memory', 'registration', 'registration_stock', 'startup'
              'pad_assignment_stock', 'drum_page', 'drum_controls_stock', 'drum_display_stock', 'screen_order',
              'screen_hooks', 'synth_controls', 'synth_control_table', 'note_activity', 'project_companion',
              'project_companion_table', 'profiling', 'lfo', 'lfo_stock', 'lfo_hooks', 'stock_browser',
-             'extension_runtime', 'extension_collection', 'ghost_capture_stock')
+             'extension_runtime', 'extension_collection', 'extension_stock')
 # SDK units that exist only for a profile service, linked when a machine needs it.
 UNIT_SERVICES = dict.fromkeys(('sample_machines', 'sample_hooks', 'sample_callbacks', 'sample_cache',
                                'sample_cache_stock', 'sample_cache_hooks', 'sample_progress',
                                'sample_progress_stock', 'pad_assignment', 'pad_assignment_stock', 'drum_page',
                                'drum_controls_stock', 'drum_display_stock'), 'samples')
-UNIT_SERVICES.update(dict.fromkeys(('extension_runtime', 'extension_collection', 'ghost_capture_stock'), 'extensions'))
+UNIT_SERVICES.update(dict.fromkeys(('extension_runtime', 'extension_collection', 'extension_stock'), 'extensions'))
 
 
 def service_users(machines):

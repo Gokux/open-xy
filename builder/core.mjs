@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = '57cd66efbb26e13bd27d9abd8343a3e674a9c09da97e3b89e22847a4bb1f7f31';
+export const PROFILE_SHA256 = '49b52f32514051ffe9422c9684c6a7e0d5d08ef5b85991e0c85a242a1229e2b1';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -255,18 +255,28 @@ export function extensionSelection(kit, selection = (kit.extensions ?? []).map(e
   check(Array.isArray(selection) && new Set(selection).size === selection.length &&
     selection.every(id => entries.some(e => e.id === id)), 'Choose each available extension once.');
   const selected = entries.filter(e => selection.includes(e.id));
-  check(selected.filter(e => e.record_double_tap).length <= 1,
-    'These extensions both use Record double-tap. Choose only one.');
+  const shared = sharedClaim(selected);
+  check(!shared, `These extensions both use ${shared?.replaceAll('_', ' ')}. Choose only one.`);
   return selected.map(e => e.id); // Collection order, never checkbox order.
 }
 
+// A claim (an exclusive control such as Record double-tap) two extensions share, if any.
+export function sharedClaim(extensions) {
+  const seen = new Set();
+  for (const e of extensions) for (const claim of e.claims ?? []) {
+    if (seen.has(claim)) return claim;
+    seen.add(claim);
+  }
+  return null;
+}
+
 // Every extension choice a build can make, in collection order: each subset
-// without two Record double-tap owners. Recovery and release checks try each.
+// in which no two extensions share a claim. Recovery and release checks try each.
 export function extensionChoices(kit) {
   const entries = kit.extensions ?? [], choices = [];
   for (let mask = 0; mask < 2 ** entries.length; mask++) {
     const chosen = entries.filter((_, i) => mask & 2 ** i);
-    if (chosen.filter(e => e.record_double_tap).length <= 1) choices.push(chosen.map(e => e.id));
+    if (!sharedClaim(chosen)) choices.push(chosen.map(e => e.id));
   }
   return choices;
 }
@@ -294,8 +304,9 @@ export async function openKit(kit) {
   for (const e of extensions) {
     check(e && /^[a-z][a-z0-9_]{0,31}$/.test(e.id) && !extensionIds.has(e.id) &&
       ['name', 'description', 'gesture'].every(key => typeof e[key] === 'string' && e[key].length > 0 && e[key].length <= 600) &&
-      typeof e.record_double_tap === 'boolean' && typeof e.edit_notes === 'boolean' &&
-      (!e.edit_notes || e.record_double_tap), 'Invalid extension metadata');
+      ['claims', 'actions'].every(key => Array.isArray(e[key]) && e[key].length <= 8 &&
+        new Set(e[key]).size === e[key].length && e[key].every(n => /^[a-z][a-z0-9_]{0,31}$/.test(n))),
+      'Invalid extension metadata');
     extensionIds.add(e.id);
   }
   // The bundled stock menu is authenticated where it is used (buildAssets).

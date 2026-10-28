@@ -1,28 +1,65 @@
-"""Extension ordering, exclusive control claims and build provenance."""
+"""Extension ordering, the claim and action registry, event sites and build provenance."""
 import copy
+import re
 import unittest
 from unittest import mock
 from tooling import extensions, native
+from tooling.pipeline import ROOT, config, document
 
 
 class Extensions(unittest.TestCase):
+    def valid(self):
+        return document(ROOT / extensions.PROFILE)
+
     def test_collection_rejects_conflicting_and_unsafe_declarations(self):
-        valid = {'schema': 1, 'extensions': extensions.collection()}
         for mutate in (
             lambda data: data['extensions'].append(copy.deepcopy(data['extensions'][0])),
             lambda data: data['extensions'][0].update(id='../capture'),
-            lambda data: data['extensions'][0].update(record_double_tap=False),
-            lambda data: data['extensions'][0].update(edit_notes=1),
+            lambda data: data['extensions'][0].update(claims=[]),  # edit_notes needs its claim
+            lambda data: data['extensions'][0].update(claims=['shift_hold']),  # not in the registry
+            lambda data: data['extensions'][0].update(actions=['edit_notes', 'edit_notes']),
             lambda data: data['extensions'][0].update(extra=True),
+            lambda data: data['claims'].update(bad={'label': ''}),
+            lambda data: data['actions'].update(other={'requires': 'missing'}),
+            lambda data: data.update(schema=1),
         ):
-            data = copy.deepcopy(valid)
+            data = self.valid()
             mutate(data)
             with mock.patch.object(extensions, 'document', return_value=data), self.assertRaises(ValueError):
                 extensions.collection()
-        data = copy.deepcopy(valid)
-        data['extensions'].append(dict(id='other', record_double_tap=True, edit_notes=False))
+        data = self.valid()
+        data['extensions'].append(dict(id='other', claims=['record_double_tap'], actions=[]))
         with mock.patch.object(extensions, 'document', return_value=data), self.assertRaisesRegex(ValueError, 'multiple owners'):
             extensions.collection()
+
+    def test_registry_matches_the_runtime_bits(self):
+        # Adding a claim or action is one registry entry and one runtime constant.
+        header = (ROOT / extensions.RUNTIME).read_text(encoding='utf-8')
+        claims, actions = extensions.registry()
+        declared = re.findall(r'const u32 (claim|action)_(\w+) = 1u << (\d+);', header)
+        self.assertEqual({(kind, name) for kind, name, _bit in declared},
+                         {('claim', n) for n in claims} | {('action', n) for n in actions})
+        for kind in ('claim', 'action'):
+            bits = [bit for k, _name, bit in declared if k == kind]
+            self.assertEqual(len(bits), len(set(bits)), 'Each ' + kind + ' has its own bit')
+
+    def test_every_extension_hook_names_its_events_and_every_event_has_a_site(self):
+        profile = config()
+        extensions.check_profile(profile)
+        self.assertEqual(extensions.events(), ['context', 'recordable_note_on', 'selected_note_off',
+                                               'recording_tick', 'input_activity', 'queued_control'])
+        hook = lambda p: next(x for x in p['patches'] if x.get('events'))
+        for mutate in (
+            lambda p: hook(p).pop('events'),
+            lambda p: hook(p).update(events=['note_on']),
+            lambda p: hook(p).update(events=[]),
+            lambda p: next(x for x in p['patches'] if not x.get('service')).update(events=['context']),
+            lambda p: [x.update(events=['context']) for x in p['patches'] if x.get('events')],
+        ):
+            changed = copy.deepcopy(profile)
+            mutate(changed)
+            with self.assertRaises(ValueError):
+                extensions.check_profile(changed)
 
     def test_extension_source_and_selection_are_authenticated_build_inputs(self):
         sources = native.provenance([])
@@ -33,6 +70,7 @@ class Extensions(unittest.TestCase):
         self.assertNotIn('sdk/extension_capture.o', native.object_services([]))
 
     def test_empty_selection_has_no_extension_objects(self):
-        with mock.patch.object(extensions, 'document', return_value={'schema': 1, 'extensions': []}):
+        data = dict(self.valid(), extensions=[])
+        with mock.patch.object(extensions, 'document', return_value=data):
             self.assertFalse(any(step.startswith('extension:') for _, _, step in native.plan([])))
             self.assertFalse(any(name.startswith('extensions/') for name in native.provenance([])))

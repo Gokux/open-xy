@@ -4,17 +4,17 @@
 #include "stock.hpp"
 
 extern "C" {
-void sdk_capture_loop(opxy::u32, opxy::u32) __asm__("sdk_capture_loop");
-void sdk_capture_event(const opxy::u32*) __asm__("sdk_capture_event");
-opxy::u32 sdk_capture_queued_event(const opxy::u32*) __asm__("sdk_capture_queued_event");
-void sdk_capture_tick(opxy::u32, opxy::u32) __asm__("sdk_capture_tick");
-void sdk_capture_stop(opxy::u32) __asm__("sdk_capture_stop");
-void sdk_capture_accepted(opxy::u32, opxy::u32) __asm__("sdk_capture_accepted");
-void sdk_capture_note_on(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32,
+void sdk_extensions_controller_update(opxy::u32, opxy::u32) __asm__("sdk_extensions_controller_update");
+void sdk_extensions_key(const opxy::u32*) __asm__("sdk_extensions_key");
+opxy::u32 sdk_extensions_key_queue(const opxy::u32*) __asm__("sdk_extensions_key_queue");
+void sdk_extensions_recorder_tick(opxy::u32, opxy::u32) __asm__("sdk_extensions_recorder_tick");
+void sdk_extensions_stop(opxy::u32) __asm__("sdk_extensions_stop");
+void sdk_extensions_note_accepted(opxy::u32, opxy::u32) __asm__("sdk_extensions_note_accepted");
+void sdk_extensions_live_note_on(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32,
     opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32, const void*)
-    __asm__("sdk_capture_note_on");
-void sdk_capture_note_off(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32,
-    const void*) __asm__("sdk_capture_note_off");
+    __asm__("sdk_extensions_live_note_on");
+void sdk_extensions_live_note_off(opxy::u32, opxy::u32, opxy::u32, opxy::u32, opxy::u32,
+    const void*) __asm__("sdk_extensions_live_note_off");
 }
 
 namespace opxy { namespace platform {
@@ -113,45 +113,45 @@ void extension_notify(const char* text) {
 using namespace opxy;
 using namespace opxy::platform;
 
-void sdk_capture_loop(u32 controller, u32 elapsed) {
+void sdk_extensions_controller_update(u32 controller, u32 elapsed) {
     extensions_sync();
     stock<void(u32, u32)>(0x8d5986b8)(controller, elapsed);
     extensions_sync();
 }
-void sdk_capture_tick(u32 state, u32 delta) {
-    extensions_tick(delta);
+void sdk_extensions_recorder_tick(u32 state, u32 delta) {
+    extensions_recording_tick(delta);
     stock<void(u32, u32)>(0x8d590b0a)(state, delta);
 }
-void sdk_capture_stop(u32 controller) {
+void sdk_extensions_stop(u32 controller) {
     stock<void(u32)>(0x8d591964)(controller);
     // Observe Stop even when an external Stop/Start pair arrives in one update.
     // Both stock playing flags are already clear at this call site.
     extensions_sync();
 }
-void sdk_capture_note_on(u32 controller, u32 track, u32 note, u32 a3, u32 a4,
+void sdk_extensions_live_note_on(u32 controller, u32 track, u32 note, u32 a3, u32 a4,
                         u32 velocity, u32 a6, u32 a7, u32 low, u32 high, u32 flags,
                         const void* event) {
-    extensions_activity();
+    extensions_input_activity();
     const LiveInput previous = live_input;
     live_input = {track, note, velocity, flags, true};
     stock<void(u32,u32,u32,u32,u32,u32,u32,u32,u32,u32,u32,const void*)>(0x8d595738)
         (controller,track,note,a3,a4,velocity,a6,a7,low,high,flags,event);
     live_input = previous;
 }
-void sdk_capture_accepted(u32 track, u32 note) {
+void sdk_extensions_note_accepted(u32 track, u32 note) {
     stock<void(u32,u32)>(0x8d5b7d54)(track, note);
     // This call follows stock's acceptance/capacity checks, immediately before
     // its record-arm gate. Apply its ordinary-recording gates without arming it.
     if (live_input.active && live_input.track == track && live_input.pitch == note &&
         (live_input.flags & 1) && !stock<u32()>(0x8d5b7e34)())
-        extensions_note_on(track, note, live_input.velocity);
+        extensions_recordable_note_on(track, note, live_input.velocity);
 }
-void sdk_capture_note_off(u32 controller, u32 track, u32 note, u32 a3, u32 flags,
+void sdk_extensions_live_note_off(u32 controller, u32 track, u32 note, u32 a3, u32 flags,
                          const void* event) {
-    extensions_note_off(track, note);
+    extensions_selected_note_off(track, note);
     stock<void(u32,u32,u32,u32,u32,const void*)>(0x8d595420)(controller,track,note,a3,flags,event);
 }
-void sdk_capture_event(const u32* event) {
+void sdk_extensions_key(const u32* event) {
     extensions_sync();
     const u32 key = event[0];
     const bool pressed = event[1] != 0;
@@ -163,10 +163,10 @@ void sdk_capture_event(const u32* event) {
     stock<void(extensions::Time*)>(0x8d5be3a0)(&time);
     stock<void(const u32*)>(0x8c0b5d58)(event);
     const bool accepted = enabled && (pressed ? extension_record_held() : was_held && !extension_record_held());
-    extensions_control(key, pressed, accepted, clean, time);
+    extensions_queued_control(key, pressed, accepted, clean, time);
 }
-u32 sdk_capture_queued_event(const u32* event) {
-    sdk_capture_event(event);
+u32 sdk_extensions_key_queue(const u32* event) {
+    sdk_extensions_key(event);
     // The authenticated span includes stock's following R0 = queue address.
     // A 12-byte span admits CALL.A across the module's relative-call range.
     return 0x08023c78;

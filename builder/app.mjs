@@ -403,7 +403,7 @@ function renderExtensions() {
     button.append(node('span', extension.name, 'machine-name'), meta);
     button.onclick = () => inspectExtension(extension.id);
     const conflict = entries.find(e => e.id !== extension.id && selectedExtensions.includes(e.id) &&
-      e.record_double_tap && extension.record_double_tap);
+      Core.sharedClaim([e, extension]));
     if (conflict && !input.checked) {
       input.disabled = true;
       const message = node('p', 'Uses the same shortcut as ' + conflict.name + '. Deselect it first.', 'extension-conflict');

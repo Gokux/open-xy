@@ -1,9 +1,10 @@
 # Firmware extensions
 
-Extensions change controller and sequencer behavior. Machines implement sound
-and display callbacks; extensions receive selected-track context, accepted live
-notes, releases, scaled recording ticks and controls. Capture is the first
-extension, in [`extensions/capture/`](../extensions/capture/extension.cpp).
+Extensions change how the OP-XY itself behaves: recording, controls, the
+sequencer. Machines make sound and draw; extensions observe the firmware's
+events and act through stock. Capture is the first extension, in
+[`extensions/capture/`](../extensions/capture/extension.cpp), and the worked
+example for the next.
 
 An extension is ordinary C++11 compiled into the firmware. It has no firmware
 addresses, assembly, platform conditionals or OS headers. The SDK installs each
@@ -14,134 +15,154 @@ experimental and source-level; it is not a dynamic loader or binary ABI.
 
 Three layers, kept apart:
 
-1. **Patch sites** are private and belong to one OS release: the addresses in
+1. **Patch sites** are private and belong to one OS release: the hooks in
    [`profiles/opxy-1.2.1.json`](../profiles/opxy-1.2.1.json). The SDK owns every
-   site, each exactly once. No extension or machine patches the firmware.
-2. **Events** are public and outlive an OS release. The SDK turns each site into
-   one named event. An OS port moves the sites; events stay the same.
-3. **Subscribers** are extensions and machines. They declare the events they
-   take and filter them; they never see a site.
+   site, each exactly once; the build rejects two edits that overlap. No
+   extension or machine patches the firmware.
+2. **Events** are public and outlive an OS release: the callbacks of
+   [`Hooks`](../sdk/include/opxy/extension.hpp). Each extension hook in the
+   profile lists the events it feeds (`events`); the build checks every hook
+   names known events and every event has a site. An OS port moves the sites;
+   the events stay.
+3. **Subscribers** are extensions and, later, machines. They take events and
+   filter them; they never see a site.
 
-### Name an event by where it happens
+### Name an event by where it happens, and by its scope
 
-"Note on" is ambiguous: a note passes several stages, and each stage is its own
-event. A subscriber that wants only one track filters the event; it does not
-need another site.
+"Note on" is ambiguous: a note passes several stages, each its own event.
 
-| Stage | Happens when | Here |
+| Stage | Happens when | Event |
 | --- | --- | --- |
-| Input note | A key or MIDI note arrives, before recording and the sequencer | `note_on` and `note_off` (live input stock accepted) |
-| Sequencer note | A pattern step plays | Not exposed |
-| Track note | Live and sequenced notes reach a track, before its instrument | Not exposed |
-| Voice start | The instrument starts a voice | A machine's voice callbacks |
+| Input | A key or MIDI note arrives, before recording and the sequencer | `input_activity` (any track, accepted or not), `recordable_note_on`, `selected_note_off` |
+| Sequencer | A pattern step plays | Not exposed |
+| Track | Live and sequenced notes reach a track, before its instrument | Not exposed |
+| Voice | The instrument starts a voice | A machine's voice callbacks |
 
-The same holds for time (transport tick, GUI tick), controls (keys, encoder
-edits, page keys) and the project lifecycle (load, clear, save).
+An event's name says what it delivers. `recordable_note_on` is not every note
+on: it is a live onset stock accepted for recording, on the selected track,
+while playing. A subscriber that wants a narrower scope filters; one that needs
+a wider scope widens the event (below), never adds a nearby site. The same
+holds for time (transport, GUI tick), controls (queued keys, keyboard keys,
+encoder edits, page keys) and the project lifecycle (load, clear, save).
 
-### Each event grants one kind of access
+Adjacent sites are still separate sites. The controller update behind `context`
+follows stock's GUI tick in the same main loop; a GUI-tick event would be a site
+of its own beside it.
+
+### Access: observe, transform or claim
 
 | Access | Rule | Here |
 | --- | --- | --- |
-| Observe | Read-only; any number of subscribers, in collection order | `context`, `note_on`, `note_off`, `tick`, `activity`, `control` |
+| Observe | Read-only; every subscriber, in collection order | Every event |
 | Transform | One ordered chain that may change or drop the event | None yet |
-| Claim | One owner; a second claimant fails the build | Record double-tap (`record_double_tap`) |
+| Claim | One owner per build; a second claimant fails the build | `record_double_tap` |
 
-### And states its thread and host
+### Thread and host
 
-Each event says which thread it runs on: audio, GUI and controller, or project
-load and save. Callbacks here run on the controller path. A subscriber is either
-firmware-wide, as an extension, or hosted by a machine on a track, which filters
-to that track for it.
+Each event runs on one thread: audio, GUI and controller, or project load and
+save. All current events run on the controller path. A subscriber is either
+firmware-wide, as an extension, or hosted by a machine on a track, which
+filters to that track for it.
 
 ### Four kinds of interface
 
 | Kind | What | Here |
 | --- | --- | --- |
-| Events | Something happened | The callbacks below |
+| Events | Something happened | The `Hooks` callbacks |
 | Actions | Change something through stock | `Actions::insert_notes`, `Actions::notify` |
 | Surfaces | Add to the screen | None for extensions yet: menu rows, pages, overlays |
 | Saved state | Data kept with a project | None for extensions yet |
 
-### Adding to the SDK
+## Events
 
-A new feature adds subscribers, not patch sites. A change that adds a patch site
-names the event it creates, its stage, access, thread and host, and says why no
-existing event serves. Each site belongs to a profile service and is applied
-only to builds that use it.
+Callbacks run synchronously on the controller path, in collection order. Keep
+them bounded: no allocation, blocking, I/O or logging. Borrow event references
+only for the callback. The SDK does not sandbox native code.
 
-Adjacent sites are still separate sites. The controller update that capture
-observes follows stock's GUI tick in the same main loop; an event for that tick
-would be a site of its own, beside this one.
+| Event | Delivers | Sites |
+| --- | --- | --- |
+| `context` | Project, pattern, selected track, length, scale, quantization and play state; before every other event | Controller update, Stop |
+| `recordable_note_on` | A live onset stock accepted for recording, on the selected eligible instrument track, while playing; with stock's pickup position and collision radius | Live onset, accepted-note bookkeeping |
+| `selected_note_off` | A live release on the selected track, playing or not; may have no preceding onset | Live release |
+| `recording_tick` | The selected track's scaled Q8 recording time, while playing and eligible; a discontinuity asks the subscriber to discard timing | Recorder tick |
+| `input_activity` | Any live note input, accepted or not, on any track; for cancelling gestures | Live onset |
+| `queued_control` | A queued key (Record and the other queued controls; not keyboard keys 26–49) after stock handled it, with a microsecond time; `record_accepted` and `unmodified_record` describe Record | Key queue |
+
+Project and pattern IDs are opaque equality tokens. Lengths use pattern ticks;
+scale 1 has 480 ticks per step. Stock's pickup gives negative positions near
+pattern zero. Quantization belongs to stock playback; subscribers must not
+invent a second grid conversion. Sequenced notes and step entry are not live
+onsets.
+
+## Claims and actions
+
+[`profiles/extensions.json`](../profiles/extensions.json) holds the registry and
+the collection.
+
+- **A claim** is an exclusive control: one owner per build. Two extensions with
+  the same claim cannot be built together, and the site will not offer both.
+  `record_double_tap`: its owner recognizes the gesture, with the shared
+  [`RecordTap`](../sdk/include/opxy/record_tap.hpp) helper for taps, holds,
+  repeats and timeouts, without delaying stock controls.
+- **An action** is permission to change stock state, and may require a claim.
+  `edit_notes` requires `record_double_tap`: `Actions::insert_notes` works only
+  for its owner, inside an accepted Record `queued_control` callback. The SDK
+  rechecks the context, validates the bounded batch, opens one stock undo
+  transaction, keeps stock collision and capacity behavior, returns the
+  inserted prefix length and publishes once. A successful edit permits one
+  short `Actions::notify`. Calls outside that callback, after a context change,
+  or a second edit in one callback are rejected.
+
+Observers cannot transform notes or suppress stock input.
 
 ## Add an extension
 
-Create `extensions/<id>/extension.cpp`. Export
-`opxy::extensions::<id>::hooks`, a constant
-[`Hooks`](../sdk/include/opxy/extension.hpp) descriptor; unused callbacks are
-null. Put its implementation and private helpers in that directory. Add its ID
-to [`profiles/extensions.json`](../profiles/extensions.json), with
-`record_double_tap` and `edit_notes` booleans. The builder compiles the selected
-extensions, validates their source boundary and records their sources and
-selection in package provenance. Add an `extension.json` beside the source with
-three nonempty text fields: `name`, `description` and `gesture`. These provide
-the browser selection row and details panel; the description should explain changes to stock
-behavior and when the extension clears its state.
+1. Create `extensions/<id>/extension.cpp`, exporting
+   `opxy::extensions::<id>::hooks`, a constant `Hooks`; unused callbacks are
+   null. Keep its helpers in that folder.
+2. Add `{"id": "<id>", "claims": [], "actions": []}` to the collection in
+   `profiles/extensions.json`, with any claims and actions it needs from the
+   registry. The collection's order is the callback order.
+3. Add `extensions/<id>/extension.json` with nonempty `name`, `description`
+   and `gesture`: the site's row and details panel. Say how it changes stock
+   behavior and when it clears its state.
 
-Native builds include the declared collection. Browser kits export those objects
-as individually selectable extensions. The browser's Extensions step follows
-Machines, starts with none selected, and saves choices with the machine selection.
-It omits unselected extension objects entirely, and the generated registry skips
-their absent accessors. The SDK's extension hooks form the profile's `extensions`
-service: a build with no extension selected links none of the extension runtime
-and leaves every one of its stock call sites unchanged. Only the SDK defines those
-accessors and firmware hooks.
+Native builds include the whole collection. The site's Extensions step follows
+Machines, starts with none selected, saves choices with the layout and omits
+unselected extensions entirely. The SDK's extension hooks form the profile's
+`extensions` service: a build with no extension selected links none of the
+runtime and leaves every one of its stock call sites unchanged.
 
-The array defines callback order. All observers receive the same immutable
-event in that order. There is no priority guessing or registration during
-playback. Duplicate IDs, multiple Record-double-tap owners and note editing
-without that claim fail the build. An empty collection is valid.
+## Change the SDK for an extension
 
-## Events and ownership
+Reuse first: read the events table. Most needs are a subscriber that filters an
+existing event.
 
-Callbacks run synchronously on the controller path. Keep them bounded: no
-allocation, blocking, I/O or logging. Borrow event references only for the
-callback. The SDK does not sandbox native code.
+**Widen an event** when it fires too rarely for you: a track other than the
+selected one, notes while stopped, keyboard keys. Add the field or relax the
+filter at the existing site, and keep every current subscriber's behavior by
+giving it what it relied on (a `selected` or `recordable` flag it can test).
+Do not add a second site for the same stage.
 
-| Callback | Meaning |
-| --- | --- |
-| `context` | Current project, pattern, selected track, length, scale, quantization and play state; delivered before note, tick and control events |
-| `note_on` | Stock-accepted live note on the selected eligible instrument track while playing, with stock pickup position and collision radius |
-| `note_off` | Selected-track live release; may arrive without a preceding accepted onset |
-| `tick` | Stock-scaled Q8 duration delta; a discontinuity asks the extension to discard timing-dependent state |
-| `activity` | Live input activity, including rejected notes; useful for cancelling gestures |
-| `control` | Queued control after stock handling, with a 64-bit microsecond time; `record_accepted` and `unmodified_record` describe Record specifically |
+**Add an event** only for a stage, thread or kind no event covers. Append its
+callback to the end of `Hooks`: extensions initialize it by position. The pull
+request states:
 
-Project and pattern IDs are opaque equality tokens. Lengths use pattern ticks;
-scale 1 has 480 ticks per step. The adapter supplies negative pickup positions
-near pattern zero. Quantization belongs to stock playback; extensions must not
-invent a second grid conversion. Generated sequencer notes and step entry do
-not become live onsets.
+- the event's name, by what it delivers and its scope;
+- its stage, access (observe, transform or claim), thread and host;
+- each firmware site, tagged with `events` and the `extensions` service, and
+  how it was found and verified in the stock OS;
+- why widening an existing event would not serve.
 
-Observers cannot transform notes or suppress stock input. The only current
-exclusive command is Record double-tap. Its owner recognizes the gesture; the
-shared [`RecordTap`](../sdk/include/opxy/record_tap.hpp) helper handles short
-taps, holds, repeats and timeouts without delaying stock controls.
-
-Only the declared note editor can use `Actions::insert_notes`, during an
-accepted Record control callback. The SDK rechecks context and validates the
-bounded batch before opening one stock undo transaction. It preserves stock
-collision and capacity behavior, returns the inserted prefix length and
-publishes once. A successful edit permits one bounded success notification.
-Calls outside that callback, from observers, after a context change, or a
-second edit within the same callback are rejected.
-
-These phases keep observation independent of pattern edits. Changing live
-recording policy or transforming note-on/off pairs requires an explicit SDK
-contract; an observer must not add its own firmware patch or write stock memory.
+**Add a claim or action** with one registry entry in `profiles/extensions.json`
+and one bit in
+[`extension_runtime.hpp`](../sdk/platform/extension_runtime.hpp); a test keeps
+them in step. Never add a per-claim field to the collection.
 
 ## Verify
 
 Run `python sdk.py check`, then the full [native release verification](build.md#release-verification).
-Shared tests exercise callback ordering, exclusive claims, stale-context and
-unauthorized edits, plus capture through the actual adapter with stock boundary
-doubles. Device scheduling still requires testing the exact built image.
+Shared tests exercise callback ordering, exclusive claims, the registry, every
+hook's events, stale-context and unauthorized edits, and capture through the
+actual adapter with stock boundary doubles. Device scheduling still requires
+testing the exact built image.

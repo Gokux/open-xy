@@ -13,7 +13,7 @@ void first_note(const extensions::Context&, const extensions::LiveNote& note) {
     order[order_count++] = 1;
     observations += note.position == -12 && note.collision_radius == 180;
     // Reentrant callbacks are ignored, not delivered out of order.
-    extensions_note_on(0, 60, 100);
+    extensions_recordable_note_on(0, 60, 100);
 }
 void second_note(const extensions::Context&, const extensions::LiveNote&) { order[order_count++] = 2; }
 void observe_control(const extensions::Context& context, const extensions::Control&, const extensions::Actions& actions) {
@@ -34,7 +34,7 @@ void edit_control(const extensions::Context& context, const extensions::Control&
 }
 const extensions::Hooks first = {nullptr, first_note, nullptr, nullptr, nullptr, observe_control};
 const extensions::Hooks second = {nullptr, second_note, nullptr, nullptr, nullptr, edit_control};
-ExtensionEntry collection[] = {{"observer", false, false, &first}, {"writer", true, true, &second}};
+ExtensionEntry collection[] = {{"observer", 0, 0, &first}, {"writer", claim_record_double_tap, action_edit_notes, &second}};
 }
 namespace opxy { namespace platform {
 const ExtensionEntry* extension_collection(u32& count) { count = 2; return collection; }
@@ -46,27 +46,29 @@ u32 extension_write(u32, const RecordedNote*, u32 count) { ++writes; return coun
 void extension_notify(const char*) { ++notices; }
 }}
 int main() {
-    extensions_note_on(0, 60, 100);
+    extensions_recordable_note_on(0, 60, 100);
     CHECK(order_count == 2 && order[0] == 1 && order[1] == 2 && observations == 1);
-    extensions_note_on(7, 60, 100); CHECK(order_count == 2);
-    extensions_control(50, false, true, true, 100);
+    extensions_recordable_note_on(7, 60, 100); CHECK(order_count == 2);
+    extensions_queued_control(50, false, true, true, 100);
     CHECK(writes == 1 && notices == 1 && result == 1);
     CHECK(saved.insert_notes(saved_context, &good, 1) == 0);
     saved.notify("late"); CHECK(notices == 1);
     for (mode = 1; mode <= 4; ++mode) {
-        extensions_control(50, false, true, true, 100);
+        extensions_queued_control(50, false, true, true, 100);
         CHECK(result == 0 && writes == 1 && notices == 1);
     }
     mode = 5;
-    extensions_control(50, false, true, true, 100);
+    extensions_queued_control(50, false, true, true, 100);
     CHECK(result == 1 && writes == 2 && notices == 2);
-    extensions_control(50, false, false, true, 100);
-    extensions_control(12, false, true, true, 100);
+    extensions_queued_control(50, false, false, true, 100);
+    extensions_queued_control(12, false, true, true, 100);
     CHECK(result == 0 && writes == 2 && notices == 2);
     // Guard the generated registry at runtime as well as build time.
-    initialized = false; entries = nullptr; collection[0].record_double_tap = true;
-    extensions_note_on(0, 60, 100); CHECK(order_count == 2);
-    initialized = false; collection[0].record_double_tap = false; collection[0].id = "writer";
-    extensions_note_on(0, 60, 100); CHECK(order_count == 2);
+    initialized = false; entries = nullptr; collection[0].claims = claim_record_double_tap;
+    extensions_recordable_note_on(0, 60, 100); CHECK(order_count == 2);
+    initialized = false; collection[0].claims = 0; collection[0].actions = action_edit_notes;
+    extensions_recordable_note_on(0, 60, 100); CHECK(order_count == 2);
+    initialized = false; collection[0].actions = 0; collection[0].id = "writer";
+    extensions_recordable_note_on(0, 60, 100); CHECK(order_count == 2);
     return 0;
 }

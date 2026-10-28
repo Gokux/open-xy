@@ -14,7 +14,7 @@ class CaptureHook(unittest.TestCase):
     def test_queued_event_keeps_absolute_call_and_exact_nop_padding(self):
         from tooling.firmware import hook_instruction, hook_target
         from tooling.pipeline import config
-        patch = next(p for p in config()['patches'] if p.get('symbol') == 'sdk_capture_queued_event')
+        patch = next(p for p in config()['patches'] if p.get('symbol') == 'sdk_extensions_key_queue')
         self.assertEqual(patch['length'], 12)
         target = 0x8d450380
         encoded = hook_instruction(patch, target)
@@ -35,11 +35,11 @@ class RecordingHistory(unittest.TestCase):
             if name == 'extension_selection':
                 from tooling.extensions import generate_collection
                 with mock.patch('tooling.extensions.collection', return_value=[
-                    dict(id='capture', record_double_tap=True, edit_notes=True),
-                    dict(id='observer', record_double_tap=False, edit_notes=False),
+                    dict(id='capture', claims=['record_double_tap'], actions=['edit_notes']),
+                    dict(id='observer', claims=[], actions=[]),
                 ]):
                     generate_collection(Path(folder))
-            if name == 'ghost_capture':
+            if name == 'extension_stock':
                 platform = ROOT / 'sdk/platform/opxy-1.2.1'
                 stock = (platform / 'stock.hpp').read_text()
                 stock = stock.replace('typedef __UINTPTR_TYPE__ Address;',
@@ -48,7 +48,7 @@ class RecordingHistory(unittest.TestCase):
                     stock = stock.replace('reinterpret_cast<' + pointer + '>(address)',
                                           'reinterpret_cast<' + pointer + '>(host_stock_address(address))')
                 (Path(folder) / 'stock.hpp').write_text(stock)
-                (Path(folder) / 'ghost_capture_stock.cpp').write_text((platform / 'ghost_capture_stock.cpp').read_text().replace(
+                (Path(folder) / 'extension_stock.cpp').write_text((platform / 'extension_stock.cpp').read_text().replace(
                     '#include "../extension_runtime.hpp"', '#include <extension_runtime.hpp>'))
                 from tooling.extensions import generate_collection, generate_extension
                 generate_collection(Path(folder))
@@ -69,7 +69,7 @@ class RecordingHistory(unittest.TestCase):
         self.run_fixture('record_tap')
 
     def test_stock_adapter_capture_forwarding_undo_and_failure(self):
-        self.run_fixture('ghost_capture')
+        self.run_fixture('extension_stock')
 
     def test_extension_observers_order_and_write_ownership(self):
         self.run_fixture('extension_runtime')

@@ -10,21 +10,21 @@ Context previous;
 Note snapshot[RecordingHistory::capacity];
 u32 snapshot_count;
 
-void sync(const Context& context) {
+void context(const Context& context) {
     if (!(context.recording == previous.recording) || context.playing != previous.playing) tap.cancel();
     history.sync(context.recording, context.playing);
     previous = context;
 }
-void activity() { tap.cancel(); }
-void note_on(const Context&, const LiveNote& note) {
+void input_activity() { tap.cancel(); }
+void recordable_note_on(const Context&, const LiveNote& note) {
     history.note_on(note.position, note.pitch, note.velocity, note.collision_radius);
 }
-void note_off(const Context&, const NoteOff& note) { history.note_off(note.pitch); }
-void tick(const Context&, const Tick& tick) {
+void selected_note_off(const Context&, const NoteOff& note) { history.note_off(note.pitch); }
+void recording_tick(const Context&, const Tick& tick) {
     if (tick.discontinuity) { history.clear(); tap.cancel(); return; }
     history.advance(tick.delta_q8);
 }
-void control(const Context& context, const Control& control, const Actions& actions) {
+void queued_control(const Context& context, const Control& control, const Actions& actions) {
     if (control.key != Control::record_key || !control.record_accepted || !context.recording.eligible) {
         tap.cancel(); return;
     }
@@ -40,5 +40,7 @@ void control(const Context& context, const Control& control, const Actions& acti
     }
 }
 }
-extern const Hooks hooks = {sync, note_on, note_off, tick, activity, control};
+// In Hooks order; null for an event this extension does not take.
+extern const Hooks hooks = {context, recordable_note_on, selected_note_off, recording_tick,
+                            input_activity, queued_control};
 }}}
