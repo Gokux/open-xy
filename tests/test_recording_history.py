@@ -35,8 +35,8 @@ class RecordingHistory(unittest.TestCase):
             if name == 'extension_selection':
                 from tooling.extensions import generate_collection
                 with mock.patch('tooling.extensions.collection', return_value=[
-                    dict(id='capture', claims=['record_double_tap'], actions=['edit_notes']),
-                    dict(id='observer', claims=[], actions=[]),
+                    dict(id='capture', origin='official', claims=['record_double_tap'], actions=['edit_notes']),
+                    dict(id='observer', origin='community', claims=[], actions=[]),
                 ]):
                     generate_collection(Path(folder))
             if name == 'extension_stock':

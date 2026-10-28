@@ -21,6 +21,8 @@ class Extensions(unittest.TestCase):
             lambda data: data['extensions'][0].update(claims=['shift_hold']),  # not in the registry
             lambda data: data['extensions'][0].update(actions=['edit_notes', 'edit_notes']),
             lambda data: data['extensions'][0].update(extra=True),
+            lambda data: data['extensions'][0].update(origin='catalog'),
+            lambda data: data['extensions'][0].pop('origin'),
             lambda data: data['claims'].update(bad={'label': ''}),
             lambda data: data['actions'].update(other={'requires': 'missing'}),
             lambda data: data.update(schema=1),
@@ -30,7 +32,7 @@ class Extensions(unittest.TestCase):
             with mock.patch.object(extensions, 'document', return_value=data), self.assertRaises(ValueError):
                 extensions.collection()
         data = self.valid()
-        data['extensions'].append(dict(id='other', claims=['record_double_tap'], actions=[]))
+        data['extensions'].append(dict(id='other', origin='community', claims=['record_double_tap'], actions=[]))
         with mock.patch.object(extensions, 'document', return_value=data), self.assertRaisesRegex(ValueError, 'multiple owners'):
             extensions.collection()
 

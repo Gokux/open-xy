@@ -127,7 +127,8 @@ Observers cannot transform notes or suppress stock input.
 1. Create `extensions/<id>/extension.cpp`, exporting
    `opxy::extensions::<id>::hooks`, a constant `Hooks`; unused callbacks are
    null. Keep its helpers in that folder.
-2. Add `{"id": "<id>", "claims": [], "actions": []}` to the collection in
+2. Add `{"id": "<id>", "origin": "community", "claims": [], "actions": []}`
+   to the collection in
    `profiles/extensions.json`, with any claims and actions it needs from the
    registry. The collection's order is the callback order.
 3. Add `extensions/<id>/extension.json` for the site's row and details panel:

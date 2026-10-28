@@ -19,6 +19,8 @@ RESERVED = {'runtime', 'collection', 'stock', *'''alignas alignof and and_eq asm
 # The site's row and details: one line saying what it does and how, and an
 # optional note for its one limit. Short on purpose: people scan, not read.
 TEXT_LIMITS = {'name': 32, 'description': 140, 'note': 100}
+# Open-XY's own extensions are official (shown as Core); contributed ones are community.
+ORIGINS = ('official', 'community')
 HEADER = 'sdk/include/opxy/extension.hpp'
 RUNTIME = 'sdk/platform/extension_runtime.hpp'
 
@@ -51,8 +53,8 @@ def collection():
     require(isinstance(entries, list) and len(entries) <= 16, 'At most 16 extensions')
     ids, owners = set(), {}
     for entry in entries:
-        require(isinstance(entry, dict) and set(entry) == {'id', 'claims', 'actions'},
-                'Invalid extension declaration')
+        require(isinstance(entry, dict) and set(entry) == {'id', 'origin', 'claims', 'actions'} and
+                entry['origin'] in ORIGINS, 'Invalid extension declaration')
         name = entry['id']
         require(isinstance(name, str) and NAME.fullmatch(name) and name not in RESERVED, 'Invalid extension ID')
         require(name not in ids, 'Duplicate extension ID: ' + name)

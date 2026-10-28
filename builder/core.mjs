@@ -234,6 +234,8 @@ function catalogEntry(m, numbers) {
 // GitHub repository, release tag, commit and maintainer, matching tooling.catalog's patterns.
 // Official catalog machines are Open-XY's own (tooling.catalog.OFFICIAL); the rest are community.
 export const ORIGINS = ['official', 'catalog', 'personal'];
+// Extensions: Open-XY's own, or contributed (tooling.extensions.ORIGINS).
+export const EXTENSION_ORIGINS = ['official', 'community'];
 const RELEASE = {repository: /^https:\/\/github\.com\/[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9._-]+$/,
   tag: /^[A-Za-z0-9._/-]{1,64}$/, commit: /^[0-9a-f]{40}$/, maintainer: /^[A-Za-z0-9-]{1,39}$/};
 export function validSource(source) {
@@ -305,6 +307,7 @@ export async function openKit(kit) {
     check(e && /^[a-z][a-z0-9_]{0,31}$/.test(e.id) && !extensionIds.has(e.id) &&
       Object.entries({name: 32, description: 140, note: 100}).every(([key, limit]) => key === 'note' && e[key] === undefined ||
         typeof e[key] === 'string' && e[key].length > 0 && e[key].length <= limit) &&
+      EXTENSION_ORIGINS.includes(e.origin) &&
       ['claims', 'actions'].every(key => Array.isArray(e[key]) && e[key].length <= 8 &&
         new Set(e[key]).size === e[key].length && e[key].every(n => /^[a-z][a-z0-9_]{0,31}$/.test(n))),
       'Invalid extension metadata');

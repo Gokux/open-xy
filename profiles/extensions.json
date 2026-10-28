@@ -7,6 +7,6 @@
     "edit_notes": {"requires": "record_double_tap"}
   },
   "extensions": [
-    {"id": "capture", "claims": ["record_double_tap"], "actions": ["edit_notes"]}
+    {"id": "capture", "origin": "official", "claims": ["record_double_tap"], "actions": ["edit_notes"]}
   ]
 }
