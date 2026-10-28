@@ -121,14 +121,17 @@ voice on the track, fades it over one block and restarts the same index
 
 Stock has 27 voice slots, so the adapter keeps at most 27 voices, plus one
 spare: `min(voiceCapacity, 27) + 1`. They go to handles as their notes start: a
-free voice, else one whose index went a whole block without a render. A factory
-call for an index frees the voice it held, so a voice stock takes keeps its
-place for the restarted note. The spare covers a note that ended in the block
-another starts. Only with more notes sounding than that (a capacity below 8, or
-the machine on several tracks) does a note take a sounding voice: the one
-rendered least recently, then the one whose note started longest ago. As stock
-does with a voice it takes, that note fades linearly to silence over one block
-and the new note starts in the voice from the next. A handle that has lost its
+free voice, else one whose index has gone about two blocks (3.9 ms by the CPU
+cycle counter, `sdk_voice_ticks`) without a render. A factory call for an index
+frees the voice it held, so a voice stock takes keeps its place for the
+restarted note. The spare covers a note that ended just before another starts.
+Only with more notes sounding than that (a capacity below 8, or the machine on
+several tracks) does a note take a sounding voice: one no other note waits for,
+then one past its first 8 blocks (as stock spares young voices), then the one
+rendered least recently, then the one whose note started first. As stock does
+with a voice it takes, that note fades linearly to silence over its next
+block, and the new note starts in the voice once it has, or once stock has
+stopped rendering the old note. A handle that has lost its
 voice renders silence. One adapter serves every synth.
 Render receives 64 output words and 8 parameter words. The SDK adds the stock
 per-sample pitch increments. Output is mono Q31 peaking at most at half scale. Stock

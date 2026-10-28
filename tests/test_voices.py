@@ -81,6 +81,7 @@ class SynthVoices(unittest.TestCase):
         self.run_fixture(256, '''#include "voice.cpp"
 int destroyed[257];
 opxy::u32 sdk_synth_title_slot(opxy::u32, opxy::u32 index) { return index + 4; }
+opxy::u32 sdk_voice_ticks() { return 0; }
 int main() { return sizeof(voices) / sizeof(voices[0]) == 28 ? 0 : 1; }
 ''')
 
