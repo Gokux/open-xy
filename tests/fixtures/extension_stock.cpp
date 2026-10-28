@@ -76,9 +76,9 @@ __UINT64_TYPE__ insert(void* c, const PatternNote* note, i32 radius) {
     return static_cast<__UINT64_TYPE__>((*count)++) << 32;
 }
 void publish(u32 t) { failed |= t != selected; ++publishes; }
+const char* expected_popup="captured";
 void popup(const char* text,u32 a,u32 b,u32 duration) {
-    const char expected[]="captured";
-    for (u32 i=0;i<sizeof(expected);++i) failed |= text[i]!=expected[i];
+    for (u32 i=0;expected_popup[i] || text[i];++i) failed |= text[i]!=expected_popup[i];
     failed |= a!=1 || b || duration!=0x3f000000u; ++popups;
 }
 void key(u32 key, bool pressed, u32 elapsed=50000) {
@@ -177,6 +177,9 @@ int main() {
     *reinterpret_cast<i16*>(pattern_notes+0x786)=120;
     double_tap(); CHECK(writes==2 && popups==2 && undos==2);
     *reinterpret_cast<i16*>(pattern_notes+0x786)=0;
+    // A Record release stock does not accept still ends the tap, so the next
+    // double-tap is not mistaken for a key repeat.
+    key(50,true); input_enabled=0; key(50,false); input_enabled=1;
     double_tap(); CHECK(writes==3 && popups==3 && undos==3);
     // Other tracks and recorder workflows are forwarded but never captured.
     play(); sdk_extensions_live_note_on(0x860c6adc,7,72,1,2,80,3,4,5,6,7,nullptr);
@@ -189,8 +192,10 @@ int main() {
     CHECK(writes==3);
     key(10,true); key(10,false); stop();
     // Stock accepts only the available prefix when the pattern fills mid-batch.
-    *reinterpret_cast<i16*>(pattern_notes+0x786)=119;
+    // The take is kept, not reported as captured: only part of it fit.
+    *reinterpret_cast<i16*>(pattern_notes+0x786)=119; expected_popup="pattern full";
     double_tap(); CHECK(writes==4 && popups==4 && undos==4 && publishes==4);
+    expected_popup="captured";
     *reinterpret_cast<i16*>(pattern_notes+0x786)=0;
     play(); note(); advance(60);
     playing=counting=0; sdk_extensions_stop(0x860c6adc);

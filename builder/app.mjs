@@ -507,13 +507,19 @@ $('restore').onchange = async e => {
   try {
     const saved = JSON.parse(new TextDecoder().decode(await readBounded(e.target.files[0], 65536)));
     const loaded = Core.readLayout(kit, saved);
-    const extensions = Core.extensionSelection(kit, Object.hasOwn(saved, 'extensions') ? saved.extensions : []);
+    // A layout keeps its machine numbers even when an extension it names is no
+    // longer offered; that extension is left out and named.
+    const requested = Array.isArray(saved.extensions) ? saved.extensions : [];
+    const offered = new Set((kit.extensions ?? []).map(e => e.id));
+    const extensions = Core.extensionSelection(kit, requested.filter(id => offered.has(id)));
+    const missing = requested.filter(id => !offered.has(id));
     if (loaded.selected) Core.linkKit(kit, loaded.selected, loaded.machines, extensions);
     selectedExtensions = extensions;
     rememberNumbers(loaded.machines);
     if (loaded.selected) selected = [...loaded.selected];
     invalidate(); renderMachines(); renderExtensions(); recalculate();
-    status('Layout loaded: your machines keep their numbers.');
+    status('Layout loaded: your machines keep their numbers.' +
+      (missing.length ? ' Extensions this site no longer offers: ' + missing.join(', ') + '.' : ''));
   } catch (error) { fail(error); }
 };
 $('save-layout').onclick = () => {

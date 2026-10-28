@@ -341,7 +341,8 @@ export function activeServices(profile, machines) {
     .filter(([, kinds]) => machines.some(m => kinds.includes(m.kind))).map(([name]) => name));
 }
 
-export function linkKit(kit, selection, layout = null, extensionIds) {
+// Extensions are linked only when named: omitting them builds none.
+export function linkKit(kit, selection, layout = null, extensionIds = []) {
   const extensions = new Set(extensionSelection(kit, extensionIds));
   check(Array.isArray(selection) && selection.length > 0 && new Set(selection).size === selection.length &&
     selection.every(id => kit.machines.some(m => m.id === id)), 'Choose each machine once.');
@@ -539,31 +540,36 @@ export async function patchFirmware(kit, linked, stock, {profiling = true} = {})
 // SHA-256; the uploaded module is never executed or reused for a build. An exact
 // output of this curated collection also restores its machine selection.
 const RECOVERABLE_MACHINES = 10;
+// Recovery tries every extension choice only for small collections; larger ones
+// try the extensions whose code the module holds.
+const RECOVERABLE_EXTENSIONS = 4;
 
-// The machines whose code an uploaded module appears to hold: each machine's
+// Whether an uploaded module appears to hold the given objects' code: their
 // largest code section, byte for byte outside its relocated fields. Only a
 // guess; recoverFirmware accepts it only by rebuilding it exactly.
-function presentMachines(kit, payload) {
-  return kit.machines.filter(m => {
-    let best = null;
-    for (const o of kit.objects) if (o.owner === m.id) for (const s of o.sections)
-      if (s.group === 'text' && (!best || s.size > best.s.size)) best = {o, s};
-    if (!best || best.s.size < 16) return false;
-    const {o, s} = best, fixed = new Uint8Array(s.size).fill(1);
-    for (const r of o.relocations) if (r.section === s.index) {
-      fixed.fill(0, [10, 13].includes(r.type) ? r.offset - 2 : r.offset, r.offset + (r.type === 18 ? 4 : 2));
-    }
-    const anchor = fixed.indexOf(1);
-    if (anchor < 0) return false;
-    for (let at = 0; at + s.size <= payload.length; at += 2) {
-      if (payload[at + anchor] !== s.data[anchor]) continue;
-      let i = anchor;
-      while (i < s.size && (!fixed[i] || payload[at + i] === s.data[i])) i++;
-      if (i === s.size) return true;
-    }
-    return false;
-  }).map(m => m.id);
+function holdsCode(objects, payload) {
+  let best = null;
+  for (const o of objects) for (const s of o.sections)
+    if (s.group === 'text' && (!best || s.size > best.s.size)) best = {o, s};
+  if (!best || best.s.size < 16) return false;
+  const {o, s} = best, fixed = new Uint8Array(s.size).fill(1);
+  for (const r of o.relocations) if (r.section === s.index) {
+    fixed.fill(0, [10, 13].includes(r.type) ? r.offset - 2 : r.offset, r.offset + (r.type === 18 ? 4 : 2));
+  }
+  const anchor = fixed.indexOf(1);
+  if (anchor < 0) return false;
+  for (let at = 0; at + s.size <= payload.length; at += 2) {
+    if (payload[at + anchor] !== s.data[anchor]) continue;
+    let i = anchor;
+    while (i < s.size && (!fixed[i] || payload[at + i] === s.data[i])) i++;
+    if (i === s.size) return true;
+  }
+  return false;
 }
+const presentMachines = (kit, payload) =>
+  kit.machines.filter(m => holdsCode(kit.objects.filter(o => o.owner === m.id), payload)).map(m => m.id);
+const presentExtensions = (kit, payload) => (kit.extensions ?? [])
+  .filter(e => holdsCode(kit.objects.filter(o => o.extension === e.id), payload)).map(e => e.id);
 const UPDATE = 'Update your OP–XY to OS 1.2.1 with teenage engineering’s updater, then copy its OS file (os.ldr) again; a .tfw update file will not work.';
 const UNSUPPORTED = 'Only OP–XY OS 1.2.1 is supported. This file is not OS 1.2.1 or an open-xy OS made from it. ' + UPDATE;
 export async function recoverFirmware(kit, input, layout = null) {
@@ -598,11 +604,14 @@ export async function recoverFirmware(kit, input, layout = null) {
       }
       return false;
     };
-    // Every allowed extension choice: few, so each machine guess tries them all.
-    const choices = extensionChoices(kit);
-    // First the machines whose code the module holds, one link per extension choice at any kit size.
-    const present = presentMachines(kit, payload);
-    for (const extensions of present.length ? choices : []) {
+    // First the machines and extensions whose code the module holds, one link at
+    // any kit size. Then every extension choice for a small collection, or the
+    // present ones and none for a larger one, so links never grow exponentially.
+    const present = presentMachines(kit, payload), held = presentExtensions(kit, payload);
+    const guess = sharedClaim((kit.extensions ?? []).filter(e => held.includes(e.id))) ? [] : held;
+    const choices = (kit.extensions ?? []).length <= RECOVERABLE_EXTENSIONS ? extensionChoices(kit)
+      : guess.length ? [guess, []] : [[]];
+    for (const extensions of present.length ? [guess, ...choices] : []) {
       try {
         if (await rebuilds(present, extensions)) return {stock, selected: present, extensions};
       } catch {}  // a guess that cannot link is not this kit's build

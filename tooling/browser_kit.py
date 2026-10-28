@@ -95,6 +95,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
     object_dir = output / 'objects'
     object_dir.mkdir()
     objects = []
+    extension_objects = {'sdk/extension_' + e['id'] + '.o': e['id'] for e in extensions.collection()}
     for name, owner in owners.items():
         data = read(child(package / 'analysis', name))
         destination = child(object_dir, name)
@@ -103,9 +104,8 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
         entry = dict(name=name, owner=owner, bytes=base64.b64encode(data).decode('ascii'), sha256=sha(data))
         if name in services:
             entry['service'] = services[name]
-        for extension in extensions.collection():
-            if name == 'sdk/extension_' + extension['id'] + '.o':
-                entry['extension'] = extension['id']
+        if name in extension_objects:
+            entry['extension'] = extension_objects[name]
         objects.append(entry)
     # Stock addresses only: each selection's machine numbers are the builder's.
     stock = {key: value for key, value in definitions.items() if key in native.DEFINITIONS}

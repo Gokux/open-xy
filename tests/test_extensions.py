@@ -15,6 +15,8 @@ class Extensions(unittest.TestCase):
         for mutate in (
             lambda data: data['extensions'].append(copy.deepcopy(data['extensions'][0])),
             lambda data: data['extensions'][0].update(id='../capture'),
+            lambda data: data['extensions'][0].update(id='runtime'),  # sdk/extension_runtime.o
+            lambda data: data['extensions'][0].update(id='delete'),  # a C++ keyword
             lambda data: data['extensions'][0].update(claims=[]),  # edit_notes needs its claim
             lambda data: data['extensions'][0].update(claims=['shift_hold']),  # not in the registry
             lambda data: data['extensions'][0].update(actions=['edit_notes', 'edit_notes']),

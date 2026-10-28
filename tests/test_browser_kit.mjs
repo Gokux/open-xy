@@ -155,6 +155,7 @@ test('extensions omit code/state and resolve only shared registry imports to an 
   registry.relocations.push({section:1, offset:0, type:18, symbol:2, addend:0});
   k.objects.push(extension);
   const on = linkKit(k, ['a'], null, ['capture']), off = linkKit(k, ['a'], null, []);
+  assert.deepEqual(linkKit(k, ['a']).module, off.module);  // omitted means none
   assert.equal(on.sizes.bss, 128); assert.equal(off.sizes.bss, 0);
   assert.equal(off.objects.length, 1); assert.equal(on.objects.length, 2);
   assert.notDeepEqual(on.module, off.module);

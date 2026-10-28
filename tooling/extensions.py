@@ -8,6 +8,14 @@ PROFILE = 'profiles/extensions.json'
 
 
 NAME = re.compile(r'[a-z][a-z0-9_]{0,31}')
+# IDs name an object beside the SDK's own (sdk/extension_<id>.o) and a C++ namespace.
+RESERVED = {'runtime', 'collection', 'stock', *'''alignas alignof and and_eq asm auto bitand bitor bool break
+    case catch char char16_t char32_t class compl const constexpr const_cast continue decltype default delete
+    do double dynamic_cast else enum explicit export extern false float for friend goto if inline int long
+    mutable namespace new noexcept not not_eq nullptr operator or or_eq private protected public register
+    reinterpret_cast return short signed sizeof static static_assert static_cast struct switch template this
+    thread_local throw true try typedef typeid typename union unsigned using virtual void volatile wchar_t
+    while xor xor_eq'''.split()}
 HEADER = 'sdk/include/opxy/extension.hpp'
 RUNTIME = 'sdk/platform/extension_runtime.hpp'
 
@@ -43,7 +51,7 @@ def collection():
         require(isinstance(entry, dict) and set(entry) == {'id', 'claims', 'actions'},
                 'Invalid extension declaration')
         name = entry['id']
-        require(isinstance(name, str) and NAME.fullmatch(name), 'Invalid extension ID')
+        require(isinstance(name, str) and NAME.fullmatch(name) and name not in RESERVED, 'Invalid extension ID')
         require(name not in ids, 'Duplicate extension ID: ' + name)
         ids.add(name)
         for field, known in (('claims', claims), ('actions', actions)):

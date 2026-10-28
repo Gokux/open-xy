@@ -25,7 +25,10 @@ void recording_tick(const Context&, const Tick& tick) {
     history.advance(tick.delta_q8);
 }
 void queued_control(const Context& context, const Control& control, const Actions& actions) {
-    if (control.key != Control::record_key || !control.record_accepted || !context.recording.eligible) {
+    if (control.key != Control::record_key) { tap.cancel(); return; }
+    if (!control.record_accepted || !context.recording.eligible) {
+        // Still end the tap, or the next press would read as a key repeat.
+        if (!control.pressed) tap.release(control.time);
         tap.cancel(); return;
     }
     if (control.pressed) {
@@ -34,9 +37,13 @@ void queued_control(const Context& context, const Control& control, const Action
         return;
     }
     if (!tap.release(control.time) || !snapshot_count) return;
-    if (actions.insert_notes(context, snapshot, snapshot_count)) {
+    const u32 written = actions.insert_notes(context, snapshot, snapshot_count);
+    // Keep the take unless all of it fit; the written notes stay, with Undo.
+    if (written == snapshot_count) {
         history.clear();
         actions.notify("captured");
+    } else if (written) {
+        actions.notify("pattern full");
     }
 }
 }

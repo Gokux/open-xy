@@ -170,7 +170,9 @@ Interrupted/expired pairs never commit the saved snapshot.
 Insertion calls the stock note container with its scale-dependent collision
 radius and 120-note capacity, after resetting and taking one stock undo snapshot.
 It publishes the pattern once, without calling the audible note dispatcher or
-moving the playhead. An empty cache or full pattern produces no success popup. History
+moving the playhead. An empty cache or full pattern produces no success popup;
+when only part of the take fits, the written part stays (with Undo), the take is
+kept and the popup says `pattern full`. History
 retains at most 120 notes and 20 simultaneously held notes; it is cleared
 after a successful insertion, on track/context changes and on a new playback
 start. Stop preserves the partial take. Host adapter tests use stock doubles;
