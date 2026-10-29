@@ -108,7 +108,7 @@ firmware-containing packages.
 | `commit` | Full machine source SHA, equal to the catalog entry's `commit` (or an earlier release's, when a maintainer approves carrying it over) |
 | `firmware_sha256` | Exact tested candidate OS image |
 | `runs` | 1 to 100 independent, complete captures of the same build and collector (one is enough) |
-| `block_percent` | Median of the per-run mean costs, as a percentage of the stock 580,352-cycle block budget. For a synth, its heaviest run: the median of each swept setting and of the midpoint run, the largest of them |
+| `block_percent` | The run's mean cost (the median across captures when there are several), as a percentage of the stock 580,352-cycle block budget. For a synth, its heaviest run: the median of each swept setting and of the midpoint run, the largest of them |
 | `midpoint_percent` | Synths: the midpoint run's median, stock's own workload |
 | `combined_percent` | Synths: the median of the run with every control at its heaviest position |
 | `worst_setting` | Synths: the heaviest swept setting: `control` (0-7), its `label`, and its Q31 `value` |

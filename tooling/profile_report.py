@@ -28,8 +28,9 @@ def aggregate(captures, expected, identity, name, commit, url):
     """The machine's record from complete runs: each of its runs' median across captures;
     a synth's record is its heaviest run, with the midpoint run, the combined run and
     the heaviest swept setting beside it. Returns the record, the published run's
-    per-capture values, the machine's standard case, every run's median by case and
-    the positions each capture's combined run used."""
+    per-capture values, the machine's standard case, every run's median by case, the
+    positions each capture's combined run used and the swept settings left out as
+    silent."""
     # One capture is enough (docs/profiling.md); more publish their median.
     require(1 <= len(captures) <= 100, 'Collect 1 to 100 independent runs')
     seen, collectors = set(), set()
@@ -126,10 +127,11 @@ def create(package, paths, name, url, out):
     warning = above_recommended(measurement)
     if 'worst_setting' in measurement:
         setting = measurement['worst_setting']
-        measured = sum(median is not None for _run, median in runs)
+        measured = sum(median is not None for run, median in runs if 'setting' in run)
         each = 'from one capture' if len(values) == 1 else f'each the median of {len(values)} captures'
-        published = (f"Heaviest of {measured} measured settings (midpoint, then each control through its positions with the "
-                     f"others at their defaults), {each}: "
+        published = (f"Heaviest of the midpoint run, {measured} measured settings (each control through its "
+                     f"positions with the others at their defaults) and every control at its heaviest position, "
+                     f"{each}: "
                      f"**{measurement['block_percent']:.3f}%** of the stock 580,352-cycle block budget. "
                      f"Midpoint run: {measurement['midpoint_percent']:.3f}%. Every control at its heaviest "
                      f"position: {measurement['combined_percent']:.3f}%. Heaviest single setting: "
@@ -137,7 +139,7 @@ def create(package, paths, name, url, out):
         same = all(c == combinations[0] for c in combinations)
         together = (combined_label(combinations[0]) if same else 'combined (as read from the reports), differing '
                     'between runs: ' + '; '.join(', '.join(map(position, c)) for c in combinations))
-        table = ['| Setting | Median |', '| --- | ---: |']
+        table = ['| Setting | ' + ('Mean block budget' if len(values) == 1 else 'Median') + ' |', '| --- | ---: |']
         for run, median in runs:
             label = together if run.get('combined') else case_label(run)
             table.append(f'| {label} | ' + ('silent, left out' if median is None else f'{median:.3f}%') + ' |')

@@ -191,9 +191,13 @@ class Measurements(unittest.TestCase):
                                                                    measurement()['report'])
             self.assertEqual(result['benchmark'], cpu_measurement.BENCHMARKS[kind])
             self.assertAlmostEqual(result['block_percent'], 100000/65535, places=5)
-        # One capture is enough.
+        # One capture is enough; a hundred is the most.
         single = aggregate(captures[:1], expected, identity, 'probesynth', 'e'*40, None)[0]
         self.assertEqual(single['runs'], 1)
+        many = [dict(captures[0], utc=str(i)) for i in range(101)]
+        self.assertEqual(aggregate(many[:100], expected, identity, 'probesynth', 'e'*40, None)[0]['runs'], 100)
+        with self.assertRaisesRegex(ValueError, '1 to 100'):
+            aggregate(many, expected, identity, 'probesynth', 'e'*40, None)
         # Without an evidence URL the record has no report link.
         self.assertNotIn('report', aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)[0])
         broken = [[], [captures[0]]*3,

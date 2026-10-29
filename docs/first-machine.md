@@ -157,8 +157,7 @@ numbers with the previous build's `--layout`. A
 Follow [hardware profiling](profiling.md) before claiming measured CPU cost or
 preparing a catalog submission. Commit the machine, build with profiling enabled,
 install when authorized, confirm the device has rebooted, then collect a run
-(one is enough; a second if the report asks to confirm a silent setting) and
-generate the readout. Host estimates are useful during iteration;
+([one is enough](profiling.md#collect-a-run)) and generate the readout. Host estimates are useful during iteration;
 they do not establish device timings. If hardware is unavailable, keep hardware
 validation pending and ask a maintainer to measure it.
 
