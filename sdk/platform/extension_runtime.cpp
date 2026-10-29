@@ -10,8 +10,8 @@ bool initialized, dispatching;
 char notification[32];
 
 // The actions one callback may take, and what it has done with them: one stock
-// undo transaction and at most one success notification per callback.
-struct Transaction { u32 granted; bool edited, attempted; };
+// undo transaction and at most one notification per callback.
+struct Transaction { u32 granted; bool attempted, notified; };
 Transaction transaction;
 
 bool same_text(const char* a, const char* b) {
@@ -65,37 +65,39 @@ u32 granted(const ExtensionEntry& entry, const extensions::Control& control) {
     return result;
 }
 
-u32 write_notes(const extensions::Context& expected, const RecordedNote* notes, u32 count, bool replace) {
-    if (!(transaction.granted & action_edit_notes) || transaction.attempted || !notes || !count || count > 120)
-        return 0;
+// The caller's context must still be current: a stale one means the project,
+// pattern or selection moved on since the event it acts on.
+u32 write_notes(const extensions::Context& expected, u32 track, const RecordedNote* notes, u32 count,
+                bool replace) {
+    if (!(transaction.granted & action_edit_notes) || transaction.attempted || !notes || !count ||
+        count > 120 || track >= 8) return 0;
     bool playing = false;
     const RecordingContext now = extension_context(playing);
-    if (!now.eligible || now.track >= 8 || !now.length || now.length >= (1u << 23) ||
-        !(now == expected.recording) || playing != expected.playing ||
+    if (!(now == expected.recording) || playing != expected.playing ||
         !(now == current.recording) || playing != current.playing) return 0;
+    const TrackPattern target = extension_pattern(track);
+    if (!target.editable || !target.length || target.length >= (1u << 23)) return 0;
     for (u32 i = 0; i < count; ++i)
         if (notes[i].pitch > 127 || !notes[i].velocity || notes[i].velocity > 127 ||
-            notes[i].position < -240 || notes[i].position >= static_cast<i32>(now.length) ||
-            notes[i].length > now.length) return 0;
+            notes[i].position < -240 || notes[i].position >= static_cast<i32>(target.length) ||
+            notes[i].length > target.length) return 0;
     transaction.attempted = true; // One undo transaction per callback, including failures.
-    const u32 written = extension_write(now.track, notes, count, replace);
-    transaction.edited = written != 0;
-    return written;
+    return extension_write(track, notes, count, replace);
 }
 void notify(const char* text) {
-    if (!transaction.edited || !text) return;
+    if (!(transaction.granted & action_notify) || transaction.notified || !text) return;
     u32 length = 0;
     while (length < 32 && text[length]) ++length;
     if (!length || length == 32) return;
     for (u32 i = 0; i <= length; ++i) notification[i] = text[i];
+    transaction.notified = true;
     extension_notify(notification);
-    transaction.edited = false; // At most one success notification per transaction.
 }
-u32 insert_notes(const extensions::Context& expected, const RecordedNote* notes, u32 count) {
-    return write_notes(expected, notes, count, false);
+u32 insert_notes(const extensions::Context& expected, u32 track, const RecordedNote* notes, u32 count) {
+    return write_notes(expected, track, notes, count, false);
 }
-u32 replace_notes(const extensions::Context& expected, const RecordedNote* notes, u32 count) {
-    return write_notes(expected, notes, count, true);
+u32 replace_notes(const extensions::Context& expected, u32 track, const RecordedNote* notes, u32 count) {
+    return write_notes(expected, track, notes, count, true);
 }
 const extensions::Actions actions = {insert_notes, notify, replace_notes};
 }
@@ -118,7 +120,7 @@ void extensions_input_activity() {
 void extensions_recordable_note_on(u32 track, u32 pitch, u32 velocity) {
     if (dispatching) return;
     extensions_sync();
-    if (!entries || track != current.recording.track || !current.recording.eligible ||
+    if (!entries || track != current.recording.track || !current.recording.recordable ||
         !current.playing || pitch > 127 || velocity > 127) return;
     const i32 radius = extension_collision_radius(track);
     if (radius < 0) return;
@@ -143,7 +145,7 @@ void extensions_selected_note_off(u32 track, u32 pitch) {
 void extensions_recording_tick(u32 delta) {
     if (dispatching) return;
     extensions_sync();
-    if (!entries || !current.recording.eligible || !current.playing) return;
+    if (!entries || !current.recording.recordable || !current.playing) return;
     const bool discontinuity = delta > 0x007fffffu;
     const extensions::Tick tick = {discontinuity ? 0 : extension_scaled_delta(current.recording.track, delta),
                                    discontinuity};

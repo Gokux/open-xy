@@ -17,7 +17,7 @@ public:
     // length is in stock pattern ticks, not bars or elapsed milliseconds.
     // Stop freezes the partial pass; a subsequent start begins a new take.
     void sync(const RecordingContext& context, bool playing) {
-        const bool valid = context.eligible && context.track < 8 &&
+        const bool valid = context.recordable && context.track < 8 &&
             context.length > 0 && context.length < (1u << 23);
         const bool running = valid && playing;
         if (!(context == context_) || (running && !playing_)) clear();

@@ -83,9 +83,9 @@ def collection():
 def events():
     """The public events: the Hooks callbacks in HEADER, in order."""
     text = (ROOT / HEADER).read_text(encoding='utf-8')
-    body = re.search(r'struct Hooks \{(.*?)\};', text, re.S)
+    body = re.search(r'struct Hooks \{(.*?)\n\};', text, re.S)
     require(body, 'Missing Hooks in ' + HEADER)
-    return re.findall(r'\(\*(\w+)\)', body.group(1))
+    return re.findall(r'constexpr Hooks with_(\w+)\(', body.group(1))
 
 
 def check_profile(profile):

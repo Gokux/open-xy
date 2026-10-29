@@ -6,7 +6,7 @@ using namespace opxy::extensions::capture;
 // Explicit checks also run in optimized and freestanding target builds.
 #define CHECK(value) do { if (!(value)) return __LINE__; } while (false)
 
-static RecordingContext context() { return {1, 2, 0, 16 * 480, 0, 0, true}; }
+static RecordingContext context() { return {1, 2, 0, 16 * 480, 0, 0, true, true}; }
 
 int main() {
     RecordingHistory h;
@@ -47,7 +47,7 @@ int main() {
             case 3: ++c.length; break;
             case 4: ++c.scale; break;
             case 5: ++c.quantization; break;
-            case 6: c.eligible = false; break;
+            case 6: c.recordable = false; break;
         }
         h.sync(c, false); CHECK(h.size() == 0);
     }

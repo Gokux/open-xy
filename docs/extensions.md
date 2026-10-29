@@ -88,10 +88,10 @@ only for the callback. The SDK does not sandbox native code.
 
 | Event | Delivers | Sites |
 | --- | --- | --- |
-| `context` | Project, pattern, selected track, length, scale, quantization and play state; before every other event | Controller update, Stop |
-| `recordable_note_on` | A live onset stock accepted for recording, on the selected eligible instrument track, while playing; with stock's pickup position and collision radius | Live onset, accepted-note bookkeeping |
+| `context` | Project, pattern, selected track, length, scale, quantization and play state, and whether its pattern is `editable` and its live notes `recordable` (not while the recorder is in a step or sample workflow); before every other event | Controller update, Stop |
+| `recordable_note_on` | A live onset stock accepted for recording, on the selected recordable instrument track, while playing; with stock's pickup position and collision radius | Live onset, accepted-note bookkeeping |
 | `selected_note_off` | A live release on the selected track, playing or not; may have no preceding onset | Live release |
-| `recording_tick` | The selected track's scaled Q8 recording time, while playing and eligible; a discontinuity asks the subscriber to discard timing | Recorder tick |
+| `recording_tick` | The selected track's scaled Q8 recording time, while playing and recordable; a discontinuity asks the subscriber to discard timing | Recorder tick |
 | `input_activity` | Any live note input, accepted or not, on any track; for cancelling gestures | Live onset |
 | `queued_control` | A queued key (Record and the other queued controls; not keyboard keys 26–49) after stock handled it, with a microsecond time. `accepted`: stock took it as input (for Record, stock registered the press or release); `unmodified`: no other key or Shift held. Key numbers are in `keys` | Key queue |
 
@@ -116,24 +116,28 @@ the collection.
 - **An action** is permission to change stock state. The runtime grants an
   extension's actions inside its `queued_control` callback for a key it claims,
   once stock accepted the event; an action's `requires` limits that to one
-  claim, and without it any claim its holder owns grants it. `edit_notes`
-  (requires `record_double_tap`) unlocks `Actions::insert_notes` (add beside
-  the existing notes) and `Actions::replace_notes` (clear the track's notes,
-  then add). The SDK rechecks the context, validates the
-  bounded batch, opens one stock undo transaction, keeps stock collision and
-  capacity behavior, returns the inserted prefix length and publishes once.
-  Replacing is refused, changing nothing, while stock is still recording a
-  held note. A successful edit permits one
-  short `Actions::notify`. Calls outside that callback, after a context change,
-  or a second edit in one callback are rejected.
+  claim, and without it any claim its holder owns grants it.
+  - `edit_notes` (requires `record_double_tap`) unlocks `Actions::insert_notes`
+    (add beside the existing notes) and `Actions::replace_notes` (clear the
+    track's notes, then add), on any instrument track whose pattern is
+    editable. The SDK checks the caller's context is still current, validates
+    the bounded batch, opens one stock undo transaction, keeps stock collision
+    and capacity behavior, returns the inserted prefix length and publishes
+    once. Replacing is refused, changing nothing, while stock is still
+    recording a held note there.
+  - `notify` unlocks `Actions::notify`: one short popup per callback.
+
+  Calls outside the callback, with a stale context, or a second write or
+  popup in one callback are refused.
 
 Observers cannot transform notes or suppress stock input.
 
 ## Add an extension
 
 1. Create `extensions/<id>/extension.cpp`, exporting
-   `opxy::extensions::<id>::hooks`, a constant `Hooks`; unused callbacks are
-   null. Keep its helpers in that folder.
+   `opxy::extensions::<id>::hooks`, naming only the events it takes:
+   `extern constexpr Hooks hooks = Hooks().with_context(context).with_queued_control(queued_control);`
+   Keep its helpers in that folder, and its tests in `tests/` (below).
 2. Add `{"id": "<id>", "origin": "community", "claims": [], "actions": []}`
    to the collection in
    `profiles/extensions.json`, with any claims and actions it needs from the
@@ -168,9 +172,9 @@ example, notes from every track, playing or stopped, widen the onset event to
 an `input_note_on` that carries `selected` and `recordable`; capture tests
 `recordable`.
 
-**Add an event** only for a stage, thread or kind no event covers. Append its
-callback to the end of `Hooks`: extensions initialize it by position. The pull
-request states:
+**Add an event** only for a stage, thread or kind no event covers: a member of
+`Hooks`, its parameter in the full constructor and its `with_` builder (the
+build reads the event list from the builders). The pull request states:
 
 - the event's name, by what it delivers and its scope;
 - its stage, access (observe, transform or claim), thread and host;
@@ -178,9 +182,8 @@ request states:
   how it was found and verified in the stock OS;
 - why widening an existing event would not serve.
 
-Adding a callback is the only change that must go at the end of `Hooks`, since
-extensions initialize it by position. Renaming or widening one updates every
-extension in the same pull request.
+Extensions name their callbacks, so adding one changes none of them. Renaming
+or widening one updates every extension in the same pull request.
 
 **Add a claim** with one registry entry in `profiles/extensions.json`: its
 `label` and `key`. Nothing else changes; the runtime reads claims from the

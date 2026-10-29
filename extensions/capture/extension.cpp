@@ -26,7 +26,7 @@ void recording_tick(const Context&, const Tick& tick) {
 }
 void queued_control(const Context& context, const Control& control, const Actions& actions) {
     if (control.key != keys::record) { tap.cancel(); return; }
-    if (!control.accepted || !context.recording.eligible) {
+    if (!control.accepted || !context.recording.recordable) {
         // Still end the tap, or the next press would read as a key repeat.
         if (!control.pressed) tap.release(control.time);
         tap.cancel(); return;
@@ -39,13 +39,17 @@ void queued_control(const Context& context, const Control& control, const Action
     if (!tap.release(control.time) || !snapshot_count) return;
     // The take replaces the track's sequence, with Undo. History holds at most
     // one full pattern, so a take that is written fits completely.
-    if (actions.replace_notes(context, snapshot, snapshot_count) == snapshot_count) {
+    if (actions.replace_notes(context, context.recording.track, snapshot, snapshot_count) == snapshot_count) {
         history.clear();
         actions.notify("captured");
     }
 }
 }
-// In Hooks order; null for an event this extension does not take.
-extern const Hooks hooks = {context, recordable_note_on, selected_note_off, recording_tick,
-                            input_activity, queued_control};
+extern constexpr Hooks hooks = Hooks()
+    .with_context(context)
+    .with_recordable_note_on(recordable_note_on)
+    .with_selected_note_off(selected_note_off)
+    .with_recording_tick(recording_tick)
+    .with_input_activity(input_activity)
+    .with_queued_control(queued_control);
 }}}

@@ -43,19 +43,31 @@ bool unmodified(u32 key) {
 }
 }
 
+TrackPattern extension_pattern(u32 track) {
+    TrackPattern p = {};
+    if (!word(kProject) || track >= 8) return p;
+    p.pattern = stock<u32(u32)>(0x8d586014)(track);
+    if (!p.pattern) return p;
+    p.length = 480u * stock<u32(u32)>(0x8d586800)(track);
+    p.scale = stock<u32(u32)>(0x8d586b50)(track);
+    p.editable = p.length != 0 && p.scale < 16;
+    return p;
+}
+
 RecordingContext extension_context(bool& playing) {
     RecordingContext c = {};
     c.project = word(kProject);
     c.track = byte(kSelectedTrack);
     playing = byte(kPlaying) || byte(kPlaying + 1);
-    // The other recorder modes are step/sample workflows, not live notes.
-    if (!c.project || c.track >= 8 || byte(kRecorder) || byte(kRecorder + 1)) return c;
-    c.pattern = stock<u32(u32)>(0x8d586014)(c.track);
-    if (!c.pattern) return c;
-    c.length = 480u * stock<u32(u32)>(0x8d586800)(c.track);
-    c.scale = stock<u32(u32)>(0x8d586b50)(c.track);
+    const TrackPattern p = extension_pattern(c.track);
+    if (!p.pattern) return c;
+    c.pattern = p.pattern;
+    c.length = p.length;
+    c.scale = p.scale;
     c.quantization = stock<u32(u32)>(0x8d586c8c)(c.track);
-    c.eligible = c.length != 0 && c.scale < 16;
+    c.editable = p.editable;
+    // The other recorder modes are step/sample workflows, not live notes.
+    c.recordable = c.editable && !byte(kRecorder) && !byte(kRecorder + 1);
     return c;
 }
 
