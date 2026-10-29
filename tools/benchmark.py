@@ -237,6 +237,7 @@ def main(argv=None):
                 raise RuntimeError('Benchmark endpoint routing unverified; command not sent')
             if ident.get('mode') != 'normal' or ident.get('product') not in ('OP-XY', 'OP-1') or ident.get('os_version') != '1.2.1':
                 raise RuntimeError('Normal OS identity not confirmed; benchmark not sent')
+            received_reports = 0  # only this benchmark's reports end the listen early
             send(0xc8)
             receive(a.seconds, len(expected) if expected else None)
         else:

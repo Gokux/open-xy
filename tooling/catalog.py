@@ -121,7 +121,8 @@ def changes(before, after, allow_carried_cpu=False):
             # unchanged, still naming the commit it measured; otherwise it measures the pinned commit.
             measured = lambda cpu: {k: v for k, v in cpu.items() if k != 'report'} if isinstance(cpu, dict) else cpu
             unchanged = measured(entry['cpu']) == measured(previous.get(entry['id'], {}).get('cpu'))
-            carried = allow_carried_cpu and unchanged
+            # Carrying a record over takes the record exactly as it was, evidence link included.
+            carried = allow_carried_cpu and entry['cpu'] == previous.get(entry['id'], {}).get('cpu')
             # A fresh synth measurement is a control sweep; an unchanged one may predate it.
             cpu_measurement.validate(entry['cpu'], entry['kind'], legacy=unchanged)
             require(carried or entry['cpu']['commit'] == entry['commit'],
