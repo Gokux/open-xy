@@ -44,7 +44,7 @@ u32 deserialize(void* project, const char* path) {
 }
 
 const u32 kPathBytes = 256;
-const u32 kTextBytes = 8192;
+const u32 kTextBytes = 1024;  // the writer streams through it (Writer)
 const u32 kChunkBytes = 4096;
 // The writer's and the reader's buffers stay apart, so a save and a load never share one.
 unsigned char chunk[kChunkBytes];

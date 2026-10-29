@@ -12,9 +12,10 @@ const layout = resolve('linker/opxy-1.2.1.ld');
 const results = [];
 for (const mask of checkedSelections(kit.machines, kit.linked)) {
   const selected = kit.machines.filter((_, i) => mask & selectionBit(i)).map(m => m.id);
+  // A mask runs to 78 digits: a short digest names the selection stably and keeps paths short.
+  const digest = (await sha256(new TextEncoder().encode(mask.toString()))).slice(0, 16);
   for (const [choice, extensions] of extensionChoices(kit).entries()) {
-    // A mask runs to 78 digits: a short digest names the selection stably and keeps paths short.
-    const name = `${(await sha256(new TextEncoder().encode(mask.toString()))).slice(0, 16)}-${choice}`;
+    const name = `${digest}-${choice}`;
     const linked = linkKit(kit, selected, null, extensions), prefix = resolve(destination, name);
     const definitions = [...Object.entries(linked.definitions), ...linked.aliases.entries()]
       .map(([key, value]) => `--defsym=${key}=0x${value.toString(16)}`);

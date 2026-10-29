@@ -142,7 +142,7 @@ class FirmwareWriter(unittest.TestCase):
             writer, project = host_writer(folder, many), folder / 'song.xy'
             self.assertEqual(subprocess.run([str(writer), str(project), '1'], timeout=30).returncode, 0)
             written = (folder / 'song.oxy').read_bytes()
-            self.assertGreater(len(written), 8192)
+            self.assertGreater(len(written), 8 * 1024)  # several writer buffers
             self.assertEqual(written, companion(project.read_bytes(), layout))
 
     def test_a_failed_save_or_other_name_writes_nothing(self):
