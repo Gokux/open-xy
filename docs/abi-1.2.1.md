@@ -39,6 +39,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Diagnostic benchmark | 1 | Extends explicit command 0xc8 with the selected machines; no normal-playback callbacks added |
 | Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
 | Startup label | 1 | Shows `OPEN <version>-1.2.1` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
+| Extension events | 7 | Observes live input, stock transport and queued controls for extensions, and lets a Record double-tap owner edit notes through stock editing and undo; linked only when an extension is selected |
 | Module | 1 record | One loader block holding the linked module |
 
 The sample rows (sample dispatch, analysis, drum-page services and recorder)
@@ -132,6 +133,54 @@ click paths, cancellation, modal ownership and callback reentry. Native build
 and release verification check the target ABI and reconstruction. Hardware
 observations must be tied to the tested image; host doubles do not establish
 device timing or acceptance.
+
+## Extension events
+
+The [extension runtime](extensions.md) shares these hooks among the statically
+selected extensions; each hook's `events` field in the profile names the public
+events it feeds. `extension_stock.cpp` supplies version-specific recording
+context, note editing and stock forwarding. Its `sdk_extensions_*` symbols are
+named for the stock calls they replace; they are adapter entry points, not
+extension APIs. `extensions/capture/` is the first subscriber: it owns the
+bounded current-track ghost pattern and the Record gesture.
+
+The seven hooks replace the controller-update call at `0x8c0baaf0`, queued key
+dispatch at `0x8c0b6184`, normalized live onset/release at `0x8d594376` and
+`0x8d59420a`, accepted-note bookkeeping at `0x8d595844`, recorder tick at
+`0x8d59819c`, and Stop cleanup at `0x8d597db8`.
+The controller-update call follows the GUI tick call in the same main loop;
+they are separate sites. The Stop hook observes a stop/restart pair within one controller update. The key
+span also replaces the following queue-address load; its wrapper returns that
+address in R0. This
+permits an absolute call without changing the stock stack or adding assembly.
+Immediate input is restricted by stock to keyboard keys 26–49; Record (50)
+uses the queue. The live-note wrappers also cancel interrupted tap gestures.
+The onset wrapper establishes a scoped live-input identity; only stock-accepted
+notes inside that scope enter history. Direct sequencer calls and step entry do
+not. Stock input arguments and normal recording actions are forwarded unchanged.
+
+History uses the same position getter, pickup convention and scaled Q8 duration
+deltas as stock recording. Pattern quantization remains stock playback behavior.
+Completed notes do not expire with elapsed time. New onsets replace same-pitch
+notes strictly inside the stock scale-dependent collision radius; a full ghost
+pattern rejects new onsets before pruning, as the stock container does. Tick
+updates advance held-note duration, capped at one loop. The first clean Record
+press snapshots the take; completing the second tap commits that snapshot.
+Interrupted/expired pairs never commit the saved snapshot.
+Capture replaces the track's notes. After resetting and taking one stock undo
+snapshot, the SDK unlinks every note from the stock note list
+([`note_container.hpp`](../sdk/platform/opxy-1.2.1/note_container.hpp)), as
+stock's own editor does inline; it first validates the whole used and free
+lists and refuses, before the undo snapshot, if a note is still being recorded
+(flag bit 1). It then inserts the take through the stock note container with
+its scale-dependent collision radius, and publishes the pattern once, without
+calling the audible note dispatcher or moving the playhead. Stock undo restores
+the previous notes. Parameter locks and step components stay. An empty cache
+produces no success popup. History
+retains at most 120 notes and 20 simultaneously held notes; it is cleared
+after a successful insertion, on track/context changes and on a new playback
+start. Stop preserves the partial take. Host adapter tests use stock doubles;
+they do not establish device scheduling or timing.
 
 ## Startup
 

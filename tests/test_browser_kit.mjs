@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {activeServices, assignNumbers, checkedSelections, chosenByDefault, numberLayout, readLayout, readObject, linkKit, moduleBytes, openKit, patchFirmware, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
+import {activeServices, assignNumbers, checkedSelections, chosenByDefault, extensionChoices, extensionSelection, numberLayout, readLayout, readObject, linkKit, moduleBytes, openKit, patchFirmware, readLdr, recoverFirmware, sourceName, sourceUrl, validOrigin, validSource, zipFiles, sha256} from '../builder/core.mjs';
 
 // Tiny authored ELF fixture, independent of private firmware/toolchains.
 function elf() {
@@ -67,7 +67,7 @@ test('profiling defaults on; disabling it changes only the reviewed diagnostic h
   }
   const restored = off.slice(); restored.set(on.subarray(32, 48), 32);
   assert.deepEqual(restored, on);
-  for (const image of [on, off]) assert.deepEqual(await recoverFirmware(kit, image), {stock, selected:['a']});
+  for (const image of [on, off]) assert.deepEqual(await recoverFirmware(kit, image), {stock, selected:['a'], extensions:[]});
 });
 
 test('only an exact build restores its selection; others recover verified stock or are rejected', async () => {
@@ -141,6 +141,39 @@ test('exact deterministic section placement and immutable input capsules', () =>
   assert.equal(linked.globals.get('entry'),k.profile.module_base);
   assert.deepEqual(linked.sizes,{initialized:4,bss:0,allocated:4,available:moduleBytes(k.profile)-4});
   assert.deepEqual(linkKit(k,['a']).module,linked.module);
+});
+
+test('extensions omit code/state and resolve only shared registry imports to an absent accessor', () => {
+  const k = fixture();
+  k.extensions = [{id:'capture', claims:['record_double_tap'], actions:['edit_notes']}];
+  k.definitions.kit_absent = k.profile.module_base;
+  const extension = {...readObject(elf()), name:'extension.o', owner:null, extension:'capture'};
+  extension.symbols[1].name = 'sdk_extension_capture_hooks';
+  extension.sections.push({index:5, name:'.bss', group:'bss', type:8, size:128, alignment:4});
+  const registry = k.objects[0]; registry.owner = null;
+  registry.symbols.push({name:'sdk_extension_capture_hooks', section:0, value:0, size:0, binding:1, type:0});
+  registry.relocations.push({section:1, offset:0, type:18, symbol:2, addend:0});
+  k.objects.push(extension);
+  const on = linkKit(k, ['a'], null, ['capture']), off = linkKit(k, ['a'], null, []);
+  assert.deepEqual(linkKit(k, ['a']).module, off.module);  // omitted means none
+  assert.equal(on.sizes.bss, 128); assert.equal(off.sizes.bss, 0);
+  assert.equal(off.objects.length, 1); assert.equal(on.objects.length, 2);
+  assert.notDeepEqual(on.module, off.module);
+  assert.equal(off.aliases.get('sdk_extension_capture_hooks'), k.definitions.kit_absent);
+  assert.deepEqual(linkKit(k, ['a'], null, ['capture']).module, on.module);
+  registry.owner = 'a';
+  assert.throws(() => linkKit(k, ['a'], null, []), /Unresolved import/);
+});
+
+test('extension selections preserve collection order, empty choices and exclusive gestures', () => {
+  const k = {extensions:[{id:'observer', claims:[]}, {id:'capture', claims:['record_double_tap']}, {id:'replace', claims:['record_double_tap']}]};
+  assert.deepEqual(extensionSelection(k, []), []);
+  assert.deepEqual(extensionSelection(k, ['capture','observer']), ['observer','capture']);
+  assert.throws(() => extensionSelection(k, ['capture','replace']), /record double tap/);
+  assert.deepEqual(extensionChoices(k), [[], ['observer'], ['capture'], ['observer','capture'], ['replace'], ['observer','replace']]);
+  for (const selection of [['missing'], ['capture','capture'], null, 'capture'])
+    assert.throws(() => extensionSelection(k, selection), /available extension/);
+  assert.deepEqual(extensionSelection({}), []);
 });
 
 test('declared callbacks of unselected machines resolve to fallbacks only for SDK objects', () => {

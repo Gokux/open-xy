@@ -18,7 +18,7 @@ from .definitions import control_positions, paged
 from .formats import require, sha
 from .machines import FIXED_NUMBERS, check_request
 from .pipeline import ROOT, child, document, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
-from . import native, preview, screen
+from . import extensions, native, preview, screen
 
 
 def notices(machines):
@@ -87,6 +87,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
     object_dir = output / 'objects'
     object_dir.mkdir()
     objects = []
+    extension_objects = {'sdk/extension_' + e['id'] + '.o': e['id'] for e in extensions.collection()}
     for name, owner in owners.items():
         data = read(child(package / 'analysis', name))
         destination = child(object_dir, name)
@@ -95,6 +96,8 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
         entry = dict(name=name, owner=owner, bytes=base64.b64encode(data).decode('ascii'), sha256=sha(data))
         if name in services:
             entry['service'] = services[name]
+        if name in extension_objects:
+            entry['extension'] = extension_objects[name]
         objects.append(entry)
     # Stock addresses only: each selection's machine numbers are the builder's.
     stock = {key: value for key, value in definitions.items() if key in native.DEFINITIONS}
@@ -104,7 +107,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
     kit = dict(format='opxy-browser-kit/1', version=native.package_version(package), profile=profile,
                profileSource=base64.b64encode(read(ROOT / ('profiles/' + profile['id'] + '.json'))).decode('ascii'),
                definitions=stock, fixed=FIXED_NUMBERS, linked=linked,
-               machines=kit_machines, objects=objects, notices=notices(machines),
+               machines=kit_machines, extensions=extensions.metadata(), objects=objects, notices=notices(machines),
                stockCatalog=base64.b64encode(stock_catalog).decode('ascii'),
                screenTemplate=screen.template().decode('utf-8'))
     kit_path = output / 'kit.json'
@@ -135,7 +138,7 @@ def write_builder(kit, output):
     require(app.startswith(imports), 'Unexpected browser imports')
     # Keep the public source as ES modules; inline a closed namespace for file://.
     exports = ('requireThat decode64 sha256 equal readObject readLayout assignNumbers chosenByDefault moduleBytes openKit linkKit readLdr '
-               'patchFirmware recoverFirmware presetFiles buildAssets zipFiles sourceUrl sourceName').split()
+               'patchFirmware recoverFirmware extensionSelection sharedClaim claimLabel presetFiles buildAssets zipFiles sourceUrl sourceName').split()
     bundled = 'const Core = (() => {\n' + script + '\nreturn {' + ','.join(exports) + '};\n})();\n'
     bundled += 'const {editedShown, shownControls, inputWords} = (() => {\n' + read(ROOT / 'sdk/browser/controls.mjs').decode(
         'utf-8').replace('export ', '') + '\nreturn {editedShown, shownControls, inputWords};\n})();\n'
