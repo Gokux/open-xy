@@ -30,6 +30,14 @@ backfilled with host estimates.
 IDs are unique across the catalog. Open-XY's own machines are entries like
 any other, published from the [core machines](https://github.com/etcetc000/open-xy-core-machines).
 
+[Firmware extensions](extensions.md) have a catalog of their own,
+`catalog/extensions.json`, in the same format under `"extensions"`: `kind` is
+`extension`, `path` is the extension's folder, and there is no `cpu` record
+(extensions run on the controller path, not in audio). Its IDs are unique among
+extensions. Submit one the same way as a machine: a pull request that changes only
+that file. `sdk.py catalog check`, `fetch` and `test` cover both catalogs, and
+`fetch` writes both into the collection.
+
 The builder's machine details panel links to the catalog's maintainer profile,
 repository and source at the pinned release commit. Community machines also
 show a short notice about support and possible instability or unexpected audio.

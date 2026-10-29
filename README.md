@@ -96,7 +96,6 @@ previews, firmware builds and packaging.
 
 | Path | Owns |
 | --- | --- |
-| `extensions/<id>/` | Firmware behavior extensions and their private helpers |
 | `sdk/` | C++ interfaces, adapter templates and browser runners |
 | `builder/` | The Open-XY browser builder |
 | `harness/` | The local preview workbench |

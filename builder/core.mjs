@@ -280,8 +280,8 @@ function catalogEntry(m, numbers) {
 // GitHub repository, release tag, commit and maintainer, matching tooling.catalog's patterns.
 // Official catalog machines are Open-XY's own (tooling.catalog.OFFICIAL); the rest are community.
 export const ORIGINS = ['official', 'catalog', 'personal'];
-// Extensions: Open-XY's own, or contributed (tooling.extensions.ORIGINS).
-export const EXTENSION_ORIGINS = ['official', 'community'];
+// Extensions come from the same places as machines (tooling.browser_kit.extension_origins).
+export const EXTENSION_ORIGINS = ORIGINS;
 const RELEASE = {repository: /^https:\/\/github\.com\/[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9._-]+$/,
   tag: /^[A-Za-z0-9._/-]{1,64}$/, commit: /^[0-9a-f]{40}$/, maintainer: /^[A-Za-z0-9-]{1,39}$/};
 export function validSource(source) {
