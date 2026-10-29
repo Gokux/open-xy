@@ -399,7 +399,7 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
             return assemble_unit(ROOT / TEMPLATES / (step + '.s'), obj)
         if step.startswith('source:'):
             return cxx(m.source(step.removeprefix('source:')), obj, m)
-        source = {'voice': lambda: generate_voice(folder, m), 'display': lambda: display_unit(folder, m),
+        source = {'voice': lambda: generate_voice(folder, m, sweep), 'display': lambda: display_unit(folder, m),
                   'screen': lambda: generate_screen(folder, m), 'fx_object': lambda: generate_fx_object(folder, m, benchmark=True),
                   'registration': lambda: generate_registration(folder, m),
                   'sample_voice': lambda: generate_sample_voice(folder, m, benchmark=True)}[step]

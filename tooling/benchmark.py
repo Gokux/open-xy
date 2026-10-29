@@ -18,9 +18,9 @@ def sweep_settings(m):
     """A synth's swept settings in run order, as (control, its label, Q31 value, all eight
     controls): each control through its positions (cpu.sweep, as the host estimate times
     them) with the others at their defaults."""
-    from .cpu import sweep
+    from .cpu import control_defaults, sweep
     parameters = m.definition['parameters']
-    defaults = [round(p['default'] * 0x7fffffff) for p in parameters] + [0] * (8 - len(parameters))
+    defaults = control_defaults(parameters)
     return [(control, p['label'], value, defaults[:control] + [value] + defaults[control + 1:])
             for control, p in enumerate(parameters) for value in sweep(p)]
 
@@ -70,11 +70,15 @@ def combined_positions(results):
 
 
 def generate(directory, machines, sweep=False):
-    declarations, rows, settings = [], [], []
+    from .cpu import control_defaults
+    declarations, rows, settings, defaults = [], [], [], []
     for index, m in enumerate(machines):
         if sweep and m.kind == 'synth':
-            settings += ['    {%d, %d, {%s}},' % (index, control, ', '.join(map(str, controls)))
-                         for control, _label, _value, controls in sweep_settings(m)]
+            # A row per setting holds only its control and value; the defaults beside it
+            # are one row per machine.
+            defaults.append('    {%d, {%s}},' % (index, ', '.join(map(str, control_defaults(m.definition['parameters'])))))
+            settings += ['    {%d, %d, %d},' % (index, control, value)
+                         for control, _label, value, _controls in sweep_settings(m)]
         p = m.prefix
         id_symbol = p + ('_fx_id' if m.kind == 'effect' else '_engine_id')
         declarations += [f'int {p}_ready() __asm__("{p}_ready");',
@@ -88,6 +92,7 @@ def generate(directory, machines, sweep=False):
     source = source.replace('@DECLARATIONS@', '\n'.join(declarations))
     source = source.replace('@MACHINES@', '\n'.join(rows))
     source = source.replace('@SETTINGS@', '\n'.join(settings))
+    source = source.replace('@DEFAULTS@', '\n'.join(defaults))
     path = Path(directory) / 'benchmark.cpp'
     path.write_text(source, encoding='utf-8', newline='\n')
     return path
@@ -119,8 +124,8 @@ def decode(capture, expected):
 def append_callback(path, m):
     """Compile the diagnostic beside the real callback, without duplicating author code."""
     resources = m.definition['resources']
-    defaults = [round(p['default'] * 0x7fffffff) for p in m.definition['parameters']]
-    values = dict(PREFIX=m.prefix, NAMESPACE=m.id, DEFAULTS=', '.join(map(str, defaults + [0] * (8-len(defaults)))))
+    from .cpu import control_defaults
+    values = dict(PREFIX=m.prefix, NAMESPACE=m.id, DEFAULTS=', '.join(map(str, control_defaults(m.definition['parameters']))))
     if m.kind == 'effect':
         size = resources.get('bufferBytes', 0)
         values.update(BUFFER_BYTES=str(size)+'u', BUFFER=f'Buffer{{static_cast<i32*>(memory.data), {size//4}u}}, ' if size else '',

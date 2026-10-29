@@ -40,7 +40,8 @@ def medians(package, runs):
                 capture.get('expected_cases') == expected, f'{run}: a capture of another build or workload')
         for result in decode(capture, expected):
             case = result['machine']
-            name = f"{case['name']} {case_label(case)}" if case.get('source') == 'sdk' else case['name']
+            control = f" #{case['setting']['control']}" if case.get('setting') else ''
+            name = f"{case['name']}{control} {case_label(case)}" if case.get('source') == 'sdk' else case['name']
             for metric in result['metrics']:
                 stage = values.setdefault((name, metric['index']), [])
                 stage.append(None if result['insufficient_voice_activity'] or not metric['encoded_average']

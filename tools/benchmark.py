@@ -128,7 +128,7 @@ def main(argv=None):
     if a.seconds is None:
         a.seconds = max(60, 3 * len(expected) + 15) if expected else 60
     # A batch sweep can run for hours; its frames and traffic grow with its reports.
-    if not 1 <= a.seconds <= 12 * 3600:
+    if not 1 <= a.seconds <= (12 * 3600 if expected else 60):
         raise ValueError('timeout bounds')
     reports_expected = len(expected) if expected else 0
     frame_budget = max(10000, 4 * reports_expected + 1000)
@@ -158,7 +158,7 @@ def main(argv=None):
         end = time.monotonic() + seconds
         while time.monotonic() < end:
             if reports is not None and received_reports >= reports:
-                receive(1)  # a trailing frame, so an extra report is still refused
+                receive(4)  # longer than one run, so an extra report is still refused
                 return
             got = incoming.get_message()
             if got is None:
@@ -274,7 +274,8 @@ def main(argv=None):
             if case.get('combined'):
                 label += ': ' + ', '.join(map(position, combined_positions(swept.get(case['name'], []))))
             lines.append(f"| {case['name']}{suffix} | {scope} | {label} | {value:.3f}% |")
-            if case.get('source') == 'sdk' and value > heaviest.get(case['name'], (0, ''))[0]:
+            failed = item['insufficient_voice_activity'] or metric['encoded_average'] >= 65535
+            if case.get('source') == 'sdk' and not failed and value > heaviest.get(case['name'], (0, ''))[0]:
                 heaviest[case['name']] = (value, label)
         lines.append('')
         for name, (value, label) in heaviest.items():

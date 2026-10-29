@@ -126,6 +126,8 @@ class Measurements(unittest.TestCase):
             catalog.changes([entry], [dict(entry, cpu=legacy_synth())])
         legacy = dict(entry, cpu=legacy_synth())
         catalog.changes([legacy], [legacy])  # unchanged, it stays
+        # Publishing a draft at the same commit keeps its older record.
+        catalog.changes([dict(legacy, status='draft')], [legacy])
         # A maintainer may let an update carry the older record over.
         catalog.changes([legacy], [dict(legacy, tag='v2', commit='b'*40)], allow_carried_cpu=True)
         warning = cpu_measurement.above_recommended(measurement('synth'))

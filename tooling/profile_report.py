@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import statistics
 
-from .benchmark import combined_positions, decode, position
+from .benchmark import case_label, combined_positions, decode, position
 from .cpu_measurement import BENCHMARKS, RECOMMENDED_PERCENT, above_recommended, validate
 from .formats import require, sha
 
@@ -120,8 +120,7 @@ def create(package, paths, name, url, out):
                     'positions differ between runs: ' + '; '.join(', '.join(map(position, c)) for c in combinations))
         table = ['| Setting | Median |', '| --- | ---: |']
         for run, median in runs:
-            label = ('combined: ' + together if run.get('combined') else
-                     position(run['setting']) if 'setting' in run else 'midpoint (stock)')
+            label = case_label(run) + (': ' + together if run.get('combined') else '')
             table.append(f'| {label} | ' + ('silent, left out' if median is None else f'{median:.3f}%') + ' |')
         published += '\n\n' + '\n'.join(table)
         limits = 'maximum polyphony or other combinations of control settings. '

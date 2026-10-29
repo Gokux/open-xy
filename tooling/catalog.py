@@ -120,8 +120,9 @@ def changes(before, after, allow_carried_cpu=False):
             # With a maintainer's approval, an update may carry its previous measurement over
             # unchanged, still naming the commit it measured; otherwise it measures the pinned commit.
             carried = allow_carried_cpu and entry['cpu'] == previous.get(entry['id'], {}).get('cpu')
-            # A fresh synth measurement is a control sweep; a carried one may predate it.
-            cpu_measurement.validate(entry['cpu'], entry['kind'], legacy=carried)
+            # A fresh synth measurement is a control sweep; an unchanged one may predate it.
+            unchanged = entry['cpu'] == previous.get(entry['id'], {}).get('cpu')
+            cpu_measurement.validate(entry['cpu'], entry['kind'], legacy=unchanged)
             require(carried or entry['cpu']['commit'] == entry['commit'],
                     f"{entry['id']}: cpu must measure the pinned commit; remeasure when updating "
                     "(a catalog maintainer can approve keeping the previous measurement)")

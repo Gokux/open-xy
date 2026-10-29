@@ -82,9 +82,6 @@ class SynthVoices(unittest.TestCase):
 int destroyed[257];
 opxy::u32 sdk_synth_title_slot(opxy::u32, opxy::u32 index) { return index + 4; }
 opxy::u32 sdk_voice_ticks() { return 0; }
-const opxy::i32* volatile sdk_benchmark_parameters = nullptr;
-const char* volatile sdk_benchmark_engine = nullptr;
-const char probe_engine_id[1] = {};
 int main() { return sizeof(voices) / sizeof(voices[0]) == 28 ? 0 : 1; }
 ''')
         # A capacity of 1 keeps its voice and the spare.
@@ -92,9 +89,6 @@ int main() { return sizeof(voices) / sizeof(voices[0]) == 28 ? 0 : 1; }
 int destroyed[257];
 opxy::u32 sdk_synth_title_slot(opxy::u32, opxy::u32 index) { return index + 4; }
 opxy::u32 sdk_voice_ticks() { return 0; }
-const opxy::i32* volatile sdk_benchmark_parameters = nullptr;
-const char* volatile sdk_benchmark_engine = nullptr;
-const char probe_engine_id[1] = {};
 int main() { return sizeof(voices) / sizeof(voices[0]) == 2 ? 0 : 1; }
 ''')
 

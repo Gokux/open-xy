@@ -57,14 +57,17 @@ class Benchmark(unittest.TestCase):
         self.assertTrue(extra[-1]['combined'] and 'setting' not in extra[-1])
         with tempfile.TemporaryDirectory() as folder:
             source = generate(folder, [effect, synth], sweep=True).read_text(encoding='utf-8')
-            # The synth is machines[1], each row naming its control; the effect sweeps nothing.
-            sweep_rows = lambda text, index: [line for line in text.splitlines()
-                                              if line.startswith(f'    {{{index}, ') and ', {' in line]
-            rows = sweep_rows(source, 1)
-            self.assertEqual([int(row.split(',')[1]) for row in rows], [c for c, _l, _v, _x in settings])
-            self.assertEqual(sweep_rows(source, 0), [])
-            self.assertIn('sdk_benchmark_parameters = combined;', source)
-            self.assertEqual(sweep_rows(generate(folder, [effect, synth]).read_text(encoding='utf-8'), 1), [])
+            # The synth is machines[1]: a row per setting with its control and value, and
+            # one row of its defaults; the effect sweeps nothing.
+            def table(text, name):
+                body = text.split(f'const {name}[] = {{\n', 1)[1].split('\n};', 1)[0]
+                return [line.strip() for line in body.splitlines() if line.strip()][:-1]
+            self.assertEqual(table(source, 'Setting settings'),
+                             ['{1, %d, %d},' % (c, v) for c, _l, v, _x in settings])
+            self.assertEqual(table(source, 'Defaults defaults'), ['{1, {%s}},' % ', '.join(map(str, defaults))])
+            self.assertIn('sdk_benchmark_parameters = controls;', source)
+            plain_source = generate(folder, [effect, synth]).read_text(encoding='utf-8')
+            self.assertEqual((table(plain_source, 'Setting settings'), table(plain_source, 'Defaults defaults')), ([], []))
 
     def test_the_combined_run_takes_each_controls_first_heaviest_position(self):
         from tooling.benchmark import combined_positions
