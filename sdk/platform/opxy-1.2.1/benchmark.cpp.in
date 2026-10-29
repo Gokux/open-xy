@@ -45,8 +45,10 @@ const Defaults* defaults_of(u32 machine) {
 // The whole-voice timing record (metric 5) a stock run leaves behind until the next
 // one clears it: total cycles (high and low words) over the blocks it timed. Its
 // average per block is what the run's report encodes, so the host ranks the same way.
+// Stock's timing record for a metric: words 4-10 hold maximum, minimum, total and blocks.
+volatile u32* timing_record(u32 metric) { return at<volatile u32>(0x08034f3c + 0x2c * metric); }
 u32 whole_voice_average() {
-    volatile u32* record = at<volatile u32>(0x08034f3c + 0x2c * 5);
+    volatile u32* record = timing_record(5);
     const u32 count = record[10];
     if (!count) return 0;
     if (record[9]) return 0xffffffffu;  // beyond 2^32 cycles: heavier than any that fit
@@ -79,7 +81,7 @@ static void callback_report(const Machine& machine) {
     const opxy::benchmark::Stats value = machine.callback();
     stock<void()>(0x8c0c7908)();
     if (value.audible && value.count == opxy::benchmark::blocks) {
-        volatile u32* record = at<volatile u32>(0x08034f3c + 0x2c * machine.metric);
+        volatile u32* record = timing_record(machine.metric);
         record[4] = value.maximum; record[5] = 0;
         record[6] = value.minimum; record[7] = 0;
         record[8] = value.total_low; record[9] = value.total_high;

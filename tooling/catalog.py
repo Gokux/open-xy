@@ -119,7 +119,7 @@ def changes(before, after, allow_carried_cpu=False):
             require('cpu' in entry, f"{entry['id']}: new or updated submissions require hardware cpu measurements (docs/profiling.md)")
             # With a maintainer's approval, an update may carry its previous measurement over
             # unchanged, still naming the commit it measured; otherwise it measures the pinned commit.
-            measured = lambda cpu: {k: v for k, v in (cpu or {}).items() if k != 'report'}
+            measured = lambda cpu: {k: v for k, v in cpu.items() if k != 'report'} if isinstance(cpu, dict) else cpu
             unchanged = measured(entry['cpu']) == measured(previous.get(entry['id'], {}).get('cpu'))
             carried = allow_carried_cpu and unchanged
             # A fresh synth measurement is a control sweep; an unchanged one may predate it.

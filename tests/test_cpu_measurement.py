@@ -133,6 +133,10 @@ class Measurements(unittest.TestCase):
             catalog.changes([entry], [dict(entry, cpu=legacy_synth())])
         legacy = dict(entry, cpu=legacy_synth())
         catalog.changes([legacy], [legacy])  # unchanged, it stays
+        # A cpu field that is not a record fails cleanly.
+        for cpu in ('3.2', [], 3.2):
+            with self.subTest(cpu=cpu), self.assertRaises(ValueError):
+                catalog.changes([legacy], [dict(legacy, cpu=cpu)])
         # Linking its evidence later is not a new measurement.
         unlinked = dict(legacy, cpu={k: v for k, v in legacy['cpu'].items() if k != 'report'})
         catalog.changes([unlinked], [legacy])

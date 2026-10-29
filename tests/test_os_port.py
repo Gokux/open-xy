@@ -123,7 +123,7 @@ class CpuCompare(unittest.TestCase):
                 run.mkdir()
                 (run / 'capture.json').write_text(json.dumps(c))
                 runs.append(run)
-            return cpu_compare.medians('package', runs)
+            return cpu_compare.medians('package', runs)[0]
 
     def test_runs_are_this_package_used_once_and_all_sounded(self):
         self.assertEqual(self.run_medians([capture('build', self.cases, v) for v in (1.0, 3.0, 2.0)]),
@@ -155,7 +155,7 @@ class CpuCompare(unittest.TestCase):
                 run.mkdir()
                 (run / 'capture.json').write_text(json.dumps(capture('build', cases, value)))
                 runs.append(run)
-            self.assertEqual(cpu_compare.medians('package', runs),
+            self.assertEqual(cpu_compare.medians('package', runs)[0],
                              {('pluck midpoint (stock)', 5): 2.0, ('pluck #0 Tone 100.0%', 5): 3.0,
                               ('pluck combined', 5): 4.0})
 
