@@ -95,7 +95,7 @@ def aggregate(captures, expected, identity, name, commit, url):
         measurement['report'] = url
     validate(measurement, case['kind'], commit, legacy=False)
     return (measurement, values[heaviest], case, [(own[index], medians.get(index)) for index in values],
-            combinations)
+            combinations, silent)
 
 
 def create(package, paths, name, url, out):
@@ -116,9 +116,8 @@ def create(package, paths, name, url, out):
     for path in files.values():
         catalog.git('ls-files', '--error-unmatch', '--', str(path.relative_to(machine.root)), cwd=machine.root)
     captures = [json.loads(Path(path).read_text()) for path in paths]
-    measurement, values, case, runs, combinations = aggregate(captures, report['benchmark_cases'], identity,
-                                                              name, commit, url)
-    silent = [run for run, median in runs if median is None]
+    measurement, values, case, runs, combinations, silent = aggregate(captures, report['benchmark_cases'],
+                                                                      identity, name, commit, url)
     destination = Path(out)
     require(not destination.exists(), 'Use a fresh report directory')
     destination.mkdir(parents=True)
@@ -128,8 +127,8 @@ def create(package, paths, name, url, out):
     if 'worst_setting' in measurement:
         setting = measurement['worst_setting']
         measured = sum(median is not None for _run, median in runs)
-        each = 'one capture' if len(values) == 1 else f'median of {len(values)} run means each'
-        published = (f"Heaviest of {measured} measured runs (midpoint, then each control through its positions with the "
+        each = 'from one capture' if len(values) == 1 else f'each the median of {len(values)} captures'
+        published = (f"Heaviest of {measured} measured settings (midpoint, then each control through its positions with the "
                      f"others at their defaults), {each}: "
                      f"**{measurement['block_percent']:.3f}%** of the stock 580,352-cycle block budget. "
                      f"Midpoint run: {measurement['midpoint_percent']:.3f}%. Every control at its heaviest "

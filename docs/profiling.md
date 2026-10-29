@@ -51,7 +51,8 @@ One capture is enough: each run averages 1,500 blocks of a fixed workload, and
 repeated captures of the same build agree to within a few hundredths of a
 percent. A machine with randomness (noise, random modulation) may vary more:
 collect several, one after another, each to a new directory, and pass every
-capture to the report, which publishes their median. Each stock-workload
+capture to the report, which publishes their median (two give their average,
+so take three or more to outvote an outlier). Each stock-workload
 run takes about 2.2 seconds, so a sweep run takes longer: about 80 seconds for a
 synth with four controls. The collector waits for every expected report (by
 default up to 3 seconds per run plus 15) and stops early once they have arrived.
