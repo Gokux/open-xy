@@ -128,7 +128,7 @@ class Measurements(unittest.TestCase):
         catalog.changes([legacy], [dict(legacy, tag='v2', commit='b'*40)], allow_carried_cpu=True)
         warning = cpu_measurement.above_recommended(measurement('synth'))
         self.assertIn('4.810%', warning)
-        self.assertIn('Tone 100%', warning)
+        self.assertIn('Tone 100.0%', warning)
         self.assertIn('recommended 3.5%', warning)
         self.assertIsNone(cpu_measurement.above_recommended(dict(measurement('synth'), block_percent=3.5)))
         self.assertIn('above the recommended', cpu_measurement.above_recommended(legacy_synth()))
