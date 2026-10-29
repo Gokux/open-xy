@@ -542,14 +542,21 @@ every number it has given out, including to machines since dropped, which stay
 held so an old project never opens another machine. The builder and
 `sdk.py build` write the layout after each build to `layout.json`; give it to
 the next build so every machine keeps its numbers. A machine new to the layout
-gets the lowest free numbers, in collection order.
+gets numbers from its own place in each pool above, worked out from its ID
+(FNV-1a, 32-bit, of the ID's UTF-8 bytes, modulo the pool's size), or the next
+free number above it, wrapping around. Machines are numbered in ID order, never
+collection or selection order, so even a build without a layout gives a machine
+the same numbers whatever else it includes, unless another machine's place
+collides with its own: then the first by ID keeps it. Only a layout guarantees
+numbers.
 A [project companion](projects.md) records what a project's numbers meant by
 machine ID, so Open-XY firmware with another layout opens the project with the
 same machines.
 
 Machines targeting SDK 1.4 or earlier instead list the numbers they ask for in
 `identity`, `{"engine": n, "page": p}` or `{"effect": n, "page": 21}`, and
-name no `base`. A layout gives them when free, otherwise the lowest free ones;
+name no `base`. A layout gives them when free, before any machine's own place,
+otherwise numbers as for any other machine;
 a sample engine's `page` 2 forks the sampler and 7 the drum sampler. Such a
 machine keeps working unchanged. To move it to `"sdk": "1.5"`, delete
 `identity` and, for a sample engine, add its `base`; a 1.5 machine with

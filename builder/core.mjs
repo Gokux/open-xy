@@ -151,9 +151,22 @@ function checkNumbers(kit) {
 // holds both). Projects store a track's engine, effect and page numbers, so a machine
 // keeps its numbers in a firmware for good. Open-XY's first machines' are fixed (kit.fixed);
 // a layout keeps every number it has given out, including to machines since dropped,
-// and a machine new to it gets the numbers it asks for when free (only machines before
-// SDK 1.5 ask for any), else the lowest free.
+// and machines new to it get the numbers they ask for when free (only machines before
+// SDK 1.5 ask for any), then each number still missing from the machine's own place in
+// the pool (preferred), in ID order, so numbers never depend on the selection's order.
 export const LAYOUT_FORMAT = 'opxy-layout/1';
+// FNV-1a, 32-bit, of the text's UTF-8 bytes (tooling.machines.fnv1a).
+export function fnv1a(text) {
+  let value = 0x811c9dc5;
+  for (const byte of new TextEncoder().encode(text)) value = Math.imul(value ^ byte, 0x01000193) >>> 0;
+  return value;
+}
+// A pool's numbers in the order a machine new to a layout takes the first free one: from
+// FNV-1a of its ID modulo the pool's size, upward and wrapping around.
+export function preferred(pool, name) {
+  const start = fnv1a(name) % pool.length;
+  return [...pool.slice(start), ...pool.slice(0, start)];
+}
 export function numberPools(rules) {
   const range = (low, high) => Array.from({length: high - low}, (_, i) => low + i);
   return {engine: range(rules.engine_none + 1, rules.engines).filter(n => !rules.stock_engines.includes(n)),
@@ -186,20 +199,37 @@ export function numberLayout(rules, fixed, layout, machines) {
     else if (Object.hasOwn(identity, 'effect') && !pools.effect.includes(identity.effect)) continue;
     else hold(name, identity);
   }
-  for (const [name, kind, requested] of machines) {
+  const fresh = [];
+  for (const [name, kind, requested] of [...machines].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
     if (Object.hasOwn(numbers, name)) {
       check(validIdentity(rules, kind, numbers[name]), `${name}: the layout gives it numbers it cannot use`);
       check(kind !== 'sample' || numbers[name].page === requested.page,
         `${name} now forks another stock sampler; the layout holds its numbers for the old one`);
-      continue;
+    } else {
+      fresh.push([name, kind, {...requested}, kind === 'effect' ? ['effect'] : kind === 'synth' ? ['engine', 'page'] : ['engine']]);
     }
-    const identity = {...requested};
-    for (const slot of kind === 'effect' ? ['effect'] : kind === 'synth' ? ['engine', 'page'] : ['engine']) {
-      const choices = [...(pools[slot].includes(requested[slot]) ? [requested[slot]] : []), ...pools[slot]];
-      // An effect number is also held as an engine number (occupied).
-      const keys = n => [slot + ' ' + n, ...(slot === 'effect' ? ['engine ' + n] : [])];
-      identity[slot] = choices.find(n => !keys(n).some(key => holders.has(key)));
-      check(identity[slot] !== undefined, `No free ${slot} number for ${name}: every one is held in this layout`);
+  }
+  // An effect number is also held as an engine number (occupied).
+  const keys = (slot, n) => [slot + ' ' + n, ...(slot === 'effect' ? ['engine ' + n] : [])];
+  const free = (slot, n) => !keys(slot, n).some(key => holders.has(key));
+  const take = (name, identity, slot, n) => {
+    identity[slot] = n;
+    for (const key of keys(slot, n)) holders.set(key, name);
+  };
+  // Requested numbers first, so no machine's preferred place takes one another asks for.
+  for (const [name, , identity, slots] of fresh) {
+    for (const slot of slots) {
+      const n = identity[slot];
+      identity[slot] = null;
+      if (pools[slot].includes(n) && free(slot, n)) take(name, identity, slot, n);
+    }
+  }
+  for (const [name, kind, identity, slots] of fresh) {
+    for (const slot of slots) {
+      if (identity[slot] !== null) continue;
+      const n = preferred(pools[slot], name).find(n => free(slot, n));
+      check(n !== undefined, `No free ${slot} number for ${name}: every one is held in this layout`);
+      take(name, identity, slot, n);
     }
     check(validIdentity(rules, kind, identity), `${name}: no valid numbers`);
     hold(name, identity);

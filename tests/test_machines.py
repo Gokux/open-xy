@@ -14,9 +14,16 @@ from tooling.pipeline import config
 from machine_fixtures import FOLDER, NAMES, fixture, fixture_entries
 
 RULES = config()['identities']
-# The lowest synth numbers no fixed machine holds, which a machine asking for none gets.
-FREE = machines.number_layout(RULES, [(n, None, i) for n, i in machines.FIXED_NUMBERS.items()], None,
-                              [('free', 'synth', {'engine': None, 'page': None})])['free']
+
+
+def own(name):
+    """The numbers a synth asking for none gets beside the fixed machines alone: its own places."""
+    return machines.number_layout(RULES, [(n, None, i) for n, i in machines.FIXED_NUMBERS.items()], None,
+                                  [(name, 'synth', {'engine': None, 'page': None})])[name]
+
+
+# Synth numbers no fixed machine holds, for machines that ask for numbers.
+FREE = own('free')
 
 
 def identity(kind, **changes):
@@ -175,10 +182,11 @@ class OutsideMachines(unittest.TestCase):
             collection.write_text(json.dumps({'schema': 1, 'machines': listed}), encoding='utf-8')
             with self.subTest(listed=listed), self.assertRaisesRegex(ValueError, 'Collection entries are'):
                 machines.read_collection(collection)
-        # A machine asking for a fixed number is given the lowest free one.
+        # A machine asking for a fixed number is given its own place instead.
         self.rename('fmcopy', dict(self.free, engine=34))
         fmcopy = machines.collection(entries)[-1]
-        self.assertEqual((fmcopy.identity, fmcopy.requested), (self.free, dict(self.free, engine=34)))
+        self.assertEqual((fmcopy.identity, fmcopy.requested),
+                         (dict(self.free, engine=own('fmcopy')['engine']), dict(self.free, engine=34)))
 
     def test_sdk_version_and_fixed_names_are_checked(self):
         for version in ('1.1', '1.2', '1.3', '1.4'):
@@ -219,16 +227,17 @@ class OutsideMachines(unittest.TestCase):
         self.numberless(self.folder)
         m = machines.machine_at(self.folder)
         self.assertEqual(m.identity, {'engine': None, 'page': None})
-        # The build gives the lowest free numbers, the same each time, and records the request.
+        # The build gives the machine its own places, the same each time, and records the request.
+        self.assertNotEqual(own('fmcopy'), FREE)
         for _ in range(2):
             built = machines.collection(machines.read_collection(None, [self.folder]))[0]
-            self.assertEqual((built.identity, built.requested), (FREE, m.identity))
+            self.assertEqual((built.identity, built.requested), (own('fmcopy'), m.identity))
         # A layout keeps the numbers it gave; dropped machines' stay held.
         layout = {'fmcopy': {'engine': 50, 'page': 100}, 'gone': dict(FREE)}
         built = machines.collection(machines.read_collection(None, [self.folder]), layout)[0]
         self.assertEqual(built.identity, {'engine': 50, 'page': 100})
-        built = machines.collection(machines.read_collection(None, [self.folder]), {'gone': dict(FREE)})[0]
-        self.assertEqual(built.identity, {'engine': FREE['engine'] + 1, 'page': FREE['page'] + 1})
+        built = machines.collection(machines.read_collection(None, [self.folder]), {'gone': own('fmcopy')})[0]
+        self.assertEqual(built.identity, {'engine': own('fmcopy')['engine'] + 1, 'page': own('fmcopy')['page'] + 1})
         # A machine named like one with fixed numbers gets them.
         self.rename('fm2op', None, '1.5')
         self.numberless(self.folder)
@@ -264,7 +273,7 @@ class OutsideMachines(unittest.TestCase):
         self.numberless(folder, base='drumSampler')
         self.assertEqual(machines.machine_at(folder).identity, {'engine': None, 'page': 7})
         built = machines.collection(machines.read_collection(None, [folder]))[0]
-        self.assertEqual(built.identity, {'engine': 36, 'page': 7})
+        self.assertEqual(built.identity, {'engine': 41, 'page': 7})  # its own place in the engine pool
         # Without pad settings it may fork the keyboard sampler; a 1.4 machine still picks it by number.
         definition = json.loads((folder / 'definition.json').read_text(encoding='utf-8'))
         definition['resources'].pop('padSettings')

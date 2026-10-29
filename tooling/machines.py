@@ -305,9 +305,11 @@ def machine_at(root, identity=None):
 # its own machines fixed numbers, held in every firmware whether or not it holds the
 # machine (FIXED_NUMBERS). Every other machine is given numbers by a layout: the firmware's record of
 # every number it has given out, including to machines since dropped, which stay
-# held so an old project never opens another machine. A machine new to a layout
-# gets the numbers it asks for when they are free (only machines before SDK 1.5
-# ask for any), else the lowest free ones.
+# held so an old project never opens another machine. Machines new to a layout get
+# the numbers they ask for when free (only machines before SDK 1.5 ask for any), then
+# each number still missing from its own place in the pool: preferred(), so a build
+# without a layout gives a machine the same numbers whatever else it holds, unless
+# two machines' places collide. Machines are numbered in ID order, never collection order.
 # builder/core.mjs assignNumbers applies the same rules (tests/fixtures/numbers.json).
 LAYOUT_FORMAT = 'opxy-layout/1'
 FIXED_NUMBERS = {'fm2op': {'engine': 34, 'page': 82}, 'macroosc': {'engine': 26, 'page': 83},
@@ -320,6 +322,22 @@ def number_pools(rules):
     below it are left for stock."""
     engines = [n for n in range(rules['engine_none'] + 1, rules['engines']) if n not in rules['stock_engines']]
     return dict(engine=engines, page=list(range(rules['page_none'] + 1, rules['pages'])), effect=list(rules['effects']))
+
+
+def fnv1a(text):
+    """FNV-1a, 32-bit, of the text's UTF-8 bytes."""
+    value = 0x811c9dc5
+    for byte in text.encode('utf-8'):
+        value = (value ^ byte) * 0x01000193 & 0xffffffff
+    return value
+
+
+def preferred(pool, name):
+    """A pool's numbers in the order a machine new to a layout takes the first free one:
+    from the machine's own place, FNV-1a of its ID modulo the pool's size, upward and
+    wrapping around."""
+    start = fnv1a(name) % len(pool)
+    return pool[start:] + pool[:start]
 
 
 def occupied(rules, identity):
@@ -384,19 +402,37 @@ def number_layout(rules, fixed, layout, machines):
             continue
         else:
             hold(name, identity)
-    for name, kind, requested in machines:
+    new = []
+    for name, kind, requested in sorted(machines, key=lambda machine: machine[0]):
         if name in numbers:
             check_identity(rules, kind, numbers[name])
             require(kind != 'sample' or numbers[name]['page'] == requested['page'],
                     f'{name} now forks another stock sampler; the layout holds its numbers for the old one')
-            continue
-        identity = dict(requested)
-        for slot in ('effect',) if kind == 'effect' else ('engine', 'page') if kind == 'synth' else ('engine',):
-            choices = ([requested[slot]] if requested[slot] in pools[slot] else []) + pools[slot]
-            # An effect number is also held as an engine number (occupied).
-            keys = lambda n: [(slot, n)] + ([('engine', n)] if slot == 'effect' else [])
-            identity[slot] = next((n for n in choices if not any(k in holders for k in keys(n))), None)
-            require(identity[slot] is not None, f'No free {slot} number for {name}: every one is held in this layout')
+        else:
+            slots = ('effect',) if kind == 'effect' else ('engine', 'page') if kind == 'synth' else ('engine',)
+            new.append((name, kind, dict(requested), slots))
+    # An effect number is also held as an engine number (occupied).
+    keys = lambda slot, n: [(slot, n)] + ([('engine', n)] if slot == 'effect' else [])
+    free = lambda slot, n: not any(k in holders for k in keys(slot, n))
+
+    def take(name, identity, slot, n):
+        identity[slot] = n
+        for key in keys(slot, n):
+            holders[key] = name
+
+    # Requested numbers first, so no machine's preferred place takes one another asks for.
+    for name, _kind, identity, slots in new:
+        for slot in slots:
+            n = identity[slot]
+            identity[slot] = None
+            if n in pools[slot] and free(slot, n):
+                take(name, identity, slot, n)
+    for name, kind, identity, slots in new:
+        for slot in slots:
+            if identity[slot] is None:
+                n = next((n for n in preferred(pools[slot], name) if free(slot, n)), None)
+                require(n is not None, f'No free {slot} number for {name}: every one is held in this layout')
+                take(name, identity, slot, n)
         hold(name, check_identity(rules, kind, identity))
     return numbers
 
@@ -434,8 +470,7 @@ def read_collection(path=None, extra=()):
 
 def collection(entries=None, layout=None):
     """Machines in firmware order, with their numbers in the layout: the order sets
-    startup, catalog and link layout, and which machine new to the layout is numbered first.
-    Entries come from read_collection."""
+    startup, catalog and link layout, never numbers. Entries come from read_collection."""
     entries = [] if entries is None else entries
     require(isinstance(entries, list) and entries,
             'Collection needs machines: pass --machine <folder>, or --collection local/catalog/collection.json '
