@@ -491,6 +491,24 @@
         "runs": 3,
         "block_percent": 4.910353
       }
+    },
+    {
+      "id": "mmsaw",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "reserved"
+    },
+    {
+      "id": "mmsin",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "reserved"
+    },
+    {
+      "id": "mmnois",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "reserved"
     }
   ]
 }
