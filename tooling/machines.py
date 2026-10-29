@@ -31,7 +31,8 @@ FIELDS = {'schema', 'sdk', 'kind', 'description', 'identity', 'base', 'sources',
 # 1.4 adds the reusable header and partial second pages sharing unassigned controls.
 # 1.5 drops identity numbers: the layout gives every number, and a sample engine
 # names its base instead of a stock page.
-SDK_VERSION = (1, 5)
+# 1.6 extends PadSettings to 18 bits and supplies held-pad and multi-edit services.
+SDK_VERSION = (1, 6)
 # The stock samplers a sample engine forks (machine.json `base`), by their stock pages:
 # the keyboard sampler's and the drum sampler's, the profile's sample_pages.
 SAMPLE_BASES = {'sampler': 2, 'drumSampler': 7}
