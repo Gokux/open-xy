@@ -99,7 +99,8 @@ bool companion_path(const char* path, char* out) {
 }
 
 // Streams the companion through `text`, a buffer at a time, so its size follows the
-// machines listed, not the buffer.
+// machines listed, not the buffer. As with one write, a card that fills part way leaves
+// a document the reader refuses whole: the project then loads as saved.
 class Writer {
 public:
     explicit Writer(File* file) : file_(file) {}
@@ -174,8 +175,8 @@ const u32 kNoEffect = 0;
 const u32 kDepth = 8;      // nesting a skipped value may use; deeper is refused (stack)
 const u32 kKeyBytes = 64;  // longer strings match nothing we read
 const u32 kMachineBytes = 15;
-// Distinct machine IDs one section may list (tooling/projects.py MACHINE_LIMIT): as many
-// as a firmware's engine records hold, so a firmware reads every companion it writes.
+// Distinct machine IDs one section may list (tooling/projects.py MACHINE_LIMIT): more than
+// one firmware can number (test_stock_tables), so it reads every companion it writes.
 const u32 kMachines = 256;
 // Other owners' sections invalid at once, each awaiting a repeat of its name that
 // replaces it; more refuse the companion.

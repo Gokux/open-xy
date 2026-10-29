@@ -6,6 +6,7 @@ constants in tooling/stock_tables.py.
 """
 import copy
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,6 +14,8 @@ import unittest
 from tooling import pipeline, projects, stock_tables as tables
 from tooling.adapters import generate_registration_stock
 from tooling.firmware import hooks
+from tooling.formats import ldr, mapped_offset
+from tooling.machines import FIXED_NUMBERS, number_pools
 from tooling.pipeline import config
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,6 +81,24 @@ class Profile(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 tables.check_engine_bound(altered)
 
+    @unittest.skipUnless(os.environ.get('OPXY_TEST_STOCK_OS'), 'Private stock input not supplied')
+    def test_engine_bound_hook_sits_inside_a_framed_check(self):
+        # The call replaces RETS; the check saves it with LINK first and restores it with
+        # UNLINK on both exits, and only its own branches (to 0x8d50535c and 0x8d505364)
+        # land after the site, never between the two hooked instructions.
+        stock = Path(os.environ['OPXY_TEST_STOCK_OS']).read_bytes()
+        start = 0x8d50534e
+        expected = (
+                         '800c' '00e80000' '0418' '0961' '8808' '0518'  # CC = R0 < 0; LINK 0; IF CC; R1 = 33; CC = R0 < R1; IF CC
+                         '01e80000' '0060' '1000'                       # UNLINK; R0 = 0; RTS
+                         '8161' '02da0308fc940000' 'c840' '0250' '0832'  # R1 = 48; R2 = records; R0 *= R1; R0 += R2; P1 = R0
+                         '88e51000' '000c' 'f11b'                       # R0 = B[P1 + 16]; CC = R0 == 0; IF CC -> UNLINK above
+                         '01e80000' '0860' '1000')                      # UNLINK; R0 = 1; RTS
+        size = len(expected) // 2
+        offset = mapped_offset(ldr(stock), start, size)
+        self.assertEqual(stock[offset:offset + size].hex(), expected)
+        self.assertEqual(tables.ENGINE_BOUND, start + 8)
+
     def test_effect_edits_cover_every_audited_reader(self):
         effects = [p for p in self.table if p['name'].startswith('IN-MEMORY effect')]
         self.assertEqual([int(p['address'], 16) for p in effects],
@@ -129,6 +150,15 @@ class Registration(unittest.TestCase):
         self.assertNotIn('%#x' % tables.STOCK_EFFECT_RECORDS, text)
         # The engine validity hook compares against the relocated count.
         self.assertIn('R1 = %d (X);' % tables.ENGINE_COUNT, text)
+
+    def test_a_companion_lists_every_machine_one_firmware_numbers(self):
+        # Effects above 33 hold engine numbers too, so engines and effects together never
+        # outnumber the engine pool plus the low effect numbers and the fixed engines.
+        rules = config()['identities']
+        pools = number_pools(rules)
+        low_effects = [n for n in pools['effect'] if n not in pools['engine']]
+        fixed_engines = [i['engine'] for i in FIXED_NUMBERS.values() if 'engine' in i and i['engine'] not in pools['engine']]
+        self.assertLessEqual(len(pools['engine']) + len(low_effects) + len(fixed_engines), projects.MACHINE_LIMIT)
 
     def test_project_companions_map_every_engine_number(self):
         # Both companion readers hold a map entry for every engine record.

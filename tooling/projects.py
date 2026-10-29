@@ -14,6 +14,7 @@ import zlib
 from .formats import require
 from .machines import check_layout_numbers, read_layout, reject_constant
 from .pipeline import config
+from .stock_tables import EFFECT_COUNT, ENGINE_COUNT
 
 FORMAT = 'open-xy-project'
 VERSION = 1
@@ -26,12 +27,12 @@ SECTION_NAME = re.compile(r'[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+')
 # The machine IDs a companion may list, the firmware reader's rule (project_companion.cpp
 # machine_name): a lowercase letter, then lowercase letters, digits or _, at most 15.
 MACHINE_ID = re.compile(r'[a-z][a-z0-9_]{0,14}')
-# Distinct machines one section may list, as many as the firmware reader holds.
+# Distinct machines one section may list, as many as the firmware reader holds: more
+# than one firmware numbers (test_stock_tables), so it reads every companion it writes.
 MACHINE_LIMIT = 256
-# Engine and effect numbers a pattern can hold registered, the relocated engine table's
-# count (tooling/stock_tables.py; project_companion.cpp kNumbers); others are never mapped.
-NUMBERS = 256
-EFFECT_NUMBERS = 63  # the relocated effect records (project_companion.cpp kEffectNumbers)
+# Engine and effect numbers a pattern can hold registered, the relocated tables' counts
+# (project_companion.cpp kNumbers and kEffectNumbers); others are never mapped.
+NUMBERS, EFFECT_NUMBERS = ENGINE_COUNT, EFFECT_COUNT
 # What a listed machine missing here, or a number two listed machines claim, becomes:
 # Prism on an instrument track, no effect on a send.
 FALLBACK = {'engine': 18, 'effect': 0}
