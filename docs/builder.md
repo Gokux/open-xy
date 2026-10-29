@@ -60,7 +60,7 @@ The ZIP contains:
 | `content/presets/<machine>/*.json` | Each selected instrument's init preset, `default.json`, and its own [presets](api.md#presets), in the instrument's folder |
 | `layout.json`, hashes | Keep `layout.json`: it holds your machines' numbers, and loading it into the builder next time keeps them for your projects |
 
-Every build shows its release at boot, `OPEN 0.0.2-1.2.1` for 0.0.2, the version in
+Every build shows its release at boot, `OPEN 0.0.3-1.2.1` for 0.0.3, the version in
 [`VERSION`](../VERSION) that the builder also shows under its name and records in
 `build.json`. Timestretch starts without a sample;
 choose one on its sample page. Ring Mod is a send effect and has no preset.
