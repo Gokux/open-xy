@@ -362,7 +362,14 @@ test('firmware recovery rejects malformed and foreign loader layouts without pri
 test('the release checks the linked machines, each other machine beside the official ones, and their subsets', () => {
   const machines = [machine('a',34,82,'official'), machine('b',35,82,'official'), machine('c',36,82), machine('d',37,82)];
   // Everything fits: the native package links all four.
-  assert.deepEqual(checkedSelections(machines), [1, 2, 3, 7, 11, 15]);
+  assert.deepEqual(checkedSelections(machines), [1n, 2n, 3n, 7n, 11n, 15n]);
   // Not all at once: the native package links the official machines.
-  assert.deepEqual(checkedSelections(machines, ['a', 'b']), [1, 2, 3, 7, 11]);
+  assert.deepEqual(checkedSelections(machines, ['a', 'b']), [1n, 2n, 3n, 7n, 11n]);
+  // More machines than a 32-bit mask holds, with official ones past bit 31.
+  const many = Array.from({length: 40}, (_, i) => machine('m' + i, 34, 82, i === 33 || i === 39 ? 'official' : undefined));
+  const core = (1n << 33n) | (1n << 39n);
+  const selections = checkedSelections(many, ['m33', 'm39']);
+  assert.deepEqual(selections.slice(0, 3), [1n << 33n, 1n << 39n, core]);
+  assert.equal(selections.length, 3 + 38);
+  assert.ok(selections.slice(3).every(mask => (mask & core) === core));
 });
