@@ -132,8 +132,8 @@
       "maintainer": "SammiBabe666",
       "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-hurdygurdy",
-      "tag": "v1.3.0",
-      "commit": "1354c31b122aa3c05a3c028ff57cc7f198a9bea8",
+      "tag": "v1.3.1",
+      "commit": "40ecf269226d265e66d0e667692f5f3e815ec66f",
       "path": ".",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
@@ -196,15 +196,15 @@
       "maintainer": "johnnywagner",
       "status": "published",
       "repository": "https://github.com/johnnywagner/open-xy-metal",
-      "tag": "v1.0.0",
-      "commit": "948d8cbc04184fd3fb87dbc00cf68959e6a07ec7",
+      "tag": "v1.1.0",
+      "commit": "f09f84ad237786e1cf0c39cf509f0cb26e519486",
       "path": "machines/metal",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
-        "commit": "948d8cbc04184fd3fb87dbc00cf68959e6a07ec7",
-        "firmware_sha256": "d1860b7af4d675541a714f02a5ba8f1bf02d05ce4d8af13c1b5792900c2c15b9",
+        "commit": "f09f84ad237786e1cf0c39cf509f0cb26e519486",
+        "firmware_sha256": "9072728f05b15079cfc0473414cc5aae9d90d61b625747960b7c800bbb8cfd66",
         "runs": 3,
-        "block_percent": 3.39971
+        "block_percent": 3.804074
       }
     },
     {
@@ -364,7 +364,7 @@
       "id": "breadboard",
       "kind": "synth",
       "maintainer": "lowlevelgamedev",
-      "status": "draft",
+      "status": "published",
       "repository": "https://github.com/meemknight/OPXY-breadboard",
       "tag": "v1.1.0",
       "commit": "4a5f90abd751164af85abfd850bc791df0c3ba8e",
