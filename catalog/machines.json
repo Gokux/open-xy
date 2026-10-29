@@ -493,6 +493,137 @@
       }
     },
     {
+      "id": "sand",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-Nonagon",
+      "tag": "v0.1.0",
+      "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+      "path": "sand",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+        "firmware_sha256": "f59f85d2abd4c3482c5514b3559853361b9a4ddfab111a78a470c6e3f06da998",
+        "runs": 3,
+        "block_percent": 5.42153
+      }
+    },
+    {
+      "id": "cocoa",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-Nonagon",
+      "tag": "v0.1.0",
+      "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+      "path": "cocoa",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+        "firmware_sha256": "f59f85d2abd4c3482c5514b3559853361b9a4ddfab111a78a470c6e3f06da998",
+        "runs": 3,
+        "block_percent": 5.677882
+      }
+    },
+    {
+      "id": "coin",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-Nonagon",
+      "tag": "v0.1.0",
+      "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+      "path": "coin",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+        "firmware_sha256": "f59f85d2abd4c3482c5514b3559853361b9a4ddfab111a78a470c6e3f06da998",
+        "runs": 3,
+        "block_percent": 1.460288
+      }
+    },
+    {
+      "id": "fermi",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-Nonagon",
+      "tag": "v0.1.0",
+      "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+      "path": "fermi",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+        "firmware_sha256": "f59f85d2abd4c3482c5514b3559853361b9a4ddfab111a78a470c6e3f06da998",
+        "runs": 3,
+        "block_percent": 3.823911
+      }
+    },
+    {
+      "id": "mach",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-Nonagon",
+      "tag": "v0.1.0",
+      "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+      "path": "mach",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+        "firmware_sha256": "f59f85d2abd4c3482c5514b3559853361b9a4ddfab111a78a470c6e3f06da998",
+        "runs": 3,
+        "block_percent": 4.484627
+      }
+    },
+    {
+      "id": "butterfly",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-Nonagon",
+      "tag": "v0.1.0",
+      "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+      "path": "butterfly",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+        "firmware_sha256": "f59f85d2abd4c3482c5514b3559853361b9a4ddfab111a78a470c6e3f06da998",
+        "runs": 3,
+        "block_percent": 5.552758
+      }
+    },
+    {
+      "id": "drop",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-Nonagon",
+      "tag": "v0.1.0",
+      "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+      "path": "drop",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "5642796835b3aa214fcb000dd22bea48558888bb",
+        "firmware_sha256": "f59f85d2abd4c3482c5514b3559853361b9a4ddfab111a78a470c6e3f06da998",
+        "runs": 3,
+        "block_percent": 3.241016
+      }
+    },
+    {
+      "id": "ghost",
+      "kind": "sample",
+      "maintainer": "mmockett",
+      "status": "reserved"
+    },
+    {
+      "id": "recur",
+      "kind": "sample",
+      "maintainer": "mmockett",
+      "status": "reserved"
+    },
+    {
       "id": "mmsaw",
       "kind": "synth",
       "maintainer": "mmockett",
