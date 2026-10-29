@@ -131,8 +131,9 @@ def main(argv=None):
     if not 1 <= a.seconds <= (12 * 3600 if expected else 60):
         raise ValueError('timeout bounds')
     reports_expected = len(expected) if expected else 0
-    frame_budget = max(10000, 4 * reports_expected + 1000)
-    traffic_budget = max(2 * 1024 * 1024, 1024 * (reports_expected + 1000))
+    # Each report also brings stock's text lines; leave room for many per report.
+    frame_budget = max(10000, 25 * reports_expected + 1000)
+    traffic_budget = max(2 * 1024 * 1024, 4096 * (reports_expected + 500))
     a.out.mkdir(parents=True)
     record = {'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'mode': a.mode, 'route': a.route, 'collector_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), 'expected_cases': expected, 'transmissions': [], 'frames': [], 'errors': [], 'identity': None, 'complete': False}
     record['package'] = package_identity
@@ -156,10 +157,11 @@ def main(argv=None):
         """Read for `seconds`, or until `reports` benchmark reports have arrived."""
         nonlocal total, received_reports
         end = time.monotonic() + seconds
+        stopping = False
         while time.monotonic() < end:
-            if reports is not None and received_reports >= reports:
-                receive(4)  # longer than one run, so an extra report is still refused
-                return
+            if reports is not None and received_reports >= reports and not stopping:
+                # Listen a little longer than one run, so an extra report is still refused.
+                end, stopping = min(end, time.monotonic() + 4), True
             got = incoming.get_message()
             if got is None:
                 time.sleep(0.002)
@@ -193,7 +195,7 @@ def main(argv=None):
                     continue
                 item = {'route': f[0], 'seq': f[1], 'command': f[2], 'payload_hex': f[4:-1].hex(), 'text': f[4:-1].decode('utf-8', 'replace')}
                 record['frames'].append(item)
-                if item['command'] == 0x94:
+                if item['command'] == 0x94 and item['route'] == 0x12:  # decode()'s reports only
                     received_reports += 1
                 if len(record['frames']) > frame_budget:
                     raise ValueError('frame budget')

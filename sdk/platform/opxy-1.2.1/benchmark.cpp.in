@@ -42,13 +42,15 @@ const Defaults* defaults_of(u32 machine) {
     return nullptr;
 }
 // The whole-voice timing record (metric 5) a stock run leaves behind until the next
-// one clears it: its total cycles over a fixed block count, so totals compare.
-struct Total { u32 high, low; };
-Total whole_voice_total() {
+// one clears it: total cycles (high and low words) over the blocks it timed. Its
+// average per block is what the run's report encodes, so the host ranks the same way.
+u32 whole_voice_average() {
     volatile u32* record = at<volatile u32>(0x08034f3c + 0x2c * 5);
-    return {record[9], record[8]};
+    const u32 count = record[10];
+    if (!count) return 0;
+    if (record[9]) return 0xffffffffu;  // beyond 2^32 cycles: heavier than any that fit
+    return record[8] / count;
 }
-bool heavier(Total a, Total b) { return a.high != b.high ? a.high > b.high : a.low > b.low; }
 // 0x8d57c848: stock benchmark-one(controller, record, index, total).
 // It sets knobs 0..3 to midpoint, holds note 60/velocity 127 for 1000
 // 64-sample blocks, releases for 500, and emits one 120-byte report.
@@ -110,7 +112,7 @@ void sdk_benchmark_run() {
         const Defaults* base = defaults_of(i);
         if (!base) continue;
         const Setting* heaviest[8] = {};
-        Total most[8] = {};
+        u32 most[8] = {};
         // Stock's run renders every block before it returns; static storage keeps the
         // controls valid for any voice that reads them, whatever its timing.
         static i32 controls[8];
@@ -122,8 +124,8 @@ void sdk_benchmark_run() {
             sdk_benchmark_parameters = controls;
             run(&test, index++, total);
             sdk_benchmark_parameters = nullptr;
-            const Total spent = whole_voice_total();
-            if (!heaviest[s->control] || heavier(spent, most[s->control])) {
+            const u32 spent = whole_voice_average();
+            if (!heaviest[s->control] || spent > most[s->control]) {
                 heaviest[s->control] = s;
                 most[s->control] = spent;
             }

@@ -15,7 +15,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from tooling.benchmark import case_label, decode  # noqa: E402
+from tooling.benchmark import case_key, decode  # noqa: E402
 from tooling.formats import require, sha  # noqa: E402
 from tooling.profile_report import package_data  # noqa: E402
 
@@ -40,8 +40,7 @@ def medians(package, runs):
                 capture.get('expected_cases') == expected, f'{run}: a capture of another build or workload')
         for result in decode(capture, expected):
             case = result['machine']
-            control = f" #{case['setting']['control']}" if case.get('setting') else ''
-            name = f"{case['name']}{control} {case_label(case)}" if case.get('source') == 'sdk' else case['name']
+            name = case_key(case)
             for metric in result['metrics']:
                 stage = values.setdefault((name, metric['index']), [])
                 stage.append(None if result['insufficient_voice_activity'] or not metric['encoded_average']

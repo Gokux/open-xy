@@ -54,11 +54,20 @@ def case_label(case):
     return 'midpoint (stock)' if case.get('kind', 'synth') == 'synth' else 'defaults'
 
 
+def case_key(case):
+    """A case's name across builds and captures: a stock engine's, or an SDK machine's
+    with what it ran, the control's index keeping equal labels apart."""
+    if case.get('source') != 'sdk':
+        return case['name']
+    control = f" #{case['setting']['control']}" if case.get('setting') else ''
+    return f"{case['name']}{control} {case_label(case)}"
+
+
 def combined_positions(results):
     """The positions a machine's combined run used, from that capture's swept results
     ((setting, encoded average) in run order): each control's heaviest, the first of
-    equal ones, as the firmware picks them from its raw totals. Encoded averages round
-    the totals, so on a near tie the firmware may have picked a neighbour."""
+    equal ones, as the firmware picks them from its cycles per block. Encoded averages
+    round those, so on a near tie the firmware may have picked a neighbour."""
     chosen = {}
     for setting, average in results:
         control = setting['control']

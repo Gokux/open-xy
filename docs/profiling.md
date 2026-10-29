@@ -111,7 +111,8 @@ still accepted, but `profile report`, the collector's readout and `catalog check
 print a warning naming the heaviest setting: make that path lighter where you can.
 
 Synth records from before the sweep (`opxy-synth-c8-v1`) stay valid while their
-entry is unchanged; a new or updated synth submits a sweep.
+release stays at the commit they measured; a new synth, or one whose release
+moves, submits a sweep (unless a maintainer approves carrying the record over).
 
 Updating a machine's commit requires a new measurement, unless a catalog
 maintainer approves keeping the previous one ([catalog updates](catalog.md#submit-a-machine)).
