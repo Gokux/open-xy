@@ -331,6 +331,11 @@ project voice settings follow the callback.
 
 ### Pad settings
 
+`PadSettings` is an unsigned value from 0 to 262143 (18 bits), stored in a
+`u32` since SDK 1.6. The SDK reads existing 16-bit settings without changing
+their values. Machines using values above 65535 must target SDK 1.6 or later;
+firmware built with older SDKs cannot read those extended values.
+
 ```cpp
 opxy::PadSettings sample_defaults();
 opxy::PadSettings sample_assign(const opxy::SampleAssignment&);
@@ -489,7 +494,7 @@ preset entries, its screen file, its symbol prefix and its C++ namespace. It is 
 | Field | Contract |
 | --- | --- |
 | `schema` | 1 |
-| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.5 and builds 1.0 to 1.5 machines |
+| `sdk` | The SDK version the machine targets, `"<major>.<minor>"`. This SDK is 1.6 and builds 1.0 to 1.6 machines |
 | `kind` | `synth`, `sample` or `effect` |
 | `description` | Plain text of at most 160 characters, shown by the builder and preview |
 | `base` | Sample engines only, and required for them: the stock sampler it forks, `"sampler"` or `"drumSampler"` ([sample engines](#sample-engines)) |
