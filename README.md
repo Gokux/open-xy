@@ -65,8 +65,8 @@ folder to an existing repository. Follow the generated instructions through
 audition, [hardware profiling](docs/profiling.md) and
 [catalog submission](docs/catalog.md#submit-a-machine).
 
-A machine is a folder of source: `machine.json`, which declares its kind and
-the stock numbers it asks for, controls in `definition.json`, and C++ for its kind: a synth's
+A machine is a folder of source: `machine.json`, which declares its kind (each
+build gives its stock numbers), controls in `definition.json`, and C++ for its kind: a synth's
 sound (`engine.cpp`) and display (`display.cpp` and artwork), a sample engine's
 `sample.cpp` or an effect's `fx.cpp`. The SDK supplies adapters, storage,
 previews, firmware builds and packaging.

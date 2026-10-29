@@ -35,7 +35,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Synth and effect controls | 7 | Lets an encoder press on an owned synth's or send effect's page select an alternate parameter, which its turns, titles and values then follow; scales fine turns on owned synth and send-effect pages; steps owned enums one choice per detent; names owned enums' choices, and an owned effect's division values on the send page |
 | LFO destinations | 15 | Selects and modulates all declared engine parameters on owned instrument machines with five to eight parameters, using their assigned encoder icons |
 | Display note releases | 2 | Observes both stock note-off map updates while preserving their original calls |
-| Project companions | 4 | Writes a [companion](projects.md) after every project save, and shows companions beside projects over MTP |
+| Project companions | 5 | Writes a [companion](projects.md) after every project save, maps a project's machine numbers through its companion on every load, and shows companions beside projects over MTP |
 | Diagnostic benchmark | 1 | Extends explicit command 0xc8 with the selected machines; no normal-playback callbacks added |
 | Per-voice profiling | 10 optional | Bypasses diagnostic timing in both stock voice renderers when built with profiling off |
 | Startup label | 1 | Shows `OPEN <version>-1.2.1` at boot, `<version>` from [`VERSION`](../VERSION), through the stock startup text renderer |
@@ -460,6 +460,41 @@ newlib `fopen`, `fread` and `fclose` (`0x8fed0348`, `0x8fed05bc`,
 `fwrite` (`0x8fed0780`) ([`project_companion.cpp`](../sdk/platform/opxy-1.2.1/project_companion.cpp)).
 The machines it lists are the collection's, from their link-time numbers; a
 kit leaves out machines with number 0. A failed save writes nothing.
+
+Stock loads every project, the workspace at startup and each project opened,
+through `load_project(path, commit)` (`0x8d5890b0`). It deserializes the file
+into the inactive of its two project buffers with one call,
+`deserialize(project, path)` (`0x8d599b10`, at `0x8d58913e`), then validates
+the buffer (`0x8d589024`) and makes it pending. The buffer is the inactive one,
+so no other reader should see it mid-edit (inferred from the buffer selection,
+not traced end to end). That call is hooked: the SDK calls stock `deserialize`, and when it
+succeeds opens the `.oxy` beside the `.xy`, measures the `.xy` as the writer
+does, and uses the companion only when its binding matches, its
+`open-xy.machines` section is version 1 for `opxy-1.2.1`, and the whole file
+is valid JSON of at most 64 KiB ([format](projects.md#format)). The reader
+streams the file through a 4 KiB buffer and keeps no document; its
+[limits](projects.md#reader-limits) are part of the format. Any problem
+leaves the project as saved, and the load never fails because of its
+companion.
+
+A project holds its machine per pattern: track `t` (0–15) starts at
+`project + 0xd7c + t * 0x53f44`, its pattern count is the word at track
+`+ 0x53f40`, pattern `k` starts at track `+ k * 0x53f4`, and the pattern's
+machine number is the word at pattern `+ 0x18`, the one stock's track-engine
+getter reads. Instrument tracks 0–7 hold engine numbers there and send tracks
+14 and 15 effect numbers; tracks 8–13 hold none. Projects store no page number.
+The reader maps every pattern's number on tracks 0–7 through the companion's
+engines and on 14–15 through its effects, all at once, so two machines can
+trade numbers. A number the companion does not list, a stock machine's, stays.
+
+A listed machine this firmware lacks (absent, left out of a kit, or now the
+other kind) gets stock's own fallback written into every pattern: Prism (18)
+on an instrument track and no effect (0) on a send. No pattern is left with a
+number stock would have to correct, and none can open the machine this
+firmware's layout gave the old number. A number two listed machines claim is
+treated the same way, and a machine listed twice counts once, by its last
+entry, as in `tooling/projects.py`. The firmware shows no notice for a missing
+machine yet.
 
 Stock's MTP view lists only paths matching a table of regular expressions
 (`0x840ae0c4`…), and under `/projects` only `.xy`. Three text edits rewrite

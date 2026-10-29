@@ -122,7 +122,7 @@ does not change your machine.
 | `core.h`, `engine.cpp` | `Voice` and `Shared` state, lifecycle callbacks and the 64-sample render |
 | `display.h`, `display.cpp` | Display state and drawing callback |
 | `panel.svg.fragment` | Artwork; IDs carry the machine's ID (`<id>_panel`, `<id>_node_N`, `<id>_palette_N`) |
-| `machine.json` | Kind, SDK version and the engine number and page it asks for, used by a [firmware build](build.md#3-add-your-machine) of the folder |
+| `machine.json` | Kind and SDK version, used by a [firmware build](build.md#3-add-your-machine) of the folder, which gives the machine its numbers |
 | `tests/sound.cpp` | The machine's own host checks; extend them as the sound grows |
 
 `python sdk.py test --machine ../mymachine` checks a machine folder the way

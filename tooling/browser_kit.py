@@ -16,7 +16,7 @@ from .adapters import catalog_entry
 from .catalog import official
 from .definitions import control_positions, paged
 from .formats import require, sha
-from .machines import FIXED_NUMBERS
+from .machines import FIXED_NUMBERS, check_request
 from .pipeline import ROOT, child, document, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
 from . import native, preview, screen
 
@@ -50,9 +50,11 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
     owners, services = native.object_owners(machines, profile), native.object_services(machines, profile)
     kit_machines = []
     for m in machines:
-        # The numbers it asks for; the builder numbers each selection (core.mjs assignNumbers).
+        # The numbers it asks for, null where it leaves them to the layout; the builder
+        # numbers each selection (core.mjs assignNumbers).
+        requested = check_request(profile['identities'], m.kind, m.requested or m.identity)
         entry = dict(id=m.id, name=m.name, kind=m.kind, prefix=m.prefix, description=m.description,
-                     identity=m.requested or m.identity, controls=[p['label'] for p in m.definition['parameters']],
+                     identity=requested, controls=[p['label'] for p in m.definition['parameters']],
                      positions=control_positions(m.definition), pages=paged(m.definition))
         entry['catalog'] = catalog_entry(m)
         # Where the machine comes from, for the builder to show (core.mjs validOrigin): a

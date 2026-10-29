@@ -234,9 +234,9 @@ async function inspect(id) {
   const own = kit.objects.filter(o => o.owner === id).flatMap(o => o.sections.filter(s => s.group));
   facts($('machine-facts'), {'Code and data': kib(own.filter(s => s.type !== 8).reduce((n, s) => n + s.size, 0)),
     'Working memory': kib(own.filter(s => s.type === 8).reduce((n, s) => n + s.size, 0)),
-    // The numbers this selection gives it, or those it asks for.
-    ...(own => ({[m.kind === 'effect' ? 'Effect number' : 'Engine number']: own.effect ?? own.engine, 'Page': own.page}))(
-      linked?.numbers?.[m.id] ?? m.identity),
+    // The numbers this selection gives it, or those it asks for: none, from SDK 1.5, until selected.
+    ...(own => ({[m.kind === 'effect' ? 'Effect number' : 'Engine number']: own.effect ?? own.engine ?? 'When selected',
+      'Page': own.page ?? 'When selected'}))(linked?.numbers?.[m.id] ?? m.identity),
     ...(m.source ? {'Release': m.source.tag, 'Commit': m.source.commit.slice(0, 12)} : {})});
   document.querySelectorAll('.machine button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
   if (m.preview) {
