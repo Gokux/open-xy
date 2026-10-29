@@ -217,6 +217,20 @@ class Measurements(unittest.TestCase):
         captures = [dict(c, frames=[frame(a) for a in averages]) for c in captures]
         result = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)[0]
         self.assertEqual(result['block_percent'], result['midpoint_percent'])
+        # A swept setting that silences the voice is left out, not a reason to refuse.
+        silent = list(averages)
+        silent[own[1]] = 0
+        captures = [dict(c, frames=[frame(a) for a in silent]) for c in captures]
+        result, _values, _case, runs, _combinations = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
+        self.assertIn((expected[own[1]], None), runs)
+        self.assertNotEqual(result['worst_setting'], expected[own[1]]['setting'])
+        # A silent midpoint or combined run, or a saturated one, is still refused.
+        for index, average in ((own[0], 0), (own[-1], 0), (own[2], 65535)):
+            broken = list(averages)
+            broken[index] = average
+            captures = [dict(c, frames=[frame(a) for a in broken]) for c in captures]
+            with self.subTest(index=index, average=average), self.assertRaises(ValueError):
+                aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
         # A synth built without the sweep cannot publish.
         plain = cases([fixture('probesynth')])
         captures = [dict(c, expected_cases=plain, frames=[frame(1000)] * len(plain)) for c in captures]

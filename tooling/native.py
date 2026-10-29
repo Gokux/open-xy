@@ -820,7 +820,9 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
 
 def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layout=None, profiling=True, sweep=False):
     """A firmware package. Its machines take their numbers from `layout` (by machine ID);
-    the package's layout.json is that layout after this build, for the next one."""
+    the package's layout.json is that layout after this build, for the next one. Only a
+    package for hardware profiling sweeps synth controls: `sdk.py build` turns it on with
+    profiling; release kits leave it off, so they carry no sweep tables."""
     require(type(profiling) is bool, 'Profiling must be a boolean')
     entries = [] if entries is None else entries
     profile, machines, definitions = configuration(entries, layout)

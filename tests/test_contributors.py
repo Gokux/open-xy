@@ -15,6 +15,7 @@ class ContributorBoundary(unittest.TestCase):
             source = generate_voice(directory, fixture('probesynth')).read_text(encoding='utf-8')
         self.assertEqual(re.findall(r'#include "([^"]+)"', source), ['core.h', 'engine.cpp', 'stock.hpp', 'synth_controls.hpp'])
         self.assertIn('probesynth::render(slot->voice, shared, slot->owner, output, swept ? swept : parameters, increments);', source)
+        self.assertIn('sdk_benchmark_engine == probesynth_engine_id', source)
 
     def test_machines_have_no_platform_branches(self):
         check_sources([fixture(name) for name in NAMES])

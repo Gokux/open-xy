@@ -46,6 +46,16 @@ def position(setting):
     return f"{setting['label']} {100 * setting['value'] / 0x7fffffff:.1f}%"
 
 
+def case_label(case):
+    """What a case ran, as people read it: a swept setting, the combined run, a synth's
+    midpoint run or a callback's defaults."""
+    if case.get('setting'):
+        return position(case['setting'])
+    if case.get('combined'):
+        return 'combined'
+    return 'midpoint (stock)' if case.get('kind', 'synth') == 'synth' else 'defaults'
+
+
 def combined_positions(results):
     """The positions a machine's combined run used, from that capture's swept results
     ((setting, encoded average) in run order): each control's heaviest, the first of

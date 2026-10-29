@@ -29,8 +29,8 @@ def above_recommended(value):
     elif value.get('midpoint_percent') == value['block_percent']:
         where = ' at the midpoint'
     elif 'worst_setting' in value:
-        setting = value['worst_setting']
-        where = f" at {setting['label']} {100 * setting['value'] / 0x7fffffff:.1f}%"
+        from .benchmark import position
+        where = ' at ' + position(value['worst_setting'])
     return (f"{value['block_percent']:.3f}% of the block budget{where} is above the recommended "
             f"{RECOMMENDED_PERCENT}%; make it lighter where you can (docs/profiling.md)")
 # An optional public evidence URL, never a local path or a URL with credentials.

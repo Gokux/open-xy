@@ -6,8 +6,10 @@ using namespace opxy::platform;
 
 extern "C" {
 void sdk_benchmark_run() __asm__("sdk_benchmark_run");
-// While set, every SDK synth voice renders with these controls (voice.cpp.in).
+// While set, the synth whose engine ID is sdk_benchmark_engine renders with these
+// controls (voice.cpp.in); every other voice keeps its own.
 const i32* volatile sdk_benchmark_parameters __asm__("sdk_benchmark_parameters") = nullptr;
+const char* volatile sdk_benchmark_engine __asm__("sdk_benchmark_engine") = nullptr;
 @DECLARATIONS@
 }
 
@@ -98,8 +100,11 @@ void sdk_benchmark_run() {
         // reads the reports (tooling/benchmark.py combined_positions).
         const Setting* heaviest[8] = {};
         Total most[8] = {};
+        const Setting* swept = nullptr;  // any of its settings: the defaults beside its control
+        sdk_benchmark_engine = machine.id;
         for (const Setting* s = settings; s->machine != kNoMachine; ++s) {
             if (s->machine != i) continue;
+            swept = s;
             sdk_benchmark_parameters = s->controls;
             run(&test, index++, total);
             sdk_benchmark_parameters = nullptr;
@@ -109,15 +114,14 @@ void sdk_benchmark_run() {
                 most[s->control] = spent;
             }
         }
-        const Setting* first = nullptr;
-        for (const Setting* s = settings; s->machine != kNoMachine && !first; ++s)
-            if (s->machine == i) first = s;
-        if (!first) continue;
-        // Every control at its heaviest position; the others keep their defaults.
-        i32 combined[8];
-        for (u32 c = 0; c < 8; ++c) combined[c] = heaviest[c] ? heaviest[c]->controls[c] : first->controls[c];
-        sdk_benchmark_parameters = combined;
-        run(&test, index++, total);
-        sdk_benchmark_parameters = nullptr;
+        if (swept) {
+            // Every swept control at its heaviest position; the others keep their defaults.
+            i32 combined[8];
+            for (u32 c = 0; c < 8; ++c) combined[c] = (heaviest[c] ? heaviest[c] : swept)->controls[c];
+            sdk_benchmark_parameters = combined;
+            run(&test, index++, total);
+            sdk_benchmark_parameters = nullptr;
+        }
+        sdk_benchmark_engine = nullptr;
     }
 }

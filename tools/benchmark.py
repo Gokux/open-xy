@@ -127,8 +127,12 @@ def main(argv=None):
     # Each stock-workload run takes about 2.2 s (1,500 blocks); a sweep sends many.
     if a.seconds is None:
         a.seconds = max(60, 3 * len(expected) + 15) if expected else 60
-    if not 1 <= a.seconds <= 3600:
+    # A batch sweep can run for hours; its frames and traffic grow with its reports.
+    if not 1 <= a.seconds <= 12 * 3600:
         raise ValueError('timeout bounds')
+    reports_expected = len(expected) if expected else 0
+    frame_budget = max(10000, 4 * reports_expected + 1000)
+    traffic_budget = max(2 * 1024 * 1024, 1024 * (reports_expected + 1000))
     a.out.mkdir(parents=True)
     record = {'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'mode': a.mode, 'route': a.route, 'collector_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), 'expected_cases': expected, 'transmissions': [], 'frames': [], 'errors': [], 'identity': None, 'complete': False}
     record['package'] = package_identity
@@ -140,6 +144,7 @@ def main(argv=None):
     outgoing = rtmidi.MidiOut()
     pending = bytearray()
     total = 0
+    received_reports = 0
     ordinal = 0
     raw = (a.out / 'traffic.jsonl').open('x', encoding='utf-8')
 
@@ -149,10 +154,10 @@ def main(argv=None):
 
     def receive(seconds, reports=None):
         """Read for `seconds`, or until `reports` benchmark reports have arrived."""
-        nonlocal total
+        nonlocal total, received_reports
         end = time.monotonic() + seconds
         while time.monotonic() < end:
-            if reports is not None and sum(f['command'] == 0x94 for f in record['frames']) >= reports:
+            if reports is not None and received_reports >= reports:
                 receive(1)  # a trailing frame, so an extra report is still refused
                 return
             got = incoming.get_message()
@@ -161,7 +166,7 @@ def main(argv=None):
                 continue
             b = bytes(got[0])
             total += len(b)
-            if total > 2 * 1024 * 1024:
+            if total > traffic_budget:
                 raise ValueError('traffic limit')
             save({'direction': 'rx', 'time': time.monotonic(), 'hex': b.hex()})
             if not b.startswith(HEAD) or not b.endswith(b'\xf7'):
@@ -188,7 +193,9 @@ def main(argv=None):
                     continue
                 item = {'route': f[0], 'seq': f[1], 'command': f[2], 'payload_hex': f[4:-1].hex(), 'text': f[4:-1].decode('utf-8', 'replace')}
                 record['frames'].append(item)
-                if len(record['frames']) > 10000:
+                if item['command'] == 0x94:
+                    received_reports += 1
+                if len(record['frames']) > frame_budget:
                     raise ValueError('frame budget')
                 text = item['text'].replace('\x00', '').strip()
                 if f[2] == 10:
@@ -250,7 +257,7 @@ def main(argv=None):
         results = {'package': package_identity, 'engines': decoded, 'normalization': '100 * encoded average / 65535; stock 580352-cycle block budget', 'workload': 'Versioned workloads in docs/profiling.md; synth: stock note 60/midpoint, then in a sweep build each control through its positions; effect/sample: isolated default-setting callback fixtures', 'limitations': ['Synthetic test, not live project utilization or maximum polyphony.', 'Results assigned by build order and exact packet count; device firmware hash is not attested.', 'Machine settings affect cost; a sweep moves one control at a time, then combines each control at its heaviest position; other combinations and presets are not run.', 'Graphics are excluded. Effect/sample callback tests exclude stock mixing, preparation and allocation.', 'Whole voice includes oscillator; do not add the two.', 'A maximum of 65535 is clipped; insufficient voice activity is flagged.']}
         (a.out / 'results.json').write_text(json.dumps(results, indent=2), encoding='utf-8')
         from tooling.cpu_measurement import RECOMMENDED_PERCENT
-        from tooling.benchmark import combined_positions, position
+        from tooling.benchmark import case_label, combined_positions, position
         lines = ['| Machine | Scope | Setting | Mean block budget |', '| --- | --- | --- | ---: |']
         heaviest, swept = {}, {}
         for item in decoded:
@@ -263,11 +270,9 @@ def main(argv=None):
             setting = case.get('setting')
             if setting:
                 swept.setdefault(case['name'], []).append((setting, metric['encoded_average']))
+            label = case_label(case)
             if case.get('combined'):
-                label = 'combined: ' + ', '.join(map(position, combined_positions(swept.get(case['name'], []))))
-            else:
-                label = position(setting) if setting else (
-                    'midpoint (stock)' if case.get('kind', 'synth') == 'synth' else 'defaults')
+                label += ': ' + ', '.join(map(position, combined_positions(swept.get(case['name'], []))))
             lines.append(f"| {case['name']}{suffix} | {scope} | {label} | {value:.3f}% |")
             if case.get('source') == 'sdk' and value > heaviest.get(case['name'], (0, ''))[0]:
                 heaviest[case['name']] = (value, label)

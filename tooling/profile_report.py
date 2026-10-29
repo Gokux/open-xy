@@ -53,27 +53,31 @@ def aggregate(captures, expected, identity, name, commit, url):
         results = [r for r in decode(capture, expected) if r['machine'] in own]
         for index, result in enumerate(results):
             metric = result['metrics'][case['metric']]
-            require(not result['insufficient_voice_activity'] and 0 < metric['encoded_average'] < 65535,
-                    'Inactive, failed or saturated workload; do not publish a CPU number')
-            values[index].append(metric['average_budget_percent'])
+            require(metric['encoded_average'] < 65535, 'Saturated workload; do not publish a CPU number')
+            active = not result['insufficient_voice_activity'] and metric['encoded_average'] > 0
+            # A swept setting may silence the voice (a level at 0): it is left out, not refused.
+            require(active or index in settings, 'Inactive or failed workload; do not publish a CPU number')
+            values[index].append(metric['average_budget_percent'] if active else None)
         if swept:
             combinations.append(combined_positions(
                 [(own[index]['setting'], results[index]['metrics'][case['metric']]['encoded_average'])
                  for index in settings]))
     require(len(collectors) == 1 and None not in collectors, 'Use the same collector for all runs')
-    medians = {index: round(statistics.median(runs), 6) for index, runs in values.items()}
+    # A setting silent in any run is left out of every figure.
+    medians = {index: round(statistics.median(runs), 6) for index, runs in values.items() if None not in runs}
+    require(not swept or any(index in medians for index in settings), 'Every swept setting was silent')
     heaviest = max(medians, key=lambda index: (medians[index], -index))
     measurement = dict(benchmark=BENCHMARKS[case['kind']] if swept else case['benchmark'], commit=commit,
                        firmware_sha256=identity['firmware_sha256'], runs=len(captures),
                        block_percent=medians[heaviest])
     if swept:
-        worst = max(settings, key=lambda index: (medians[index], -index))
+        worst = max((index for index in settings if index in medians), key=lambda index: (medians[index], -index))
         measurement.update(midpoint_percent=medians[0], combined_percent=medians[combined],
                            worst_setting=own[worst]['setting'])
     if url is not None:
         measurement['report'] = url
     validate(measurement, case['kind'], commit, legacy=False)
-    return (measurement, values[heaviest], case, [(own[index], medians[index]) for index in medians],
+    return (measurement, values[heaviest], case, [(own[index], medians.get(index)) for index in values],
             combinations)
 
 
@@ -118,7 +122,7 @@ def create(package, paths, name, url, out):
         for run, median in runs:
             label = ('combined: ' + together if run.get('combined') else
                      position(run['setting']) if 'setting' in run else 'midpoint (stock)')
-            table.append(f'| {label} | {median:.3f}% |')
+            table.append(f'| {label} | ' + ('silent, left out' if median is None else f'{median:.3f}%') + ' |')
         published += '\n\n' + '\n'.join(table)
         limits = 'maximum polyphony or other combinations of control settings. '
     else:
