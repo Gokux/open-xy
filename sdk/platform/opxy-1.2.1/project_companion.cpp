@@ -13,8 +13,8 @@
 // .oxy beside the .xy, requires its binding to match the file's size and CRC-32, and
 // maps each number its open-xy.machines section lists, by machine ID, to this
 // firmware's number in every pattern of the instrument tracks (engines) and send
-// tracks (effects). Any problem leaves the project as saved; the load never fails
-// because of its companion.
+// tracks (effects), and a machine this firmware lacks to Prism or no effect. Any
+// problem leaves the project as saved; the load never fails because of its companion.
 #include "project_companion.hpp"
 #include "stock.hpp"
 
@@ -147,26 +147,43 @@ void write_companion(u32 bytes, u32 crc) {
 }
 
 // Reading, as tooling/projects.py parse() and translation() do. The document streams
-// through read_chunk, so a companion of up to 64 KiB needs no buffer of its size.
+// through read_chunk, so a companion of up to 64 KiB needs no buffer of its size. A
+// repeated key counts once, its last value deciding, as Python's json reads it.
 const u32 kCompanionLimit = 64 * 1024;
 // Engine and effect records (docs/abi-1.2.1.md): no registered number lies outside.
 const u32 kNumbers = 63;
 // A number the companion does not list stays as saved (a stock machine).
 const u32 kUnlisted = 0xfffffffeu;
-// What a listed machine this firmware lacks becomes. Stock's registry checks (8d50534e,
-// 8d5052fc) reject a negative number before their bound, so the validator that runs
-// right after the load always replaces it with Prism (18) or no effect (0), and never
-// opens whatever this firmware's layout gave the old number. Leaving a free old number
-// would fall back the same way; rewriting every missing one needs no proof it is free.
-// Follow-up: nothing yet tells the user which machine was missing (docs/projects.md).
-const u32 kUnregistered = 0xffffffffu;
+// What a listed machine this firmware lacks becomes, written into every pattern itself:
+// Prism on an instrument track, no effect on a send, stock's own fallbacks. No pattern
+// keeps a number stock would have to correct, and none opens whatever this firmware's
+// layout gave the old number. Follow-up: nothing yet tells the user which machine was
+// missing (docs/projects.md).
+const u32 kPrism = 18;
+const u32 kNoEffect = 0;
 const u32 kDepth = 8;      // nesting a skipped value may use; deeper is refused (stack)
 const u32 kKeyBytes = 64;  // longer strings match nothing we read
+const u32 kMachineBytes = 15;
+// Distinct machine IDs one section may list (tooling/projects.py MACHINE_LIMIT).
+const u32 kMachines = 128;
+// Other owners' sections invalid at once, each awaiting a repeat of its name that
+// replaces it; more refuse the companion.
+const u32 kInvalidSections = 4;
 
-// Old number -> this firmware's number, kUnlisted or kUnregistered, for engines (tracks
+// Old number -> this firmware's number, kUnlisted, or the fallback, for engines (tracks
 // 0-7) and effects (send tracks 14 and 15), which share the pattern field.
 u32 engine_map[kNumbers];
 u32 effect_map[kNumbers];
+
+// Each machine the section lists, by ID, as its last entry gives it.
+struct Listed {
+    char id[kMachineBytes];
+    unsigned char length;
+    unsigned char old;  // kNumbers when the entry names no number a pattern can hold
+    bool effect, valid;
+};
+Listed listed[kMachines];
+u32 listed_count;
 
 class Source {
 public:
@@ -249,30 +266,30 @@ public:
             if (c == '"') return true;
             u32 code = static_cast<u32>(c);
             if (c == '\\') {
-                switch (source_.next()) {
-                case '"': code = '"'; break;
-                case '\\': code = '\\'; break;
-                case '/': code = '/'; break;
-                case 'b': code = 8; break;
-                case 'f': code = 12; break;
-                case 'n': code = 10; break;
-                case 'r': code = 13; break;
-                case 't': code = 9; break;
-                case 'u':
+                const int e = source_.next();
+                if (e != 'u') {
+                    if (!escape(e, code)) return false;
+                } else {
                     if (!hex4(code)) return false;
-                    if (code >= 0xd800 && code < 0xdc00 && source_.peek() == '\\') {
+                    // A high half pairs with a low one escaped right after it. Any other
+                    // half stays alone, as Python keeps it, and what follows is read anew.
+                    while (code >= 0xd800 && code < 0xdc00 && source_.peek() == '\\') {
                         source_.next();
+                        const int f = source_.next();
+                        if (f != 'u') {
+                            put(text, code);
+                            if (!escape(f, code)) return false;
+                            break;
+                        }
                         u32 low;
-                        if (source_.next() != 'u' || !hex4(low)) return false;
+                        if (!hex4(low)) return false;
                         if (low >= 0xdc00 && low < 0xe000) {
                             code = 0x10000 + ((code - 0xd800) << 10) + (low - 0xdc00);
-                        } else {
-                            put(text, code);  // a lone half, kept as Python keeps it
-                            code = low;
+                            break;
                         }
+                        put(text, code);
+                        code = low;
                     }
-                    break;
-                default: return false;
                 }
             } else if (c >= 0x80) {
                 u32 follow, least;
@@ -325,13 +342,13 @@ public:
     }
 
     // An integer member: false only for malformed JSON; `ok` says it is a non-negative
-    // integer (Python's `type(n) is int`, booleans excluded).
+    // integer (Python's `type(n) is int`, booleans excluded; -0 is 0).
     bool natural(u32& value, bool& ok) {
         ok = false;
         if (!at_number()) return skip();
         Number n;
         if (!number(n)) return false;
-        ok = n.integer && !n.negative;
+        ok = n.integer && (!n.negative || !n.magnitude);
         value = n.magnitude;
         return true;
     }
@@ -368,7 +385,7 @@ public:
     }
 
     // An object, calling member(key) with the reader at each member's value, which it
-    // must read. A repeated key is read again, so the last one decides, as in Python.
+    // must read. A repeated key is read again: each member keeps its last value's state.
     template <class Member> bool object(Member member) {
         if (peek() != '{') return false;
         source_.next();
@@ -391,6 +408,20 @@ public:
 private:
     Source source_;
 
+    // A backslash escape other than \u.
+    static bool escape(int e, u32& code) {
+        switch (e) {
+        case '"': code = '"'; return true;
+        case '\\': code = '\\'; return true;
+        case '/': code = '/'; return true;
+        case 'b': code = 8; return true;
+        case 'f': code = 12; return true;
+        case 'n': code = 10; return true;
+        case 'r': code = 13; return true;
+        case 't': code = 9; return true;
+        }
+        return false;
+    }
     bool word(const char* s) {
         while (*s)
             if (source_.next() != *s++) return false;
@@ -424,6 +455,12 @@ private:
 
 bool lower_or_digit(char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'); }
 
+bool equal(const char* a, const char* b, u32 count) {
+    for (u32 i = 0; i < count; ++i)
+        if (a[i] != b[i]) return false;
+    return true;
+}
+
 // owner.name (tooling/projects.py SECTION_NAME); bounded: longer names are refused.
 bool section_name(const Text& name) {
     if (name.length > kKeyBytes) return false;
@@ -437,87 +474,104 @@ bool section_name(const Text& name) {
     return parts >= 2;
 }
 
-// A machine ID (tooling/definitions.py stock_name): a lowercase letter, then letters,
-// digits or _, at most 15 characters.
+// A machine ID (tooling/projects.py MACHINE_ID): a lowercase letter, then lowercase
+// letters, digits or _, at most 15 characters.
 bool machine_name(const Text& name) {
-    if (name.length < 1 || name.length > 15 || name.bytes[0] < 'a' || name.bytes[0] > 'z') return false;
+    if (name.length < 1 || name.length > kMachineBytes || name.bytes[0] < 'a' || name.bytes[0] > 'z') return false;
     for (u32 i = 1; i < name.length; ++i)
         if (!lower_or_digit(name.bytes[i]) && name.bytes[i] != '_') return false;
     return true;
 }
 
-// This firmware's number for the machine, or kUnregistered when it lacks it (a kit
+// This firmware's number for the machine, or the fallback when it lacks it (a kit
 // machine left out has number 0) or holds it as the other kind.
-u32 number_here(const Text& id, bool effect) {
+u32 number_here(const Listed& entry) {
     for (const CompanionMachine* m = sdk_companion_machines; m->id; ++m)
-        if (id.is(m->id) && m->effect == effect && value(m->number)) return value(m->number);
-    return kUnregistered;
-}
-
-void list(bool effect, u32 old, u32 here) {
-    if (old >= kNumbers) return;  // no pattern holds such a number registered
-    u32& slot = (effect ? effect_map : engine_map)[old];
-    // Two machines listed at one number: neither can be trusted.
-    slot = slot == kUnlisted || slot == here ? here : kUnregistered;
+        if (equal(entry.id, m->id, entry.length) && !m->id[entry.length] && m->effect == entry.effect &&
+            value(m->number))
+            return value(m->number);
+    return entry.effect ? kNoEffect : kPrism;
 }
 
 void clear_maps() {
     for (u32 i = 0; i < kNumbers; ++i) engine_map[i] = effect_map[i] = kUnlisted;
 }
 
-// One machine of open-xy.machines: false only for malformed JSON; `valid` cleared when
-// it is not an engine and page, or an effect and page, each an integer.
-bool machine_entry(Parser& p, const Text& id, bool& valid) {
-    if (!machine_name(id) || p.peek() != '{') {
-        valid = false;
-        return p.skip();
+// The maps from the listed machines, as tooling/projects.py translation() gives them.
+// A number two listed machines claim is trusted for neither: it falls back.
+void fill_maps() {
+    clear_maps();
+    for (u32 i = 0; i < listed_count; ++i) {
+        const Listed& entry = listed[i];
+        if (entry.old >= kNumbers) continue;  // no pattern holds such a number registered
+        u32& slot = (entry.effect ? effect_map : engine_map)[entry.old];
+        slot = slot == kUnlisted ? number_here(entry) : entry.effect ? kNoEffect : kPrism;
     }
-    bool engine = false, effect = false, page = false, ints = true;
-    u32 number = 0;
-    const bool read = p.object([&](const Text& field) {
-        bool ok;
-        if (field.is("page")) {
-            page = true;
-            if (p.at_number()) {
-                Number n;
-                if (!p.number(n)) return false;
-                ok = n.integer;
-            } else {
-                ok = false;
-                if (!p.skip()) return false;
-            }
-            ints = ints && ok;
-            return true;
-        }
-        if (!field.is("engine") && !field.is("effect")) {
-            valid = false;
-            return p.skip();
-        }
-        (field.is("engine") ? engine : effect) = true;
-        if (!p.at_number()) {
-            ints = false;
-            return p.skip();
-        }
-        Number n;
-        if (!p.number(n)) return false;
-        ints = ints && n.integer;
-        number = n.negative ? kUnlisted : n.magnitude;  // negative: never a registered number
-        return true;
-    });
-    if (!read) return false;
-    if (!ints || !page || engine == effect) valid = false;
-    else list(effect, number, number_here(id, effect));
+}
+
+// The entry for a valid ID, replacing its earlier one: false when the section lists
+// more distinct machines than it may.
+bool record(const Text& id, bool valid, bool effect, u32 old) {
+    u32 i = 0;
+    while (i < listed_count && !(listed[i].length == id.length && equal(listed[i].id, id.bytes, id.length))) ++i;
+    if (i == listed_count) {
+        if (listed_count == kMachines) return false;
+        ++listed_count;
+        for (u32 k = 0; k < id.length; ++k) listed[i].id[k] = id.bytes[k];
+        listed[i].length = static_cast<unsigned char>(id.length);
+    }
+    listed[i].valid = valid;
+    listed[i].effect = effect;
+    listed[i].old = static_cast<unsigned char>(old < kNumbers ? old : kNumbers);
     return true;
 }
 
-// open-xy.machines, version 1: false when it is invalid, which makes the whole
-// companion ignored. `applies` is set when its profile is this firmware's, the maps
-// then holding its numbers; a newer version is ignored and leaves them empty.
-bool machines_section(Parser& p, bool& applies) {
+// One machine of open-xy.machines: false only for malformed JSON. `valid` is cleared
+// when the ID is invalid or one too many; the entry records whether it is an engine and
+// page, or an effect and page, each an integer.
+bool machine_entry(Parser& p, const Text& id, bool& valid) {
+    if (!machine_name(id)) {
+        valid = false;
+        return p.skip();
+    }
+    bool engine = false, effect = false, page = false, other = false;
+    bool engine_ok = false, effect_ok = false, page_ok = false;
+    u32 engine_number = 0, effect_number = 0;
+    const bool read = p.peek() != '{' ? p.skip() : p.object([&](const Text& field) {
+        const bool is_page = field.is("page"), is_engine = field.is("engine");
+        if (!is_page && !is_engine && !field.is("effect")) {
+            other = true;
+            return p.skip();
+        }
+        bool& present = is_page ? page : is_engine ? engine : effect;
+        bool& ok = is_page ? page_ok : is_engine ? engine_ok : effect_ok;
+        present = true;
+        ok = false;
+        if (!p.at_number()) return p.skip();
+        Number n;
+        if (!p.number(n)) return false;
+        ok = n.integer;
+        // A negative number is never a registered one (-0 is 0).
+        if (!is_page) (is_engine ? engine_number : effect_number) = n.negative && n.magnitude ? kNumbers : n.magnitude;
+        return true;
+    });
+    if (!read) return false;
+    const bool entry = !other && page && page_ok && engine != effect && (engine ? engine_ok : effect_ok);
+    if (!record(id, entry, effect, effect ? effect_number : engine_number)) valid = false;
+    return true;
+}
+
+// open-xy.machines: false only for malformed JSON. `ok` says it is valid, else the
+// whole companion is ignored; `applies` that it is version 1 for this firmware's
+// profile, the maps then holding its numbers. A newer version is ignored and leaves
+// them empty.
+bool machines_section(Parser& p, bool& applies, bool& ok) {
     bool have_version = false, have_profile = false, same_profile = false, have_machines = false, valid = true;
     u32 version = 0;
-    applies = false;
+    applies = ok = false;
     clear_maps();
+    listed_count = 0;
+    if (p.peek() != '{') return p.skip();
     const bool read = p.object([&](const Text& key) {
         if (key.is("version")) {
             if (!p.natural(version, have_version)) return false;
@@ -533,19 +587,23 @@ bool machines_section(Parser& p, bool& applies) {
             return true;
         }
         if (!key.is("machines")) return p.skip();
-        clear_maps();
+        listed_count = 0;
         valid = true;
         have_machines = p.peek() == '{';
         if (!have_machines) return p.skip();
         return p.object([&](const Text& id) { return machine_entry(p, id, valid); });
     });
-    if (!read || !have_version) return false;
+    if (!read) return false;
+    if (!have_version) return true;
     if (version > 1) {  // a newer section: ignored, the rest of the companion used
-        clear_maps();
+        ok = true;
         return true;
     }
-    if (!valid || !have_profile || !have_machines) return false;
+    for (u32 i = 0; valid && i < listed_count; ++i) valid = listed[i].valid;
+    if (!valid || !have_profile || !have_machines) return true;
+    ok = true;
     applies = same_profile;
+    if (applies) fill_maps();
     return true;
 }
 
@@ -574,22 +632,47 @@ bool binding_member(Parser& p, u32& bytes, u32& crc, bool& valid) {
     return read;
 }
 
-// Any other owner's section: an object with a positive integer version.
-bool other_section(Parser& p) {
+// Any other owner's section: false only for malformed JSON; `ok` says it is an object
+// with a positive integer version.
+bool other_section(Parser& p, bool& ok) {
+    ok = false;
+    if (p.peek() != '{') return p.skip();
     bool positive = false;
     u32 version = 0;
     const bool read = p.object([&](const Text& field) {
         if (!field.is("version")) return p.skip();
         return p.natural(version, positive);
     });
-    return read && positive && version >= 1;
+    ok = positive && version >= 1;
+    return read;
+}
+
+// Other owners' sections whose last value so far is invalid, by name (at most
+// kKeyBytes, so held whole).
+Text invalid_sections[kInvalidSections];
+u32 invalid_count;
+
+// Notes a section's validity under its name: false when too many are invalid at once.
+bool note_section(const Text& name, bool ok) {
+    u32 i = 0;
+    while (i < invalid_count && !(invalid_sections[i].length == name.length &&
+                                  equal(invalid_sections[i].bytes, name.bytes, name.length)))
+        ++i;
+    if (ok) {
+        if (i < invalid_count) invalid_sections[i] = invalid_sections[--invalid_count];
+        return true;
+    }
+    if (i < invalid_count) return true;
+    if (invalid_count == kInvalidSections) return false;
+    invalid_sections[invalid_count++] = name;
+    return true;
 }
 
 // Reads the companion: true when it is valid and its machines section applies to this
 // firmware, the maps then filled, with the binding it gives.
 bool read_document(File* file, u32& bytes, u32& crc) {
     Parser p(file);
-    bool format = false, version = false, binding = false, sections = false, applies = false;
+    bool format = false, version = false, binding = false, sections = false, applies = false, valid = false;
     clear_maps();
     const bool read = p.object([&](const Text& key) {
         if (key.is("format")) {
@@ -608,16 +691,29 @@ bool read_document(File* file, u32& bytes, u32& crc) {
         }
         if (key.is("project")) return binding_member(p, bytes, crc, binding);
         if (!key.is("sections")) return p.skip();
+        // Only the last sections object counts.
         applies = false;
+        valid = true;
+        invalid_count = 0;
         clear_maps();
         sections = p.peek() == '{';
         if (!sections) return p.skip();
-        return p.object([&](const Text& name) {
-            if (!section_name(name) || p.peek() != '{') return false;
-            return name.is("open-xy.machines") ? machines_section(p, applies) : other_section(p);
+        bool machines_ok = true;
+        const bool members = p.object([&](const Text& name) {
+            if (!section_name(name)) {
+                valid = false;
+                return p.skip();
+            }
+            if (name.is("open-xy.machines")) return machines_section(p, applies, machines_ok);
+            bool ok;
+            if (!other_section(p, ok)) return false;
+            if (!note_section(name, ok)) valid = false;
+            return true;
         });
+        valid = valid && machines_ok && !invalid_count;
+        return members;
     });
-    return read && p.end() && format && version && binding && sections && applies;
+    return read && p.end() && format && version && binding && sections && valid && applies;
 }
 
 // Rewrites every pattern's machine number on the instrument and send tracks

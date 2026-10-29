@@ -88,21 +88,39 @@ replaces, and drops them otherwise. The firmware writes only `open-xy.machines` 
 
 Writers emit one form: keys sorted, two-space indentation, LF line endings and
 a final newline, with no timestamps. The same contents are the same bytes, and
-a change diffs as the lines it touched. Readers accept any JSON.
+a change diffs as the lines it touched. Readers accept any JSON within the
+[reader limits](#reader-limits), but never `NaN` or `Infinity`, which are not
+JSON. A key given twice in one object counts once, its last value deciding.
+
+### Reader limits
+
+The firmware reader streams the file and keeps no document, so a companion it
+reads stays within these limits; one beyond them is ignored whole:
+
+- at most 64 KiB;
+- a value it skips (an unknown field, or another owner's section) nested at
+  most 8 objects or arrays deep;
+- section names at most 64 bytes;
+- at most 128 distinct machines in `open-xy.machines` (the reference reader
+  enforces this one too).
 
 ## `open-xy.machines`
 
 Version 1. `profile` is the firmware profile that saved the project, and
 `machines` its machines' numbers by ID, in the layout's form: an `engine` and
-`page`, or an `effect` and `page`. The firmware lists every machine it holds,
-including ones the project does not use; the host writer lists its whole
-layout.
+`page`, or an `effect` and `page`, each an integer. A machine ID is a
+lowercase letter, then lowercase letters, digits or `_`, at most 15
+characters; a section with any other is invalid. The firmware lists every
+machine it holds, including ones the project does not use; the host writer
+lists its whole layout.
 
-A reader with the same profile maps each listed number to that machine's
-number in its own layout. A machine missing from its layout is never replaced
-by whatever holds its old number: the firmware opens that track with stock's
-fallback for a machine it lacks, Prism (engine 18) or no send effect, and does
-not yet say which machine was missing. Numbers the section does not list are
+A reader with the same profile maps each listed engine or effect number,
+0 to 62, to that machine's number in its own layout. A machine missing from
+its layout is never replaced by whatever holds its old number: the reader
+opens that track with stock's fallback for a machine it lacks, Prism (engine
+18) on an instrument track or no effect (0) on a send, and does not yet say
+which machine was missing. A number two listed machines claim falls back the
+same way, since neither can be trusted. Numbers the section does not list are
 read as saved. A section for another profile is ignored.
 
 ## Commands

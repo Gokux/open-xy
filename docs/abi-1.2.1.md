@@ -472,8 +472,8 @@ succeeds opens the `.oxy` beside the `.xy`, measures the `.xy` as the writer
 does, and uses the companion only when its binding matches, its
 `open-xy.machines` section is version 1 for `opxy-1.2.1`, and the whole file
 is valid JSON of at most 64 KiB ([format](projects.md#format)). The reader
-streams the file through a 4 KiB buffer, keeps no document, and refuses
-values nested more than 8 deep inside fields it skips. Any problem
+streams the file through a 4 KiB buffer and keeps no document; its
+[limits](projects.md#reader-limits) are part of the format. Any problem
 leaves the project as saved, and the load never fails because of its
 companion.
 
@@ -488,13 +488,13 @@ engines and on 14–15 through its effects, all at once, so two machines can
 trade numbers. A number the companion does not list, a stock machine's, stays.
 
 A listed machine this firmware lacks (absent, left out of a kit, or now the
-other kind) gets number `0xffffffff`. Stock's registry checks (`0x8d50534e`
-for engines, `0x8d5052fc` for effects) reject a negative number before their
-bound, so the validator that runs next replaces it with Prism (18) on an
-instrument track and no effect (0) on a send, as it does for any number it
-lacks; it can never open the machine this firmware's layout gave the old
-number. Two machines listed at one number are treated the same way. The
-firmware shows no notice for a missing machine yet.
+other kind) gets stock's own fallback written into every pattern: Prism (18)
+on an instrument track and no effect (0) on a send. No pattern is left with a
+number stock would have to correct, and none can open the machine this
+firmware's layout gave the old number. A number two listed machines claim is
+treated the same way, and a machine listed twice counts once, by its last
+entry, as in `tooling/projects.py`. The firmware shows no notice for a missing
+machine yet.
 
 Stock's MTP view lists only paths matching a table of regular expressions
 (`0x840ae0c4`…), and under `/projects` only `.xy`. Three text edits rewrite
