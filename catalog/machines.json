@@ -493,6 +493,24 @@
       }
     },
     {
+      "id": "mmsaw",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "reserved"
+    },
+    {
+      "id": "mmsin",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "reserved"
+    },
+    {
+      "id": "mmnois",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "reserved"
+    },
+    {
       "id": "omnifilter",
       "kind": "synth",
       "maintainer": "mmockett",
