@@ -58,7 +58,7 @@ def validate(value, kind, commit=None, legacy=True):
     require(commit is None or value['commit'] == commit, 'cpu: measurement must match the catalog commit')
     require(isinstance(value['firmware_sha256'], str) and re.fullmatch(r'[0-9a-f]{64}', value['firmware_sha256']),
             'cpu: firmware_sha256 must identify the measured build')
-    require(type(value['runs']) is int and 3 <= value['runs'] <= 100, 'cpu: use 3 to 100 independent runs')
+    require(type(value['runs']) is int and 1 <= value['runs'] <= 100, 'cpu: use 1 to 100 independent runs')
     for field in ('block_percent', 'midpoint_percent', 'combined_percent') if sweep else ('block_percent',):
         number = value[field]
         require(type(number) in (int, float) and math.isfinite(number) and 0 < number < 100,

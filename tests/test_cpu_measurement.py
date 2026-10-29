@@ -98,7 +98,7 @@ class Measurements(unittest.TestCase):
             # The evidence link is optional.
             unlinked = dict(entry['cpu']); del unlinked['report']
             catalog.validate(document(dict(entry, cpu=unlinked)))
-            for change in ({'commit': 'b'}, {'runs': True}, {'runs': 2}, {'block_percent': float('nan')},
+            for change in ({'commit': 'b'}, {'runs': True}, {'runs': 0}, {'block_percent': float('nan')},
                            {'block_percent': 0}, {'block_percent': 100}, {'block_percent': True},
                            {'report': 'javascript:alert(1)'}, {'report': 'https://user:pass@example.com/x'},
                            {'firmware_sha256': 'x'}, {'benchmark': 'host-estimate'}, {'benchmark': []}):
@@ -188,9 +188,12 @@ class Measurements(unittest.TestCase):
                                                                    measurement()['report'])
             self.assertEqual(result['benchmark'], cpu_measurement.BENCHMARKS[kind])
             self.assertAlmostEqual(result['block_percent'], 100000/65535, places=5)
+        # One capture is enough.
+        single = aggregate(captures[:1], expected, identity, 'probesynth', 'e'*40, None)[0]
+        self.assertEqual(single['runs'], 1)
         # Without an evidence URL the record has no report link.
         self.assertNotIn('report', aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)[0])
-        broken = [captures[:2], [captures[0]]*3,
+        broken = [[], [captures[0]]*3,
                   [dict(captures[0], package={}), *captures[1:]],
                   [dict(captures[0], errors=['CRC']), *captures[1:]],
                   [dict(captures[0], complete=False), *captures[1:]],

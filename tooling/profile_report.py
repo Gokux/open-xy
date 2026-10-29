@@ -30,7 +30,10 @@ def aggregate(captures, expected, identity, name, commit, url):
     the heaviest swept setting beside it. Returns the record, the published run's
     per-capture values, the machine's standard case, every run's median by case and
     the positions each capture's combined run used."""
-    require(3 <= len(captures) <= 100, 'Collect 3 to 100 independent runs')
+    # One capture is enough: each run averages 1,500 blocks of a fixed workload, and
+    # captures of the same build agree to a few hundredths of a percent. More are
+    # allowed; their median is published.
+    require(1 <= len(captures) <= 100, 'Collect 1 to 100 independent runs')
     seen, collectors = set(), set()
     own = [c for c in expected if c['name'] == name and c['source'] == 'sdk']
     require(own and 'benchmark' in own[0], 'Machine is not in this diagnostic package')

@@ -77,7 +77,7 @@ python sdk.py compile --collection local/catalog/collection.json --out <folder>
    budget printed by the build. Host CPU estimates guide development.
 4. **Commit and measure on hardware.** Follow [hardware profiling](profiling.md)
    for the exact machine revision: build with profiling enabled, install when
-   authorized, confirm reboot, collect three runs, and publish the generated
+   authorized, confirm reboot, collect a run, and publish the generated
    readout. Keep all firmware outside every checkout. A maintainer can run this
    for authors without an XY. A reserved entry can stay reserved while hardware
    evidence is pending; `draft` and `published` submissions both need it.
