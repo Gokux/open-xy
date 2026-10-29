@@ -111,8 +111,8 @@
       "maintainer": "SammiBabe666",
       "status": "published",
       "repository": "https://github.com/etcetc000/open-xy-hurdygurdy",
-      "tag": "v1.3.0",
-      "commit": "1354c31b122aa3c05a3c028ff57cc7f198a9bea8",
+      "tag": "v1.3.1",
+      "commit": "40ecf269226d265e66d0e667692f5f3e815ec66f",
       "path": ".",
       "cpu": {
         "benchmark": "opxy-synth-c8-v1",
