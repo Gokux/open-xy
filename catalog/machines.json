@@ -491,6 +491,12 @@
         "runs": 3,
         "block_percent": 4.910353
       }
+    },
+    {
+      "id": "omnifilter",
+      "kind": "synth",
+      "maintainer": "mmockett",
+      "status": "reserved"
     }
   ]
 }
