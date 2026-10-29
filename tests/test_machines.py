@@ -265,7 +265,8 @@ class OutsideMachines(unittest.TestCase):
     def test_a_sample_engine_names_the_stock_sampler_it_forks(self):
         folder = self.copy('probesample')
         for base, error in ((None, 'names the stock sampler it forks'), ('piano', 'names the stock sampler'),
-                            (7, 'names the stock sampler'),
+                            (7, 'names the stock sampler'), (['sampler'], 'names the stock sampler'),
+                            ({'sampler': 2}, 'names the stock sampler'),
                             ('sampler', 'Pad settings and drum controls need the drum sampler base')):
             self.numberless(folder, base=base)
             with self.subTest(base=base), self.assertRaisesRegex(ValueError, error):

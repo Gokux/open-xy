@@ -188,7 +188,8 @@ def requested_numbers(rules, kind, value, version):
     if kind != 'sample':
         require('base' not in value, 'Only a sample engine names a base')
         return {'effect': None, 'page': rules['effect_page']} if kind == 'effect' else {'engine': None, 'page': None}
-    require(value.get('base') in bases, 'A sample engine names the stock sampler it forks: "base": ' + names)
+    # A list or object is no name; checked first, since it cannot be looked up.
+    require(isinstance(value.get('base'), str) and value['base'] in bases, 'A sample engine names the stock sampler it forks: "base": ' + names)
     return {'engine': None, 'page': bases[value['base']]}
 
 
