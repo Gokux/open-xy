@@ -12,12 +12,12 @@ from pathlib import Path
 import subprocess
 import sys
 
-from .adapters import catalog_entry, sample_callbacks
+from .adapters import catalog_entry
 from .catalog import official
 from .definitions import control_positions, paged
 from .formats import require, sha
-from .machines import FIXED_NUMBERS
-from .pipeline import ROOT, child, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
+from .machines import FIXED_NUMBERS, check_request
+from .pipeline import ROOT, child, document, fresh_output, read, require_release_host, resolve_toolchain, tool_paths
 from . import extensions, native, preview, screen
 
 
@@ -50,9 +50,11 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
     owners, services = native.object_owners(machines, profile), native.object_services(machines, profile)
     kit_machines = []
     for m in machines:
-        # The numbers it asks for; the builder numbers each selection (core.mjs assignNumbers).
+        # The numbers it asks for, null where it leaves them to the layout; the builder
+        # numbers each selection (core.mjs assignNumbers).
+        requested = check_request(profile['identities'], m.kind, m.requested or m.identity)
         entry = dict(id=m.id, name=m.name, kind=m.kind, prefix=m.prefix, description=m.description,
-                     identity=m.requested or m.identity, controls=[p['label'] for p in m.definition['parameters']],
+                     identity=requested, controls=[p['label'] for p in m.definition['parameters']],
                      positions=control_positions(m.definition), pages=paged(m.definition))
         entry['catalog'] = catalog_entry(m)
         # Where the machine comes from, for the builder to show (core.mjs validOrigin): a
@@ -69,17 +71,7 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
         if m.icon:
             entry['icon'] = m.icon
         # An unselected machine's startup and catalog callbacks decline.
-        if m.kind == 'effect':
-            entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_fx_register', '_ready')}
-        else:
-            entry['absent'] = {m.prefix + suffix: 'kit_absent' for suffix in ('_register', '_name_matches', '_ready', '_record_ready')}
-            if m.display == 'stock':
-                # The shared sample table names these; unselected, its ready check declines first.
-                entry['absent'].update({symbol: 'kit_absent' for symbol in sample_callbacks(m)})
-            else:
-                entry['absent'][m.prefix + '_screen_register'] = 'kit_absent'
-        if m.kind in ('effect', 'sample'):
-            entry['absent'][m.prefix + '_benchmark'] = 'kit_absent'
+        entry['absent'] = native.absent_symbols(m)
         if m.display != 'stock':
             entry['artwork'] = read(m.root / 'panel.svg.fragment').decode('utf-8')
             entry['asset'] = m.native_name + '.svg'
@@ -109,10 +101,12 @@ def export(package, output, tools, preview_cxx='clang++', *, stock_catalog, pers
         objects.append(entry)
     # Stock addresses only: each selection's machine numbers are the builder's.
     stock = {key: value for key, value in definitions.items() if key in native.DEFINITIONS}
+    # The machines the native package links, whose selection reproduces it.
+    linked = document(package / 'analysis/compile-report.json')['linked']
     # The release version, as the firmware's boot label shows it.
     kit = dict(format='opxy-browser-kit/1', version=native.package_version(package), profile=profile,
                profileSource=base64.b64encode(read(ROOT / ('profiles/' + profile['id'] + '.json'))).decode('ascii'),
-               definitions=stock, fixed=FIXED_NUMBERS,
+               definitions=stock, fixed=FIXED_NUMBERS, linked=linked,
                machines=kit_machines, extensions=extensions.metadata(), objects=objects, notices=notices(machines),
                stockCatalog=base64.b64encode(stock_catalog).decode('ascii'),
                screenTemplate=screen.template().decode('utf-8'))

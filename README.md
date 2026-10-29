@@ -50,7 +50,7 @@ python sdk.py preview --machine ../open-xy-core-machines/machines/fm2op --out lo
 python tools/serve_harness.py --preview local/preview-001
 ```
 
-Open http://127.0.0.1:8917/ and click **Enable audio**. Use
+Open http://127.0.0.1:8917/ and play a key or click **Play phrase**; audio starts automatically. Use
 `machines/macroosc` or `machines/karplus` for another synth. The
 [preview guide](docs/preview.md) covers iteration, patches and automation.
 
@@ -74,8 +74,8 @@ folder to an existing repository. Follow the generated instructions through
 audition, [hardware profiling](docs/profiling.md) and
 [catalog submission](docs/catalog.md#submit-a-machine).
 
-A machine is a folder of source: `machine.json`, which declares its kind and
-the stock numbers it asks for, controls in `definition.json`, and C++ for its kind: a synth's
+A machine is a folder of source: `machine.json`, which declares its kind (each
+build gives its stock numbers), controls in `definition.json`, and C++ for its kind: a synth's
 sound (`engine.cpp`) and display (`display.cpp` and artwork), a sample engine's
 `sample.cpp` or an effect's `fx.cpp`. The SDK supplies adapters, storage,
 previews, firmware builds and packaging.

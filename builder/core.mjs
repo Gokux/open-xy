@@ -3,7 +3,7 @@
 // Every firmware rule (edits, hooks, identity ranges, catalog offsets, table
 // bytes) comes from the reviewed profile, authenticated by this digest. The
 // Python SDK reads the same constant.
-export const PROFILE_SHA256 = '49b52f32514051ffe9422c9684c6a7e0d5d08ef5b85991e0c85a242a1229e2b1';
+export const PROFILE_SHA256 = 'be36d34f684b0a8692e401e03b83b6f71cf9483fb00f5b955762873464ba465e';
 export function requireThat(ok, message) { if (!ok) throw new Error(message); }
 const check = requireThat;
 const utf8 = new TextEncoder();
@@ -98,11 +98,11 @@ export function readObject(bytes) {
 
 // The selections the release checks link, as bit masks over kit.machines: every
 // combination of Open-XY's own machines, each other machine with all of those, and
-// everything together.
-export function checkedSelections(machines) {
-  const bit = i => 2 ** i, all = bit(machines.length) - 1;
+// the machines the native package links (kit.linked; all of them when they fit).
+export function checkedSelections(machines, linked = machines.map(m => m.id)) {
+  const bit = i => 2 ** i;
   const core = machines.reduce((mask, m, i) => m.origin === 'official' ? mask + bit(i) : mask, 0);
-  const masks = new Set([all]);
+  const masks = new Set([machines.reduce((mask, m, i) => linked.includes(m.id) ? mask + bit(i) : mask, 0)]);
   for (let mask = core; mask; mask = (mask - 1) & core) masks.add(mask);
   machines.forEach((m, i) => { if (!(core & bit(i))) masks.add(core + bit(i)); });
   return [...masks].sort((a, b) => a - b);
@@ -120,6 +120,20 @@ export function validIdentity(rules, kind, identity) {
     : kind === 'synth' && page > rules.page_none && page < rules.pages;
 }
 
+// The numbers a kit machine asks for (tooling.machines.check_request): valid ones,
+// or from SDK 1.5 null for each the layout gives. A sample engine still names its stock
+// page (its base) and an effect the FX page.
+export function validRequest(rules, kind, identity) {
+  if (!identity || typeof identity !== 'object') return false;
+  const slot = kind === 'effect' ? 'effect' : 'engine';
+  if (Object.keys(identity).sort().join() !== [slot, 'page'].sort().join() || identity[slot] !== null)
+    return validIdentity(rules, kind, identity);
+  return kind === 'effect' ? identity.page === rules.effect_page
+    : kind === 'sample' ? rules.sample_pages.includes(identity.page) : kind === 'synth' && identity.page === null;
+}
+// Whether numbers are what a machine asks for: the same fields, equal where it names one.
+const fits = (requested, numbers) => Object.keys(requested).length === Object.keys(numbers).length &&
+  Object.keys(requested).every(k => requested[k] === null || requested[k] === numbers[k]);
 // A kit's numbers: each machine asks for valid ones, and fixed numbers (kit.fixed,
 // tooling.machines.FIXED_NUMBERS) belong to their own machines and are never shared.
 function checkNumbers(kit) {
@@ -127,8 +141,8 @@ function checkNumbers(kit) {
   check(kit.fixed && typeof kit.fixed === 'object', 'Missing fixed machine numbers');
   check(new Set(kit.machines.map(m => m.id)).size === kit.machines.length, 'Duplicate machine');
   for (const m of kit.machines) {
-    check(validIdentity(rules, m.kind, m.identity), 'Machine numbers overlap a stock slot or exceed capacity: ' + m.id);
-    check(!Object.hasOwn(kit.fixed, m.id) || sameNumbers(kit.fixed[m.id], m.identity),
+    check(validRequest(rules, m.kind, m.identity), 'Machine numbers overlap a stock slot or exceed capacity: ' + m.id);
+    check(!Object.hasOwn(kit.fixed, m.id) || fits(m.identity, kit.fixed[m.id]),
       'Fixed machine numbers differ: ' + m.id);
   }
   numberLayout(rules, Object.entries(kit.fixed).map(([id, identity]) => [id, null, identity]), null, []);
@@ -137,8 +151,22 @@ function checkNumbers(kit) {
 // holds both). Projects store a track's engine, effect and page numbers, so a machine
 // keeps its numbers in a firmware for good. Open-XY's first machines' are fixed (kit.fixed);
 // a layout keeps every number it has given out, including to machines since dropped,
-// and a machine new to it gets the numbers it asks for when free, else the lowest free.
+// and machines new to it get the numbers they ask for when free (only machines before
+// SDK 1.5 ask for any), then each number still missing from the machine's own place in
+// the pool (preferred), in ID order, so numbers never depend on the selection's order.
 export const LAYOUT_FORMAT = 'opxy-layout/1';
+// FNV-1a, 32-bit, of the text's UTF-8 bytes (tooling.machines.fnv1a).
+export function fnv1a(text) {
+  let value = 0x811c9dc5;
+  for (const byte of new TextEncoder().encode(text)) value = Math.imul(value ^ byte, 0x01000193) >>> 0;
+  return value;
+}
+// A pool's numbers in the order a machine new to a layout takes the first free one: from
+// FNV-1a of its ID modulo the pool's size, upward and wrapping around.
+export function preferred(pool, name) {
+  const start = fnv1a(name) % pool.length;
+  return [...pool.slice(start), ...pool.slice(0, start)];
+}
 export function numberPools(rules) {
   const range = (low, high) => Array.from({length: high - low}, (_, i) => low + i);
   return {engine: range(rules.engine_none + 1, rules.engines).filter(n => !rules.stock_engines.includes(n)),
@@ -152,7 +180,8 @@ export function occupied(rules, identity) {
   return keys;
 }
 const sameNumbers = (a, b) => Object.keys(a).length === Object.keys(b).length && Object.keys(a).every(k => a[k] === b[k]);
-// fixed and machines are [id, kind, identity] (requested, for machines); returns the layout after.
+// fixed and machines are [id, kind, identity] (requested, null where a machine asks for
+// none, for machines); returns the layout after.
 export function numberLayout(rules, fixed, layout, machines) {
   const pools = numberPools(rules), numbers = {}, holders = new Map();
   const hold = (name, identity) => {
@@ -170,20 +199,37 @@ export function numberLayout(rules, fixed, layout, machines) {
     else if (Object.hasOwn(identity, 'effect') && !pools.effect.includes(identity.effect)) continue;
     else hold(name, identity);
   }
-  for (const [name, kind, requested] of machines) {
+  const fresh = [];
+  for (const [name, kind, requested] of [...machines].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
     if (Object.hasOwn(numbers, name)) {
       check(validIdentity(rules, kind, numbers[name]), `${name}: the layout gives it numbers it cannot use`);
       check(kind !== 'sample' || numbers[name].page === requested.page,
-        `${name} now asks for stock page ${requested.page}; the layout holds another`);
-      continue;
+        `${name} now forks another stock sampler; the layout holds its numbers for the old one`);
+    } else {
+      fresh.push([name, kind, {...requested}, kind === 'effect' ? ['effect'] : kind === 'synth' ? ['engine', 'page'] : ['engine']]);
     }
-    const identity = {...requested};
-    for (const slot of kind === 'effect' ? ['effect'] : kind === 'synth' ? ['engine', 'page'] : ['engine']) {
-      const choices = [...(pools[slot].includes(requested[slot]) ? [requested[slot]] : []), ...pools[slot]];
-      // An effect number is also held as an engine number (occupied).
-      const keys = n => [slot + ' ' + n, ...(slot === 'effect' ? ['engine ' + n] : [])];
-      identity[slot] = choices.find(n => !keys(n).some(key => holders.has(key)));
-      check(identity[slot] !== undefined, `No free ${slot} number for ${name}: every one is held in this layout`);
+  }
+  // An effect number is also held as an engine number (occupied).
+  const keys = (slot, n) => [slot + ' ' + n, ...(slot === 'effect' ? ['engine ' + n] : [])];
+  const free = (slot, n) => !keys(slot, n).some(key => holders.has(key));
+  const take = (name, identity, slot, n) => {
+    identity[slot] = n;
+    for (const key of keys(slot, n)) holders.set(key, name);
+  };
+  // Requested numbers first, so no machine's preferred place takes one another asks for.
+  for (const [name, , identity, slots] of fresh) {
+    for (const slot of slots) {
+      const n = identity[slot];
+      identity[slot] = null;
+      if (pools[slot].includes(n) && free(slot, n)) take(name, identity, slot, n);
+    }
+  }
+  for (const [name, kind, identity, slots] of fresh) {
+    for (const slot of slots) {
+      if (identity[slot] !== null) continue;
+      const n = preferred(pools[slot], name).find(n => free(slot, n));
+      check(n !== undefined, `No free ${slot} number for ${name}: every one is held in this layout`);
+      take(name, identity, slot, n);
     }
     check(validIdentity(rules, kind, identity), `${name}: no valid numbers`);
     hold(name, identity);
@@ -320,6 +366,9 @@ export async function openKit(kit) {
       'Invalid extension metadata');
     extensionIds.add(e.id);
   }
+  check(kit.linked === undefined || (Array.isArray(kit.linked) && kit.linked.length > 0 &&
+    new Set(kit.linked).size === kit.linked.length && kit.linked.every(id => kit.machines.some(m => m.id === id))),
+    'Invalid linked machines');
   // The bundled stock menu is authenticated where it is used (buildAssets).
   check(typeof kit.stockCatalog === 'string' && kit.stockCatalog.length <= 2 * 1024 ** 2, 'Missing bundled stock menu');
   check(await screenTemplateOk(kit), 'Platform screen template differs from the supported ABI');

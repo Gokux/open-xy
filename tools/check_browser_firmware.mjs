@@ -50,6 +50,6 @@ for (const {name, selected, extensions} of selections) {
   }
 }
 // Relinking does not depend on checkbox order or mutate the object capsules.
-const all = kit.machines.map(m => m.id);
+const all = kit.linked ?? kit.machines.map(m => m.id);
 assert.deepEqual(linkKit(kit, all).module, linkKit(kit, [...all].reverse()).module);
 console.log('Browser container/assets checks: checked selections recovered in both profiling modes; altered builds recover only verified stock; foreign changes rejected.');
