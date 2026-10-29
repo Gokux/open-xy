@@ -28,7 +28,7 @@ version is rejected. The output differs from stock in exactly these places:
 | Sample dispatch | 2 | Recognizes owned SDK sample registrations and selects the stock sampler's (page 2) or multisampler's (page 7) audio payload |
 | Sampler page | 9 | Shows an owned page-2 engine's track as the stock sampler's page, with its one sample in region 0 for every key |
 | Sample analysis | 10 | Schedules bounded background work, snapshots committed assignments, releases cached analysis and reports progress |
-| Drum-page services | 14 | Routes controls, octave publication, assignment and waveform projection for machines declaring pad settings or drum controls |
+| Drum-page services | 20 | Routes controls, octave publication, assignment, waveform projection and held-pad slice/copy/paste and multi-edit actions |
 | Recorder | 6 | Recognizes owned sample engines when the stock recorder selects, releases and saves a pad, and assigns completed recordings to owned pads |
 | Relocated tables | 22 | Moves the effect records (63), engine records (63) and screen slots (128) into the last 8 KiB of the reservation |
 | Screen order | 1 | Paints a selected owned synth page before stock overlays |
@@ -462,12 +462,27 @@ PCM object.
 
 ### Pad settings and the drum page
 
-Pad settings occupy the stock pad record's fade word as a tagged 16-bit value,
-padded to survive stock's integer/float serialization. For a machine with pad
+The paired held-pad key handlers recognize owned drum-page machines as stock
+drum ID 3 for slicing and pad copy/paste; the track retains its real ID. Stock
+copies the complete pad record for each slice. The clipboard bridge preserves
+settings within the same machine, uses destination defaults across machines,
+and removes SDK tags when pasting into stock. It restores the clipboard after
+each paste, including failure, so subsequent pastes retain the source settings.
+
+Pad settings occupy the stock pad record's fade word as a tagged 18-bit value,
+padded to survive stock's integer/float serialization. Values up to 65535
+retain the original 16-bit tag; larger values use an extended tag. Both tags
+round-trip exactly and are recognized in assignment, audio and copy/paste.
+For a machine with pad
 settings the drum bridge owns that word: stock does not paint a fade, the
 Shift encoders 2/3 never reach stock, and presses never enter stock's mode
 cycle. With drum controls they reach the machine instead. Unowned
 registrations delegate to stock.
+
+The edit-multiple controller's separate turn and encoder-click paths route
+through the same machine callbacks. Stock owns the selection mask. Canonical
+pad indices are converted back to played notes before the octave-aware region
+lookup and publisher, so edits reach the selected pads in either octave.
 
 The assignment bridge validates worker generation, track, key and frame count
 before supplying file metadata to `sample_assign`, then initializes the owned
