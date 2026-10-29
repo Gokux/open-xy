@@ -141,8 +141,8 @@ selected extensions; each hook's `events` field in the profile names the public
 events it feeds. `extension_stock.cpp` supplies version-specific recording
 context, note editing and stock forwarding. Its `sdk_extensions_*` symbols are
 named for the stock calls they replace; they are adapter entry points, not
-extension APIs. `extensions/capture/` is the first subscriber: it owns the
-bounded current-track ghost pattern and the Record gesture.
+extension APIs. Capture ([open-xy-core-machines](https://github.com/etcetc000/open-xy-core-machines/tree/main/extensions/capture)) is the first
+subscriber: it owns the bounded current-track ghost pattern and the Record gesture.
 
 The seven hooks replace the controller-update call at `0x8c0baaf0`, queued key
 dispatch at `0x8c0b6184`, normalized live onset/release at `0x8d594376` and

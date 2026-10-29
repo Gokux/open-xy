@@ -58,14 +58,35 @@ NUMBER = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)'
 SVG_INHERITED = {'fill', 'stroke', 'stroke-width', 'font-family', 'font-size', 'style'}
 
 
+class Collection(list):
+    """A build's machines, in firmware order, and the extensions it links, in
+    callback order (`extensions`). A subset of its machines keeps its extensions."""
+
+    def __init__(self, machines=(), extensions_=()):
+        super().__init__(machines)
+        self.extensions = tuple(extensions_)
+
+
+def extensions_of(machines):
+    """The extensions a machine list carries: none for a plain list."""
+    return getattr(machines, 'extensions', ())
+
+
+def subset(machines, chosen):
+    """Some of a collection's machines, with all of its extensions."""
+    return Collection(chosen, extensions_of(machines))
+
+
 def configuration(entries=None, layout=None):
-    """The profile, the collection's machines numbered by the layout, and their link-time
-    IDs. Entries are machines.read_collection's."""
+    """The profile, the collection's machines numbered by the layout (a Collection,
+    carrying its extensions), and their link-time IDs. Entries are
+    machines.read_collection's."""
     profile = config()
     stock_tables.check_profile(profile)
     extensions.check_profile(profile)
     require([p['kind'] for p in profile['patches']].count('startup') == 1, 'Expected one startup label edit')
-    machines = collection(entries, layout)
+    machines = Collection(collection(entries, layout), extensions.check_collection(
+        [extensions.extension_at(e['extension']) for e in entries or () if 'extension' in e]))
     definitions = dict(DEFINITIONS)
     for m in machines:
         if m.kind == 'effect':
@@ -81,13 +102,16 @@ def provenance(machines):
     """Every authored, SDK and compiler-profile input; private artifacts never enter.
     The collection is its machines, in order: their IDs and sources below."""
     paths = {PROFILE, LINKER, extensions.PROFILE}
-    for folder in ('sdk/include', 'sdk/platform', 'tooling', *('extensions/' + entry['id'] for entry in extensions.collection())):
+    for folder in ('sdk/include', 'sdk/platform', 'tooling'):
         paths |= {p.relative_to(ROOT).as_posix() for p in (ROOT / folder).rglob('*')
                   if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.md'}
     hashes = {name: sha(read(child(ROOT, name))) for name in paths}
     for m in machines:
         hashes.update({name: sha(read(path)) for name, path in m.files().items()})
-    hashes['collection'] = sha(json.dumps([m.id for m in machines]).encode('utf-8'))
+    for e in extensions_of(machines):
+        hashes.update({f'extension:{e.id}/{name}': sha(read(path)) for name, path in e.sources().items()})
+    hashes['collection'] = sha(json.dumps([m.id for m in machines] +
+                                          ['extension:' + e.id for e in extensions_of(machines)]).encode('utf-8'))
     return dict(sorted(hashes.items()))
 
 
@@ -167,8 +191,7 @@ def plan(machines, profile=None):
     services = active_services(profile or config(), service_users(machines))
     units += [(f'sdk/{step}.o', None, step) for step in SDK_UNITS
               if UNIT_SERVICES.get(step) is None or UNIT_SERVICES[step] in services]
-    units += [(f'sdk/extension_{entry["id"]}.o', None, 'extension:' + entry['id'])
-              for entry in extensions.collection()]
+    units += [(f'sdk/extension_{e.id}.o', None, 'extension:' + e.id) for e in extensions_of(machines)]
     names = [name for name, _m, _step in units]
     require(len(names) == len(set(names)), 'Duplicate object name')
     return units
@@ -193,8 +216,8 @@ UNIT_SERVICES.update(dict.fromkeys(('extension_runtime', 'extension_collection',
 
 def service_users(machines):
     """What a native build's services are chosen by: its machines' kinds, and
-    'extension' when the collection declares extensions (native builds link them all)."""
-    return [m.kind for m in machines] + (['extension'] if extensions.collection() else [])
+    'extension' when it links extensions (native builds link all of the collection's)."""
+    return [m.kind for m in machines] + (['extension'] if extensions_of(machines) else [])
 
 
 def module_bytes(profile):
@@ -275,14 +298,14 @@ def link(directory, tools, profile, definitions, machines, selected, name='modul
     command = [tools['ld'], '-T', ROOT / LINKER, f'-Map={name}.map', '-o', f'{name}.elf',
                *(f'--defsym={key}={value:#x}' for key, value in definitions.items()),
                *(f'--defsym={key}={value}' for key, value in aliases.items()),
-               *(object_name for object_name, _m, _step in plan(selected, profile))]
+               *(object_name for object_name, _m, _step in plan(subset(machines, selected), profile))]
     try:
         subprocess.check_output([str(arg) for arg in command], cwd=directory, stderr=subprocess.STDOUT, text=True, timeout=120)
     except subprocess.CalledProcessError as error:
         overflow = re.search(r"region `MODULE' overflowed by (\d+) bytes", error.output or '')
         if not overflow and 'Module overlaps the relocated tables' not in (error.output or ''):
             raise
-        usage, limit = memory_by_owner(directory, selected, profile), module_bytes(profile)
+        usage, limit = memory_by_owner(directory, subset(machines, selected), profile), module_bytes(profile)
         total = limit + int(overflow.group(1)) if overflow else sum(sum(share.values()) for share in usage.values())
         return memory_summary(usage, total, limit)
     return None
@@ -307,7 +330,7 @@ def linked_machines(directory, tools, profile, machines, definitions):
         (directory / leftover).unlink(missing_ok=True)
     overflow = link(directory, tools, profile, definitions, machines, core)
     require(overflow is None, 'The official machines exceed the shared module memory, ' + str(overflow))
-    return core
+    return subset(machines, core)
 
 
 def compile_collection(directory, toolchain, compiler, profile, machines, definitions, version, profiling=True):
@@ -342,11 +365,13 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
             if step == 'benchmark':
                 return cxx(str(benchmark.generate(folder, machines)), obj)
             if step.startswith('extension:'):
-                return cxx(str(extensions.generate_extension(folder, step.removeprefix('extension:'))), obj)
+                chosen = step.removeprefix('extension:')
+                extension = next(e for e in extensions_of(machines) if e.id == chosen)
+                return cxx(str(extensions.generate_extension(folder, extension)), obj)
             if step == 'extension_runtime':
                 return cxx('sdk/platform/extension_runtime.cpp', obj)
             if step == 'extension_collection':
-                return cxx(str(extensions.generate_collection(folder)), obj)
+                return cxx(str(extensions.generate_collection(folder, extensions_of(machines))), obj)
             if step == 'screen_order':
                 return cxx(str(generate_screen_order(folder)), obj)
             if step == 'sample_callbacks':
@@ -718,7 +743,7 @@ def prepare_assets(catalog, profile, machines):
 
 def linked_in(machines, report):
     """The machines a compile report's module links, in collection order."""
-    return [m for m in machines if m.id in report['linked']]
+    return subset(machines, [m for m in machines if m.id in report['linked']])
 
 
 def package_collection(package):
@@ -824,14 +849,16 @@ def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layou
 
 def add_collection_arguments(parser):
     parser.add_argument('--collection', type=Path,
-                        help='collection file of {"path": ...} machine folders, such as local/catalog/collection.json '
-                             'from python sdk.py catalog fetch')
+                        help='collection file of {"path": ...} machine and extension folders, such as '
+                             'local/catalog/collection.json from python sdk.py catalog fetch')
     parser.add_argument('--machine', type=Path, action='append', default=[],
                         help='a machine folder to add to the collection; repeatable')
+    parser.add_argument('--extension', type=Path, action='append', default=[],
+                        help='an extension folder to add to the collection; repeatable')
 
 
 def selected_collection(args):
-    return read_collection(args.collection, args.machine)
+    return read_collection(args.collection, args.machine, args.extension)
 
 
 COMMANDS = {
