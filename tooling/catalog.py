@@ -119,9 +119,9 @@ def changes(before, after, allow_carried_cpu=False):
             require('cpu' in entry, f"{entry['id']}: new or updated submissions require hardware cpu measurements (docs/profiling.md)")
             # With a maintainer's approval, an update may carry its previous measurement over
             # unchanged, still naming the commit it measured; otherwise it measures the pinned commit.
-            carried = allow_carried_cpu and entry['cpu'] == previous.get(entry['id'], {}).get('cpu')
-            # A fresh synth measurement is a control sweep; an unchanged one may predate it.
             unchanged = entry['cpu'] == previous.get(entry['id'], {}).get('cpu')
+            carried = allow_carried_cpu and unchanged
+            # A fresh synth measurement is a control sweep; an unchanged one may predate it.
             cpu_measurement.validate(entry['cpu'], entry['kind'], legacy=unchanged)
             require(carried or entry['cpu']['commit'] == entry['commit'],
                     f"{entry['id']}: cpu must measure the pinned commit; remeasure when updating "
@@ -316,7 +316,11 @@ def main(argv=None):
                     if listed == 'machines':
                         for line in release_controls(before, entries, args.cache, args.allow_control_changes):
                             print(line)
+                # Against a base, only the entries this change touches; alone, every entry.
+                earlier = {e['id']: e for e in before} if args.base else {}
                 for entry in entries:
+                    if args.base and earlier.get(entry['id']) == entry:
+                        continue
                     warning = 'cpu' in entry and cpu_measurement.above_recommended(entry['cpu'])
                     if warning:
                         print(f"WARNING: {entry['id']}: {warning}")

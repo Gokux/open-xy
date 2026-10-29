@@ -63,7 +63,9 @@ def aggregate(captures, expected, identity, name, commit, url):
                 [(own[index]['setting'], results[index]['metrics'][case['metric']]['encoded_average'])
                  for index in settings]))
     require(len(collectors) == 1 and None not in collectors, 'Use the same collector for all runs')
-    # A setting silent in any run is left out of every figure.
+    # A setting silent in every capture is left out; one silent in only some failed there.
+    require(all(None not in runs or set(runs) == {None} for runs in values.values()),
+            'A swept setting sounded in some runs but not others; collect the runs again')
     medians = {index: round(statistics.median(runs), 6) for index, runs in values.items() if None not in runs}
     require(not swept or any(index in medians for index in settings), 'Every swept setting was silent')
     heaviest = max(medians, key=lambda index: (medians[index], -index))
@@ -120,7 +122,7 @@ def create(package, paths, name, url, out):
                     'positions differ between runs: ' + '; '.join(', '.join(map(position, c)) for c in combinations))
         table = ['| Setting | Median |', '| --- | ---: |']
         for run, median in runs:
-            label = case_label(run) + (': ' + together if run.get('combined') else '')
+            label = case_label(run) + (' (as read from the reports): ' + together if run.get('combined') else '')
             table.append(f'| {label} | ' + ('silent, left out' if median is None else f'{median:.3f}%') + ' |')
         published += '\n\n' + '\n'.join(table)
         limits = 'maximum polyphony or other combinations of control settings. '

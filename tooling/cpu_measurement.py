@@ -24,14 +24,21 @@ def above_recommended(value):
     if value['block_percent'] <= RECOMMENDED_PERCENT:
         return None
     where = ''
-    if value.get('combined_percent') == value['block_percent']:
-        where = ' with every control at its heaviest position'
-    elif value.get('midpoint_percent') == value['block_percent']:
-        where = ' at the midpoint'
+    if value.get('midpoint_percent') == value['block_percent']:
+        where = 'at the midpoint'
+    elif value.get('combined_percent') == value['block_percent']:
+        where = 'with every control at its heaviest position'
     elif 'worst_setting' in value:
         from .benchmark import position
-        where = ' at ' + position(value['worst_setting'])
-    return (f"{value['block_percent']:.3f}% of the block budget{where} is above the recommended "
+        where = 'at ' + position(value['worst_setting'])
+    return recommendation(value['block_percent'], where)
+
+
+def recommendation(percent, where=''):
+    """The warning for a share above the recommended one, else None; `where` names the run."""
+    if percent <= RECOMMENDED_PERCENT:
+        return None
+    return (f"{percent:.3f}% of the block budget{' ' + where if where else ''} is above the recommended "
             f"{RECOMMENDED_PERCENT}%; make it lighter where you can (docs/profiling.md)")
 # An optional public evidence URL, never a local path or a URL with credentials.
 REPORT_URL = r'https://[A-Za-z0-9.-]+(?::[0-9]+)?/[^\s<>"\\]*'

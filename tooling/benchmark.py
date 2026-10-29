@@ -15,14 +15,12 @@ STOCK = [('prism', 18), ('simple', 32), ('hardsync', 19), ('dissolve', 20),
 
 
 def sweep_settings(m):
-    """A synth's swept settings in run order, as (control, its label, Q31 value, all eight
-    controls): each control through its positions (cpu.sweep, as the host estimate times
-    them) with the others at their defaults."""
-    from .cpu import control_defaults, sweep
-    parameters = m.definition['parameters']
-    defaults = control_defaults(parameters)
-    return [(control, p['label'], value, defaults[:control] + [value] + defaults[control + 1:])
-            for control, p in enumerate(parameters) for value in sweep(p)]
+    """A synth's swept settings in run order, as (control, its label, Q31 value): each
+    control through its positions (cpu.sweep, as the host estimate times them); the
+    firmware runs each with the other controls at their defaults (cpu.control_defaults)."""
+    from .cpu import sweep
+    return [(control, p['label'], value)
+            for control, p in enumerate(m.definition['parameters']) for value in sweep(p)]
 
 
 def cases(machines, sweep=False):
@@ -36,7 +34,7 @@ def cases(machines, sweep=False):
         result.append(case)
         if sweep and m.kind == 'synth':
             result += [dict(case, benchmark=SWEEP, setting=dict(control=control, label=label, value=value))
-                       for control, label, value, _controls in sweep_settings(m)]
+                       for control, label, value in sweep_settings(m)]
             result.append(dict(case, benchmark=SWEEP, combined=True))
     return result
 
@@ -78,7 +76,7 @@ def generate(directory, machines, sweep=False):
             # are one row per machine.
             defaults.append('    {%d, {%s}},' % (index, ', '.join(map(str, control_defaults(m.definition['parameters'])))))
             settings += ['    {%d, %d, %d},' % (index, control, value)
-                         for control, _label, value, _controls in sweep_settings(m)]
+                         for control, _label, value in sweep_settings(m)]
         p = m.prefix
         id_symbol = p + ('_fx_id' if m.kind == 'effect' else '_engine_id')
         declarations += [f'int {p}_ready() __asm__("{p}_ready");',

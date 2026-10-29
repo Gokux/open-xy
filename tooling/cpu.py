@@ -191,7 +191,7 @@ def block_cost(m, host_cxx, scratch):
     if template is None:
         return None
     parameters = m.definition['parameters']
-    defaults = control_defaults(parameters)[:len(parameters)]
+    defaults = control_defaults(parameters)
     # A buffered effect runs with a send slot's buffer of its declared size.
     words = m.definition['resources'].get('bufferBytes', 0) // 4
     buffer_storage = f'    static opxy::i32 words[{words}];' if words else ''
@@ -204,7 +204,7 @@ def block_cost(m, host_cxx, scratch):
               .replace('@POSITIONS@', ', '.join(str(v) for values in positions for v in values))
               .replace('@COUNTS@', ', '.join(map(str, counts)))
               .replace('@POSITION_COUNT@', str(sum(counts)))
-              .replace('@DEFAULTS@', ', '.join(map(str, defaults + [0] * (8 - len(defaults)))))
+              .replace('@DEFAULTS@', ', '.join(map(str, defaults)))
               .replace('@BUFFER_STORAGE@', buffer_storage).replace('@BUFFER@', buffer_argument)
               .replace('@TRANSPORT@', transport_argument))
     folder = Path(scratch) / ('cpu-' + m.id)

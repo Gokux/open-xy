@@ -226,6 +226,10 @@ class Measurements(unittest.TestCase):
         result, _values, _case, runs, _combinations = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
         self.assertIn((expected[own[1]], None), runs)
         self.assertNotEqual(result['worst_setting'], expected[own[1]]['setting'])
+        # Silent in only one capture: that run failed, and the sweep is refused rather than understated.
+        flaky = [dict(c, frames=[frame(a) for a in (silent if i == 0 else averages)]) for i, c in enumerate(captures)]
+        with self.assertRaisesRegex(ValueError, 'some runs but not others'):
+            aggregate(flaky, expected, identity, 'probesynth', 'e'*40, None)
         # A silent midpoint or combined run, or a saturated one, is still refused.
         for index, average in ((own[0], 0), (own[-1], 0), (own[2], 65535)):
             broken = list(averages)

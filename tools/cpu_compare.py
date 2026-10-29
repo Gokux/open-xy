@@ -59,6 +59,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
     require(len(args.a) > 1 and len(args.b) > 1, 'Give each side a package and at least one run')
     a, b = medians(args.a[0], args.a[1:]), medians(args.b[0], args.b[1:])
+    sweeps = [package_data(side[0])[1].get('benchmark_sweep', False) for side in (args.a, args.b)]
+    if sweeps[0] != sweeps[1]:
+        print('Note: only one side is a sweep build; its voices also check the sweep override, '
+              'so shared runs differ slightly by build, not by machine.')
     shared = sorted(set(a) & set(b), key=lambda k: (k[0], k[1]))
     stages = sorted({i for _, i in shared}) if args.all else sorted(NAMED)
     width = max([12] + [len(n) for n, _ in shared])

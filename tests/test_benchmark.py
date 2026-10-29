@@ -44,16 +44,16 @@ class Benchmark(unittest.TestCase):
         settings = sweep_settings(synth)
         self.assertEqual(len(settings), sum(len(sweep(p)) for p in parameters))
         defaults = [round(p['default'] * 0x7fffffff) for p in parameters] + [0] * (8 - len(parameters))
-        for control, label, value, controls in settings:
+        for control, label, value in settings:
             self.assertEqual(label, parameters[control]['label'])
-            self.assertEqual(controls, defaults[:control] + [value] + defaults[control + 1:])
+            self.assertIn(value, sweep(parameters[control]))
         plain, swept = cases([effect, synth]), cases([effect, synth], sweep=True)
         self.assertEqual(swept[:len(plain)], plain)
         extra = swept[len(plain):]
         # Each swept setting, then every control at its heaviest position.
         self.assertEqual([c['benchmark'] for c in extra], [SWEEP] * (len(settings) + 1))
         self.assertEqual([(c['setting']['control'], c['setting']['value']) for c in extra[:-1]],
-                         [(control, value) for control, _label, value, _controls in settings])
+                         [(control, value) for control, _label, value in settings])
         self.assertTrue(extra[-1]['combined'] and 'setting' not in extra[-1])
         with tempfile.TemporaryDirectory() as folder:
             source = generate(folder, [effect, synth], sweep=True).read_text(encoding='utf-8')
@@ -63,7 +63,7 @@ class Benchmark(unittest.TestCase):
                 body = text.split(f'const {name}[] = {{\n', 1)[1].split('\n};', 1)[0]
                 return [line.strip() for line in body.splitlines() if line.strip()][:-1]
             self.assertEqual(table(source, 'Setting settings'),
-                             ['{1, %d, %d},' % (c, v) for c, _l, v, _x in settings])
+                             ['{1, %d, %d},' % (c, v) for c, _l, v in settings])
             self.assertEqual(table(source, 'Defaults defaults'), ['{1, {%s}},' % ', '.join(map(str, defaults))])
             self.assertIn('sdk_benchmark_parameters = controls;', source)
             plain_source = generate(folder, [effect, synth]).read_text(encoding='utf-8')
