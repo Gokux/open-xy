@@ -150,8 +150,9 @@ void write_companion(u32 bytes, u32 crc) {
 // through read_chunk, so a companion of up to 64 KiB needs no buffer of its size. A
 // repeated key counts once, its last value deciding, as Python's json reads it.
 const u32 kCompanionLimit = 64 * 1024;
-// Engine and effect records (docs/abi-1.2.1.md): no registered number lies outside.
-const u32 kNumbers = 63;
+// Engine records, the larger relocated table (docs/abi-1.2.1.md,
+// tooling/stock_tables.py): no registered engine or effect number lies outside.
+const u32 kNumbers = 256;
 // A number the companion does not list stays as saved (a stock machine).
 const u32 kUnlisted = 0xfffffffeu;
 // What a listed machine this firmware lacks becomes, written into every pattern itself:
@@ -179,7 +180,7 @@ u32 effect_map[kNumbers];
 struct Listed {
     char id[kMachineBytes];
     unsigned char length;
-    unsigned char old;  // kNumbers when the entry names no number a pattern can hold
+    unsigned short old;  // kNumbers when the entry names no number a pattern can hold
     bool effect, valid;
 };
 Listed listed[kMachines];
@@ -522,7 +523,7 @@ bool record(const Text& id, bool valid, bool effect, u32 old) {
     }
     listed[i].valid = valid;
     listed[i].effect = effect;
-    listed[i].old = static_cast<unsigned char>(old < kNumbers ? old : kNumbers);
+    listed[i].old = static_cast<unsigned short>(old < kNumbers ? old : kNumbers);
     return true;
 }
 

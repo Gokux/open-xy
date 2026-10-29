@@ -93,8 +93,8 @@ an explicit click and USB permission, and releases the connection afterwards.
 
 ## Capacity and machine numbers
 
-The firmware reserves **2 MiB** of the application heap: 2040 KiB that every
-selected machine shares for code, data and state, and 8 KiB for relocated stock
+The firmware reserves **2 MiB** of the application heap: 2032 KiB that every
+selected machine shares for code, data and state, and 16 KiB for relocated stock
 tables. The memory meter shows each machine's share; see
 [memory and limits](api.md#memory-and-limits). CPU headroom is not measured.
 

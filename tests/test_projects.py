@@ -316,8 +316,16 @@ class FirmwareReader(unittest.TestCase):
     def test_numbers_beyond_the_records_are_never_mapped(self):
         tracks = {0: [36, 0, 62]}
         machines = [('karplus', '{"engine": -36, "page": 84}'), ('fm2op', '{"engine": -0, "page": 60}'),
-                    ('macroosc', '{"engine": 99, "page": 61}'), ('gone', '{"engine": 62, "page": 61}')]
+                    ('macroosc', '{"engine": 256, "page": 61}'), ('gone', '{"engine": 62, "page": 61}')]
         self.check(raw_companion(machines), {0: [36, 35, PRISM]}, tracks=tracks)
+
+    def test_numbers_above_the_stock_imm7_bound_are_mapped(self):
+        # The relocated engine table runs to 256: a machine numbered past 63 there that
+        # this firmware lacks falls back like any other.
+        tracks = {0: [36, 200, 255]}
+        machines = [('karplus', '{"engine": 36, "page": 84}'), ('high', '{"engine": 200, "page": 200}'),
+                    ('top', '{"engine": 255, "page": 255}')]
+        self.check(raw_companion(machines), {0: [41, PRISM, PRISM]}, tracks=tracks)
 
     def test_any_json_form_reads_the_same(self):
         document = json.loads(companion(PROJECT, SAVED))

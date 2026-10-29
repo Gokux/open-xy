@@ -227,15 +227,15 @@ test('numbers follow the layout, not the selection order, and unselected machine
   const k=fixture(); k.machines.push(machine('b',34,82,'personal'),machine('c',34,82,'personal'));
   assert.deepEqual(assignNumbers(k,['c','b','a']),assignNumbers(k,['a','b','c']));
   // c's own places in the pools (FNV-1a of its ID), as it asks for a's fixed numbers.
-  assert.deepEqual(assignNumbers(k,['a','c']).c,{engine:40,page:83});
+  assert.deepEqual(assignNumbers(k,['a','c']).c,{engine:246,page:204});
   // Once b has numbers, they stay held when b is dropped; c keeps its own, which b's do not collide with.
   const numbers=assignNumbers(k,['a','b']);
-  assert.deepEqual(numbers.b,{engine:57,page:121});
-  assert.deepEqual(assignNumbers(k,['a','c'],numbers),{...numbers,c:{engine:40,page:83}});
+  assert.deepEqual(numbers.b,{engine:215,page:221});
+  assert.deepEqual(assignNumbers(k,['a','c'],numbers),{...numbers,c:{engine:246,page:204}});
   const linked=linkKit(k,['a','c'],numbers);
   assert.deepEqual([linked.definitions.a_engine_id,linked.definitions.b_engine_id,linked.definitions.c_engine_id,
-    linked.definitions.c_page_id],[34,0,40,83]);
-  assert.deepEqual(linked.numbers.b,{engine:57,page:121});
+    linked.definitions.c_page_id],[34,0,246,204]);
+  assert.deepEqual(linked.numbers.b,{engine:215,page:221});
 });
 test('saved layouts restore numbers and selections, including older saved selections', () => {
   const k=fixture(), id=k.profile.id;
@@ -302,7 +302,7 @@ test('SDK 1.5 machines ask for no numbers and the selection gives them', async (
     {id:'e',prefix:'e',kind:'effect',identity:{effect:null,page:21},absent:{},origin:'personal'}];
   await openKit(k);
   assert.deepEqual(assignNumbers(k,['a','b','d','e']),
-    {a:{engine:34,page:82},b:{engine:57,page:121},d:{engine:42,page:7},e:{effect:47,page:21}});
+    {a:{engine:34,page:82},b:{engine:215,page:221},d:{engine:179,page:7},e:{effect:47,page:21}});
   assert.deepEqual(assignNumbers(k,['b'],{b:{engine:50,page:100}}).b,{engine:50,page:100});
   for (const identity of [{engine:null,page:82},{engine:null,page:null,base:'sampler'}]) {
     k.machines[1].identity=identity; await assert.rejects(openKit(k),/Machine numbers/);

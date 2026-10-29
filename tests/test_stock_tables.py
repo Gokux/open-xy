@@ -10,7 +10,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tooling import pipeline, stock_tables as tables
+from tooling import pipeline, projects, stock_tables as tables
 from tooling.adapters import generate_registration_stock
 from tooling.firmware import hooks
 from tooling.pipeline import config
@@ -39,7 +39,7 @@ class Profile(unittest.TestCase):
             self.assertNotIn(site, hooks(self.profile))
 
     def test_altered_edit_or_bound_is_rejected(self):
-        for index, value in ((0, '02da4c8d64ff0000'), (7, 'f161'), (len(self.table) - 1, '20e18100')):
+        for index, value in ((0, '02da4c8d64ff0000'), (7, '22e1d00b'), (len(self.table) - 1, '20e18100')):
             altered = copy.deepcopy(self.table)
             altered[index]['after'] = value
             with self.subTest(index=index), self.assertRaises(ValueError):
@@ -65,6 +65,18 @@ class Profile(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 tables.check_compositor(altered)
 
+    def test_engine_bound_must_be_hooked(self):
+        # imm7 cannot hold the relocated engine count: the validity check's bound is a call.
+        hooked = [p for p in self.profile['patches'] if p['kind'] == 'hook']
+        tables.check_engine_bound(hooked)
+        self.assertNotIn(tables.ENGINE_BOUND, [site for site, _, _, _ in tables.EDITS])
+        site = '%#x' % tables.ENGINE_BOUND
+        for change in (dict(symbol='sdk_other'), dict(before='f9618808'), dict(length=8), dict(call=False)):
+            altered = copy.deepcopy(hooked)
+            next(p for p in altered if p['address'] == site).update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                tables.check_engine_bound(altered)
+
     def test_effect_edits_cover_every_audited_reader(self):
         effects = [p for p in self.table if p['name'].startswith('IN-MEMORY effect')]
         self.assertEqual([int(p['address'], 16) for p in effects],
@@ -86,11 +98,12 @@ class Layout(unittest.TestCase):
             self.assertIn('__stock_%s = %#x;' % (table.name.replace(' ', '_'), table.address), linker)
         self.assertIn('LENGTH = %#x' % (tables.TABLES_START - config()['module_base']), linker)
         self.assertEqual(tables.EFFECT_RECORDS, tables.TABLES_START)
-        self.assertEqual(tables.SCREEN_SLOTS + tables.SCREEN_COUNT * 4, tables.ENGINE_RECORDS)
+        self.assertEqual(tables.EFFECT_RECORDS + tables.EFFECT_COUNT * tables.RECORD_BYTES, tables.ENGINE_RECORDS)
+        self.assertEqual(tables.ENGINE_RECORDS + tables.ENGINE_COUNT * tables.RECORD_BYTES, tables.SCREEN_SLOTS)
         tables.check_layout()
 
     def test_overlapping_tables_are_rejected(self):
-        moved = tables.EFFECTS._replace(address=tables.SCREEN_SLOTS - 48)
+        moved = tables.EFFECTS._replace(address=tables.ENGINE_RECORDS - 32)
         original = tables.TABLES
         try:
             tables.TABLES = (tables.ENGINES, tables.SCREENS, moved)
@@ -113,6 +126,14 @@ class Registration(unittest.TestCase):
         self.assertNotIn('%#x' % tables.STOCK_ENGINE_RECORDS, text)
         self.assertNotIn('%#x' % tables.STOCK_SCREEN_SLOTS, text)
         self.assertNotIn('%#x' % tables.STOCK_EFFECT_RECORDS, text)
+        # The engine validity hook compares against the relocated count.
+        self.assertIn('R1 = %d (X);' % tables.ENGINE_COUNT, text)
+
+    def test_project_companions_map_every_engine_number(self):
+        # Both companion readers hold a map entry for every engine record.
+        self.assertEqual(projects.NUMBERS, tables.ENGINE_COUNT)
+        self.assertIn('const u32 kNumbers = %d;' % tables.ENGINE_COUNT,
+                      read_text('sdk/platform/opxy-1.2.1/project_companion.cpp'))
 
 
 if __name__ == '__main__':

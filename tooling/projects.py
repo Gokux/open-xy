@@ -28,8 +28,9 @@ SECTION_NAME = re.compile(r'[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+')
 MACHINE_ID = re.compile(r'[a-z][a-z0-9_]{0,14}')
 # Distinct machines one section may list, as many as the firmware reader holds.
 MACHINE_LIMIT = 128
-# Engine and effect numbers a pattern can hold registered; others are never mapped.
-NUMBERS = 63
+# Engine and effect numbers a pattern can hold registered, the relocated engine table's
+# count (tooling/stock_tables.py; project_companion.cpp kNumbers); others are never mapped.
+NUMBERS = 256
 # What a listed machine missing here, or a number two listed machines claim, becomes:
 # Prism on an instrument track, no effect on a send.
 FALLBACK = {'engine': 18, 'effect': 0}
