@@ -333,10 +333,12 @@ def linked_machines(directory, tools, profile, machines, definitions):
     return subset(machines, core)
 
 
-def compile_collection(directory, toolchain, compiler, profile, machines, definitions, version, profiling=True):
+def compile_collection(directory, toolchain, compiler, profile, machines, definitions, version, profiling=True,
+                       sweep=False):
     """Compile every machine and link those that fit (linked_machines), labelled with the
     release version; return the module bytes, report and patched profile."""
-    require(type(profiling) is bool, 'Profiling must be a boolean')
+    require(type(profiling) is bool and type(sweep) is bool, 'Profiling and sweep must be booleans')
+    require(profiling or not sweep, 'A control sweep needs a profiling build')
     directory = Path(directory)
     for m in machines:
         if m.display != 'stock':
@@ -363,7 +365,7 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
         folder.mkdir(exist_ok=True)
         if m is None:
             if step == 'benchmark':
-                return cxx(str(benchmark.generate(folder, machines)), obj)
+                return cxx(str(benchmark.generate(folder, machines, sweep)), obj)
             if step.startswith('extension:'):
                 chosen = step.removeprefix('extension:')
                 extension = next(e for e in extensions_of(machines) if e.id == chosen)
@@ -415,7 +417,8 @@ def compile_collection(directory, toolchain, compiler, profile, machines, defini
     require(provenance(machines) == before, 'Sources changed during compilation')
     report = dict(schema=1, target=TARGET, status='experimental-unqualified', sources=before,
                   host=host_platform(), tools=host_pins('tools')[0], compiler=host_pins('compiler')[0],
-                  cxx_flags=CXX_FLAGS, profiling=profiling, benchmark_cases=benchmark.cases(linked),
+                  cxx_flags=CXX_FLAGS, profiling=profiling, benchmark_cases=benchmark.cases(linked, sweep),
+                  **({'benchmark_sweep': True} if sweep else {}),
                   sizes=sizes, memory=usage, module_bytes=module_bytes(profile), audio_stack_bytes=stack,
                   reserved_bytes=profile['reserved_bytes'],
                   module_sha256=sha(module), elf_sha256=sha(read(directory / 'module.elf')), hooks=hooks,
@@ -779,11 +782,13 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
     require(manifest.get('schema') == 1 and manifest.get('target') == TARGET, 'Unexpected manifest')
     profiling = manifest.get('profiling')
     require(type(profiling) is bool, 'Manifest profiling must be a boolean')
+    sweep = manifest.get('benchmark_sweep', False)
+    require(sweep is True or 'benchmark_sweep' not in manifest, 'Manifest benchmark_sweep must be true when present')
     profile, machines, definitions = configuration(package_collection(package), package_layout(package))
     with tempfile.TemporaryDirectory(prefix='opxy-verify-') as temporary:
         temporary = Path(temporary)
         module, report, patch_profile = compile_collection(temporary, toolchain, compiler, profile, machines,
-                                                           definitions, package_version(package), profiling)
+                                                           definitions, package_version(package), profiling, sweep)
         require(report['profiling'] is profiling, 'Compile profiling differs from manifest')
         expected_assets = prepare_assets(catalog, profile, linked_in(machines, report))
         expected_assets['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
@@ -813,7 +818,7 @@ def verification(stock, catalog, package, toolchain, compiler, *, require_record
     return result
 
 
-def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layout=None, profiling=True):
+def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layout=None, profiling=True, sweep=False):
     """A firmware package. Its machines take their numbers from `layout` (by machine ID);
     the package's layout.json is that layout after this build, for the next one."""
     require(type(profiling) is bool, 'Profiling must be a boolean')
@@ -829,7 +834,7 @@ def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layou
     analysis.mkdir()
     version = startup_label.release_version()
     module, report, patch_profile = compile_collection(analysis, toolchain, compiler, profile, machines,
-                                                       definitions, version, profiling)
+                                                       definitions, version, profiling, sweep)
     prepared = prepare_assets(catalog, profile, linked_in(machines, report))
     prepared['os.ldr'] = assemble(stock, module, patch_profile, profile, len(profile['patches']),
                                   set(report['services']), profiling)
@@ -839,6 +844,7 @@ def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layou
         path.write_bytes(data)
     tracked = ['candidate/' + name for name in prepared] + ['analysis/module.bin', 'analysis/module.elf'] + ANALYSIS
     save_json(output / 'manifest.json', dict(schema=1, target=TARGET, version=version, collection=entries, profiling=profiling,
+                                             **({'benchmark_sweep': True} if sweep else {}),
                                              **({'layout': layout} if layout else {}),
                                              files={name: sha(read(output / name)) for name in tracked}))
     save_json(output / 'layout.json', layout_document(numbers_after(layout, machines)))
@@ -884,6 +890,9 @@ def main(argv=None, command=None):
     if command != 'verify':  # a package records its own collection
         parser.add_argument('--profiling', choices=('on', 'off'), default='on',
                             help='per-voice diagnostic timing (default: on for SDK development builds)')
+        parser.add_argument('--sweep', choices=('on', 'off'),
+                            help='time each synth control through its positions on the device '
+                                 '(docs/profiling.md; default: on with profiling)')
         add_collection_arguments(parser)
         parser.add_argument('--layout', type=Path,
                             help="the machine numbers your OP-XY's projects use: the layout.json of your last build")
@@ -891,6 +900,9 @@ def main(argv=None, command=None):
     # A failed command removes only the --out folder it created itself.
     created = command != 'verify' and not args.out.exists()
     try:
+        if command != 'verify':
+            sweep = (args.sweep or args.profiling) == 'on'
+            require(args.profiling == 'on' or not sweep, 'A control sweep needs --profiling on')
         if command == 'verify':
             require_release_host()  # only its tools reproduce published package bytes
         if command != 'compile':
@@ -908,7 +920,8 @@ def main(argv=None, command=None):
             require(not any(m.contains(args.out) for m in machines), 'Keep build output outside every machine folder')
             output = fresh_output(args.out)
             _module, report, _patches = compile_collection(output, *tools, profile, machines, definitions,
-                                                           startup_label.release_version(), args.profiling == 'on')
+                                                           startup_label.release_version(), args.profiling == 'on',
+                                                           sweep)
             print(json.dumps(report['sizes'], indent=2))
             print('Memory ' + memory_summary(report['memory'], report['sizes']['allocated_span_bytes'],
                                             report['module_bytes']))
@@ -922,7 +935,7 @@ def main(argv=None, command=None):
             print(json.dumps(verification(stock, catalog, args.package.resolve(), *tools), indent=2))
         else:
             output, result = build(args.out, *tools, args.stock_os, args.stock_content, entries, layout,
-                                   args.profiling == 'on')
+                                   args.profiling == 'on', sweep)
             print(json.dumps(result, indent=2))
             print('Local experimental package: ' + str(output))
             candidate = output / 'candidate'

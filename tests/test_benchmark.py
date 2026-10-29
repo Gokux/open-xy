@@ -36,6 +36,30 @@ class Benchmark(unittest.TestCase):
             empty = generate(folder, []).read_text(encoding='utf-8')
             self.assertIn('{0, 0, 0, 0, 0}', empty)
 
+    def test_a_sweep_runs_each_synth_control_through_its_positions_after_the_standard_run(self):
+        from tooling.benchmark import SWEEP, sweep_settings
+        from tooling.cpu import sweep
+        synth, effect = fixture('probesynth'), fixture('probefx')
+        parameters = synth.definition['parameters']
+        settings = sweep_settings(synth)
+        self.assertEqual(len(settings), sum(len(sweep(p)) for p in parameters))
+        defaults = [round(p['default'] * 0x7fffffff) for p in parameters] + [0] * (8 - len(parameters))
+        for control, label, value, controls in settings:
+            self.assertEqual(label, parameters[control]['label'])
+            self.assertEqual(controls, defaults[:control] + [value] + defaults[control + 1:])
+        plain, swept = cases([effect, synth]), cases([effect, synth], sweep=True)
+        self.assertEqual(swept[:len(plain)], plain)
+        self.assertEqual([c['benchmark'] for c in swept[len(plain):]], [SWEEP] * len(settings))
+        self.assertEqual([(c['setting']['control'], c['setting']['value']) for c in swept[len(plain):]],
+                         [(control, value) for control, _label, value, _controls in settings])
+        with tempfile.TemporaryDirectory() as folder:
+            source = generate(folder, [effect, synth], sweep=True).read_text(encoding='utf-8')
+            # The synth is machines[1]; the effect sweeps nothing.
+            self.assertEqual(source.count('    {1, {'), len(settings))
+            self.assertNotIn('    {0, {', source)
+            self.assertIn('sdk_benchmark_parameters = s->controls;', source)
+            self.assertNotIn('    {1, {', generate(folder, [effect, synth]).read_text(encoding='utf-8'))
+
     def test_hook_replaces_only_the_explicit_diagnostic_runner(self):
         patch = next(p for p in config()['patches'] if p.get('symbol') == 'sdk_benchmark_run')
         self.assertEqual(decode_branch(int(patch['address'], 16), bytes.fromhex(patch['before'])),

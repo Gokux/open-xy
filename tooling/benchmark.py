@@ -7,21 +7,44 @@ from .formats import require
 
 METHODS = {'synth': ('opxy-synth-c8-v1', 5), 'effect': ('opxy-effect-callback-v1', 7),
            'sample': ('opxy-sample-callback-v1', 3)}
+# A sweep build's extra synth runs: the stock workload, one control at a time.
+SWEEP = 'opxy-synth-c8-sweep-v1'
 
 STOCK = [('prism', 18), ('simple', 32), ('hardsync', 19), ('dissolve', 20),
          ('axis', 22), ('organ', 6), ('epiano', 7), ('wavetable', 31), ('chord', 13)]
 
 
-def cases(machines):
-    return [dict(name=name, engine=engine, source='stock') for name, engine in STOCK] + [
-        dict(name=m.id, engine=m.identity.get('engine', m.identity.get('effect')), source='sdk',
-             kind=m.kind, benchmark=METHODS[m.kind][0], metric=METHODS[m.kind][1])
-        for m in machines]
+def sweep_settings(m):
+    """A synth's swept settings in run order, as (control, its label, Q31 value, all eight
+    controls): each control through its positions (cpu.sweep, as the host estimate times
+    them) with the others at their defaults."""
+    from .cpu import sweep
+    parameters = m.definition['parameters']
+    defaults = [round(p['default'] * 0x7fffffff) for p in parameters] + [0] * (8 - len(parameters))
+    return [(control, p['label'], value, defaults[:control] + [value] + defaults[control + 1:])
+            for control, p in enumerate(parameters) for value in sweep(p)]
 
 
-def generate(directory, machines):
-    declarations, rows = [], []
+def cases(machines, sweep=False):
+    """The reports a run sends, in order: stock's nine, then each machine's; in a sweep
+    build a synth's swept settings follow its standard run."""
+    result = [dict(name=name, engine=engine, source='stock') for name, engine in STOCK]
     for m in machines:
+        case = dict(name=m.id, engine=m.identity.get('engine', m.identity.get('effect')), source='sdk',
+                    kind=m.kind, benchmark=METHODS[m.kind][0], metric=METHODS[m.kind][1])
+        result.append(case)
+        if sweep and m.kind == 'synth':
+            result += [dict(case, benchmark=SWEEP, setting=dict(control=control, label=label, value=value))
+                       for control, label, value, _controls in sweep_settings(m)]
+    return result
+
+
+def generate(directory, machines, sweep=False):
+    declarations, rows, settings = [], [], []
+    for index, m in enumerate(machines):
+        if sweep and m.kind == 'synth':
+            settings += ['    {%d, {%s}},' % (index, ', '.join(map(str, controls)))
+                         for _control, _label, _value, controls in sweep_settings(m)]
         p = m.prefix
         id_symbol = p + ('_fx_id' if m.kind == 'effect' else '_engine_id')
         declarations += [f'int {p}_ready() __asm__("{p}_ready");',
@@ -34,6 +57,7 @@ def generate(directory, machines):
     source = (ROOT / 'sdk/platform/opxy-1.2.1/benchmark.cpp.in').read_text(encoding='utf-8')
     source = source.replace('@DECLARATIONS@', '\n'.join(declarations))
     source = source.replace('@MACHINES@', '\n'.join(rows))
+    source = source.replace('@SETTINGS@', '\n'.join(settings))
     path = Path(directory) / 'benchmark.cpp'
     path.write_text(source, encoding='utf-8', newline='\n')
     return path

@@ -21,6 +21,12 @@ python -m pip install python-rtmidi
 python sdk.py build --machine <machine> --profiling on --stock-os <private>/stock-1.2.1/os.ldr --out <private>/cpu-build-001
 ```
 
+Profiling builds sweep synth controls by default: after each synth's standard
+run, the firmware repeats the stock workload once per setting, each control in
+turn through nine positions (or each option of a list) with the others at their
+defaults. A synth's catalog record is that sweep. `--sweep off` gives a quick
+midpoint-only build for development; it cannot publish a synth record.
+
 Repeat `--machine` or use `--collection` to build a batch. Keep the package:
 its manifest and compile report identify the firmware and expected test order.
 Install its `candidate/` files using [the installation steps](build.md#5-install),
@@ -37,7 +43,10 @@ the installed development image normally.
 
 ## Collect three runs
 
-Run these sequentially. Each output directory must be new.
+Run these sequentially. Each output directory must be new. Each stock-workload
+run takes about 2.2 seconds, so a sweep run takes longer: about 80 seconds for a
+synth with four controls. The collector waits for every expected report (by
+default up to 3 seconds per run plus 15) and stops early once they have arrived.
 
 ```sh
 python sdk.py profile benchmark --package <private>/cpu-build-001 --installed --greet --out <private>/cpu-run-001
@@ -87,8 +96,17 @@ firmware-containing packages.
 | `commit` | Full machine source SHA, equal to the catalog entry's `commit` (or an earlier release's, when a maintainer approves carrying it over) |
 | `firmware_sha256` | Exact tested candidate OS image |
 | `runs` | 3 to 100 independent, complete captures of the same build and collector |
-| `block_percent` | Median of the per-run mean costs, as a percentage of the stock 580,352-cycle block budget |
+| `block_percent` | Median of the per-run mean costs, as a percentage of the stock 580,352-cycle block budget. For a synth, its heaviest run: the median of each swept setting and of the midpoint run, the largest of them |
+| `midpoint_percent` | Synths: the midpoint run's median, stock's own workload |
+| `worst_setting` | Synths: the heaviest swept setting: `control` (0-7), its `label`, and its Q31 `value` |
 | `report` | Optional: public HTTPS evidence URL containing the generated readout |
+
+Keep `block_percent` at or below the **recommended 3.5%**. A higher result is
+still accepted, but `profile report`, the collector's readout and `catalog check`
+print a warning naming the heaviest setting: make that path lighter where you can.
+
+Synth records from before the sweep (`opxy-synth-c8-v1`) stay valid while their
+entry is unchanged; a new or updated synth submits a sweep.
 
 Updating a machine's commit requires a new measurement, unless a catalog
 maintainer approves keeping the previous one ([catalog updates](catalog.md#submit-a-machine)).
@@ -107,7 +125,7 @@ the audio core during normal project playback. Every block is 64 samples.
 
 | Machine kind / benchmark | Scope and fixed workload |
 | --- | --- |
-| Synth / `opxy-synth-c8-v1` | Stock whole-voice timer, including oscillator and filter. Stock diagnostic plays note 60 at velocity 127 for 1,000 blocks and releases for 500. Controls 0-3 are set to midpoint. This is not a sweep of models or additional controls. |
+| Synth / `opxy-synth-c8-sweep-v1` | Stock whole-voice timer, including oscillator and filter. Stock diagnostic plays note 60 at velocity 127 for 1,000 blocks and releases for 500, first with controls 0-3 at midpoint (stock's own run, `opxy-synth-c8-v1`), then once per swept setting: one control at a time through nine positions from 0 to full scale (each option of a list), the others at their defaults, as the SDK's host estimate sweeps them. The voice adapter renders with the swept controls while a sweep run is active. Combinations of controls are not swept. |
 | Effect / `opxy-effect-callback-v1` | One stereo `process` callback at declared defaults for 1,500 blocks. Deterministic triangle/impulse input, separate initialized state, zeroed private scratch buffer when declared, 120 BPM transport. Includes the wet algorithm, not the stock send/mix path. |
 | Sample / `opxy-sample-callback-v1` | One `render_sample` callback at declared defaults for 1,500 blocks. A generated two-second, mono 44.1 kHz PCM triangle/impulse sample, full region, unity level, forward playback, C4 pitch, 120 BPM, no transpose; note restarts every 500 blocks. Declared sample analysis and assignment run before timing. Output uses the machine's mono/stereo contract. |
 

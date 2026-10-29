@@ -14,6 +14,8 @@ opxy::u32 sdk_synth_title_slot(opxy::u32, opxy::u32 index) { return index + 4; }
 const unsigned long long kBlockCycles = 580352;
 unsigned long long cycles = 1ull << 40;
 opxy::u32 sdk_voice_ticks() { return static_cast<opxy::u32>(cycles >> 17); }
+// No control sweep runs here (benchmark.cpp.in).
+const opxy::i32* volatile sdk_benchmark_parameters = nullptr;
 
 namespace {
 typedef int (*Method)(void*);

@@ -30,6 +30,9 @@ extern const char @PREFIX@_name[] __asm__("@PREFIX@_name");
 extern const char @PREFIX@_engine_id[] __asm__("@PREFIX@_engine_id");
 // The adapter's clock (voice_clock.s).
 opxy::u32 sdk_voice_ticks() __asm__("sdk_voice_ticks");
+// A profiling build's control sweep (benchmark.cpp.in): while set, a voice renders
+// with these controls instead of its track's. Null outside a sweep run.
+extern const opxy::i32* volatile sdk_benchmark_parameters __asm__("sdk_benchmark_parameters");
 }
 using Voice = @NAMESPACE@::Voice;
 using Shared = @NAMESPACE@::Shared;
@@ -239,7 +242,8 @@ int @PREFIX@_render(void* self, opxy::i32* output, const opxy::i32* parameters) 
     // A note that lost its wait takes a voice once one is free.
     if (handle->wants && !held(handle) && !pending(handle)) acquire(handle, now, false);
     if (Slot* slot = held(handle)) {
-        @NAMESPACE@::render(slot->voice, shared, slot->owner, output, parameters, increments);
+        const opxy::i32* swept = sdk_benchmark_parameters;
+        @NAMESPACE@::render(slot->voice, shared, slot->owner, output, swept ? swept : parameters, increments);
         // A taken note's last block fades linearly to silence, as stock fades one.
         if (slot->next) {
             const opxy::i32 frames = static_cast<opxy::i32>(opxy::block_frames), step = 0x7fffffff / (frames - 1);
