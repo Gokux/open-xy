@@ -201,6 +201,9 @@ class Measurements(unittest.TestCase):
         silent = copy.deepcopy(captures)
         silent[0]['frames'][-1]['payload_hex'] = '00' * 120
         broken.append(silent)
+        # A single capture is refused for the same faults.
+        broken += [[dict(captures[0], package={})], [dict(captures[0], errors=['CRC'])],
+                   [dict(captures[0], complete=False)], [dict(captures[0], frames=frames[:-1])], silent[:1]]
         for data in broken:
             with self.assertRaises(ValueError):
                 aggregate(data, expected, identity, 'probesample', 'e'*40, measurement()['report'])

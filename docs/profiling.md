@@ -49,8 +49,9 @@ the installed development image normally.
 
 One capture is enough: each run averages 1,500 blocks of a fixed workload, and
 repeated captures of the same build agree to within a few hundredths of a
-percent. You may collect more (each to a new directory) and pass every capture
-to the report, which publishes their median. Each stock-workload
+percent. A machine with randomness (noise, random modulation) may vary more:
+collect several, one after another, each to a new directory, and pass every
+capture to the report, which publishes their median. Each stock-workload
 run takes about 2.2 seconds, so a sweep run takes longer: about 80 seconds for a
 synth with four controls. The collector waits for every expected report (by
 default up to 3 seconds per run plus 15) and stops early once they have arrived.
@@ -58,6 +59,10 @@ default up to 3 seconds per run plus 15) and stops early once they have arrived.
 ```sh
 python sdk.py profile benchmark --package <private>/cpu-build-001 --installed --greet --out <private>/cpu-run-001
 ```
+
+Never run two collectors at once: they share the OP-XY's one MIDI port pair.
+`profile report` names any swept setting that was silent and left out; each
+should silence the voice (a level at 0), otherwise collect again.
 
 `--installed` confirms that this exact package is on the device and your work is
 saved. Metadata identifies normal OS 1.2.1 but does not attest the installed image
