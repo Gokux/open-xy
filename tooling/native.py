@@ -822,7 +822,8 @@ def build(out, toolchain, compiler, stock_os, stock_content, entries=None, layou
     """A firmware package. Its machines take their numbers from `layout` (by machine ID);
     the package's layout.json is that layout after this build, for the next one. Only a
     package for hardware profiling sweeps synth controls: `sdk.py build` turns it on with
-    profiling; release kits leave it off, so they carry no sweep tables."""
+    profiling; release kits leave it off, so their sweep tables are empty and their voices
+    never check the sweep override."""
     require(type(profiling) is bool, 'Profiling must be a boolean')
     entries = [] if entries is None else entries
     profile, machines, definitions = configuration(entries, layout)

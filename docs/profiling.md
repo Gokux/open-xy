@@ -25,7 +25,10 @@ Profiling builds sweep synth controls by default: after each synth's standard
 run, the firmware repeats the stock workload once per setting, each control in
 turn through nine positions (or each option of a list) with the others at their
 defaults, then once with every control at the position that ran heaviest. A
-synth's catalog record is that sweep. `--sweep off` gives a quick
+synth's catalog record is that sweep. The standard run is stock's own: controls
+0-3 at midpoint, any others as the track holds them; swept runs set all eight.
+A sweep build's voices also check, once per block, whether a sweep run is
+theirs, a few instructions beside a voice's thousands. `--sweep off` gives a quick
 midpoint-only build for development; it cannot publish a synth record.
 
 Repeat `--machine` or use `--collection` to build a batch. Keep the package:

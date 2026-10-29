@@ -101,7 +101,7 @@ class Measurements(unittest.TestCase):
             for change in ({'commit': 'b'}, {'runs': True}, {'runs': 2}, {'block_percent': float('nan')},
                            {'block_percent': 0}, {'block_percent': 100}, {'block_percent': True},
                            {'report': 'javascript:alert(1)'}, {'report': 'https://user:pass@example.com/x'},
-                           {'firmware_sha256': 'x'}, {'benchmark': 'host-estimate'}):
+                           {'firmware_sha256': 'x'}, {'benchmark': 'host-estimate'}, {'benchmark': []}):
                 with self.subTest(kind=kind, change=change), self.assertRaises(ValueError):
                     catalog.validate(document(dict(entry, cpu=dict(entry['cpu'], **change))))
         # A synth's sweep record names its midpoint run and heaviest setting.

@@ -111,7 +111,9 @@ void sdk_benchmark_run() {
         if (!base) continue;
         const Setting* heaviest[8] = {};
         Total most[8] = {};
-        i32 controls[8];
+        // Stock's run renders every block before it returns; static storage keeps the
+        // controls valid for any voice that reads them, whatever its timing.
+        static i32 controls[8];
         sdk_benchmark_engine = machine.id;
         for (const Setting* s = settings; s->machine != kNoMachine; ++s) {
             if (s->machine != i) continue;

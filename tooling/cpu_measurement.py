@@ -21,8 +21,6 @@ RECOMMENDED_PERCENT = 3.5
 
 def above_recommended(value):
     """A warning when a measurement exceeds the recommended share, else None."""
-    if value['block_percent'] <= RECOMMENDED_PERCENT:
-        return None
     where = ''
     if value.get('midpoint_percent') == value['block_percent']:
         where = 'at the midpoint'
@@ -49,7 +47,7 @@ def validate(value, kind, commit=None, legacy=True):
     `legacy`, a record from before the synth sweep is refused (new or updated entries)."""
     require(isinstance(value, dict), 'cpu: unexpected measurement fields')
     allowed = {BENCHMARKS.get(kind)} | ({LEGACY[kind]} if legacy and kind in LEGACY else set())
-    require(kind in BENCHMARKS and value.get('benchmark') in allowed,
+    require(kind in BENCHMARKS and isinstance(value.get('benchmark'), str) and value['benchmark'] in allowed,
             'cpu: benchmark must match the machine kind' +
             ('; synths submit a control sweep (docs/profiling.md)' if value.get('benchmark') == LEGACY.get(kind) else ''))
     sweep = value['benchmark'] == BENCHMARKS['synth']
