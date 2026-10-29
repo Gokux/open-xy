@@ -98,7 +98,10 @@ class Measurements(unittest.TestCase):
             # The evidence link is optional.
             unlinked = dict(entry['cpu']); del unlinked['report']
             catalog.validate(document(dict(entry, cpu=unlinked)))
-            for change in ({'commit': 'b'}, {'runs': True}, {'runs': 2}, {'block_percent': float('nan')},
+            # One capture is enough; a hundred is the most.
+            for runs in (1, 100):
+                catalog.validate(document(dict(entry, cpu=dict(entry['cpu'], runs=runs))))
+            for change in ({'commit': 'b'}, {'runs': True}, {'runs': 0}, {'runs': 101}, {'block_percent': float('nan')},
                            {'block_percent': 0}, {'block_percent': 100}, {'block_percent': True},
                            {'report': 'javascript:alert(1)'}, {'report': 'https://user:pass@example.com/x'},
                            {'firmware_sha256': 'x'}, {'benchmark': 'host-estimate'}, {'benchmark': []}):
@@ -184,13 +187,20 @@ class Measurements(unittest.TestCase):
         captures = [dict(mode='benchmark', package=identity, expected_cases=expected, complete=True,
                          errors=[], collector_sha256='d'*64, frames=frames, utc=str(i)) for i in range(3)]
         for name, kind in (('probesynth', 'synth'), ('probefx', 'effect'), ('probesample', 'sample')):
-            result, values, case, _runs, _combinations = aggregate(captures, expected, identity, name, 'e'*40,
+            result, values, case, _runs, _combinations, _silent = aggregate(captures, expected, identity, name, 'e'*40,
                                                                    measurement()['report'])
             self.assertEqual(result['benchmark'], cpu_measurement.BENCHMARKS[kind])
             self.assertAlmostEqual(result['block_percent'], 100000/65535, places=5)
+        # One capture is enough; a hundred is the most.
+        single = aggregate(captures[:1], expected, identity, 'probesynth', 'e'*40, None)[0]
+        self.assertEqual(single['runs'], 1)
+        many = [dict(captures[0], utc=str(i)) for i in range(101)]
+        self.assertEqual(aggregate(many[:100], expected, identity, 'probesynth', 'e'*40, None)[0]['runs'], 100)
+        with self.assertRaisesRegex(ValueError, '1 to 100'):
+            aggregate(many, expected, identity, 'probesynth', 'e'*40, None)
         # Without an evidence URL the record has no report link.
         self.assertNotIn('report', aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)[0])
-        broken = [captures[:2], [captures[0]]*3,
+        broken = [[], [captures[0]]*3,
                   [dict(captures[0], package={}), *captures[1:]],
                   [dict(captures[0], errors=['CRC']), *captures[1:]],
                   [dict(captures[0], complete=False), *captures[1:]],
@@ -198,6 +208,9 @@ class Measurements(unittest.TestCase):
         silent = copy.deepcopy(captures)
         silent[0]['frames'][-1]['payload_hex'] = '00' * 120
         broken.append(silent)
+        # A single capture is refused for the same faults.
+        broken += [[dict(captures[0], package={})], [dict(captures[0], errors=['CRC'])],
+                   [dict(captures[0], complete=False)], [dict(captures[0], frames=frames[:-1])], silent[:1]]
         for data in broken:
             with self.assertRaises(ValueError):
                 aggregate(data, expected, identity, 'probesample', 'e'*40, measurement()['report'])
@@ -212,7 +225,7 @@ class Measurements(unittest.TestCase):
         averages[own[-1]] = 2500          # every control at its heaviest position
         captures = [dict(mode='benchmark', package=identity, expected_cases=expected, complete=True, errors=[],
                          collector_sha256='d'*64, frames=[frame(a) for a in averages], utc=str(i)) for i in range(3)]
-        result, _values, _case, runs, combinations = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
+        result, _values, _case, runs, combinations, _silent = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
         self.assertAlmostEqual(result['block_percent'], 300000/65535, places=5)
         self.assertAlmostEqual(result['midpoint_percent'], 200000/65535, places=5)
         self.assertAlmostEqual(result['combined_percent'], 250000/65535, places=5)
@@ -237,9 +250,14 @@ class Measurements(unittest.TestCase):
         silent = list(averages)
         silent[own[1]] = 0
         captures = [dict(c, frames=[frame(a) for a in silent]) for c in captures]
-        result, _values, _case, runs, _combinations = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
+        result, _values, _case, runs, _combinations, silent_cases = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
         self.assertIn((expected[own[1]], None), runs)
+        self.assertEqual(silent_cases, [expected[own[1]]])
         self.assertNotEqual(result['worst_setting'], expected[own[1]]['setting'])
+        # One capture cannot tell a silenced voice from a failed run: it asks for a second.
+        with self.assertRaisesRegex(ValueError, 'Collect a second capture'):
+            aggregate(captures[:1], expected, identity, 'probesynth', 'e'*40, None)
+        aggregate(captures[:2], expected, identity, 'probesynth', 'e'*40, None)
         # A note that ended early (little activity) still timed its blocks: its cost counts.
         short = [dict(command=0x94, route=0x12, payload_hex=(struct.pack('>HHH', 3000, 5000, 5) * 20).hex())
                  if i == own[2] else frame(a) for i, a in enumerate(averages)]

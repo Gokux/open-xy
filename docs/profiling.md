@@ -45,18 +45,26 @@ The collector needs exactly one OP-XY MIDI input/output pair. It uses USB MIDI,
 not a serial/CDC port. No additional dev-menu toggle is needed after booting
 the installed development image normally.
 
-## Collect three runs
+## Collect a run
 
-Run these sequentially. Each output directory must be new. Each stock-workload
+One capture is enough: each run averages 1,500 blocks of a fixed workload, and
+repeated captures of the same build agree to within a few hundredths of a
+percent. A machine with randomness (noise, random modulation) may vary more:
+collect several, one after another, each to a new directory, and pass every
+capture to the report, which publishes their median (two give their average,
+so take three or more to outvote an outlier). Each stock-workload
 run takes about 2.2 seconds, so a sweep run takes longer: about 80 seconds for a
 synth with four controls. The collector waits for every expected report (by
 default up to 3 seconds per run plus 15) and stops early once they have arrived.
 
 ```sh
 python sdk.py profile benchmark --package <private>/cpu-build-001 --installed --greet --out <private>/cpu-run-001
-python sdk.py profile benchmark --package <private>/cpu-build-001 --installed --greet --out <private>/cpu-run-002
-python sdk.py profile benchmark --package <private>/cpu-build-001 --installed --greet --out <private>/cpu-run-003
 ```
+
+Never run two collectors at once: they share the OP-XY's one MIDI port pair.
+A swept setting that times nothing (a level at 0) is left out only when two
+or more captures agree it is silent, since a failed run reads silent too:
+`profile report` names it and asks for a second capture.
 
 `--installed` confirms that this exact package is on the device and your work is
 saved. Metadata identifies normal OS 1.2.1 but does not attest the installed image
@@ -82,7 +90,7 @@ folder. It verifies that the clean, committed machine source still matches the
 measured package.
 
 ```sh
-python sdk.py profile report --package <private>/cpu-build-001 --machine mymachine --capture <private>/cpu-run-001/capture.json --capture <private>/cpu-run-002/capture.json --capture <private>/cpu-run-003/capture.json --out <private>/cpu-report-001
+python sdk.py profile report --package <private>/cpu-build-001 --machine mymachine --capture <private>/cpu-run-001/capture.json --out <private>/cpu-report-001
 ```
 
 Copy the `cpu` member from `catalog-cpu.json` into your machine's entry in
@@ -99,8 +107,8 @@ firmware-containing packages.
 | `benchmark` | Versioned workload from the table below; must match the machine kind |
 | `commit` | Full machine source SHA, equal to the catalog entry's `commit` (or an earlier release's, when a maintainer approves carrying it over) |
 | `firmware_sha256` | Exact tested candidate OS image |
-| `runs` | 3 to 100 independent, complete captures of the same build and collector |
-| `block_percent` | Median of the per-run mean costs, as a percentage of the stock 580,352-cycle block budget. For a synth, its heaviest run: the median of each swept setting and of the midpoint run, the largest of them |
+| `runs` | 1 to 100 independent, complete captures of the same build and collector (one is enough) |
+| `block_percent` | The run's mean cost (the median across captures when there are several), as a percentage of the stock 580,352-cycle block budget. For a synth, its heaviest run: the median of each swept setting and of the midpoint run, the largest of them |
 | `midpoint_percent` | Synths: the midpoint run's median, stock's own workload |
 | `combined_percent` | Synths: the median of the run with every control at its heaviest position |
 | `worst_setting` | Synths: the heaviest swept setting: `control` (0-7), its `label`, and its Q31 `value` |

@@ -28,9 +28,11 @@ def aggregate(captures, expected, identity, name, commit, url):
     """The machine's record from complete runs: each of its runs' median across captures;
     a synth's record is its heaviest run, with the midpoint run, the combined run and
     the heaviest swept setting beside it. Returns the record, the published run's
-    per-capture values, the machine's standard case, every run's median by case and
-    the positions each capture's combined run used."""
-    require(3 <= len(captures) <= 100, 'Collect 3 to 100 independent runs')
+    per-capture values, the machine's standard case, every run's median by case, the
+    positions each capture's combined run used and the swept settings left out as
+    silent."""
+    # One capture is enough (docs/profiling.md); more publish their median.
+    require(1 <= len(captures) <= 100, 'Collect 1 to 100 independent runs')
     seen, collectors = set(), set()
     own = [c for c in expected if c['name'] == name and c['source'] == 'sdk']
     require(own and 'benchmark' in own[0], 'Machine is not in this diagnostic package')
@@ -71,9 +73,15 @@ def aggregate(captures, expected, identity, name, commit, url):
                 [(own[index]['setting'], results[index]['metrics'][case['metric']]['encoded_average'])
                  for index in settings]))
     require(len(collectors) == 1 and None not in collectors, 'Use the same collector for all runs')
-    # A setting silent in every capture is left out; one silent in only some failed there.
-    require(all(None not in runs or set(runs) == {None} for runs in values.values()),
+    # A swept setting is left out as silent only when two or more captures agree it is: a
+    # failed run reads silent too, and one capture cannot tell the two apart.
+    silent = [own[index] for index, runs in values.items() if None in runs]
+    require(all(set(runs) == {None} for runs in values.values() if None in runs),
             'A swept setting sounded in some runs but not others; collect the runs again')
+    require(not silent or len(captures) >= 2,
+            'Silent in this capture: ' + ', '.join(case_label(c) for c in silent) +
+            '. Collect a second capture to confirm each silences the voice (a level at 0); '
+            'a failed run reads silent too')
     medians = {index: round(statistics.median(runs), 6) for index, runs in values.items() if None not in runs}
     require(not swept or any(index in medians for index in settings), 'Every swept setting was silent')
     heaviest = max(medians, key=lambda index: (medians[index], -index))
@@ -88,7 +96,7 @@ def aggregate(captures, expected, identity, name, commit, url):
         measurement['report'] = url
     validate(measurement, case['kind'], commit, legacy=False)
     return (measurement, values[heaviest], case, [(own[index], medians.get(index)) for index in values],
-            combinations)
+            combinations, silent)
 
 
 def create(package, paths, name, url, out):
@@ -109,8 +117,8 @@ def create(package, paths, name, url, out):
     for path in files.values():
         catalog.git('ls-files', '--error-unmatch', '--', str(path.relative_to(machine.root)), cwd=machine.root)
     captures = [json.loads(Path(path).read_text()) for path in paths]
-    measurement, values, case, runs, combinations = aggregate(captures, report['benchmark_cases'], identity,
-                                                              name, commit, url)
+    measurement, values, case, runs, combinations, silent = aggregate(captures, report['benchmark_cases'],
+                                                                      identity, name, commit, url)
     destination = Path(out)
     require(not destination.exists(), 'Use a fresh report directory')
     destination.mkdir(parents=True)
@@ -119,9 +127,11 @@ def create(package, paths, name, url, out):
     warning = above_recommended(measurement)
     if 'worst_setting' in measurement:
         setting = measurement['worst_setting']
-        measured = sum(median is not None for _run, median in runs)
-        published = (f"Heaviest of {measured} measured runs (midpoint, then each control through its positions with the "
-                     f"others at their defaults), median of {len(values)} run means each: "
+        measured = sum(median is not None for run, median in runs if 'setting' in run)
+        each = 'from one capture' if len(values) == 1 else f'each the median of {len(values)} captures'
+        published = (f"Heaviest of the midpoint run, {measured} measured settings (each control through its "
+                     f"positions with the others at their defaults) and every control at its heaviest position, "
+                     f"{each}: "
                      f"**{measurement['block_percent']:.3f}%** of the stock 580,352-cycle block budget. "
                      f"Midpoint run: {measurement['midpoint_percent']:.3f}%. Every control at its heaviest "
                      f"position: {measurement['combined_percent']:.3f}%. Heaviest single setting: "
@@ -129,15 +139,22 @@ def create(package, paths, name, url, out):
         same = all(c == combinations[0] for c in combinations)
         together = (combined_label(combinations[0]) if same else 'combined (as read from the reports), differing '
                     'between runs: ' + '; '.join(', '.join(map(position, c)) for c in combinations))
-        table = ['| Setting | Median |', '| --- | ---: |']
+        table = ['| Setting | ' + ('Mean block budget' if len(values) == 1 else 'Median') + ' |', '| --- | ---: |']
         for run, median in runs:
             label = together if run.get('combined') else case_label(run)
             table.append(f'| {label} | ' + ('silent, left out' if median is None else f'{median:.3f}%') + ' |')
         published += '\n\n' + '\n'.join(table)
+        if silent:
+            published += ('\n\nLeft out as silent in every capture: ' + ', '.join(map(case_label, silent)) +
+                          '. Each should silence the voice (a level at 0).')
         limits = 'maximum polyphony or other combinations of control settings. '
     else:
-        published = (f"Median of {len(values)} run means: **{measurement['block_percent']:.3f}%** of the stock "
-                     f"580,352-cycle block budget. Run means: {', '.join(f'{v:.3f}%' for v in values)}.")
+        if len(values) == 1:
+            published = (f"One capture: **{measurement['block_percent']:.3f}%** of the stock 580,352-cycle "
+                         "block budget.")
+        else:
+            published = (f"Median of {len(values)} run means: **{measurement['block_percent']:.3f}%** of the stock "
+                         f"580,352-cycle block budget. Run means: {', '.join(f'{v:.3f}%' for v in values)}.")
         limits = 'maximum polyphony or a settings sweep. '
     advice = f'**Warning: {warning}.**' if warning else 'Within it.'
     text = (f"# {name}: hardware CPU measurement\n\n"
@@ -155,5 +172,7 @@ def create(package, paths, name, url, out):
             "the device does not attest its firmware hash. Raw captures remain private because they contain device identity.\n")
     if warning:
         print('WARNING: ' + name + ': ' + warning)
+    if silent:
+        print(f'NOTE: {name}: left out as silent in every capture: ' + ', '.join(map(case_label, silent)))
     (destination / 'report.md').write_text(text, encoding='utf-8')
     return destination

@@ -4,8 +4,8 @@ Each side is a profiling package and its benchmark captures (docs/profiling.md).
 benchmark case the two sides share, by name, it prints each recorded stage's median share of
 the stock block budget and the change. Offline; reads private captures, prints no device identity.
 
-    python tools/cpu_compare.py --a <private>/cpu-build-1.2.0 <run-001> <run-002> <run-003> \\
-                                --b <private>/cpu-build-1.2.1 <run-001> <run-002> <run-003>
+    python tools/cpu_compare.py --a <private>/cpu-build-1.2.0 <run-001> [<run-002> ...] \\
+                                --b <private>/cpu-build-1.2.1 <run-001> [<run-002> ...]
 """
 import argparse
 import json
