@@ -7,7 +7,8 @@ using namespace opxy::platform;
 extern "C" {
 void sdk_benchmark_run() __asm__("sdk_benchmark_run");
 // While set, the synth whose engine ID is sdk_benchmark_engine renders with these
-// controls (voice.cpp.in); every other voice keeps its own.
+// controls (voice.cpp.in); other machines' voices keep their own. The diagnostic runs
+// with playback stopped (docs/profiling.md), so no track of that synth is sounding.
 const i32* volatile sdk_benchmark_parameters __asm__("sdk_benchmark_parameters") = nullptr;
 const char* volatile sdk_benchmark_engine __asm__("sdk_benchmark_engine") = nullptr;
 @DECLARATIONS@

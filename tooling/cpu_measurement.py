@@ -49,7 +49,8 @@ def validate(value, kind, commit=None, legacy=True):
     allowed = {BENCHMARKS.get(kind)} | ({LEGACY[kind]} if legacy and kind in LEGACY else set())
     require(kind in BENCHMARKS and isinstance(value.get('benchmark'), str) and value['benchmark'] in allowed,
             'cpu: benchmark must match the machine kind' +
-            ('; synths submit a control sweep (docs/profiling.md)' if value.get('benchmark') == LEGACY.get(kind) else ''))
+            ('; synths submit a control sweep (docs/profiling.md)'
+             if kind in LEGACY and value.get('benchmark') == LEGACY[kind] else ''))
     sweep = value['benchmark'] == BENCHMARKS['synth']
     require(set(value) - {'report'} == (SWEEP_FIELDS if sweep else FIELDS), 'cpu: unexpected measurement fields')
     require(isinstance(value['commit'], str) and re.fullmatch(r'[0-9a-f]{40}', value['commit']),

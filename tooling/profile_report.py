@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import statistics
 
-from .benchmark import case_label, combined_positions, decode, position
+from .benchmark import case_label, combined_label, combined_positions, decode, position
 from .cpu_measurement import BENCHMARKS, RECOMMENDED_PERCENT, above_recommended, validate
 from .formats import require, sha
 
@@ -75,7 +75,7 @@ def aggregate(captures, expected, identity, name, commit, url):
     if swept:
         worst = max((index for index in settings if index in medians), key=lambda index: (medians[index], -index))
         measurement.update(midpoint_percent=medians[0], combined_percent=medians[combined],
-                           worst_setting=own[worst]['setting'])
+                           worst_setting={key: own[worst]['setting'][key] for key in ('control', 'label', 'value')})
     if url is not None:
         measurement['report'] = url
     validate(measurement, case['kind'], commit, legacy=False)
@@ -111,18 +111,19 @@ def create(package, paths, name, url, out):
     warning = above_recommended(measurement)
     if 'worst_setting' in measurement:
         setting = measurement['worst_setting']
-        published = (f"Heaviest of {len(runs)} runs (midpoint, then each control through its positions with the "
+        measured = sum(median is not None for _run, median in runs)
+        published = (f"Heaviest of {measured} measured runs (midpoint, then each control through its positions with the "
                      f"others at their defaults), median of {len(values)} run means each: "
                      f"**{measurement['block_percent']:.3f}%** of the stock 580,352-cycle block budget. "
                      f"Midpoint run: {measurement['midpoint_percent']:.3f}%. Every control at its heaviest "
                      f"position: {measurement['combined_percent']:.3f}%. Heaviest single setting: "
                      f"{position(setting)}.")
         same = all(c == combinations[0] for c in combinations)
-        together = (', '.join(map(position, combinations[0])) if same else
-                    'positions differ between runs: ' + '; '.join(', '.join(map(position, c)) for c in combinations))
+        together = (combined_label(combinations[0]) if same else 'combined (as read from the reports), differing '
+                    'between runs: ' + '; '.join(', '.join(map(position, c)) for c in combinations))
         table = ['| Setting | Median |', '| --- | ---: |']
         for run, median in runs:
-            label = case_label(run) + (' (as read from the reports): ' + together if run.get('combined') else '')
+            label = together if run.get('combined') else case_label(run)
             table.append(f'| {label} | ' + ('silent, left out' if median is None else f'{median:.3f}%') + ' |')
         published += '\n\n' + '\n'.join(table)
         limits = 'maximum polyphony or other combinations of control settings. '

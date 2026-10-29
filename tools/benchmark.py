@@ -259,7 +259,7 @@ def main(argv=None):
         results = {'package': package_identity, 'engines': decoded, 'normalization': '100 * encoded average / 65535; stock 580352-cycle block budget', 'workload': 'Versioned workloads in docs/profiling.md; synth: stock note 60/midpoint, then in a sweep build each control through its positions; effect/sample: isolated default-setting callback fixtures', 'limitations': ['Synthetic test, not live project utilization or maximum polyphony.', 'Results assigned by build order and exact packet count; device firmware hash is not attested.', 'Machine settings affect cost; a sweep moves one control at a time, then combines each control at its heaviest position; other combinations and presets are not run.', 'Graphics are excluded. Effect/sample callback tests exclude stock mixing, preparation and allocation.', 'Whole voice includes oscillator; do not add the two.', 'A maximum of 65535 is clipped; insufficient voice activity is flagged.']}
         (a.out / 'results.json').write_text(json.dumps(results, indent=2), encoding='utf-8')
         from tooling.cpu_measurement import recommendation
-        from tooling.benchmark import case_label, combined_positions, position
+        from tooling.benchmark import case_label, combined_label, combined_positions
         lines = ['| Machine | Scope | Setting | Mean block budget |', '| --- | --- | --- | ---: |']
         heaviest, swept = {}, {}
         for item in decoded:
@@ -272,14 +272,14 @@ def main(argv=None):
             setting = case.get('setting')
             if setting:
                 swept.setdefault(case['name'], []).append((setting, metric['encoded_average']))
-            label = case_label(case)
-            if case.get('combined'):
-                label += ' (as read from the reports): ' + ', '.join(
-                    map(position, combined_positions(swept.get(case['name'], []))))
+            label = (combined_label(combined_positions(swept.get(case['name'], []))) if case.get('combined')
+                     else case_label(case))
             lines.append(f"| {case['name']}{suffix} | {scope} | {label} | {value:.3f}% |")
-            failed = item['insufficient_voice_activity'] or metric['encoded_average'] >= 65535
-            if case.get('source') == 'sdk' and not failed and value > heaviest.get(case['name'], (0, ''))[0]:
-                heaviest[case['name']] = (value, label)
+            # A silent run says nothing about cost; a saturated one is the heaviest of all.
+            if case.get('source') == 'sdk' and not item['insufficient_voice_activity'] and \
+                    value > heaviest.get(case['name'], (0, ''))[0]:
+                heaviest[case['name']] = (value, label + (' (saturated: at or above the whole budget)'
+                                                          if metric['encoded_average'] >= 65535 else ''))
         lines.append('')
         for name, (value, label) in heaviest.items():
             warning = recommendation(value, 'at ' + label)
