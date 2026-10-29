@@ -114,6 +114,13 @@ class Measurements(unittest.TestCase):
                        {'worst_setting': dict(control=1, label='Tone')}):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 catalog.validate(document(dict(entry, cpu=dict(entry['cpu'], **change))))
+        # A list control's heaviest setting keeps its option name.
+        listed = dict(entry['cpu'], worst_setting=dict(control=1, label='Octave', value=7, option='+2'))
+        catalog.validate(document(dict(entry, cpu=listed)))
+        self.assertIn('Octave +2', cpu_measurement.above_recommended(listed))
+        for option in ('', 7, 'x' * 33):
+            with self.subTest(option=option), self.assertRaises(ValueError):
+                catalog.validate(document(dict(entry, cpu=dict(listed, worst_setting=dict(listed['worst_setting'], option=option)))))
         # Records from before the sweep stay valid in the catalog.
         catalog.validate(document(dict(entry, cpu=legacy_synth())))
         for kind in ('effect', 'sample'):

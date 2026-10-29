@@ -2,6 +2,7 @@
 from pathlib import Path
 import struct
 
+from .cpu import control_defaults, sweep
 from .pipeline import ROOT
 from .formats import require
 
@@ -19,7 +20,6 @@ def sweep_settings(m):
     option's name for a list control, else None): each control through its positions
     (cpu.sweep, as the host estimate times them); the firmware runs each with the other
     controls at their defaults (cpu.control_defaults)."""
-    from .cpu import sweep
     result = []
     for control, p in enumerate(m.definition['parameters']):
         options = p['mapping']['labels'] if p['mapping']['kind'] == 'enum' else None
@@ -37,7 +37,7 @@ def cases(machines, sweep=False):
         case = dict(name=m.id, engine=m.identity.get('engine', m.identity.get('effect')), source='sdk',
                     kind=m.kind, benchmark=METHODS[m.kind][0], metric=METHODS[m.kind][1])
         result.append(case)
-        if sweep and m.kind == 'synth':
+        if sweep and m.kind == 'synth' and sweep_settings(m):
             result += [dict(case, benchmark=SWEEP, setting=dict(control=control, label=label, value=value,
                                                                 **({'option': option} if option else {})))
                        for control, label, value, option in sweep_settings(m)]
@@ -91,10 +91,9 @@ def combined_positions(results):
 
 
 def generate(directory, machines, sweep=False):
-    from .cpu import control_defaults
     declarations, rows, settings, defaults = [], [], [], []
     for index, m in enumerate(machines):
-        if sweep and m.kind == 'synth':
+        if sweep and m.kind == 'synth' and sweep_settings(m):
             # A row per setting holds only its control and value; the defaults beside it
             # are one row per machine.
             defaults.append('    {%d, {%s}},' % (index, ', '.join(map(str, control_defaults(m.definition['parameters'])))))
@@ -145,7 +144,6 @@ def decode(capture, expected):
 def append_callback(path, m):
     """Compile the diagnostic beside the real callback, without duplicating author code."""
     resources = m.definition['resources']
-    from .cpu import control_defaults
     values = dict(PREFIX=m.prefix, NAMESPACE=m.id, DEFAULTS=', '.join(map(str, control_defaults(m.definition['parameters']))))
     if m.kind == 'effect':
         size = resources.get('bufferBytes', 0)

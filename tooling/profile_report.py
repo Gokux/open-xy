@@ -37,7 +37,8 @@ def aggregate(captures, expected, identity, name, commit, url):
     case = own[0]
     swept = own[1:]
     require(case['kind'] != 'synth' or swept,
-            'A synth record is a control sweep: rebuild the package with --sweep on (the default with profiling)')
+            'A synth record is a control sweep: rebuild the package with --sweep on (the default with profiling); '
+            'a synth with no controls has nothing to sweep, so ask a catalog maintainer')
     settings = [index for index, c in enumerate(own) if 'setting' in c]
     combined = next((index for index, c in enumerate(own) if c.get('combined')), None)
     require(not swept or (settings and combined is not None), 'Incomplete control sweep in this package')
@@ -53,7 +54,9 @@ def aggregate(captures, expected, identity, name, commit, url):
         results = [r for r in decode(capture, expected) if r['machine'] in own]
         for index, result in enumerate(results):
             metric = result['metrics'][case['metric']]
-            require(metric['encoded_average'] < 65535, 'Saturated workload; do not publish a CPU number')
+            require(metric['encoded_average'] < 65535,
+                    f"{name} saturated the block budget ({case_label(own[index])}): it is above the whole "
+                    'budget there, so no CPU number can be published; make that path lighter')
             active = not result['insufficient_voice_activity'] and metric['encoded_average'] > 0
             # A swept setting may silence the voice (a level at 0): it is left out, not refused.
             require(active or index in settings, 'Inactive or failed workload; do not publish a CPU number')
@@ -75,7 +78,7 @@ def aggregate(captures, expected, identity, name, commit, url):
     if swept:
         worst = max((index for index in settings if index in medians), key=lambda index: (medians[index], -index))
         measurement.update(midpoint_percent=medians[0], combined_percent=medians[combined],
-                           worst_setting={key: own[worst]['setting'][key] for key in ('control', 'label', 'value')})
+                           worst_setting=own[worst]['setting'])
     if url is not None:
         measurement['report'] = url
     validate(measurement, case['kind'], commit, legacy=False)

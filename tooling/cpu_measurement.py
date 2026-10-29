@@ -2,6 +2,7 @@
 import math
 import re
 
+from .benchmark import position
 from .formats import require
 
 # What a new or updated submission measures, per kind. A synth's record is its control
@@ -27,7 +28,6 @@ def above_recommended(value):
     elif value.get('combined_percent') == value['block_percent']:
         where = 'with every control at its heaviest position'
     elif 'worst_setting' in value:
-        from .benchmark import position
         where = 'at ' + position(value['worst_setting'])
     return recommendation(value['block_percent'], where)
 
@@ -65,11 +65,13 @@ def validate(value, kind, commit=None, legacy=True):
                 f'cpu: {field} must be an unsaturated, positive percentage of the stock block budget')
     if sweep:
         setting = value['worst_setting']
-        require(isinstance(setting, dict) and set(setting) == {'control', 'label', 'value'} and
+        require(isinstance(setting, dict) and set(setting) - {'option'} == {'control', 'label', 'value'} and
                 type(setting['control']) is int and 0 <= setting['control'] < 8 and
                 isinstance(setting['label'], str) and 0 < len(setting['label']) <= 32 and
-                type(setting['value']) is int and 0 <= setting['value'] <= 0x7fffffff,
-                'cpu: worst_setting names the heaviest control, its label and Q31 value')
+                type(setting['value']) is int and 0 <= setting['value'] <= 0x7fffffff and
+                ('option' not in setting or isinstance(setting['option'], str) and 0 < len(setting['option']) <= 32),
+                'cpu: worst_setting names the heaviest control, its label and Q31 value '
+                '(and a list control\'s option)')
         require(max(value['midpoint_percent'], value['combined_percent']) <= value['block_percent'],
                 'cpu: block_percent is the heaviest run, the midpoint and combined runs included')
     if 'report' in value:

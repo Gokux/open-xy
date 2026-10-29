@@ -160,8 +160,8 @@ def main(argv=None):
         stopping = False
         while time.monotonic() < end:
             if reports is not None and received_reports >= reports and not stopping:
-                # Listen a little longer than one run, so an extra report is still refused.
-                end, stopping = min(end, time.monotonic() + 4), True
+                # Listen several runs longer, so an extra report is still refused.
+                end, stopping = min(end, time.monotonic() + 10), True
             got = incoming.get_message()
             if got is None:
                 time.sleep(0.002)
