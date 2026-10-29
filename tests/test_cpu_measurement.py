@@ -133,6 +133,9 @@ class Measurements(unittest.TestCase):
             catalog.changes([entry], [dict(entry, cpu=legacy_synth())])
         legacy = dict(entry, cpu=legacy_synth())
         catalog.changes([legacy], [legacy])  # unchanged, it stays
+        # Linking its evidence later is not a new measurement.
+        unlinked = dict(legacy, cpu={k: v for k, v in legacy['cpu'].items() if k != 'report'})
+        catalog.changes([unlinked], [legacy])
         # Publishing a draft at the same commit keeps its older record.
         catalog.changes([dict(legacy, status='draft')], [legacy])
         # A maintainer may let an update carry the older record over.
@@ -233,6 +236,13 @@ class Measurements(unittest.TestCase):
         result, _values, _case, runs, _combinations = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
         self.assertIn((expected[own[1]], None), runs)
         self.assertNotEqual(result['worst_setting'], expected[own[1]]['setting'])
+        # A note that ended early (little activity) still timed its blocks: its cost counts.
+        short = [dict(command=0x94, route=0x12, payload_hex=(struct.pack('>HHH', 3000, 5000, 5) * 20).hex())
+                 if i == own[2] else frame(a) for i, a in enumerate(averages)]
+        brief = [dict(c, frames=short) for c in captures]
+        result = aggregate(brief, expected, identity, 'probesynth', 'e'*40, None)[0]
+        self.assertAlmostEqual(result['block_percent'], 500000/65535, places=5)
+        self.assertEqual(result['worst_setting'], expected[own[2]]['setting'])
         # Silent in only one capture: that run failed, and the sweep is refused rather than understated.
         flaky = [dict(c, frames=[frame(a) for a in (silent if i == 0 else averages)]) for i, c in enumerate(captures)]
         with self.assertRaisesRegex(ValueError, 'some runs but not others'):

@@ -57,9 +57,14 @@ def aggregate(captures, expected, identity, name, commit, url):
             require(metric['encoded_average'] < 65535,
                     f"{name} saturated the block budget ({case_label(own[index])}): it is above the whole "
                     'budget there, so no CPU number can be published; make that path lighter')
-            active = not result['insufficient_voice_activity'] and metric['encoded_average'] > 0
-            # A swept setting may silence the voice (a level at 0): it is left out, not refused.
-            require(active or index in settings, 'Inactive or failed workload; do not publish a CPU number')
+            # The standard and combined runs must sound. A swept setting may silence the voice
+            # (a level at 0): with nothing timed it is left out, not refused; one whose note
+            # merely ended early still timed its blocks, and its cost counts.
+            if index in settings:
+                active = metric['encoded_average'] > 0
+            else:
+                active = not result['insufficient_voice_activity'] and metric['encoded_average'] > 0
+                require(active, 'Inactive or failed workload; do not publish a CPU number')
             values[index].append(metric['average_budget_percent'] if active else None)
         if swept:
             combinations.append(combined_positions(

@@ -37,10 +37,11 @@ def cases(machines, sweep=False):
         case = dict(name=m.id, engine=m.identity.get('engine', m.identity.get('effect')), source='sdk',
                     kind=m.kind, benchmark=METHODS[m.kind][0], metric=METHODS[m.kind][1])
         result.append(case)
-        if sweep and m.kind == 'synth' and sweep_settings(m):
+        swept = sweep_settings(m) if sweep and m.kind == 'synth' else []
+        if swept:
             result += [dict(case, benchmark=SWEEP, setting=dict(control=control, label=label, value=value,
                                                                 **({'option': option} if option else {})))
-                       for control, label, value, option in sweep_settings(m)]
+                       for control, label, value, option in swept]
             result.append(dict(case, benchmark=SWEEP, combined=True))
     return result
 
@@ -93,12 +94,13 @@ def combined_positions(results):
 def generate(directory, machines, sweep=False):
     declarations, rows, settings, defaults = [], [], [], []
     for index, m in enumerate(machines):
-        if sweep and m.kind == 'synth' and sweep_settings(m):
+        swept = sweep_settings(m) if sweep and m.kind == 'synth' else []
+        if swept:
             # A row per setting holds only its control and value; the defaults beside it
             # are one row per machine.
             defaults.append('    {%d, {%s}},' % (index, ', '.join(map(str, control_defaults(m.definition['parameters'])))))
             settings += ['    {%d, %d, %d},' % (index, control, value)
-                         for control, _label, value, _option in sweep_settings(m)]
+                         for control, _label, value, _option in swept]
         p = m.prefix
         id_symbol = p + ('_fx_id' if m.kind == 'effect' else '_engine_id')
         declarations += [f'int {p}_ready() __asm__("{p}_ready");',
