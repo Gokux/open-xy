@@ -5,14 +5,15 @@ import re
 from .formats import require
 
 # What a new or updated submission measures, per kind. A synth's record is its control
-# sweep: block_percent its heaviest run, midpoint_percent stock's midpoint run, and
-# worst_setting the heaviest swept setting.
+# sweep: block_percent its heaviest run, midpoint_percent stock's midpoint run,
+# combined_percent the run with every control at its heaviest position, and
+# worst_setting the heaviest single swept setting.
 BENCHMARKS = {'synth': 'opxy-synth-c8-sweep-v1', 'effect': 'opxy-effect-callback-v1',
               'sample': 'opxy-sample-callback-v1'}
 # Records from before the sweep, kept by entries that have not changed since.
 LEGACY = {'synth': 'opxy-synth-c8-v1'}
 FIELDS = {'benchmark', 'commit', 'firmware_sha256', 'runs', 'block_percent'}
-SWEEP_FIELDS = FIELDS | {'midpoint_percent', 'worst_setting'}
+SWEEP_FIELDS = FIELDS | {'midpoint_percent', 'combined_percent', 'worst_setting'}
 # The share of the stock block budget a machine should stay within (docs/profiling.md).
 # Above it a machine is still accepted, with a warning.
 RECOMMENDED_PERCENT = 3.5
@@ -23,7 +24,11 @@ def above_recommended(value):
     if value['block_percent'] <= RECOMMENDED_PERCENT:
         return None
     where = ''
-    if 'worst_setting' in value:
+    if value.get('combined_percent') == value['block_percent']:
+        where = ' with every control at its heaviest position'
+    elif value.get('midpoint_percent') == value['block_percent']:
+        where = ' at the midpoint'
+    elif 'worst_setting' in value:
         setting = value['worst_setting']
         where = f" at {setting['label']} {100 * setting['value'] / 0x7fffffff:.1f}%"
     return (f"{value['block_percent']:.3f}% of the block budget{where} is above the recommended "
@@ -48,7 +53,7 @@ def validate(value, kind, commit=None, legacy=True):
     require(isinstance(value['firmware_sha256'], str) and re.fullmatch(r'[0-9a-f]{64}', value['firmware_sha256']),
             'cpu: firmware_sha256 must identify the measured build')
     require(type(value['runs']) is int and 3 <= value['runs'] <= 100, 'cpu: use 3 to 100 independent runs')
-    for field in ('block_percent', 'midpoint_percent') if sweep else ('block_percent',):
+    for field in ('block_percent', 'midpoint_percent', 'combined_percent') if sweep else ('block_percent',):
         number = value[field]
         require(type(number) in (int, float) and math.isfinite(number) and 0 < number < 100,
                 f'cpu: {field} must be an unsaturated, positive percentage of the stock block budget')
@@ -59,8 +64,8 @@ def validate(value, kind, commit=None, legacy=True):
                 isinstance(setting['label'], str) and 0 < len(setting['label']) <= 32 and
                 type(setting['value']) is int and 0 <= setting['value'] <= 0x7fffffff,
                 'cpu: worst_setting names the heaviest control, its label and Q31 value')
-        require(value['midpoint_percent'] <= value['block_percent'],
-                'cpu: block_percent is the heaviest run, the midpoint run included')
+        require(max(value['midpoint_percent'], value['combined_percent']) <= value['block_percent'],
+                'cpu: block_percent is the heaviest run, the midpoint and combined runs included')
     if 'report' in value:
         require(isinstance(value['report'], str) and len(value['report']) <= 2048 and
                 re.fullmatch(REPORT_URL, value['report']), 'cpu: report must be a public HTTPS evidence URL')

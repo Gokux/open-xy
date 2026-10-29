@@ -247,20 +247,27 @@ def main(argv=None):
         (a.out / 'messages.txt').write_text('\n'.join((f['text'] for f in record['frames'])), encoding='utf-8')
     if expected is not None:
         decoded = decode(record, expected)
-        results = {'package': package_identity, 'engines': decoded, 'normalization': '100 * encoded average / 65535; stock 580352-cycle block budget', 'workload': 'Versioned workloads in docs/profiling.md; synth: stock note 60/midpoint, then in a sweep build each control through its positions; effect/sample: isolated default-setting callback fixtures', 'limitations': ['Synthetic test, not live project utilization or maximum polyphony.', 'Results assigned by build order and exact packet count; device firmware hash is not attested.', 'Machine settings affect cost; a sweep moves one control at a time, not presets or combinations.', 'Graphics are excluded. Effect/sample callback tests exclude stock mixing, preparation and allocation.', 'Whole voice includes oscillator; do not add the two.', 'A maximum of 65535 is clipped; insufficient voice activity is flagged.']}
+        results = {'package': package_identity, 'engines': decoded, 'normalization': '100 * encoded average / 65535; stock 580352-cycle block budget', 'workload': 'Versioned workloads in docs/profiling.md; synth: stock note 60/midpoint, then in a sweep build each control through its positions; effect/sample: isolated default-setting callback fixtures', 'limitations': ['Synthetic test, not live project utilization or maximum polyphony.', 'Results assigned by build order and exact packet count; device firmware hash is not attested.', 'Machine settings affect cost; a sweep moves one control at a time, then combines each control at its heaviest position; other combinations and presets are not run.', 'Graphics are excluded. Effect/sample callback tests exclude stock mixing, preparation and allocation.', 'Whole voice includes oscillator; do not add the two.', 'A maximum of 65535 is clipped; insufficient voice activity is flagged.']}
         (a.out / 'results.json').write_text(json.dumps(results, indent=2), encoding='utf-8')
         from tooling.cpu_measurement import RECOMMENDED_PERCENT
+        from tooling.benchmark import combined_positions, position
         lines = ['| Machine | Scope | Setting | Mean block budget |', '| --- | --- | --- | ---: |']
-        heaviest = {}
+        heaviest, swept = {}, {}
         for item in decoded:
             metrics = item['metrics']
             suffix = ' (insufficient activity)' if item['insufficient_voice_activity'] else ''
             case = item['machine']
             scope = 'whole voice' if case.get('kind', 'synth') == 'synth' else case['kind'] + ' callback'
-            value = metrics[case.get('metric', 5)]['average_budget_percent']
+            metric = metrics[case.get('metric', 5)]
+            value = metric['average_budget_percent']
             setting = case.get('setting')
-            label = f"{setting['label']} {100 * setting['value'] / 0x7fffffff:.1f}%" if setting else (
-                'midpoint (stock)' if case.get('kind', 'synth') == 'synth' else 'defaults')
+            if setting:
+                swept.setdefault(case['name'], []).append((setting, metric['encoded_average']))
+            if case.get('combined'):
+                label = 'combined: ' + ', '.join(map(position, combined_positions(swept.get(case['name'], []))))
+            else:
+                label = position(setting) if setting else (
+                    'midpoint (stock)' if case.get('kind', 'synth') == 'synth' else 'defaults')
             lines.append(f"| {case['name']}{suffix} | {scope} | {label} | {value:.3f}% |")
             if case.get('source') == 'sdk' and value > heaviest.get(case['name'], (0, ''))[0]:
                 heaviest[case['name']] = (value, label)

@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import statistics
 
-from .benchmark import decode
+from .benchmark import combined_positions, decode, position
 from .cpu_measurement import BENCHMARKS, RECOMMENDED_PERCENT, above_recommended, validate
 from .formats import require, sha
 
@@ -26,9 +26,10 @@ def package_data(package):
 
 def aggregate(captures, expected, identity, name, commit, url):
     """The machine's record from complete runs: each of its runs' median across captures;
-    a synth's record is its heaviest run, with the midpoint run and the heaviest swept
-    setting beside it. Returns the record, the published run's per-capture values, the
-    machine's standard case and every run's median, by case."""
+    a synth's record is its heaviest run, with the midpoint run, the combined run and
+    the heaviest swept setting beside it. Returns the record, the published run's
+    per-capture values, the machine's standard case, every run's median by case and
+    the positions each capture's combined run used."""
     require(3 <= len(captures) <= 100, 'Collect 3 to 100 independent runs')
     seen, collectors = set(), set()
     own = [c for c in expected if c['name'] == name and c['source'] == 'sdk']
@@ -37,7 +38,11 @@ def aggregate(captures, expected, identity, name, commit, url):
     swept = own[1:]
     require(case['kind'] != 'synth' or swept,
             'A synth record is a control sweep: rebuild the package with --sweep on (the default with profiling)')
+    settings = [index for index, c in enumerate(own) if 'setting' in c]
+    combined = next((index for index, c in enumerate(own) if c.get('combined')), None)
+    require(not swept or (settings and combined is not None), 'Incomplete control sweep in this package')
     values = {index: [] for index in range(len(own))}
+    combinations = []
     for capture in captures:
         fingerprint = sha(json.dumps(capture, sort_keys=True).encode())
         require(fingerprint not in seen, 'Do not reuse a capture as another run')
@@ -51,6 +56,10 @@ def aggregate(captures, expected, identity, name, commit, url):
             require(not result['insufficient_voice_activity'] and 0 < metric['encoded_average'] < 65535,
                     'Inactive, failed or saturated workload; do not publish a CPU number')
             values[index].append(metric['average_budget_percent'])
+        if swept:
+            combinations.append(combined_positions(
+                [(own[index]['setting'], results[index]['metrics'][case['metric']]['encoded_average'])
+                 for index in settings]))
     require(len(collectors) == 1 and None not in collectors, 'Use the same collector for all runs')
     medians = {index: round(statistics.median(runs), 6) for index, runs in values.items()}
     heaviest = max(medians, key=lambda index: (medians[index], -index))
@@ -58,12 +67,14 @@ def aggregate(captures, expected, identity, name, commit, url):
                        firmware_sha256=identity['firmware_sha256'], runs=len(captures),
                        block_percent=medians[heaviest])
     if swept:
-        worst = max(range(1, len(own)), key=lambda index: (medians[index], -index))
-        measurement.update(midpoint_percent=medians[0], worst_setting=own[worst]['setting'])
+        worst = max(settings, key=lambda index: (medians[index], -index))
+        measurement.update(midpoint_percent=medians[0], combined_percent=medians[combined],
+                           worst_setting=own[worst]['setting'])
     if url is not None:
         measurement['report'] = url
     validate(measurement, case['kind'], commit, legacy=False)
-    return measurement, values[heaviest], case, [(own[index], medians[index]) for index in medians]
+    return (measurement, values[heaviest], case, [(own[index], medians[index]) for index in medians],
+            combinations)
 
 
 def create(package, paths, name, url, out):
@@ -84,7 +95,8 @@ def create(package, paths, name, url, out):
     for path in files.values():
         catalog.git('ls-files', '--error-unmatch', '--', str(path.relative_to(machine.root)), cwd=machine.root)
     captures = [json.loads(Path(path).read_text()) for path in paths]
-    measurement, values, case, runs = aggregate(captures, report['benchmark_cases'], identity, name, commit, url)
+    measurement, values, case, runs, combinations = aggregate(captures, report['benchmark_cases'], identity,
+                                                              name, commit, url)
     destination = Path(out)
     require(not destination.exists(), 'Use a fresh report directory')
     destination.mkdir(parents=True)
@@ -96,15 +108,19 @@ def create(package, paths, name, url, out):
         published = (f"Heaviest of {len(runs)} runs (midpoint, then each control through its positions with the "
                      f"others at their defaults), median of {len(values)} run means each: "
                      f"**{measurement['block_percent']:.3f}%** of the stock 580,352-cycle block budget. "
-                     f"Midpoint run: {measurement['midpoint_percent']:.3f}%. Heaviest setting: "
-                     f"{setting['label']} at {100 * setting['value'] / 0x7fffffff:.1f}%.")
+                     f"Midpoint run: {measurement['midpoint_percent']:.3f}%. Every control at its heaviest "
+                     f"position: {measurement['combined_percent']:.3f}%. Heaviest single setting: "
+                     f"{position(setting)}.")
+        same = all(c == combinations[0] for c in combinations)
+        together = (', '.join(map(position, combinations[0])) if same else
+                    'positions differ between runs: ' + '; '.join(', '.join(map(position, c)) for c in combinations))
         table = ['| Setting | Median |', '| --- | ---: |']
         for run, median in runs:
-            label = ('midpoint (stock)' if 'setting' not in run else
-                     f"{run['setting']['label']} {100 * run['setting']['value'] / 0x7fffffff:.1f}%")
+            label = ('combined: ' + together if run.get('combined') else
+                     position(run['setting']) if 'setting' in run else 'midpoint (stock)')
             table.append(f'| {label} | {median:.3f}% |')
         published += '\n\n' + '\n'.join(table)
-        limits = 'maximum polyphony or combined control settings. '
+        limits = 'maximum polyphony or other combinations of control settings. '
     else:
         published = (f"Median of {len(values)} run means: **{measurement['block_percent']:.3f}%** of the stock "
                      f"580,352-cycle block budget. Run means: {', '.join(f'{v:.3f}%' for v in values)}.")

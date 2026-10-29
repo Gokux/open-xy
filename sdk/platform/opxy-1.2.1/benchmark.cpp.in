@@ -21,13 +21,22 @@ const Machine machines[] = {
 };
 // A build with --sweep: after a synth's standard run, one run per setting, each
 // control in turn through its positions with the others at their defaults
-// (tooling/benchmark.py sweep). `machine` indexes machines[]; none otherwise.
-struct Setting { u32 machine; i32 controls[8]; };
+// (tooling/benchmark.py sweep), then one with every control at the position that
+// ran heaviest. `machine` indexes machines[]; none otherwise.
+struct Setting { u32 machine; u32 control; i32 controls[8]; };
 const u32 kNoMachine = 0xffffffffu;
 const Setting settings[] = {
 @SETTINGS@
-    {kNoMachine, {0}}
+    {kNoMachine, 0, {0}}
 };
+// The whole-voice timing record (metric 5) a stock run leaves behind until the next
+// one clears it: its total cycles over a fixed block count, so totals compare.
+struct Total { u32 high, low; };
+Total whole_voice_total() {
+    volatile u32* record = at<volatile u32>(0x08034f3c + 0x2c * 5);
+    return {record[9], record[8]};
+}
+bool heavier(Total a, Total b) { return a.high != b.high ? a.high > b.high : a.low > b.low; }
 // 0x8d57c848: stock benchmark-one(controller, record, index, total).
 // It sets knobs 0..3 to midpoint, holds note 60/velocity 127 for 1000
 // 64-sample blocks, releases for 500, and emits one 120-byte report.
@@ -69,8 +78,10 @@ void sdk_benchmark_run() {
     for (u32 i = 0; machines[i].ready; ++i) {
         if (machines[i].ready() != 1) continue;
         ++total;
+        bool swept = false;
         for (const Setting* s = settings; s->machine != kNoMachine; ++s)
-            if (s->machine == i) ++total;
+            if (s->machine == i) { ++total; swept = true; }
+        if (swept) ++total;  // the heaviest positions together
     }
     for (u32 i = 0; i < 9; ++i) run(at<const Test>(0x8409f3b4) + i, i, total);
     u32 index = 9;
@@ -83,11 +94,30 @@ void sdk_benchmark_run() {
         const Test test = {static_cast<u32>(reinterpret_cast<Address>(machine.id)),
                            machine.name, 19, 0x40000000};
         run(&test, index++, total);
+        // Each control's heaviest setting: the first of equal totals, as the host
+        // reads the reports (tooling/benchmark.py combined_positions).
+        const Setting* heaviest[8] = {};
+        Total most[8] = {};
         for (const Setting* s = settings; s->machine != kNoMachine; ++s) {
             if (s->machine != i) continue;
             sdk_benchmark_parameters = s->controls;
             run(&test, index++, total);
             sdk_benchmark_parameters = nullptr;
+            const Total spent = whole_voice_total();
+            if (!heaviest[s->control] || heavier(spent, most[s->control])) {
+                heaviest[s->control] = s;
+                most[s->control] = spent;
+            }
         }
+        const Setting* first = nullptr;
+        for (const Setting* s = settings; s->machine != kNoMachine && !first; ++s)
+            if (s->machine == i) first = s;
+        if (!first) continue;
+        // Every control at its heaviest position; the others keep their defaults.
+        i32 combined[8];
+        for (u32 c = 0; c < 8; ++c) combined[c] = heaviest[c] ? heaviest[c]->controls[c] : first->controls[c];
+        sdk_benchmark_parameters = combined;
+        run(&test, index++, total);
+        sdk_benchmark_parameters = nullptr;
     }
 }

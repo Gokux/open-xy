@@ -20,13 +20,14 @@ def measurement(kind='synth', commit=None):
                  firmware_sha256='a' * 64, runs=3, block_percent=4.81,
                  report='https://github.com/someone/machine/issues/1#issuecomment-123')
     if kind == 'synth':
-        value.update(midpoint_percent=3.2, worst_setting=dict(control=1, label='Tone', value=0x7fffffff))
+        value.update(midpoint_percent=3.2, combined_percent=4.5,
+                     worst_setting=dict(control=1, label='Tone', value=0x7fffffff))
     return value
 
 
 def legacy_synth(commit=None):
     value = measurement('synth', commit)
-    del value['midpoint_percent'], value['worst_setting']
+    del value['midpoint_percent'], value['combined_percent'], value['worst_setting']
     return dict(value, benchmark='opxy-synth-c8-v1')
 
 
@@ -105,7 +106,8 @@ class Measurements(unittest.TestCase):
                     catalog.validate(document(dict(entry, cpu=dict(entry['cpu'], **change))))
         # A synth's sweep record names its midpoint run and heaviest setting.
         entry = dict(PUBLISHED, kind='synth', cpu=measurement('synth'))
-        for change in ({'midpoint_percent': 5.0}, {'midpoint_percent': 0}, {'worst_setting': None},
+        for change in ({'midpoint_percent': 5.0}, {'midpoint_percent': 0}, {'combined_percent': 5.0},
+                       {'combined_percent': True}, {'worst_setting': None},
                        {'worst_setting': dict(control=8, label='Tone', value=0)},
                        {'worst_setting': dict(control=1, label='', value=0)},
                        {'worst_setting': dict(control=1, label='Tone', value=-1)},
@@ -166,7 +168,8 @@ class Measurements(unittest.TestCase):
         captures = [dict(mode='benchmark', package=identity, expected_cases=expected, complete=True,
                          errors=[], collector_sha256='d'*64, frames=frames, utc=str(i)) for i in range(3)]
         for name, kind in (('probesynth', 'synth'), ('probefx', 'effect'), ('probesample', 'sample')):
-            result, values, case, _runs = aggregate(captures, expected, identity, name, 'e'*40, measurement()['report'])
+            result, values, case, _runs, _combinations = aggregate(captures, expected, identity, name, 'e'*40,
+                                                                   measurement()['report'])
             self.assertEqual(result['benchmark'], cpu_measurement.BENCHMARKS[kind])
             self.assertAlmostEqual(result['block_percent'], 100000/65535, places=5)
         # Without an evidence URL the record has no report link.
@@ -190,13 +193,25 @@ class Measurements(unittest.TestCase):
         averages = [1000] * len(expected)
         averages[own[0]] = 2000           # the midpoint run
         averages[own[3]] = 3000           # the heaviest swept setting
+        averages[own[-1]] = 2500          # every control at its heaviest position
         captures = [dict(mode='benchmark', package=identity, expected_cases=expected, complete=True, errors=[],
                          collector_sha256='d'*64, frames=[frame(a) for a in averages], utc=str(i)) for i in range(3)]
-        result, _values, _case, runs = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
+        result, _values, _case, runs, combinations = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
         self.assertAlmostEqual(result['block_percent'], 300000/65535, places=5)
         self.assertAlmostEqual(result['midpoint_percent'], 200000/65535, places=5)
+        self.assertAlmostEqual(result['combined_percent'], 250000/65535, places=5)
         self.assertEqual(result['worst_setting'], expected[own[3]]['setting'])
         self.assertEqual(len(runs), len(own))
+        # Each capture's combined run took the swept setting that ran heaviest for its control.
+        self.assertIn(expected[own[3]]['setting'], combinations[0])
+        self.assertEqual(len(combinations), 3)
+        # Heaviest together: the record is the combined run, and the warning says so.
+        averages[own[-1]] = 4000
+        captures = [dict(c, frames=[frame(a) for a in averages]) for c in captures]
+        result = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)[0]
+        self.assertEqual(result['block_percent'], result['combined_percent'])
+        self.assertIn('every control at its heaviest position', cpu_measurement.above_recommended(result))
+        averages[own[-1]] = 2500
         # Heaviest at the midpoint: the record is the midpoint run, still naming the heaviest swept one.
         averages[own[0]] = 4000
         captures = [dict(c, frames=[frame(a) for a in averages]) for c in captures]

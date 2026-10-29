@@ -49,16 +49,29 @@ class Benchmark(unittest.TestCase):
             self.assertEqual(controls, defaults[:control] + [value] + defaults[control + 1:])
         plain, swept = cases([effect, synth]), cases([effect, synth], sweep=True)
         self.assertEqual(swept[:len(plain)], plain)
-        self.assertEqual([c['benchmark'] for c in swept[len(plain):]], [SWEEP] * len(settings))
-        self.assertEqual([(c['setting']['control'], c['setting']['value']) for c in swept[len(plain):]],
+        extra = swept[len(plain):]
+        # Each swept setting, then every control at its heaviest position.
+        self.assertEqual([c['benchmark'] for c in extra], [SWEEP] * (len(settings) + 1))
+        self.assertEqual([(c['setting']['control'], c['setting']['value']) for c in extra[:-1]],
                          [(control, value) for control, _label, value, _controls in settings])
+        self.assertTrue(extra[-1]['combined'] and 'setting' not in extra[-1])
         with tempfile.TemporaryDirectory() as folder:
             source = generate(folder, [effect, synth], sweep=True).read_text(encoding='utf-8')
-            # The synth is machines[1]; the effect sweeps nothing.
-            self.assertEqual(source.count('    {1, {'), len(settings))
-            self.assertNotIn('    {0, {', source)
-            self.assertIn('sdk_benchmark_parameters = s->controls;', source)
-            self.assertNotIn('    {1, {', generate(folder, [effect, synth]).read_text(encoding='utf-8'))
+            # The synth is machines[1], each row naming its control; the effect sweeps nothing.
+            sweep_rows = lambda text, index: [line for line in text.splitlines()
+                                              if line.startswith(f'    {{{index}, ') and ', {' in line]
+            rows = sweep_rows(source, 1)
+            self.assertEqual([int(row.split(',')[1]) for row in rows], [c for c, _l, _v, _x in settings])
+            self.assertEqual(sweep_rows(source, 0), [])
+            self.assertIn('sdk_benchmark_parameters = combined;', source)
+            self.assertEqual(sweep_rows(generate(folder, [effect, synth]).read_text(encoding='utf-8'), 1), [])
+
+    def test_the_combined_run_takes_each_controls_first_heaviest_position(self):
+        from tooling.benchmark import combined_positions
+        a0, a1, b0, b1 = (dict(control=c, label=l, value=v) for c, l, v in
+                          ((0, 'A', 0), (0, 'A', 9), (1, 'B', 0), (1, 'B', 9)))
+        self.assertEqual(combined_positions([(a0, 5), (a1, 7), (b0, 3), (b1, 3)]), [a1, b0])
+        self.assertEqual(combined_positions([]), [])
 
     def test_hook_replaces_only_the_explicit_diagnostic_runner(self):
         patch = next(p for p in config()['patches'] if p.get('symbol') == 'sdk_benchmark_run')

@@ -27,7 +27,8 @@ def sweep_settings(m):
 
 def cases(machines, sweep=False):
     """The reports a run sends, in order: stock's nine, then each machine's; in a sweep
-    build a synth's swept settings follow its standard run."""
+    build a synth's swept settings follow its standard run, then one run with every
+    control at the position that ran heaviest (combined_positions)."""
     result = [dict(name=name, engine=engine, source='stock') for name, engine in STOCK]
     for m in machines:
         case = dict(name=m.id, engine=m.identity.get('engine', m.identity.get('effect')), source='sdk',
@@ -36,15 +37,34 @@ def cases(machines, sweep=False):
         if sweep and m.kind == 'synth':
             result += [dict(case, benchmark=SWEEP, setting=dict(control=control, label=label, value=value))
                        for control, label, value, _controls in sweep_settings(m)]
+            result.append(dict(case, benchmark=SWEEP, combined=True))
     return result
+
+
+def position(setting):
+    """A swept setting as people read it: the control's label and its position."""
+    return f"{setting['label']} {100 * setting['value'] / 0x7fffffff:.1f}%"
+
+
+def combined_positions(results):
+    """The positions a machine's combined run used, from that capture's swept results
+    ((setting, encoded average) in run order): each control's heaviest, the first of
+    equal ones, as the firmware picks them from its raw totals. Encoded averages round
+    the totals, so on a near tie the firmware may have picked a neighbour."""
+    chosen = {}
+    for setting, average in results:
+        control = setting['control']
+        if control not in chosen or average > chosen[control][1]:
+            chosen[control] = (setting, average)
+    return [chosen[control][0] for control in sorted(chosen)]
 
 
 def generate(directory, machines, sweep=False):
     declarations, rows, settings = [], [], []
     for index, m in enumerate(machines):
         if sweep and m.kind == 'synth':
-            settings += ['    {%d, {%s}},' % (index, ', '.join(map(str, controls)))
-                         for _control, _label, _value, controls in sweep_settings(m)]
+            settings += ['    {%d, %d, {%s}},' % (index, control, ', '.join(map(str, controls)))
+                         for control, _label, _value, controls in sweep_settings(m)]
         p = m.prefix
         id_symbol = p + ('_fx_id' if m.kind == 'effect' else '_engine_id')
         declarations += [f'int {p}_ready() __asm__("{p}_ready");',
