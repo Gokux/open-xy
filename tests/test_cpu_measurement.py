@@ -246,6 +246,10 @@ class Measurements(unittest.TestCase):
         result, _values, _case, runs, _combinations = aggregate(captures, expected, identity, 'probesynth', 'e'*40, None)
         self.assertIn((expected[own[1]], None), runs)
         self.assertNotEqual(result['worst_setting'], expected[own[1]]['setting'])
+        # One capture cannot tell a silenced voice from a failed run: it asks for a second.
+        with self.assertRaisesRegex(ValueError, 'Collect a second capture'):
+            aggregate(captures[:1], expected, identity, 'probesynth', 'e'*40, None)
+        aggregate(captures[:2], expected, identity, 'probesynth', 'e'*40, None)
         # A note that ended early (little activity) still timed its blocks: its cost counts.
         short = [dict(command=0x94, route=0x12, payload_hex=(struct.pack('>HHH', 3000, 5000, 5) * 20).hex())
                  if i == own[2] else frame(a) for i, a in enumerate(averages)]

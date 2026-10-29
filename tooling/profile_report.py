@@ -72,9 +72,15 @@ def aggregate(captures, expected, identity, name, commit, url):
                 [(own[index]['setting'], results[index]['metrics'][case['metric']]['encoded_average'])
                  for index in settings]))
     require(len(collectors) == 1 and None not in collectors, 'Use the same collector for all runs')
-    # A setting silent in every capture is left out; one silent in only some failed there.
-    require(all(None not in runs or set(runs) == {None} for runs in values.values()),
+    # A swept setting is left out as silent only when two or more captures agree it is: a
+    # failed run reads silent too, and one capture cannot tell the two apart.
+    silent = [own[index] for index, runs in values.items() if None in runs]
+    require(all(set(runs) == {None} for runs in values.values() if None in runs),
             'A swept setting sounded in some runs but not others; collect the runs again')
+    require(not silent or len(captures) >= 2,
+            'Silent in this capture: ' + ', '.join(case_label(c) for c in silent) +
+            '. Collect a second capture to confirm each silences the voice (a level at 0); '
+            'a failed run reads silent too')
     medians = {index: round(statistics.median(runs), 6) for index, runs in values.items() if None not in runs}
     require(not swept or any(index in medians for index in settings), 'Every swept setting was silent')
     heaviest = max(medians, key=lambda index: (medians[index], -index))
@@ -112,6 +118,7 @@ def create(package, paths, name, url, out):
     captures = [json.loads(Path(path).read_text()) for path in paths]
     measurement, values, case, runs, combinations = aggregate(captures, report['benchmark_cases'], identity,
                                                               name, commit, url)
+    silent = [run for run, median in runs if median is None]
     destination = Path(out)
     require(not destination.exists(), 'Use a fresh report directory')
     destination.mkdir(parents=True)
@@ -136,16 +143,17 @@ def create(package, paths, name, url, out):
             label = together if run.get('combined') else case_label(run)
             table.append(f'| {label} | ' + ('silent, left out' if median is None else f'{median:.3f}%') + ' |')
         published += '\n\n' + '\n'.join(table)
-        silent = [case_label(run) for run, median in runs if median is None]
         if silent:
-            published += ('\n\nLeft out as silent: ' + ', '.join(silent) + '. Each should silence the '
-                          'voice (a level at 0); if one should sound, the run failed there: collect again.')
+            published += ('\n\nLeft out as silent in every capture: ' + ', '.join(map(case_label, silent)) +
+                          '. Each should silence the voice (a level at 0).')
         limits = 'maximum polyphony or other combinations of control settings. '
     else:
-        published = ((f"One capture: **{measurement['block_percent']:.3f}%**" if len(values) == 1 else
-                      f"Median of {len(values)} run means: **{measurement['block_percent']:.3f}%**") +
-                     " of the stock 580,352-cycle block budget." +
-                     ('' if len(values) == 1 else f" Run means: {', '.join(f'{v:.3f}%' for v in values)}."))
+        if len(values) == 1:
+            published = (f"One capture: **{measurement['block_percent']:.3f}%** of the stock 580,352-cycle "
+                         "block budget.")
+        else:
+            published = (f"Median of {len(values)} run means: **{measurement['block_percent']:.3f}%** of the stock "
+                         f"580,352-cycle block budget. Run means: {', '.join(f'{v:.3f}%' for v in values)}.")
         limits = 'maximum polyphony or a settings sweep. '
     advice = f'**Warning: {warning}.**' if warning else 'Within it.'
     text = (f"# {name}: hardware CPU measurement\n\n"
@@ -163,9 +171,7 @@ def create(package, paths, name, url, out):
             "the device does not attest its firmware hash. Raw captures remain private because they contain device identity.\n")
     if warning:
         print('WARNING: ' + name + ': ' + warning)
-    for run, median in runs:
-        if median is None:
-            print(f'NOTE: {name}: {case_label(run)} was silent and is left out; if it should sound, '
-                  'the run failed there: collect again')
+    if silent:
+        print(f'NOTE: {name}: left out as silent in every capture: ' + ', '.join(map(case_label, silent)))
     (destination / 'report.md').write_text(text, encoding='utf-8')
     return destination

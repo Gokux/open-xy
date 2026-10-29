@@ -61,8 +61,9 @@ python sdk.py profile benchmark --package <private>/cpu-build-001 --installed --
 ```
 
 Never run two collectors at once: they share the OP-XY's one MIDI port pair.
-`profile report` names any swept setting that was silent and left out; each
-should silence the voice (a level at 0), otherwise collect again.
+A swept setting that times nothing (a level at 0) is left out only when two
+or more captures agree it is silent, since a failed run reads silent too:
+`profile report` names it and asks for a second capture.
 
 `--installed` confirms that this exact package is on the device and your work is
 saved. Metadata identifies normal OS 1.2.1 but does not attest the installed image
