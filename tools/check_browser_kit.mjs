@@ -10,10 +10,10 @@ const kit = await openKit(JSON.parse(readFileSync(kitFile, 'utf8')));
 const destination = resolve(dirname(kitFile), 'reference'); mkdirSync(destination);
 const layout = resolve('linker/opxy-1.2.1.ld');
 const results = [];
-for (const mask of checkedSelections(kit.machines, kit.linked)) {
+for (const [index, mask] of checkedSelections(kit.machines, kit.linked).entries()) {
   const selected = kit.machines.filter((_, i) => mask & selectionBit(i)).map(m => m.id);
   for (const [choice, extensions] of extensionChoices(kit).entries()) {
-    const name = `${mask}-${choice}`;
+    const name = `${index}-${choice}`;  // a mask runs to 78 digits; paths stay short
     const linked = linkKit(kit, selected, null, extensions), prefix = resolve(destination, name);
     const definitions = [...Object.entries(linked.definitions), ...linked.aliases.entries()]
       .map(([key, value]) => `--defsym=${key}=0x${value.toString(16)}`);

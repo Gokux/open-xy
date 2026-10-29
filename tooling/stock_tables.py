@@ -162,8 +162,10 @@ def check_compositor(hooks):
 def check_engine_bound(hooks):
     """The engine validity check's stock-count bound is replaced by its hook."""
     bound = [p for p in hooks if int(p['address'], 16) == ENGINE_BOUND]
+    # Never gated: the relocated engine table is always in place, so its bound must be too.
     require(len(bound) == 1 and bound[0]['symbol'] == 'sdk_engine_bound' and bound[0]['length'] == 4 and
-            bound[0]['call'] is True, 'The engine validity bound must be hooked')
+            bound[0]['call'] is True and 'service' not in bound[0] and 'profiling' not in bound[0],
+            'The engine validity bound must be hooked in every build')
     before = bytes.fromhex(bound[0]['before'])
     require(decode('imm7', before[:2])[1] == STOCK_ENGINE_COUNT and before[2:] == bytes.fromhex('8808'),
             'Engine bound hook preimage differs from the audited R1 = 33; CC = R0 < R1')

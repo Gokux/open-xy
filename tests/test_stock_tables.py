@@ -71,7 +71,8 @@ class Profile(unittest.TestCase):
         tables.check_engine_bound(hooked)
         self.assertNotIn(tables.ENGINE_BOUND, [site for site, _, _, _ in tables.EDITS])
         site = '%#x' % tables.ENGINE_BOUND
-        for change in (dict(symbol='sdk_other'), dict(before='f9618808'), dict(length=8), dict(call=False)):
+        for change in (dict(symbol='sdk_other'), dict(before='f9618808'), dict(length=8), dict(call=False),
+                       dict(service='samples'), dict(profiling=False)):
             altered = copy.deepcopy(hooked)
             next(p for p in altered if p['address'] == site).update(change)
             with self.subTest(change=change), self.assertRaises(ValueError):
@@ -131,9 +132,10 @@ class Registration(unittest.TestCase):
 
     def test_project_companions_map_every_engine_number(self):
         # Both companion readers hold a map entry for every engine record.
-        self.assertEqual(projects.NUMBERS, tables.ENGINE_COUNT)
-        self.assertIn('const u32 kNumbers = %d;' % tables.ENGINE_COUNT,
-                      read_text('sdk/platform/opxy-1.2.1/project_companion.cpp'))
+        self.assertEqual((projects.NUMBERS, projects.EFFECT_NUMBERS), (tables.ENGINE_COUNT, tables.EFFECT_COUNT))
+        source = read_text('sdk/platform/opxy-1.2.1/project_companion.cpp')
+        self.assertIn('const u32 kNumbers = %d;' % tables.ENGINE_COUNT, source)
+        self.assertIn('const u32 kEffectNumbers = %d;' % tables.EFFECT_COUNT, source)
 
 
 if __name__ == '__main__':

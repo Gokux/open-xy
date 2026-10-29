@@ -125,6 +125,26 @@ class FirmwareWriter(unittest.TestCase):
             # The fixture's table: what its numbers mean, a kit machine left out omitted.
             self.assertEqual((folder / 'song.oxy').read_bytes(), companion(project.read_bytes(), SAVED))
 
+    def test_a_companion_larger_than_the_write_buffer_is_written_whole(self):
+        # 220 machines numbered past the stock imm7 bound: the writer streams through its
+        # 8 KiB buffer, and a reader takes every machine.
+        layout = {f'm{i:03d}': {'engine': 34 + i, 'page': 100} for i in range(220)}
+        table = ''.join(f'    {{"{name}", number({n["engine"]}), number({n["page"]}), false}},\n'
+                        for name, n in layout.items())
+        source = (ROOT / 'tests/fixtures/project_companion.cpp').read_text(encoding='utf-8')
+        start = source.index('const opxy::platform::CompanionMachine sdk_companion_machines[] = {\n')
+        end = source.index('    {nullptr, nullptr, nullptr, false}', start)
+        with tempfile.TemporaryDirectory(prefix='companion-') as directory:
+            folder = Path(directory)
+            many = folder / 'project_companion_many.cpp'
+            many.write_text(source[:start] + 'const opxy::platform::CompanionMachine sdk_companion_machines[] = {\n' +
+                            table + source[end:], encoding='utf-8')
+            writer, project = host_writer(folder, many), folder / 'song.xy'
+            self.assertEqual(subprocess.run([str(writer), str(project), '1'], timeout=30).returncode, 0)
+            written = (folder / 'song.oxy').read_bytes()
+            self.assertGreater(len(written), 8192)
+            self.assertEqual(written, companion(project.read_bytes(), layout))
+
     def test_a_failed_save_or_other_name_writes_nothing(self):
         with tempfile.TemporaryDirectory(prefix='companion-') as directory:
             folder = Path(directory)

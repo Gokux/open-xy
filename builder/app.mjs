@@ -443,6 +443,7 @@ function recalculate() {
   });
   $('extension-memory').textContent = '';
   $('memory-map').replaceChildren(); $('memory-legend').replaceChildren();
+  $('capacity-foot').textContent = kib(Core.moduleBytes(kit.profile)) + ' for machines; CPU load is not measured';
   try {
     if (!selected.length) { $('room-value').textContent = 'Choose at least one machine'; $('capacity-details').replaceChildren(); ready(); return; }
     linked = Core.linkKit(kit, selected, numbers, selectedExtensions);
