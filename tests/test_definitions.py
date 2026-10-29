@@ -221,6 +221,23 @@ class Definitions(unittest.TestCase):
         self.assertEqual(re.findall(r'^    \{(\w+)_engine_id, .*, (true|false)\},$', text, re.M),
                          [('paged', 'true'), ('plain', 'false')])
 
+    def test_an_effects_controls_after_four_alternate_on_the_send_page(self):
+        # Without `control`, an effect's fifth to eighth controls alternate on positions 0..3.
+        effect = copy.deepcopy(fixture('probefx').definition)
+        base = effect['parameters'][0]
+        effect['parameters'] = [dict(copy.deepcopy(base), id='p%d' % i, label='P%d' % i) for i in range(8)]
+        effect['presets'] = {}
+        validate_definition(effect, 'effect')
+        self.assertEqual(control_cycles(effect), [4, 5, 6, 7, 0, 1, 2, 3])
+        # One may name another position instead.
+        effect['parameters'][7]['control'] = 0
+        validate_definition(effect, 'effect')
+        self.assertEqual(control_cycles(effect), [4, 5, 6, 3, 7, 1, 2, 0])
+        machines = [SimpleNamespace(kind='effect', prefix='alts', identity=dict(effect=23), definition=effect)]
+        with tempfile.TemporaryDirectory() as directory:
+            text = generate_synth_controls(directory, machines).read_text(encoding='utf-8')
+        self.assertEqual(re.findall(r'^    \{alts_fx_id, alts_ready, \{([\d, ]+)\},', text, re.M), ['4, 5, 6, 3, 7, 1, 2, 0'])
+
     def test_control_table_owns_all_synths_and_preserves_alternates(self):
         alternates = copy.deepcopy(self.engine)
         alternates['parameters'].append(self.alternate(2))

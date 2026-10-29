@@ -311,7 +311,7 @@ def generate_synth_controls(directory, machines):
         if m.kind not in ('synth', 'effect'):
             continue
         effect = m.kind == 'effect'
-        following = (not effect and control_cycles(m.definition)) or list(range(8))
+        following = control_cycles(m.definition) or list(range(8))
         continuous = sum(1 << i for i, p in enumerate(m.definition['parameters']) if p['mapping']['kind'] != 'enum')
         steps = [enum_steps(p) for p in m.definition['parameters']]
         steps += [0] * (8 - len(steps))

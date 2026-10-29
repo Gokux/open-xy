@@ -40,7 +40,9 @@ firmware reserves from its heap, minus 8 KiB of relocated stock tables. There
 is no per-machine allowance: a build that does not fit names each machine's
 share, and `sdk.py compile` and the builder's memory meter report the same
 figures. State usually dominates, since a synth's voice pool is
-`voiceBytes × voiceCapacity`.
+`voiceBytes × (min(voiceCapacity, 27) + 1)`: stock never sounds more than 27
+notes, and one spare voice serves a note that ended as another starts. The SDK
+adds 12 bytes per stock voice index (3 KiB) and 16 per voice.
 
 | Limit | Value | Why |
 | --- | --- | --- |
@@ -108,7 +110,7 @@ Every machine kind keeps its controls in `definition.json` (for example
 | `schema` | 1 |
 | `id` | The machine's name; also its C++ namespace |
 | `name` | Display name |
-| `parameters` | Ordered controls, each with `id`, `label`, `default`, `mapping`, `display`: four to eight for a synth (see [alternate controls](#alternate-controls)), one to eight for a sample engine or effect. Labels are at most eight letters, digits or spaces |
+| `parameters` | Ordered controls, each with `id`, `label`, `default`, `mapping`, `display`: four to eight for a synth (see [alternate controls](#alternate-controls)), one to eight for a sample engine or effect; an effect's after the fourth are alternates on its send page. Labels are at most eight letters, digits or spaces |
 | `presets` | Named maps containing exactly the declared controls; may be empty |
 | `resources` | What the kind declares about its storage (below) |
 
@@ -143,6 +145,16 @@ inputs carry each position's shown value, its parameter index (`shown`) and
 every parameter's value (`slots`), so a [header value](display.md#frame)
 can format whichever is shown while dials follow their own parameters.
 Browser previews show the parameter last edited at each position.
+
+A send effect's parameters after the first four are alternates on its send
+page in the same way. Each may name its position with `"control": 0..3`;
+without one, parameter `i` alternates on position `i - 4`. A press cycles the
+position, its turns edit the parameter shown, and the page shows that
+parameter's title and value. When an effect is put on a send, the SDK stores
+its fifth to eighth defaults as stock stores its first four, so `process`
+receives them before they are first edited. `"press": "page"` is for synths
+only. A send effect's LFOs keep stock's four destinations, its first four
+parameters.
 
 A synth with five to eight parameters may declare `"press": "page"` at the
 top of `definition.json`: pressing any encoder switches the whole page. Each
@@ -190,7 +202,7 @@ A synth declares:
 | Field | Required value or meaning |
 | --- | --- |
 | `voiceBytes`, `voiceAlignment` | `Voice` size (whole words) and alignment, checked against the compiled type |
-| `voiceCapacity` | Notes that sound at once, 1..256. Stock's 256 voice indices share these voices: a new note takes a free one, or the one whose note started longest ago |
+| `voiceCapacity` | Notes that sound at once, 1..256. Stock plays at most 8 notes per track and fades a note it takes, so 8 keeps a machine on one track within its own voices; allow 8 for each track it plays on at once. Values above 27, stock's voice slots, keep 27 voices plus the spare (28). Stock's 256 voice indices share these voices and one spare ([synth voices](abi-1.2.1.md#synth-voices)) |
 | `sharedBytes` | `Shared` size, or 0 when `Shared` is empty |
 | `outputPeakQ31` | Positive declared oscillator peak; the preview uses it for audition gain |
 | `display` | The screen's frame budget; see the [display API](display.md) |
@@ -239,11 +251,16 @@ Storage begins zeroed; `owner` is a stable nonzero voice ID, the stock voice
 index plus one. Each of the machine's `voiceCapacity` voices serves one owner at
 a time: `initialize` runs when a voice goes to an owner and establishes all
 sound state; `start` runs on each note; `destroy` releases anything the voice
-holds in `Shared`, when its note ends or another note takes the voice. A note
-whose voice was taken renders silence; no voice index ever fails, whatever the
-capacity.
+holds in `Shared`, once stock has stopped rendering its note (it ended, or
+stock took it and restarted the index) or another note has taken the voice.
+The adapter notices an ended note within about three blocks while the machine
+renders other notes; after the machine's last note it notices at the next note
+start. A taken note renders one last block fading to silence, then renders
+silence; no voice index ever fails, whatever the capacity.
 Callbacks run serially per voice. The browser preview's voice stealing and
-panic use the same lifecycle. The SDK adapter owns the firmware object header,
+panic use the same callbacks, but the preview always keeps 8 voices and takes
+the oldest at once: it does not model `voiceCapacity`, stock's renders, the
+spare or the fade. The SDK adapter owns the firmware object header,
 method table and voice pool; none of that belongs in `Voice`.
 
 [LeasePool](../sdk/include/opxy/lease_pool.hpp) provides fixed typed resources.
@@ -401,8 +418,8 @@ declared controls. Do not depend on the absolute level of the send buffers.
 
 `State` is at most `opxy::effect_state_bytes` (476) with alignment at most 4.
 No destructor ever runs, so it holds no resources. The generated adapter
-checks both limits at compile time. Effects use the stock FX page and have no
-browser preview.
+checks both limits at compile time. Effects use the stock FX page, with any controls after the fourth as
+[alternates](#alternate-controls), and have no browser preview.
 
 ### Effect buffers
 
