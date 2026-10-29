@@ -35,10 +35,14 @@ void edit_control(const extensions::Context& context, const extensions::Control&
 }
 const extensions::Hooks first = {nullptr, first_note, nullptr, nullptr, nullptr, observe_control};
 const extensions::Hooks second = {nullptr, second_note, nullptr, nullptr, nullptr, edit_control};
-ExtensionEntry collection[] = {{"observer", 0, 0, &first}, {"writer", claim_record_double_tap, action_edit_notes, &second}};
+// Two claims on different keys; edit_notes needs the first, or any claim once set to 0.
+u32 claim_keys[] = {50, 51}, action_claims[] = {1u};
+const ExtensionRegistry tables = {claim_keys, 2, action_claims, 1};
+ExtensionEntry collection[] = {{"observer", 0, 0, &first}, {"writer", 1u, action_edit_notes, &second}};
 }
 namespace opxy { namespace platform {
 const ExtensionEntry* extension_collection(u32& count) { count = 2; return collection; }
+const ExtensionRegistry& extension_registry() { return tables; }
 RecordingContext extension_context(bool& p) { p = playing; return stock_context; }
 i32 extension_position(u32) { return -12; }
 u32 extension_scaled_delta(u32, u32 delta) { return delta << 8; }
@@ -47,37 +51,51 @@ bool replaced;
 u32 extension_write(u32, const RecordedNote*, u32 count, bool replace) { ++writes; replaced = replace; return count; }
 void extension_notify(const char*) { ++notices; }
 }}
+void control(u32 key, bool accepted) {
+    const extensions::Control event = {key, false, accepted, true, 100};
+    extensions_queued_control(event);
+}
 int main() {
     extensions_recordable_note_on(0, 60, 100);
     CHECK(order_count == 2 && order[0] == 1 && order[1] == 2 && observations == 1);
     extensions_recordable_note_on(7, 60, 100); CHECK(order_count == 2);
-    extensions_queued_control(50, false, true, true, 100);
+    control(50, true);
     CHECK(writes == 1 && notices == 1 && result == 1);
     CHECK(saved.insert_notes(saved_context, &good, 1) == 0);
     saved.notify("late"); CHECK(notices == 1);
     for (mode = 1; mode <= 4; ++mode) {
-        extensions_queued_control(50, false, true, true, 100);
+        control(50, true);
         CHECK(result == 0 && writes == 1 && notices == 1);
     }
     mode = 5;
-    extensions_queued_control(50, false, true, true, 100);
+    control(50, true);
     CHECK(result == 1 && writes == 2 && notices == 2 && !replaced);
     mode = 6;
-    extensions_queued_control(50, false, true, true, 100);
+    control(50, true);
     CHECK(result == 1 && writes == 3 && replaced);
     mode = 7;
-    extensions_queued_control(50, false, true, true, 100);
+    control(50, true);
     CHECK(result == 1 && writes == 4 && !replaced);
     mode = 0;
-    extensions_queued_control(50, false, false, true, 100);
-    extensions_queued_control(12, false, true, true, 100);
+    control(50, false);
+    control(12, true);
     CHECK(result == 0 && writes == 4 && notices == 4);
     // Guard the generated registry at runtime as well as build time.
-    initialized = false; entries = nullptr; collection[0].claims = claim_record_double_tap;
+    initialized = false; entries = nullptr; collection[0].claims = 1u;
     extensions_recordable_note_on(0, 60, 100); CHECK(order_count == 2);
     initialized = false; collection[0].claims = 0; collection[0].actions = action_edit_notes;
     extensions_recordable_note_on(0, 60, 100); CHECK(order_count == 2);
     initialized = false; collection[0].actions = 0; collection[0].id = "writer";
     extensions_recordable_note_on(0, 60, 100); CHECK(order_count == 2);
+    // A second claim, on key 51, grants the same action with no runtime change.
+    initialized = false; entries = nullptr; collection[0].actions = 0; collection[0].id = "observer";
+    collection[1].claims = 2u; action_claims[0] = 0;  // edit_notes: any claim its holder owns
+    mode = 0; const u32 before = writes;
+    control(50, true); CHECK(writes == before);
+    control(51, true); CHECK(writes == before + 1);
+    control(51, false); CHECK(writes == before + 1);
+    // An action whose claim its holder lacks disables the collection.
+    initialized = false; entries = nullptr; action_claims[0] = 1u;
+    control(51, true); CHECK(writes == before + 1);
     return 0;
 }

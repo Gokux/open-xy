@@ -3,12 +3,13 @@
 
 namespace opxy { namespace extensions {
 
-// Observes Record without delaying or suppressing stock press/release actions.
-// A capture request happens only after two short, unmodified, completed taps.
-class RecordTap {
+// Recognizes a double-tap on one key from its queued presses and releases,
+// without delaying or suppressing stock's own actions. It fires only after two
+// short, unmodified, completed taps; holds, repeats and chords cancel it.
+class DoubleTap {
 public:
     using Time = __UINT64_TYPE__;
-    constexpr RecordTap() : pressed_at_(0), released_at_(0), down_(false), clean_(false),
+    constexpr DoubleTap() : pressed_at_(0), released_at_(0), down_(false), clean_(false),
                   pending_(false), second_(false) {}
 
     // True starts a fresh pair: the caller can anchor its history snapshot now,

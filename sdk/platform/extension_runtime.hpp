@@ -5,17 +5,25 @@ namespace opxy { namespace platform {
 using extensions::RecordingContext;
 using RecordedNote = extensions::Note;
 
-// Claims and actions, one bit each, named as in profiles/extensions.json.
-// A claim has one owner per build; an action needs the claim it names there.
-const u32 claim_record_double_tap = 1u << 0;
+// Actions are SDK code, one bit each in profiles/extensions.json's order; a
+// test keeps the two in step. Claims are data: the generated registry gives
+// each claim's key, and each action the claims that grant it (0: any claim).
 const u32 action_edit_notes = 1u << 0;
 
 struct ExtensionEntry {
     const char* id;
-    u32 claims, actions;
+    u32 claims, actions;  // Bits in registry order.
     const extensions::Hooks* hooks;
 };
+struct ExtensionRegistry {
+    const u32* claim_keys;
+    u32 claim_count;
+    const u32* action_claims;
+    u32 action_count;
+};
+// Generated with the collection (tooling.extensions.generate_collection).
 const ExtensionEntry* extension_collection(u32& count);
+const ExtensionRegistry& extension_registry();
 
 // These entry points belong only to the version adapter.
 void extensions_sync();
@@ -23,8 +31,7 @@ void extensions_input_activity();
 void extensions_recordable_note_on(u32 track, u32 pitch, u32 velocity);
 void extensions_selected_note_off(u32 track, u32 pitch);
 void extensions_recording_tick(u32 delta);
-void extensions_queued_control(u32 key, bool pressed, bool accepted, bool unmodified,
-                        extensions::Time time);
+void extensions_queued_control(const extensions::Control& control);
 
 RecordingContext extension_context(bool& playing);
 i32 extension_position(u32 track);

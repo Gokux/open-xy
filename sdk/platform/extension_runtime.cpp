@@ -4,38 +4,70 @@ namespace opxy { namespace platform {
 namespace {
 extensions::Context current;
 const ExtensionEntry* entries;
+const ExtensionRegistry* registry;
 u32 entry_count;
-bool initialized, dispatching, can_edit, edited, attempted;
+bool initialized, dispatching;
 char notification[32];
+
+// The actions one callback may take, and what it has done with them: one stock
+// undo transaction and at most one success notification per callback.
+struct Transaction { u32 granted; bool edited, attempted; };
+Transaction transaction;
 
 bool same_text(const char* a, const char* b) {
     if (!a || !b) return false;
     while (*a && *a == *b) { ++a; ++b; }
     return *a == *b;
 }
+u32 bits(u32 count) { return count >= 32 ? ~0u : (1u << count) - 1; }
+
+// The collection must agree with the registry, whatever the build checked:
+// claims exclusive and known, every action backed by a claim its holder owns.
 bool ready() {
     if (initialized) return entries != nullptr;
     initialized = true;
     u32 count = 0;
     const ExtensionEntry* list = extension_collection(count);
-    if (!list || count > 16) return false;
+    const ExtensionRegistry& known = extension_registry();
+    if (!list || count > 16 || known.claim_count > 32 || known.action_count > 32) return false;
     u32 claimed = 0;
     for (u32 i = 0; i < count; ++i) {
         const ExtensionEntry& entry = list[i];
         if (!entry.id || !*entry.id || !entry.hooks || (entry.claims & claimed) ||
-            ((entry.actions & action_edit_notes) && !(entry.claims & claim_record_double_tap)) ||
-            ((entry.claims & claim_record_double_tap) && !entry.hooks->queued_control)) return false;
+            (entry.claims & ~bits(known.claim_count)) || (entry.actions & ~bits(known.action_count)) ||
+            (entry.claims && !entry.hooks->queued_control)) return false;
+        for (u32 a = 0; a < known.action_count; ++a) {
+            if (!(entry.actions & (1u << a))) continue;
+            const u32 needs = known.action_claims[a] ? known.action_claims[a] : bits(known.claim_count);
+            if (!(entry.claims & needs)) return false;
+        }
         claimed |= entry.claims;
         for (u32 j = 0; j < i; ++j)
             if (same_text(entry.id, list[j].id)) return false;
     }
     entries = list;
+    registry = &known;
     entry_count = count;
     return true;
 }
 
+// Actions granted while a claimed key fires and stock accepted it.
+u32 granted(const ExtensionEntry& entry, const extensions::Control& control) {
+    if (!control.accepted) return 0;
+    u32 fired = 0;
+    for (u32 c = 0; c < registry->claim_count; ++c)
+        if ((entry.claims & (1u << c)) && registry->claim_keys[c] == control.key) fired |= 1u << c;
+    u32 result = 0;
+    for (u32 a = 0; fired && a < registry->action_count; ++a) {
+        const u32 needs = registry->action_claims[a] ? registry->action_claims[a] : entry.claims;
+        if ((entry.actions & (1u << a)) && (fired & needs)) result |= 1u << a;
+    }
+    return result;
+}
+
 u32 write_notes(const extensions::Context& expected, const RecordedNote* notes, u32 count, bool replace) {
-    if (!can_edit || attempted || !notes || !count || count > 120) return 0;
+    if (!(transaction.granted & action_edit_notes) || transaction.attempted || !notes || !count || count > 120)
+        return 0;
     bool playing = false;
     const RecordingContext now = extension_context(playing);
     if (!now.eligible || now.track >= 8 || !now.length || now.length >= (1u << 23) ||
@@ -45,19 +77,19 @@ u32 write_notes(const extensions::Context& expected, const RecordedNote* notes, 
         if (notes[i].pitch > 127 || !notes[i].velocity || notes[i].velocity > 127 ||
             notes[i].position < -240 || notes[i].position >= static_cast<i32>(now.length) ||
             notes[i].length > now.length) return 0;
-    attempted = true; // One undo transaction per callback, including failures.
+    transaction.attempted = true; // One undo transaction per callback, including failures.
     const u32 written = extension_write(now.track, notes, count, replace);
-    edited = written != 0;
+    transaction.edited = written != 0;
     return written;
 }
 void notify(const char* text) {
-    if (!can_edit || !edited || !text) return;
+    if (!transaction.edited || !text) return;
     u32 length = 0;
     while (length < 32 && text[length]) ++length;
     if (!length || length == 32) return;
     for (u32 i = 0; i <= length; ++i) notification[i] = text[i];
     extension_notify(notification);
-    edited = false; // At most one success notification per transaction.
+    transaction.edited = false; // At most one success notification per transaction.
 }
 u32 insert_notes(const extensions::Context& expected, const RecordedNote* notes, u32 count) {
     return write_notes(expected, notes, count, false);
@@ -120,18 +152,15 @@ void extensions_recording_tick(u32 delta) {
         if (entries[i].hooks->recording_tick) entries[i].hooks->recording_tick(current, tick);
     dispatching = false;
 }
-void extensions_queued_control(u32 key, bool pressed, bool accepted, bool unmodified, extensions::Time time) {
+void extensions_queued_control(const extensions::Control& control) {
     if (dispatching) return;
     extensions_sync();
     if (!entries) return;
-    const extensions::Control control = {key, pressed, accepted, unmodified, time};
     dispatching = true;
     for (u32 i = 0; i < entry_count; ++i) {
-        can_edit = (entries[i].actions & action_edit_notes) && (entries[i].claims & claim_record_double_tap) &&
-            key == extensions::Control::record_key && accepted;
-        edited = attempted = false;
+        transaction = {granted(entries[i], control), false, false};
         if (entries[i].hooks->queued_control) entries[i].hooks->queued_control(current, control, actions);
-        can_edit = edited = attempted = false;
+        transaction = {0, false, false};
     }
     dispatching = false;
 }

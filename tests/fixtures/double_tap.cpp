@@ -1,9 +1,9 @@
-#include <opxy/record_tap.hpp>
-using opxy::extensions::RecordTap;
+#include <opxy/double_tap.hpp>
+using opxy::extensions::DoubleTap;
 #define CHECK(value) do { if (!(value)) return __LINE__; } while (false)
 
 int main() {
-    RecordTap tap;
+    DoubleTap tap;
     CHECK(tap.press(100, true));
     CHECK(!tap.release(100100));
     CHECK(!tap.press(200100, true)); // The second tap must retain the first snapshot.
@@ -32,18 +32,18 @@ int main() {
     CHECK(!tap.release(1800102)); // Key repeat cancels instead of double-tapping.
 
     // Keep the full microsecond clock: its low word wraps about every 72 minutes.
-    RecordTap wrap;
+    DoubleTap wrap;
     wrap.press(0xffff0000u, true);
     CHECK(!wrap.release(0xffff1000u));
     wrap.press(0x100001000ull, true);
     CHECK(wrap.release(0x100002000ull));
-    RecordTap idle;
+    DoubleTap idle;
     idle.press(100, true);
     CHECK(!idle.release(200));
     idle.press(0x100000100ull, true);
     CHECK(!idle.release(0x100000200ull));
 
-    RecordTap boundary;
+    DoubleTap boundary;
     boundary.press(0, true);
     CHECK(!boundary.release(250000));
     boundary.press(600000, true);

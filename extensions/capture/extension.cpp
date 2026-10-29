@@ -1,11 +1,11 @@
 #include <opxy/extension.hpp>
-#include <opxy/record_tap.hpp>
+#include <opxy/double_tap.hpp>
 #include "history.hpp"
 
 namespace opxy { namespace extensions { namespace capture {
 namespace {
 RecordingHistory history;
-RecordTap tap;
+DoubleTap tap;
 Context previous;
 Note snapshot[RecordingHistory::capacity];
 u32 snapshot_count;
@@ -25,14 +25,14 @@ void recording_tick(const Context&, const Tick& tick) {
     history.advance(tick.delta_q8);
 }
 void queued_control(const Context& context, const Control& control, const Actions& actions) {
-    if (control.key != Control::record_key) { tap.cancel(); return; }
-    if (!control.record_accepted || !context.recording.eligible) {
+    if (control.key != keys::record) { tap.cancel(); return; }
+    if (!control.accepted || !context.recording.eligible) {
         // Still end the tap, or the next press would read as a key repeat.
         if (!control.pressed) tap.release(control.time);
         tap.cancel(); return;
     }
     if (control.pressed) {
-        if (tap.press(control.time, control.unmodified_record))
+        if (tap.press(control.time, control.unmodified))
             snapshot_count = history.snapshot(snapshot, RecordingHistory::capacity);
         return;
     }

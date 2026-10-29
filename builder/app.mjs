@@ -407,7 +407,9 @@ function renderExtensions() {
       Core.sharedClaim([e, extension]));
     if (conflict && !input.checked) {
       input.disabled = true;
-      const message = node('p', 'Uses the same shortcut as ' + conflict.name + '. Deselect it first.', 'extension-conflict');
+      const claim = Core.sharedClaim([conflict, extension]);
+      const message = node('p', 'Uses ' + Core.claimLabel([conflict, extension], claim) + ', like ' + conflict.name +
+        '. Deselect it first.', 'extension-conflict');
       message.id = 'conflict-' + extension.id; input.setAttribute('aria-describedby', message.id); button.append(message);
     }
     input.onchange = () => {

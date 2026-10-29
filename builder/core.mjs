@@ -258,7 +258,7 @@ export function extensionSelection(kit, selection = (kit.extensions ?? []).map(e
     selection.every(id => entries.some(e => e.id === id)), 'Choose each available extension once.');
   const selected = entries.filter(e => selection.includes(e.id));
   const shared = sharedClaim(selected);
-  check(!shared, `These extensions both use ${shared?.replaceAll('_', ' ')}. Choose only one.`);
+  check(!shared, shared && `These extensions both use ${claimLabel(selected, shared)}. Choose only one.`);
   return selected.map(e => e.id); // Collection order, never checkbox order.
 }
 
@@ -271,6 +271,10 @@ export function sharedClaim(extensions) {
   }
   return null;
 }
+
+// The registry's label for a claim, as the kit carries it with each extension.
+export const claimLabel = (extensions, claim) =>
+  extensions.map(e => e.claim_labels?.[claim]).find(Boolean) ?? claim.replaceAll('_', ' ');
 
 // Every extension choice a build can make, in collection order: each subset
 // in which no two extensions share a claim. Recovery and release checks try each.
@@ -308,6 +312,9 @@ export async function openKit(kit) {
       Object.entries({name: 32, description: 140, note: 100}).every(([key, limit]) => key === 'note' && e[key] === undefined ||
         typeof e[key] === 'string' && e[key].length > 0 && e[key].length <= limit) &&
       EXTENSION_ORIGINS.includes(e.origin) &&
+      e.claim_labels && typeof e.claim_labels === 'object' &&
+      Object.keys(e.claim_labels).sort().join() === [...(e.claims ?? [])].sort().join() &&
+      Object.values(e.claim_labels).every(l => typeof l === 'string' && l.length > 0 && l.length <= 40) &&
       ['claims', 'actions'].every(key => Array.isArray(e[key]) && e[key].length <= 8 &&
         new Set(e[key]).size === e[key].length && e[key].every(n => /^[a-z][a-z0-9_]{0,31}$/.test(n))),
       'Invalid extension metadata');

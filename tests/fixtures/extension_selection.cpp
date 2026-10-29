@@ -26,6 +26,6 @@ int main() {
     capture_enabled = true;
     entries = extension_collection(count);
     CHECK(count == 1 && entries[0].hooks == &capture_hooks &&
-          entries[0].claims == claim_record_double_tap && entries[0].actions == action_edit_notes);
+          entries[0].claims == 1u && entries[0].actions == action_edit_notes);
     return 0;
 }

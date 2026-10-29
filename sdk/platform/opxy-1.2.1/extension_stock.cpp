@@ -33,12 +33,12 @@ LiveInput live_input;
 
 using PatternNote = notes::Note;  // Stock copies the first eleven payload bytes.
 
-bool unmodified_record() {
+// No other key and no Shift held. Press dispatch precedes insertion into
+// stock's held-key list, so a chord keeps stock behavior.
+bool unmodified(u32 key) {
     if (shift_held()) return false;
-    // Press dispatch precedes insertion into stock's held-key list. A Record
-    // chord must keep stock behavior and must not become a capture gesture.
-    for (u32 key = 0; key < 56; ++key)
-        if (key != 50 && stock<u32(u32)>(0x8d5b7d7c)(key)) return false;
+    for (u32 other = 0; other < 56; ++other)
+        if (other != key && stock<u32(u32)>(0x8d5b7d7c)(other)) return false;
     return true;
 }
 }
@@ -153,17 +153,16 @@ void sdk_extensions_live_note_off(u32 controller, u32 track, u32 note, u32 a3, u
 }
 void sdk_extensions_key(const u32* event) {
     extensions_sync();
-    const u32 key = event[0];
-    const bool pressed = event[1] != 0;
+    extensions::Control control = {event[0], event[1] != 0, false, unmodified(event[0]), 0};
     const bool was_held = extension_record_held();
     const bool enabled = byte(kInputEnabled) != 0;
-    const bool clean = key == 50 && pressed && enabled && unmodified_record();
     // The clock writes a full 64-bit microsecond value through its argument.
-    extensions::Time time = 0;
-    stock<void(extensions::Time*)>(0x8d5be3a0)(&time);
+    stock<void(extensions::Time*)>(0x8d5be3a0)(&control.time);
     stock<void(const u32*)>(0x8c0b5d58)(event);
-    const bool accepted = enabled && (pressed ? extension_record_held() : was_held && !extension_record_held());
-    extensions_queued_control(key, pressed, accepted, clean, time);
+    // Stock records Record's held state; other keys are accepted while input is enabled.
+    control.accepted = enabled && (control.key != extensions::keys::record ||
+        (control.pressed ? extension_record_held() : was_held && !extension_record_held()));
+    extensions_queued_control(control);
 }
 u32 sdk_extensions_key_queue(const u32* event) {
     sdk_extensions_key(event);

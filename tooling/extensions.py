@@ -31,9 +31,11 @@ def _document():
             'Invalid extension collection schema')
     claims, actions = data['claims'], data['actions']
     require(isinstance(claims, dict) and isinstance(actions, dict), 'Claims and actions are registries')
+    require(len(claims) <= 32 and len(actions) <= 32, 'At most 32 claims and 32 actions')
     for name, claim in claims.items():
-        require(NAME.fullmatch(name) and isinstance(claim, dict) and set(claim) == {'label'} and
-                isinstance(claim['label'], str) and 0 < len(claim['label']) <= 40, 'Invalid claim: ' + name)
+        require(NAME.fullmatch(name) and isinstance(claim, dict) and set(claim) == {'label', 'key'} and
+                isinstance(claim['label'], str) and 0 < len(claim['label']) <= 40 and
+                type(claim['key']) is int and 0 <= claim['key'] < 256, 'Invalid claim: ' + name)
     for name, action in actions.items():
         require(NAME.fullmatch(name) and isinstance(action, dict) and set(action) <= {'requires'} and
                 ('requires' not in action or action['requires'] in claims), 'Invalid action: ' + name)
@@ -102,19 +104,34 @@ def check_profile(profile):
 
 
 def generate_collection(folder):
+    """The collection and the registry tables the runtime reads: each claim's
+    key, and the claims that grant each action (0: any claim its holder owns)."""
     entries = collection()
-    bits = lambda kind, names: ' | '.join(f'{kind}_{n}' for n in names) or '0'
+    claims, actions = registry()
+    claim_bit = {name: 1 << i for i, name in enumerate(claims)}
+    action_bit = {name: 1 << i for i, name in enumerate(actions)}
+    mask = lambda table, names: '0x%xu' % sum(table[n] for n in names)
+    table = lambda values: ', '.join(values) or '0'
     lines = ['#include "extension_runtime.hpp"']
     for entry in entries:
         symbol = 'sdk_extension_' + entry['id'] + '_hooks'
         lines.append('extern "C" const opxy::extensions::Hooks* ' + symbol + '() __asm__("' + symbol + '");')
     lines += ['namespace opxy { namespace platform {', 'namespace {',
-              'ExtensionEntry collection_entries[' + str(max(1, len(entries))) + '];', '}',
+              'ExtensionEntry collection_entries[' + str(max(1, len(entries))) + '];',
+              '// ' + ', '.join(claims) if claims else '// no claims',
+              'const u32 claim_keys[] = {' + table([str(c['key']) for c in claims.values()]) + '};',
+              '// ' + ', '.join(actions) if actions else '// no actions',
+              'const u32 action_claims[] = {' + table(
+                  [mask(claim_bit, [a['requires']] if 'requires' in a else []) for a in actions.values()]) + '};',
+              'const ExtensionRegistry registry_tables = {claim_keys, %d, action_claims, %d};' % (
+                  len(claims), len(actions)),
+              '}',
+              'const ExtensionRegistry& extension_registry() { return registry_tables; }',
               'const ExtensionEntry* extension_collection(u32& count) {', '    count = 0;']
     for entry in entries:
         lines += ['    if (const auto* hooks = sdk_extension_' + entry['id'] + '_hooks())',
                   '        collection_entries[count++] = {"%s", %s, %s, hooks};' % (
-                      entry['id'], bits('claim', entry['claims']), bits('action', entry['actions']))]
+                      entry['id'], mask(claim_bit, entry['claims']), mask(action_bit, entry['actions']))]
     lines += ['    return collection_entries;', '}', '}}', '']
     target = folder / 'extension_collection.cpp'
     target.write_text('\n'.join(lines), encoding='utf-8')
@@ -141,5 +158,6 @@ def metadata():
         require({'name', 'description'} <= set(data) <= set(TEXT_LIMITS) and
                 all(isinstance(value, str) and 0 < len(value) <= TEXT_LIMITS[key] for key, value in data.items()),
                 'Invalid extension display metadata: ' + entry['id'])
-        result.append(dict(entry, **data))
+        claims, _actions = registry()
+        result.append(dict(entry, **data, claim_labels={c: claims[c]['label'] for c in entry['claims']}))
     return result

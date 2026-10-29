@@ -1,4 +1,4 @@
-#include "../../extensions/capture/history.hpp"
+#include "history.hpp"
 
 using namespace opxy;
 using namespace opxy::extensions;

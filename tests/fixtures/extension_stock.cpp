@@ -1,5 +1,5 @@
 // Execute the service AND the version adapter; only stock addresses are mapped.
-#include <opxy/record_tap.hpp>
+#include <opxy/double_tap.hpp>
 #include <extension_runtime.cpp>
 #include <extension_capture.cpp>
 #include <extension_collection.cpp>

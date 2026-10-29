@@ -93,7 +93,7 @@ only for the callback. The SDK does not sandbox native code.
 | `selected_note_off` | A live release on the selected track, playing or not; may have no preceding onset | Live release |
 | `recording_tick` | The selected track's scaled Q8 recording time, while playing and eligible; a discontinuity asks the subscriber to discard timing | Recorder tick |
 | `input_activity` | Any live note input, accepted or not, on any track; for cancelling gestures | Live onset |
-| `queued_control` | A queued key (Record and the other queued controls; not keyboard keys 26–49) after stock handled it, with a microsecond time; `record_accepted` and `unmodified_record` describe Record | Key queue |
+| `queued_control` | A queued key (Record and the other queued controls; not keyboard keys 26–49) after stock handled it, with a microsecond time. `accepted`: stock took it as input (for Record, stock registered the press or release); `unmodified`: no other key or Shift held. Key numbers are in `keys` | Key queue |
 
 Project and pattern IDs are opaque equality tokens. Lengths use pattern ticks;
 scale 1 has 480 ticks per step. Stock's pickup gives negative positions near
@@ -106,16 +106,20 @@ onsets.
 [`profiles/extensions.json`](../profiles/extensions.json) holds the registry and
 the collection.
 
-- **A claim** is an exclusive control: one owner per build. Two extensions with
-  the same claim cannot be built together, and the site will not offer both.
-  `record_double_tap`: its owner recognizes the gesture, with the shared
-  [`RecordTap`](../sdk/include/opxy/record_tap.hpp) helper for taps, holds,
-  repeats and timeouts, without delaying stock controls.
-- **An action** is permission to change stock state, and may require a claim.
-  `edit_notes` requires `record_double_tap`: `Actions::insert_notes` (add
-  beside the existing notes) and `Actions::replace_notes` (clear the track's
-  notes, then add) work only for its owner, inside an accepted Record
-  `queued_control` callback. The SDK rechecks the context, validates the
+- **A claim** is an exclusive control on one key: a `label` the site shows and
+  the `key` it governs. One owner per build; two extensions with the same claim
+  cannot be built together, and the site will not offer both. The owner
+  recognizes its gesture itself; the shared
+  [`DoubleTap`](../sdk/include/opxy/double_tap.hpp) helper handles taps, holds,
+  repeats and timeouts on any key without delaying stock controls.
+  `record_double_tap` is capture's.
+- **An action** is permission to change stock state. The runtime grants an
+  extension's actions inside its `queued_control` callback for a key it claims,
+  once stock accepted the event; an action's `requires` limits that to one
+  claim, and without it any claim its holder owns grants it. `edit_notes`
+  (requires `record_double_tap`) unlocks `Actions::insert_notes` (add beside
+  the existing notes) and `Actions::replace_notes` (clear the track's notes,
+  then add). The SDK rechecks the context, validates the
   bounded batch, opens one stock undo transaction, keeps stock collision and
   capacity behavior, returns the inserted prefix length and publishes once.
   Replacing is refused, changing nothing, while stock is still recording a
@@ -178,15 +182,18 @@ Adding a callback is the only change that must go at the end of `Hooks`, since
 extensions initialize it by position. Renaming or widening one updates every
 extension in the same pull request.
 
-**Add a claim or action** with one registry entry in `profiles/extensions.json`
-and one bit in
-[`extension_runtime.hpp`](../sdk/platform/extension_runtime.hpp); a test keeps
-them in step. Never add a per-claim field to the collection. Then enforce it in
-[`extension_runtime.cpp`](../sdk/platform/extension_runtime.cpp): where its
-owner may act (as `edit_notes` is allowed only inside an accepted Record
-`queued_control`), and its stock work in the version adapter,
+**Add a claim** with one registry entry in `profiles/extensions.json`: its
+`label` and `key`. Nothing else changes; the runtime reads claims from the
+generated registry. Never add a per-claim field to the collection or a
+per-claim branch to the runtime.
+
+**Add an action** with a registry entry (and its `requires`, if one claim must
+grant it), a bit in
+[`extension_runtime.hpp`](../sdk/platform/extension_runtime.hpp) in registry
+order (a test keeps them in step), its function appended to `Actions`, and its
+stock work in the version adapter,
 [`extension_stock.cpp`](../sdk/platform/opxy-1.2.1/extension_stock.cpp), never
-in the extension. An action that drives a stock path the SDK hooks (playing a
+in the extension. The runtime already decides when it is granted. An action that drives a stock path the SDK hooks (playing a
 note reaches the live-note sites) says how it avoids re-entry: events raised
 during a callback are dropped. An action that changes stock state uses one
 stock undo transaction. A claim exists only where stock behavior would
@@ -194,8 +201,13 @@ otherwise conflict: say what stock already does with that gesture.
 
 ## Verify
 
-Run `python sdk.py check`, then the full [native release verification](build.md#release-verification).
-Shared tests exercise callback ordering, exclusive claims, the registry, every
-hook's events, stale-context and unauthorized edits, and capture through the
-actual adapter with stock boundary doubles. Device scheduling still requires
+Put an extension's tests in `extensions/<id>/tests/`: each `.cpp` there is a
+host program that returns 0 when its checks pass, built with the SDK headers
+and the extension's folder on the include path
+([`history.cpp`](../extensions/capture/tests/history.cpp) is capture's). Run
+`python sdk.py check`, which runs them for every extension in the collection,
+then the full [native release verification](build.md#release-verification).
+Shared tests exercise callback ordering, exclusive claims, the registry, grants
+from data, every hook's events, stale-context and unauthorized edits, and the
+adapter end to end with stock boundary doubles. Device scheduling still requires
 testing the exact built image.

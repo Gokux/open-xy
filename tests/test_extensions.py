@@ -36,16 +36,15 @@ class Extensions(unittest.TestCase):
         with mock.patch.object(extensions, 'document', return_value=data), self.assertRaisesRegex(ValueError, 'multiple owners'):
             extensions.collection()
 
-    def test_registry_matches_the_runtime_bits(self):
-        # Adding a claim or action is one registry entry and one runtime constant.
+    def test_actions_match_the_runtime_bits_and_claims_are_data(self):
+        # An action is SDK code: one registry entry and one runtime constant, in
+        # registry order. A claim is data: a registry entry naming its key.
         header = (ROOT / extensions.RUNTIME).read_text(encoding='utf-8')
         claims, actions = extensions.registry()
-        declared = re.findall(r'const u32 (claim|action)_(\w+) = 1u << (\d+);', header)
-        self.assertEqual({(kind, name) for kind, name, _bit in declared},
-                         {('claim', n) for n in claims} | {('action', n) for n in actions})
-        for kind in ('claim', 'action'):
-            bits = [bit for k, _name, bit in declared if k == kind]
-            self.assertEqual(len(bits), len(set(bits)), 'Each ' + kind + ' has its own bit')
+        declared = re.findall(r'const u32 action_(\w+) = 1u << (\d+);', header)
+        self.assertEqual(declared, [(name, str(i)) for i, name in enumerate(actions)])
+        self.assertNotRegex(header, r'const u32 claim_')
+        self.assertTrue(all(type(c['key']) is int for c in claims.values()))
 
     def test_every_extension_hook_names_its_events_and_every_event_has_a_site(self):
         profile = config()

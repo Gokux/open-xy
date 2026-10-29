@@ -20,17 +20,25 @@ struct LiveNote { u32 track, pitch, velocity; i32 position; u32 collision_radius
 struct NoteOff { u32 track, pitch; };
 struct Tick { u32 delta_q8; bool discontinuity; };
 using Time = __UINT64_TYPE__;
+// Key numbers as stock reports them in queued controls.
+namespace keys { const u32 record = 50; }
 struct Control {
-    static const u32 record_key = 50;
     u32 key;
-    bool pressed, record_accepted, unmodified_record;
+    bool pressed;
+    // Stock took the event as input: input was enabled and, for Record, stock
+    // registered the press or release.
+    bool accepted;
+    // No other key and no Shift held when the event arrived.
+    bool unmodified;
     Time time;
 };
 
-// Callable only during an authorized control callback. The SDK validates the
-// context again and owns undo/publication: one stock undo transaction per
-// callback. Returns the inserted prefix length. A notification is allowed only
-// after this callback successfully edits notes. Append new actions at the end.
+// Each action needs its permission (profiles/extensions.json) and works only in
+// a queued_control callback for a key the extension claims, once stock accepted
+// it. The SDK validates the context again and owns undo/publication: one stock
+// undo transaction per callback. Note writes return the inserted prefix length;
+// a notification is allowed only after this callback edits notes. Append new
+// actions at the end.
 struct Actions {
     // Add notes to the selected track's pattern beside its existing notes.
     u32 (*insert_notes)(const Context&, const Note*, u32 count);
