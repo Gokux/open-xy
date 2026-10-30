@@ -265,6 +265,23 @@ class DeviceTransferTests(unittest.TestCase):
             transfer.push(device, self.files(), self.temp / 'record')
         self.assertEqual(device.get('/os.ldr'), b'old os')
 
+    def test_a_delete_that_takes_effect_then_errors_is_still_restored(self):
+        device = FakeDevice({'/os.ldr': b'old os'})
+        real_delete = device.delete
+
+        def delete_then_fail(entry):
+            real_delete(entry)
+            raise OSError('driver error after deleting')
+        device.delete = delete_then_fail
+        with self.assertRaisesRegex(ValueError, 'driver error after deleting'):
+            transfer.push(device, self.files(), self.temp / 'record')
+        self.assertEqual(device.get('/os.ldr'), b'old os')
+
+    def test_source_must_be_laid_out_like_the_device(self):
+        candidate(self.source, {'manifest.json': b'{}'})
+        with self.assertRaisesRegex(ValueError, 'only os.ldr and content/ at the top\\): manifest.json'):
+            transfer.source_files(self.source)
+
     def test_device_paths_accept_backslashes(self):
         device = FakeDevice({'/content/display/x.svg': b'x'})
         out = io.StringIO()

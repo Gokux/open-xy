@@ -6,6 +6,7 @@ driver File Explorer uses. Needs Windows and `pip install comtypes==1.4.17`.
 Only standard WPD content operations: list, read, create and delete one file,
 create a folder. No vendor commands, no eject and no firmware write.
 """
+import contextlib
 import ctypes as ct
 import gc
 import os
@@ -24,6 +25,15 @@ UNSPECIFIED_FORMAT = '{30000000-AE6C-4804-98BA-C57B46965FE7}'
 PROPERTIES_ONLY = '{30010000-AE6C-4804-98BA-C57B46965FE7}'
 CHUNK = 32768
 GENERIC_READ_WRITE = 0xc0000000
+
+
+@contextlib.contextmanager
+def failure(action):
+    """Name the action when a raw call's failing HRESULT surfaces as OSError."""
+    try:
+        yield
+    except OSError as error:
+        raise ValueError(f'{action} failed: {error}') from error
 
 
 class Entry:
@@ -77,6 +87,8 @@ class Device:
             self.keys = self._create(self.types.PortableDeviceKeyCollection, self.api.IPortableDeviceKeyCollection)
             for pid in (FILENAME, NAME, CONTENT_TYPE, FORMAT, SIZE):
                 self.keys.Add(self._key(OBJ, pid))
+            self.id_key = self._create(self.types.PortableDeviceKeyCollection, self.api.IPortableDeviceKeyCollection)
+            self.id_key.Add(self._key(OBJ, ID))
         except BaseException:
             self.close()
             raise
@@ -104,9 +116,6 @@ class Device:
     def _key(self, guid, pid):
         return self.api._tagpropertykey(self.comtypes.GUID(guid), pid)
 
-    def _props(self, object_id):
-        return self.properties.GetValues(object_id, None)
-
     def _optional(self, read):
         try:
             return read()
@@ -123,8 +132,8 @@ class Device:
         result = []
         for _ in range(100000):
             ids, count = (ct.c_wchar_p * 1)(), ct.c_ulong()
-            status = enumeration._IEnumPortableDeviceObjectIDs__com_Next(1, ids, ct.byref(count))
-            require(status >= 0, f'Listing failed: {status:#x}')
+            with failure('Listing a device folder'):
+                enumeration._IEnumPortableDeviceObjectIDs__com_Next(1, ids, ct.byref(count))
             if count.value == 0:
                 return result
             object_id = ids[0]
@@ -143,9 +152,9 @@ class Device:
         require(entry.size is not None, f'{entry.name} reports no size')
         stream, preferred = ct.POINTER(self.api.IStream)(), ct.c_ulong()
         resource = self._key(RESOURCE, 0)
-        status = self.resources._IPortableDeviceResources__com_GetStream(
-            entry.id, ct.byref(resource), 0, ct.byref(preferred), ct.byref(stream))
-        require(status >= 0, f'Opening {entry.name} failed: {status:#x}')
+        with failure(f'Opening {entry.name}'):
+            self.resources._IPortableDeviceResources__com_GetStream(
+                entry.id, ct.byref(resource), 0, ct.byref(preferred), ct.byref(stream))
         data = bytearray()
         try:
             while len(data) < entry.size:
@@ -162,11 +171,11 @@ class Device:
         """Delete exactly one file, never recursively."""
         require(not entry.folder, f'Refusing to delete the folder {entry.name}')
         ids = self._create(self.types.PortableDevicePropVariantCollection, self.api.IPortableDevicePropVariantCollection)
-        ids.Add(self._props(entry.id).GetValue(self._key(OBJ, ID)))
+        ids.Add(self.properties.GetValues(entry.id, self.id_key).GetValue(self._key(OBJ, ID)))
         results = ct.POINTER(self.api.IPortableDevicePropVariantCollection)()
-        status = self.content._IPortableDeviceContent__com_Delete(0, ids, ct.byref(results))
-        # S_FALSE (1) means the object was not deleted.
-        require(status == 0, f'Deleting {entry.name} failed: {status:#x}')
+        with failure(f'Deleting {entry.name}'):
+            status = self.content._IPortableDeviceContent__com_Delete(0, ids, ct.byref(results))
+        require(status == 0, f'Deleting {entry.name} failed: {status:#x}')  # S_FALSE (1): not deleted.
 
     def create_file(self, parent, name, data, like=None):
         """Write a new file; format and content type follow a sibling file when given."""
@@ -180,9 +189,9 @@ class Device:
         props.SetGuidValue(self._key(OBJ, CONTENT_TYPE),
                            like.content_type if like and like.content_type else guid(GENERIC_FILE))
         stream, preferred, cookie = ct.POINTER(self.api.IStream)(), ct.c_ulong(), ct.c_wchar_p()
-        status = self.content._IPortableDeviceContent__com_CreateObjectWithPropertiesAndData(
-            props, ct.byref(stream), ct.byref(preferred), ct.byref(cookie))
-        require(status >= 0, f'Creating {name} failed: {status:#x}')
+        with failure(f'Creating {name}'):
+            self.content._IPortableDeviceContent__com_CreateObjectWithPropertiesAndData(
+                props, ct.byref(stream), ct.byref(preferred), ct.byref(cookie))
         if cookie:
             self.free(ct.cast(cookie, ct.c_void_p))
         try:
@@ -210,7 +219,7 @@ class Device:
         props.SetGuidValue(self._key(OBJ, FORMAT), self.comtypes.GUID(PROPERTIES_ONLY))
         props.SetGuidValue(self._key(OBJ, CONTENT_TYPE), self.comtypes.GUID(FOLDER))
         new_id = ct.c_wchar_p()
-        status = self.content._IPortableDeviceContent__com_CreateObjectWithPropertiesOnly(props, ct.byref(new_id))
-        require(status >= 0, f'Creating the folder {name} failed: {status:#x}')
+        with failure(f'Creating the folder {name}'):
+            self.content._IPortableDeviceContent__com_CreateObjectWithPropertiesOnly(props, ct.byref(new_id))
         if new_id:
             self.free(ct.cast(new_id, ct.c_void_p))

@@ -4,7 +4,8 @@
     python sdk.py device list [content/display]
     python sdk.py device pull content/op1_factory.json --out <file>
 
-`push` mirrors a folder onto the device root: <folder>/os.ldr goes to /os.ldr,
+`push` mirrors a folder holding only os.ldr and content/ onto the device root:
+<folder>/os.ldr goes to /os.ldr,
 <folder>/content/... to /content/..., creating missing folders. Before writing
 it backs up every file it will replace, then writes only changed files, reads
 each one back byte for byte, and on any failure or interruption restores the
@@ -28,6 +29,14 @@ from .release import outside_checkouts
 
 # Explorer and Finder leave these beside copied files; they never belong on the device.
 JUNK = {'thumbs.db', 'desktop.ini', '.ds_store'}
+# What a build or kit installs; anything else at the top is the wrong folder.
+TOP = {'os.ldr', 'content'}
+FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+
+def link(path):
+    """A symlink or a Windows junction; Path.is_junction needs Python 3.12, this repository supports 3.11."""
+    return path.is_symlink() or bool(getattr(os.lstat(path), 'st_file_attributes', 0) & FILE_ATTRIBUTE_REPARSE_POINT)
 
 
 def junk(name):
@@ -46,14 +55,16 @@ def source_files(folder):
     require(folder.is_dir(), f'Not a folder: {folder}')
     require(not (folder / 'candidate').is_dir() or (folder / 'os.ldr').exists(),
             f'{folder} holds a build; push its candidate folder: {folder / "candidate"}')
+    unexpected = sorted(x.name for x in folder.iterdir() if x.name.lower() not in TOP and not junk(x.name))
+    require(not unexpected, f'{folder} is not laid out like the device (only os.ldr and content/ at the top): '
+            + ', '.join(unexpected))
     files, skipped = {}, []
     for directory, folders, names in os.walk(folder):
         here = Path(directory)
         for name in sorted(folders + names):
             path = here / name
             # Checked before descending: a junction is not a symlink and could loop the walk.
-            require(not path.is_symlink() and not (hasattr(path, 'is_junction') and path.is_junction()),
-                    f'Refusing a link: {path}')
+            require(not link(path), f'Refusing a link: {path}')
             if junk(name):
                 skipped.append(path.relative_to(folder).as_posix())
             elif path.is_file():
@@ -195,10 +206,13 @@ def push(device, files, record):
             for parts, old, before, entry in reversed(done):
                 try:
                     parent = device.resolve(root, parts[:-1])
-                    if old is not None and not entry.get('deleted'):
-                        entry['rolled_back'] = True  # The original was never deleted; leave it alone.
-                        continue
                     current = device.child(parent, parts[-1]) if parent else None
+                    # Untouched only if it still holds the original bytes: ids can be reused and a delete
+                    # can take effect and then report an error, so neither an id nor a flag is proof.
+                    if (current is not None and before is not None and not entry.get('deleted')
+                            and current.size == len(before) and device.read(current) == before):
+                        entry['rolled_back'] = True
+                        continue
                     if current is not None:
                         device.delete(parent, current)
                     if before is not None:
