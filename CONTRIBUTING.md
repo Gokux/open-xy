@@ -29,6 +29,7 @@ in the layer that owns the behavior:
 | A new machine | Its own repository, created with `sdk.py new --repository`; learn from the core machines |
 | Oscillator, controls, artwork, presets or lookup tables | The machine's folder |
 | Sound tests | The machine's `tests/`, run by `sdk.py test` |
+| Controller behavior, capture history and extension gestures | The extension's own repository; see [extensions](docs/extensions.md) |
 | Callback contract, adapter, build, preview or packaging | SDK |
 | Firmware address map, shared memory reservation or compiler profile | Shared platform integration |
 
@@ -76,7 +77,7 @@ required checks and private fixtures cannot be skipped.
 Work is tracked as issues. Each release has a milestone and a matching
 [project board](https://github.com/etcetc000/open-xy/projects) named after its
 version; maintainers assign new issues to both. Pick an open issue or open one
-before larger work, and write `Closes #<issue>` in the pull request. A release merges `staging` into `main`,
+before larger work, and write `Closes #<issue>` in the pull request. A release merges `staging`, or a `release/<version>` branch cut from it when staging carries later work, into `main`,
 is tagged `v<milestone>` with generated release notes, and closes its milestone.
 
 In a PR, explain the behavior, how to try it, compatibility changes and checks
