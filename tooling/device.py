@@ -31,7 +31,7 @@ from .release import outside_checkouts
 JUNK = {'thumbs.db', 'desktop.ini', '.ds_store'}
 # What a build or kit installs; anything else at the top is the wrong folder.
 TOP = {'os.ldr', 'content'}
-FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003  # A directory junction; cloud and dedup reparse points are ordinary files.
 
 
 def unreadable(error):
@@ -40,7 +40,7 @@ def unreadable(error):
 
 def link(path):
     """A symlink or a Windows junction; Path.is_junction needs Python 3.12, this repository supports 3.11."""
-    return path.is_symlink() or bool(getattr(os.lstat(path), 'st_file_attributes', 0) & FILE_ATTRIBUTE_REPARSE_POINT)
+    return path.is_symlink() or getattr(os.lstat(path), 'st_reparse_tag', 0) == IO_REPARSE_TAG_MOUNT_POINT
 
 
 def junk(name):
@@ -104,8 +104,10 @@ class Listings:
         return self.device.read(entry)
 
     def delete(self, parent, entry):
-        self.device.delete(entry)
-        self.cache.pop(parent, None)
+        try:
+            self.device.delete(entry)
+        finally:
+            self.cache.pop(parent, None)
         require(self.child(parent, entry.name) is None, f'Deleting {entry.name} was not confirmed')
 
     def create_file(self, parent, name, data, like):
@@ -129,10 +131,12 @@ class Listings:
             if entry is None:
                 if create is None:
                     return None
-                self.create_folder(parent, name)
+                try:
+                    self.create_folder(parent, name)
+                finally:
+                    create.append(path)  # Noted even if the create errors after taking effect.
                 entry = self.child(parent, name)
                 require(entry is not None and entry.folder, f'Creating {path} failed')
-                create.append(path)
             require(entry.folder, f'{path} is a file where a folder is needed')
             parent = entry.id
         return parent
@@ -141,6 +145,25 @@ class Listings:
         entry = self.child(parent, name)
         require(entry is not None and entry.size == len(data) and self.read(entry) == data,
                 f'Readback of {name} differs from the source')
+
+
+def plan(device, root, files, record, report, tasks):
+    """Back up every file about to be replaced; nothing on the device changes here."""
+    for parts, data in files.items():
+        path = '/' + '/'.join(parts)
+        parent = device.resolve(root, parts[:-1])
+        old = device.child(parent, parts[-1]) if parent else None
+        require(old is None or not old.folder, f'{path} is a folder on the device')
+        before = device.read(old) if old else None
+        if before is not None and before != data:  # Only files about to be replaced need a backup.
+            backup = record.joinpath('before', *parts)
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            backup.write_bytes(before)
+        entry = {'path': path, 'bytes': len(data), 'sha256': sha(data),
+                 'before_sha256': sha(before) if before is not None else None,
+                 'changed': before != data, 'verified': False}
+        report['files'].append(entry)
+        tasks.append((parts, data, old, before, entry))
 
 
 def push(device, files, record):
@@ -158,21 +181,13 @@ def push(device, files, record):
     require(not any((x.name or '').lower().endswith('.tfw') for x in device.list(root)),
             'A firmware update (.tfw) is waiting in the device root; finish or remove it first')
     tasks = []
-    for parts, data in files.items():
-        path = '/' + '/'.join(parts)
-        parent = device.resolve(root, parts[:-1])
-        old = device.child(parent, parts[-1]) if parent else None
-        require(old is None or not old.folder, f'{path} is a folder on the device')
-        before = device.read(old) if old else None
-        if before is not None and before != data:  # Only files about to be replaced need a backup.
-            backup = record.joinpath('before', *parts)
-            backup.parent.mkdir(parents=True, exist_ok=True)
-            backup.write_bytes(before)
-        entry = {'path': path, 'bytes': len(data), 'sha256': sha(data),
-                 'before_sha256': sha(before) if before is not None else None,
-                 'changed': before != data, 'verified': False}
-        report['files'].append(entry)
-        tasks.append((parts, data, old, before, entry))
+    try:
+        plan(device, root, files, record, report, tasks)
+    except BaseException as error:
+        report['error'] = str(error) or type(error).__name__
+        error.device_state = 'nothing was written to the device'
+        save()
+        raise
     save()
     done = []
     try:
@@ -180,8 +195,8 @@ def push(device, files, record):
             parent = device.resolve(root, parts[:-1], report['created_folders'])
             if entry['changed']:
                 live = device.child(parent, parts[-1])
-                require((live is None) == (old is None) and (live is None or live.id == old.id),
-                        f'{entry["path"]} changed on the device after the backup')
+                unchanged = live is None or (live.id == old.id and live.size == len(before))
+                require((live is None) == (old is None) and unchanged, f'{entry["path"]} changed on the device after the backup')
                 done.append((parts, old, before, entry))
                 entry['written'] = True
                 save()  # Recorded before the device changes, so an interruption still shows it.
@@ -250,7 +265,7 @@ def push(device, files, record):
 def restored(report):
     folders = report['created_folders']
     return 'every file is as it was before this push' + (
-        f' (new empty folders remain: {", ".join(folders)})' if folders else '')
+        f' (new empty folders may remain: {", ".join(folders)})' if folders else '')
 
 
 def entry_at(device, path):
@@ -299,7 +314,7 @@ def main(argv=None, connect=open_device):
                     if (record / 'transfer.json').exists():
                         print('Transfer record: ' + str(record), flush=True)
             changed = sum(x['changed'] for x in report['files'])
-            print(f'PASS: {len(files)} files on the device and read back ({changed} changed). '
+            print(f'PASS: {len(files)} files on the device ({changed} copied and read back, the rest already matched). '
                   'Firmware not written to the boot partition.')
         elif args.command == 'list':
             with connect() as device:

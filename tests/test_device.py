@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from tooling import device as transfer
 from tooling.wpd import Entry
@@ -137,7 +138,7 @@ class DeviceTransferTests(unittest.TestCase):
     def test_failed_write_restores_replaced_files(self):
         device = FakeDevice({'/os.ldr': b'old os', '/content/op1_factory.json': b'old'})
         device.fail_on = 'os.ldr'  # Written last, after the other two succeeded.
-        with self.assertRaisesRegex(ValueError, r'write failed; every file is as it was before this push \(new empty folders remain: /content/display\)'):
+        with self.assertRaisesRegex(ValueError, r'write failed; every file is as it was before this push \(new empty folders may remain: /content/display\)'):
             transfer.push(device, self.files(), self.temp / 'record')
         self.assertEqual(device.get('/os.ldr'), b'old os')
         self.assertEqual(device.get('/content/op1_factory.json'), b'old')
@@ -281,6 +282,22 @@ class DeviceTransferTests(unittest.TestCase):
         candidate(self.source, {'manifest.json': b'{}'})
         with self.assertRaisesRegex(ValueError, 'only os.ldr and content/ at the top\\): manifest.json'):
             transfer.source_files(self.source)
+
+    def test_only_symlinks_and_junctions_count_as_links(self):
+        path = self.source / 'os.ldr'
+        for tag, expected in ((0xA0000003, True), (0x9000001A, False), (0, False)):  # junction, OneDrive file, plain
+            stat = type('Stat', (), {'st_reparse_tag': tag})()
+            with self.subTest(tag=hex(tag)), mock.patch.object(transfer.os, 'lstat', return_value=stat):
+                self.assertEqual(transfer.link(path), expected)
+
+    def test_a_planning_failure_says_nothing_was_written(self):
+        device = FakeDevice({'/os.ldr': b'old os'})
+        device.read = lambda entry: (_ for _ in ()).throw(OSError('read failed'))
+        with self.assertRaisesRegex(OSError, 'read failed') as caught:
+            transfer.push(device, self.files(), self.temp / 'record')
+        self.assertEqual(caught.exception.device_state, 'nothing was written to the device')
+        self.assertEqual(device.writes, [])
+        self.assertEqual(self.record()['error'], 'read failed')
 
     def test_device_paths_accept_backslashes(self):
         device = FakeDevice({'/content/display/x.svg': b'x'})

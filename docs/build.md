@@ -8,7 +8,7 @@ machine reaches the firmware by joining the collection; read the
 [caveats](../README.md) before installing.
 
 Commands use `python`; on macOS it is usually `python3`. Building needs only
-Python 3.11+, no virtual environment or packages; the browser preview in
+Python 3.11+, no virtual environment or packages (copying to the device from Windows also needs comtypes, see [install](#5-install)); the browser preview in
 [your first machine](first-machine.md) has its own prerequisites.
 
 ## 1. Install the tools
