@@ -23,6 +23,7 @@ from pathlib import Path, PurePosixPath
 import sys
 
 from .formats import require, sha
+from .pipeline import fresh_output
 from .release import outside_checkouts
 
 # Explorer and Finder leave these beside copied files; they never belong on the device.
@@ -47,7 +48,8 @@ def source_files(folder):
             f'{folder} holds a build; push its candidate folder: {folder / "candidate"}')
     files, skipped = {}, []
     for path in sorted(folder.rglob('*')):
-        require(not path.is_symlink(), f'Refusing a symbolic link: {path}')
+        require(not path.is_symlink() and not (hasattr(path, 'is_junction') and path.is_junction()),
+                f'Refusing a link: {path}')
         parts = path.relative_to(folder).parts
         flags = [junk(x) for x in parts]
         if any(flags):
@@ -121,9 +123,8 @@ class Listings:
 
 def push(device, files, record):
     """Mirror files ({device path parts: bytes}) onto the device; returns the transfer report."""
-    record = Path(record)
     require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
-    record.mkdir(parents=True, exist_ok=False)
+    record = fresh_output(record)
     report = {'files': [], 'created_folders': [], 'complete': False, 'firmware_written': False, 'ejected': False}
 
     def save():
@@ -164,8 +165,8 @@ def push(device, files, record):
                 save()  # Recorded before the device changes, so an interruption still shows it.
                 if live is not None:
                     device.delete(parent, live)
-                # Only the replaced file's own type carries over; a sibling's may be unrelated.
-                device.create_file(parent, parts[-1], data, live)
+                # Only the replaced file's own type and name case carry over; a sibling's type may be unrelated.
+                device.create_file(parent, live.name if live else parts[-1], data, live)
                 print('copied ' + entry['path'], flush=True)
                 device.verify(parent, parts[-1], data)
             entry['verified'] = True  # Unchanged files were compared when planned.
@@ -187,10 +188,13 @@ def push(device, files, record):
                 try:
                     parent = device.resolve(root, parts[:-1])
                     current = device.child(parent, parts[-1]) if parent else None
+                    if current is not None and old is not None and current.id == old.id:
+                        entry['rolled_back'] = True  # The original was never deleted; leave it alone.
+                        continue
                     if current is not None:
                         device.delete(parent, current)
                     if before is not None:
-                        device.create_file(parent, parts[-1], before, old)
+                        device.create_file(parent, old.name, before, old)
                         device.verify(parent, parts[-1], before)
                     entry['rolled_back'] = True
                 except BaseException as rollback_error:  # A second Ctrl+C still leaves an accurate record.
@@ -208,6 +212,8 @@ def push(device, files, record):
                 steps.append(f'delete {", ".join(remove)}, which are new')
             raise ValueError(f'{report["error"]}; the restore also failed, so the device is left changed: '
                              f'{" and ".join(steps)} before writing the OS') from error
+        if isinstance(error, Exception):
+            raise ValueError(f'{report["error"]}; the device is as it was before this push') from error
         raise
 
 
@@ -250,6 +256,7 @@ def main(argv=None, connect=open_device):
                 print('skipped ' + path, flush=True)
             record = args.record or private_root() / 'transfers' / datetime.now().strftime('%Y%m%d-%H%M%S-%f')
             require(not record.exists(), f'{record} already exists; give each transfer a new record folder')
+            require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
             with connect() as device:
                 try:
                     report = push(device, files, record)
@@ -275,7 +282,8 @@ def main(argv=None, connect=open_device):
             args.out.write_bytes(data)
             print(f'{args.out}: {len(data)} bytes, sha256 {sha(data)}')
     except KeyboardInterrupt:
-        parser.exit(1, 'FAIL: interrupted; any replaced files were restored (see the transfer record)\n')
+        # A restore that fails raises its own error, so an interrupt that reaches here left the device as it was.
+        parser.exit(1, 'FAIL: interrupted' + ('; the device is as it was before this push' if args.command == 'push' else '') + '\n')
     except Exception as error:  # Includes the driver's COMError, which is not an OSError.
         parser.exit(1, 'FAIL: ' + str(error) + '\n')
     return 0

@@ -133,7 +133,7 @@ class DeviceTransferTests(unittest.TestCase):
     def test_failed_write_restores_replaced_files(self):
         device = FakeDevice({'/os.ldr': b'old os', '/content/op1_factory.json': b'old'})
         device.fail_on = 'os.ldr'  # Written last, after the other two succeeded.
-        with self.assertRaisesRegex(OSError, 'write failed'):
+        with self.assertRaisesRegex(ValueError, 'write failed; the device is as it was before this push'):
             transfer.push(device, self.files(), self.temp / 'record')
         self.assertEqual(device.get('/os.ldr'), b'old os')
         self.assertEqual(device.get('/content/op1_factory.json'), b'old')
@@ -165,7 +165,7 @@ class DeviceTransferTests(unittest.TestCase):
 
     def test_record_folder_must_be_new(self):
         (self.temp / 'record').mkdir()
-        with self.assertRaises(FileExistsError):
+        with self.assertRaisesRegex(ValueError, 'already exists'):
             transfer.push(FakeDevice(), self.files(), self.temp / 'record')
 
     def test_interrupt_mid_write_restores_and_records(self):
@@ -230,7 +230,7 @@ class DeviceTransferTests(unittest.TestCase):
         device.interrupt = 'os.ldr'
         with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
             transfer.main(['push', str(self.source), '--record', str(self.temp / 'record')], connect=lambda: device)
-        self.assertIn('FAIL: interrupted; any replaced files were restored', err.getvalue())
+        self.assertIn('FAIL: interrupted; the device is as it was before this push', err.getvalue())
         self.assertEqual(device.get('/os.ldr'), b'old os')
 
     def test_existing_record_is_refused_before_connecting(self):
@@ -246,10 +246,23 @@ class DeviceTransferTests(unittest.TestCase):
         self.assertIn('already exists', err.getvalue())
         self.assertNotIn('Transfer record', out.getvalue())
 
+    def test_failed_delete_leaves_the_original_untouched(self):
+        device = FakeDevice({'/os.ldr': b'old os'})
+        device.delete = lambda entry: None  # The driver reports success but keeps the file.
+        with self.assertRaisesRegex(ValueError, 'not confirmed'):
+            transfer.push(device, self.files(), self.temp / 'record')
+        self.assertEqual(device.get('/os.ldr'), b'old os')
+        self.assertNotIn('os.ldr', device.writes, 'The untouched original is never rewritten')
+
+    def test_replacing_keeps_the_device_name_case(self):
+        device = FakeDevice({'/OS.LDR': b'old os'})
+        transfer.push(device, self.files(), self.temp / 'record')
+        self.assertEqual(device.get('/OS.LDR'), b'new os')
+
     def test_restore_keeps_the_replaced_file_type(self):
         device = FakeDevice({'/os.ldr': b'old os'})
         device.fail_on = 'os.ldr'
-        with self.assertRaises(OSError):
+        with self.assertRaises(ValueError):
             transfer.push(device, self.files(), self.temp / 'record')
         self.assertIsNotNone(device.likes['os.ldr'], 'The restored file takes the original entry type')
 

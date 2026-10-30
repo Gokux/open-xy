@@ -8,6 +8,7 @@ create a folder. No vendor commands, no eject and no firmware write.
 """
 import ctypes as ct
 import gc
+import os
 
 from .formats import require
 
@@ -42,8 +43,9 @@ class Device:
         except ImportError:
             raise ValueError('Device transfer needs Windows and comtypes: python -m pip install comtypes==1.4.17')
         self.comtypes = comtypes
-        self.api = comtypes.client.GetModule(r'C:\Windows\System32\PortableDeviceApi.dll')
-        self.types = comtypes.client.GetModule(r'C:\Windows\System32\PortableDeviceTypes.dll')
+        system = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32')
+        self.api = comtypes.client.GetModule(os.path.join(system, 'PortableDeviceApi.dll'))
+        self.types = comtypes.client.GetModule(os.path.join(system, 'PortableDeviceTypes.dll'))
         self.free = ct.OleDLL('ole32').CoTaskMemFree
         self.free.argtypes, self.free.restype = [ct.c_void_p], None
         manager = self._create(self.api.PortableDeviceManager, self.api.IPortableDeviceManager)
@@ -129,7 +131,8 @@ class Device:
             kind = self._optional(lambda: props.GetGuidValue(self._key(OBJ, CONTENT_TYPE)))
             format = self._optional(lambda: props.GetGuidValue(self._key(OBJ, FORMAT)))
             size = self._optional(lambda: props.GetUnsignedLargeIntegerValue(self._key(OBJ, SIZE)))
-            result.append(Entry(object_id, name, size, str(kind).upper() in FOLDER_TYPES, format, kind))
+            folder = str(kind).upper() in FOLDER_TYPES or str(format).upper() == PROPERTIES_ONLY
+            result.append(Entry(object_id, name, size, folder, format, kind))
         raise ValueError('Folder listing did not end')
 
     def read(self, entry):
