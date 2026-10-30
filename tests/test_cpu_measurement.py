@@ -89,6 +89,26 @@ class Measurements(unittest.TestCase):
                 with self.subTest(kind=kind, change=change), self.assertRaises(ValueError):
                     catalog.validate(document(dict(entry, cpu=dict(entry['cpu'], **change))))
 
+    def test_synths_may_submit_a_control_sweep(self):
+        sweep = dict(measurement(), benchmark=cpu_measurement.SWEEP, block_percent=3.461, midpoint_percent=3.406,
+                     combined_percent=2.661, worst_setting=dict(control=4, label='Rot', value=0x7fffffff // 4))
+        entry = dict(PUBLISHED, cpu=sweep)
+        catalog.validate(document(entry))
+        catalog.changes([], [entry])
+        option = dict(sweep, worst_setting=dict(sweep['worst_setting'], option='Saw'))
+        catalog.validate(document(dict(entry, cpu=option)))
+        for change in ({'midpoint_percent': 4.0}, {'combined_percent': 0}, {'worst_setting': None},
+                       {'worst_setting': dict(control=8, label='Rot', value=0)},
+                       {'worst_setting': dict(control=4, label='', value=0)},
+                       {'worst_setting': dict(control=4, label='Rot', value=-1)}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                catalog.validate(document(dict(entry, cpu=dict(sweep, **change))))
+        missing = dict(sweep); del missing['worst_setting']
+        for kind, cpu in (('synth', missing), ('effect', sweep),
+                          ('synth', dict(measurement(), worst_setting=sweep['worst_setting']))):
+            with self.subTest(kind=kind, fields=sorted(cpu)), self.assertRaises(ValueError):
+                catalog.validate(document(dict(entry, kind=kind, cpu=cpu)))
+
     def test_changed_submissions_require_a_measurement_but_legacy_entries_can_stay(self):
         for kind in cpu_measurement.BENCHMARKS:
             entry = dict(PUBLISHED, kind=kind)
