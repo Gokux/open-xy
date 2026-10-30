@@ -301,8 +301,10 @@ class DeviceTransferTests(unittest.TestCase):
 
     def test_source_names_differing_only_in_case_are_refused(self):
         transfer.distinct_without_case([('content', 'a.json'), ('content', 'b.json')])
-        with self.assertRaisesRegex(ValueError, 'content/A.json and content/a.json are the same file'):
+        with self.assertRaisesRegex(ValueError, 'content/A.json and content/a.json are the same name'):
             transfer.distinct_without_case([('content', 'A.json'), ('content', 'a.json')])
+        with self.assertRaisesRegex(ValueError, 'content/FOO and content/foo are the same name'):
+            transfer.distinct_without_case([('content', 'FOO', 'bar.svg'), ('content', 'foo')])
 
     def test_planning_failure_tells_the_user_nothing_was_written(self):
         device = FakeDevice({'/os.ldr': b'old os'})
@@ -321,9 +323,11 @@ class DeviceTransferTests(unittest.TestCase):
             if path.name == 'transfer.json' and '"complete": true' in args[0]:
                 raise OSError('disk full')
             return real_write(path, *args, **kwargs)
-        with mock.patch.object(transfer.Path, 'write_text', write_text), self.assertRaisesRegex(OSError, 'disk full'):
+        with mock.patch.object(transfer.Path, 'write_text', write_text), \
+                self.assertRaisesRegex(OSError, 'disk full') as caught:
             transfer.push(device, self.files(), self.temp / 'record')
         self.assertEqual(device.get('/os.ldr'), b'new os')
+        self.assertIn('copied and verified', caught.exception.device_state)
 
     def test_device_paths_accept_backslashes(self):
         device = FakeDevice({'/content/display/x.svg': b'x'})

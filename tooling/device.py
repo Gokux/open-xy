@@ -57,8 +57,7 @@ def source_files(folder):
     """({device path parts: bytes}, [skipped junk paths]) for every file below folder."""
     folder = Path(folder)
     require(folder.is_dir(), f'Not a folder: {folder}')
-    require(not (folder / 'candidate').is_dir() or (folder / 'os.ldr').exists(),
-            f'{folder} holds a build; push its candidate folder: {folder / "candidate"}')
+    require(not (folder / 'candidate').is_dir(), f'{folder} holds a build; push its candidate folder: {folder / "candidate"}')
     unexpected = sorted(x.name for x in folder.iterdir() if x.name.lower() not in TOP and not junk(x.name))
     require(not unexpected, f'{folder} is not laid out like the device (only os.ldr and content/ at the top): '
             + ', '.join(unexpected))
@@ -83,10 +82,11 @@ def distinct_without_case(paths):
     """A case-sensitive source (WSL, a case-sensitive folder) can hold names the device cannot tell apart."""
     seen = {}
     for parts in paths:
-        key = tuple(x.casefold() for x in parts)
-        require(key not in seen, f'{"/".join(seen.get(key, ()))} and {"/".join(parts)} are the same file on the device, '
-                'which ignores case')
-        seen[key] = parts
+        # Every folder on the way counts too: content/foo and content/FOO/bar.svg collide on the device.
+        for depth in range(1, len(parts) + 1):
+            key, path = tuple(x.lower() for x in parts[:depth]), parts[:depth]
+            require(seen.setdefault(key, path) == path, f'{"/".join(seen[key])} and {"/".join(path)} are the same '
+                    'name on the device, which ignores case')
 
 
 def check_record(record):
@@ -107,7 +107,7 @@ class Listings:
 
     def child(self, parent, name):
         # The device's FAT storage ignores case, so matching must too.
-        matches = [x for x in self.list(parent) if (x.name or '').casefold() == name.casefold()]
+        matches = [x for x in self.list(parent) if (x.name or '').lower() == name.lower()]
         require(len(matches) <= 1, f'More than one {name} on the device')
         return matches[0] if matches else None
 
@@ -145,7 +145,8 @@ class Listings:
                 try:
                     self.create_folder(parent, name)
                 finally:
-                    create.append(path)  # Noted even if the create errors after taking effect.
+                    if self.child(parent, name) is not None:
+                        create.append(path)  # Noted even if the create errors after taking effect.
                 entry = self.child(parent, name)
                 require(entry is not None and entry.folder, f'Creating {path} failed')
             require(entry.folder, f'{path} is a file where a folder is needed')
@@ -269,7 +270,11 @@ def push(device, files, record):
             raise ValueError(f'{report["error"]}; {error.device_state}') from error
         raise
     report['complete'] = True
-    save()  # Outside the try: failing to write the record must not undo a verified push.
+    try:
+        save()  # Outside the try above: failing to write the record must not undo a verified push.
+    except OSError as error:
+        error.device_state = 'every file was copied and verified, but the record could not be saved'
+        raise
     return report
 
 

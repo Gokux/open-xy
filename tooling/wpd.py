@@ -29,10 +29,12 @@ GENERIC_READ_WRITE = 0xc0000000
 
 @contextlib.contextmanager
 def failure(action):
-    """Name the action when a raw call's failing HRESULT surfaces as OSError."""
+    """Name the action when a driver call fails (OSError from raw calls, COMError from wrapped ones)."""
     try:
         yield
-    except OSError as error:
+    except Exception as error:
+        if not isinstance(error, OSError) and type(error).__name__ != 'COMError':
+            raise
         raise ValueError(f'{action} failed: {error}') from error
 
 
