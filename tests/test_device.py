@@ -18,6 +18,7 @@ class FakeDevice:
         self.nodes = {'root': ('DEVICE', 'OP-XY', None)}  # id: (parent, name, bytes or None for a folder)
         self.next = 0
         self.fail_on = None
+        self.failures = 1
         self.corrupt = None
         self.writes = []
         self.likes = {}
@@ -84,7 +85,9 @@ class FakeDevice:
             self.interrupt = None
             raise KeyboardInterrupt
         if name == self.fail_on:
-            self.fail_on = None  # Fails once; the rollback's rewrite succeeds.
+            self.failures -= 1
+            if self.failures <= 0:
+                self.fail_on = None  # By default fails once; the rollback's rewrite succeeds.
             raise OSError('write failed')
         corrupt, self.corrupt = name == self.corrupt, None if name == self.corrupt else self.corrupt
         self.nodes[self._id()] = (parent, name, bytes(data[:-1] if corrupt else data))
@@ -105,6 +108,7 @@ class DeviceTransferTests(unittest.TestCase):
     def setUp(self):
         self.temp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.temp, ignore_errors=True)
+        self.enterContext(contextlib.redirect_stdout(io.StringIO()))  # push reports each copied file
         self.source = candidate(self.temp / 'candidate', {'os.ldr': b'new os', 'content/op1_factory.json': b'{}',
                                                           'content/display/mine.svg': b'<svg/>'})
 
@@ -199,13 +203,53 @@ class DeviceTransferTests(unittest.TestCase):
         self.assertIsNotNone(device.likes['op1_factory.json'], 'A replaced file keeps its own type')
         self.assertIsNone(device.likes['mine.svg'], 'A new file never borrows a sibling type')
 
+    def test_failed_restore_is_reported_with_the_backups(self):
+        device = FakeDevice({'/os.ldr': b'old os'})
+        device.fail_on, device.failures = 'os.ldr', 2
+        with self.assertRaisesRegex(ValueError, r'restoring /os.ldr also failed.*before'):
+            transfer.push(device, self.files(), self.temp / 'record')
+        self.assertIsNone(device.get('/os.ldr'))
+        self.assertEqual((self.temp / 'record/before/os.ldr').read_bytes(), b'old os')
+        self.assertIn('rollback_error', self.record()['files'][-1])
+
+    def test_restore_keeps_the_replaced_file_type(self):
+        device = FakeDevice({'/os.ldr': b'old os'})
+        device.fail_on = 'os.ldr'
+        with self.assertRaises(OSError):
+            transfer.push(device, self.files(), self.temp / 'record')
+        self.assertIsNotNone(device.likes['os.ldr'], 'The restored file takes the original entry type')
+
+    def test_unchanged_files_are_neither_backed_up_nor_rewritten(self):
+        device = FakeDevice({'/os.ldr': b'new os'})
+        transfer.push(device, self.files(), self.temp / 'record')
+        self.assertNotIn('os.ldr', device.writes)
+        self.assertFalse((self.temp / 'record/before/os.ldr').exists())
+
+    def test_junk_folders_are_skipped_with_their_contents(self):
+        candidate(self.source, {'content/._resources/a.svg': b'x', 'content/._resources/b.svg': b'x'})
+        files, skipped = transfer.source_files(self.source)
+        self.assertNotIn(('content', '._resources', 'a.svg'), files)
+        self.assertEqual(skipped, ['content/._resources'])
+
+    def test_git_bash_rewritten_paths_are_refused(self):
+        with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+            transfer.main(['list', 'C:/Program Files/Git/content'], connect=lambda: FakeDevice())
+        self.assertIn('without the leading /', err.getvalue())
+
+    def test_no_record_line_when_the_record_was_not_created(self):
+        (self.temp / 'record').mkdir()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            transfer.main(['push', str(self.source), '--record', str(self.temp / 'record')], connect=lambda: FakeDevice())
+        self.assertNotIn('Transfer record', out.getvalue())
+
     def test_cli_push_list_and_pull(self):
         device = FakeDevice({'/content/op1_factory.json': b'{"a":1}'})
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             transfer.main(['push', str(self.source), '--record', str(self.temp / 'record')], connect=lambda: device)
-            transfer.main(['list', '/content'], connect=lambda: device)
-            transfer.main(['pull', '/os.ldr', '--out', str(self.temp / 'os.ldr')], connect=lambda: device)
+            transfer.main(['list', 'content'], connect=lambda: device)
+            transfer.main(['pull', 'os.ldr', '--out', str(self.temp / 'os.ldr')], connect=lambda: device)
         self.assertIn('PASS: 3 files', out.getvalue())
         self.assertIn('display/', out.getvalue())
         self.assertEqual((self.temp / 'os.ldr').read_bytes(), b'new os')

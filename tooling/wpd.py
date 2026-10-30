@@ -16,8 +16,8 @@ CLIENT = '{204D9F0C-2292-4080-9F42-40664E70F859}'
 OBJ = '{EF6B490D-5CD8-437A-AFFC-DA8B60EE4A3C}'
 RESOURCE = '{E81E79BE-34F0-41BF-B53F-F1A06AE87842}'
 ID, PARENT, NAME, FORMAT, CONTENT_TYPE, SIZE, FILENAME = 2, 3, 4, 6, 7, 11, 12
-FOLDER_TYPES = {'{27E2E392-A111-48E0-AB0C-E17705A05F85}',   # WPD_CONTENT_TYPE_FOLDER
-                '{99ED0160-17FF-4C44-9D98-1D7A6F941921}'}   # WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT
+FOLDER = '{27E2E392-A111-48E0-AB0C-E17705A05F85}'  # WPD_CONTENT_TYPE_FOLDER
+FOLDER_TYPES = {FOLDER, '{99ED0160-17FF-4C44-9D98-1D7A6F941921}'}  # and WPD_CONTENT_TYPE_FUNCTIONAL_OBJECT
 GENERIC_FILE = '{0085E0A6-8D34-45D7-BC5C-447E59C73D48}'
 UNSPECIFIED_FORMAT = '{30000000-AE6C-4804-98BA-C57B46965FE7}'
 PROPERTIES_ONLY = '{30010000-AE6C-4804-98BA-C57B46965FE7}'
@@ -52,10 +52,14 @@ class Device:
         get = manager._IPortableDeviceManager__com_GetDevices
         count = ct.c_ulong()
         get(None, ct.byref(count))
-        ids = (ct.c_wchar_p * count.value)()
+        ids = (ct.c_void_p * count.value)()
         if count.value:
             get(ids, ct.byref(count))
-        matches = [x for x in ids[:count.value] if OPXY in x.lower()]
+        names = []
+        for pointer in ids[:count.value]:
+            names.append(ct.wstring_at(pointer))
+            self.free(pointer)
+        matches = [x for x in names if OPXY in x.lower()]
         require(len(matches) == 1, f'Expected one OP-XY in file-transfer mode, found {len(matches)}: '
                 'choose "mtp file transfer" on the device and close other apps using it')
         client = self._values()
@@ -63,8 +67,12 @@ class Device:
         client.SetUnsignedIntegerValue(self._key(CLIENT, 9), GENERIC_READ_WRITE)
         self.device = self._create(self.api.PortableDevice, self.api.IPortableDevice)
         self.device.Open(matches[0], client)
-        self.content = self.device.Content()
-        self.properties = self.content.Properties()
+        try:
+            self.content = self.device.Content()
+            self.properties = self.content.Properties()
+        except BaseException:
+            self.close()
+            raise
 
     def __enter__(self):
         return self
@@ -165,6 +173,8 @@ class Device:
         status = self.content._IPortableDeviceContent__com_CreateObjectWithPropertiesAndData(
             props, ct.byref(stream), ct.byref(preferred), ct.byref(cookie))
         require(status >= 0, f'Creating {name} failed: {status:#x}')
+        if cookie:
+            self.free(ct.cast(cookie, ct.c_void_p))
         try:
             for offset in range(0, len(data), CHUNK):
                 chunk = data[offset:offset + CHUNK]
@@ -190,7 +200,7 @@ class Device:
         guid = self.comtypes.GUID
         props.SetGuidValue(self._key(OBJ, FORMAT), like.format if like and like.format else guid(PROPERTIES_ONLY))
         props.SetGuidValue(self._key(OBJ, CONTENT_TYPE), like.content_type if like and like.content_type
-                           else guid(sorted(FOLDER_TYPES)[0]))
+                           else guid(FOLDER))
         new_id = ct.c_wchar_p()
         status = self.content._IPortableDeviceContent__com_CreateObjectWithPropertiesOnly(props, ct.byref(new_id))
         require(status >= 0, f'Creating the folder {name} failed: {status:#x}')

@@ -1,14 +1,15 @@
 """Copy files to an OP-XY in MTP file-transfer mode, or list and read them.
 
     python sdk.py device push <builds>/mine-001/candidate [--record <dir>]
-    python sdk.py device list [/content/display]
-    python sdk.py device pull /content/op1_factory.json --out <file>
+    python sdk.py device list [content/display]
+    python sdk.py device pull content/op1_factory.json --out <file>
 
 `push` mirrors a folder onto the device root: <folder>/os.ldr goes to /os.ldr,
 <folder>/content/... to /content/..., creating missing folders. Before writing
 it backs up every file it will replace, then writes only changed files, reads
 each one back byte for byte, and on any failure or interruption restores the
-backed-up files. It never deletes anything it did not replace, never writes
+backed-up files (folders it created stay, empty of new files). It never deletes
+anything it did not replace, never writes
 firmware to the boot partition and never ejects. The record folder (default
 under the private OPXY-SDK folder; always outside every checkout, since backups
 hold stock firmware) keeps transfer.json and the backups. Windows only
@@ -44,8 +45,9 @@ def source_files(folder):
     for path in sorted(folder.rglob('*')):
         require(not path.is_symlink(), f'Refusing a symbolic link: {path}')
         parts = path.relative_to(folder).parts
-        if path.name.lower() in JUNK or path.name.startswith('._'):
-            skipped.append('/'.join(parts))
+        if any(x.lower() in JUNK or x.startswith('._') for x in parts):
+            if not any(x.lower() in JUNK or x.startswith('._') for x in parts[:-1]):
+                skipped.append('/'.join(parts))  # Report the junk itself, not each file inside it.
         elif path.is_file():
             files[parts] = path.read_bytes()
     require(files, f'No files below {folder}')
@@ -78,16 +80,16 @@ class Listings:
         require(self.child(parent, entry.name) is None, f'Deleting {entry.name} was not confirmed')
 
     def create_file(self, parent, name, data, like):
-        self.cache.pop(parent, None)
         try:
             self.device.create_file(parent, name, data, like)
         finally:
             self.cache.pop(parent, None)
 
     def create_folder(self, parent, name, like):
-        self.cache.pop(parent, None)
-        self.device.create_folder(parent, name, like)
-        self.cache.pop(parent, None)
+        try:
+            self.device.create_folder(parent, name, like)
+        finally:
+            self.cache.pop(parent, None)
 
     def resolve(self, root, folders, create=None):
         """The id of a folder path; a missing part gives None, or is made and noted in create."""
@@ -134,7 +136,7 @@ def push(device, files, record):
         old = device.child(parent, parts[-1]) if parent else None
         require(old is None or not old.folder, f'{path} is a folder on the device')
         before = device.read(old) if old else None
-        if before is not None:
+        if before is not None and before != data:  # Only files about to be replaced need a backup.
             backup = record.joinpath('before', *parts)
             backup.parent.mkdir(parents=True, exist_ok=True)
             backup.write_bytes(before)
@@ -152,7 +154,7 @@ def push(device, files, record):
                 live = device.child(parent, parts[-1])
                 require((live is None) == (old is None) and (live is None or live.id == old.id),
                         f'{entry["path"]} changed on the device after the backup')
-                done.append((parts, before, entry))
+                done.append((parts, old, before, entry))
                 entry['written'] = True
                 save()  # Recorded before the device changes, so an interruption still shows it.
                 if live is not None:
@@ -160,8 +162,8 @@ def push(device, files, record):
                 # Only the replaced file's own type carries over; a sibling's may be unrelated.
                 device.create_file(parent, parts[-1], data, live)
                 print('copied ' + entry['path'], flush=True)
-            device.verify(parent, parts[-1], data)
-            entry['verified'] = True
+                device.verify(parent, parts[-1], data)
+            entry['verified'] = True  # Unchanged files were compared when planned.
             save()
         device.cache.clear()
         for parts, data, _, _, _ in tasks:
@@ -172,23 +174,32 @@ def push(device, files, record):
     except BaseException as error:  # Ctrl+C mid-write must still restore the backups.
         report['error'] = str(error) or type(error).__name__
         device.cache.clear()
-        for parts, before, entry in reversed(done):
-            try:
-                parent = device.resolve(root, parts[:-1])
-                current = device.child(parent, parts[-1]) if parent else None
-                if current is not None:
-                    device.delete(parent, current)
-                if before is not None:
-                    device.create_file(parent, parts[-1], before, current)
-                    device.verify(parent, parts[-1], before)
-                entry['rolled_back'] = True
-            except Exception as rollback_error:
-                entry['rollback_error'] = str(rollback_error)
-        save()
+        try:
+            for parts, old, before, entry in reversed(done):
+                try:
+                    parent = device.resolve(root, parts[:-1])
+                    current = device.child(parent, parts[-1]) if parent else None
+                    if current is not None:
+                        device.delete(parent, current)
+                    if before is not None:
+                        device.create_file(parent, parts[-1], before, old)
+                        device.verify(parent, parts[-1], before)
+                    entry['rolled_back'] = True
+                except BaseException as rollback_error:  # A second Ctrl+C still leaves an accurate record.
+                    entry['rollback_error'] = str(rollback_error) or type(rollback_error).__name__
+        finally:
+            save()
+        failed = [x['path'] for _, _, _, x in done if not x.get('rolled_back')]
+        if failed:
+            raise ValueError(f'{report["error"]}; restoring {", ".join(failed)} also failed, so the device is '
+                             f'left changed: copy the files under {record / "before"} back before writing the OS') from error
         raise
 
 
 def entry_at(device, path):
+    # Git Bash rewrites a leading / into its install folder (C:/Program Files/Git/...).
+    require(not (len(path) > 1 and path[1] == ':'), f'{path} is not a device path; write it without the leading /, '
+            'for example content/display')
     device = Listings(device)
     parts = PurePosixPath('/' + path.strip('/')).parts[1:]
     root = device.device.root()
@@ -227,7 +238,8 @@ def main(argv=None, connect=open_device):
                 try:
                     report = push(device, files, record)
                 finally:
-                    print('Transfer record: ' + str(record), flush=True)
+                    if (record / 'transfer.json').exists():
+                        print('Transfer record: ' + str(record), flush=True)
             changed = sum(x['changed'] for x in report['files'])
             print(f'PASS: {len(files)} files on the device and read back ({changed} changed). '
                   'Firmware not written to the boot partition.')
