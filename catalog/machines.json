@@ -800,6 +800,43 @@
         "block_percent": 2.644388,
         "report": "https://github.com/hatchman/open-xy-ohmonk/releases/tag/v1.0.0"
       }
+    },
+    {
+      "id": "chimes",
+      "kind": "synth",
+      "maintainer": "carlosedp",
+      "status": "published",
+      "repository": "https://github.com/carlosedp/open-xy-eurorack",
+      "tag": "v1.2.0",
+      "commit": "7cfff890307688fe281969ab8d3144a0c510b0d5",
+      "path": "machines/chimes",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-sweep-v1",
+        "commit": "7cfff890307688fe281969ab8d3144a0c510b0d5",
+        "firmware_sha256": "b2ee8d2c09392b38c38b829dec5ae609040d4317567a4bf4cb053cf36dcdc9fe",
+        "runs": 3,
+        "block_percent": 6.015106,
+        "midpoint_percent": 4.93019,
+        "combined_percent": 4.953079,
+        "worst_setting": {
+          "control": 4,
+          "label": "Model",
+          "value": 805306367,
+          "option": "sympathetic"
+        }
+      }
+    },
+    {
+      "id": "cirrus",
+      "kind": "sample",
+      "maintainer": "carlosedp",
+      "status": "reserved"
+    },
+    {
+      "id": "stratus",
+      "kind": "effect",
+      "maintainer": "carlosedp",
+      "status": "reserved"
     }
   ]
 }
