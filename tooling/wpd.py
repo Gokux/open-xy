@@ -72,6 +72,7 @@ class Device:
         try:
             self.content = self.device.Content()
             self.properties = self.content.Properties()
+            self.resources = self.content.Transfer()
             # Listings fetch only the properties they use, not every one.
             self.keys = self._create(self.types.PortableDeviceKeyCollection, self.api.IPortableDeviceKeyCollection)
             for pid in (FILENAME, NAME, CONTENT_TYPE, FORMAT, SIZE):
@@ -87,9 +88,12 @@ class Device:
         self.close()
 
     def close(self):
-        if self.device is not None:
-            self.device.Close()
-            self.device = None
+        device, self.device = self.device, None
+        if device is not None:
+            try:
+                device.Close()
+            except self.comtypes.COMError:
+                pass  # Every write was already read back; a device that vanished on close changes nothing.
 
     def _create(self, cls, interface):
         return self.comtypes.client.CreateObject(cls, interface=interface)
@@ -139,7 +143,7 @@ class Device:
         require(entry.size is not None, f'{entry.name} reports no size')
         stream, preferred = ct.POINTER(self.api.IStream)(), ct.c_ulong()
         resource = self._key(RESOURCE, 0)
-        status = self.content.Transfer()._IPortableDeviceResources__com_GetStream(
+        status = self.resources._IPortableDeviceResources__com_GetStream(
             entry.id, ct.byref(resource), 0, ct.byref(preferred), ct.byref(stream))
         require(status >= 0, f'Opening {entry.name} failed: {status:#x}')
         data = bytearray()
@@ -152,7 +156,6 @@ class Device:
                 data.extend(bytes(buf[:count.value]))
         finally:
             del stream
-            gc.collect()
         return bytes(data)
 
     def delete(self, entry):
@@ -199,15 +202,13 @@ class Device:
             del stream
             gc.collect()
 
-    def create_folder(self, parent, name, like=None):
+    def create_folder(self, parent, name):
         props = self._values()
         props.SetStringValue(self._key(OBJ, PARENT), parent)
         props.SetStringValue(self._key(OBJ, NAME), name)
         props.SetStringValue(self._key(OBJ, FILENAME), name)
-        guid = self.comtypes.GUID
-        props.SetGuidValue(self._key(OBJ, FORMAT), like.format if like and like.format else guid(PROPERTIES_ONLY))
-        props.SetGuidValue(self._key(OBJ, CONTENT_TYPE), like.content_type if like and like.content_type
-                           else guid(FOLDER))
+        props.SetGuidValue(self._key(OBJ, FORMAT), self.comtypes.GUID(PROPERTIES_ONLY))
+        props.SetGuidValue(self._key(OBJ, CONTENT_TYPE), self.comtypes.GUID(FOLDER))
         new_id = ct.c_wchar_p()
         status = self.content._IPortableDeviceContent__com_CreateObjectWithPropertiesOnly(props, ct.byref(new_id))
         require(status >= 0, f'Creating the folder {name} failed: {status:#x}')

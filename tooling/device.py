@@ -47,18 +47,25 @@ def source_files(folder):
     require(not (folder / 'candidate').is_dir() or (folder / 'os.ldr').exists(),
             f'{folder} holds a build; push its candidate folder: {folder / "candidate"}')
     files, skipped = {}, []
-    for path in sorted(folder.rglob('*')):
-        require(not path.is_symlink() and not (hasattr(path, 'is_junction') and path.is_junction()),
-                f'Refusing a link: {path}')
-        parts = path.relative_to(folder).parts
-        flags = [junk(x) for x in parts]
-        if any(flags):
-            if not any(flags[:-1]):
-                skipped.append('/'.join(parts))  # Report the junk itself, not each file inside it.
-        elif path.is_file():
-            files[parts] = path.read_bytes()
+    for directory, folders, names in os.walk(folder):
+        here = Path(directory)
+        for name in sorted(folders + names):
+            path = here / name
+            # Checked before descending: a junction is not a symlink and could loop the walk.
+            require(not path.is_symlink() and not (hasattr(path, 'is_junction') and path.is_junction()),
+                    f'Refusing a link: {path}')
+            if junk(name):
+                skipped.append(path.relative_to(folder).as_posix())
+            elif path.is_file():
+                files[path.relative_to(folder).parts] = path.read_bytes()
+        folders[:] = sorted(x for x in folders if not junk(x))  # Junk folders are skipped with their contents.
     require(files, f'No files below {folder}')
-    return files, skipped
+    return dict(sorted(files.items())), sorted(skipped)
+
+
+def check_record(record):
+    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+    require(not Path(record).exists(), f'{record} already exists; give each transfer a new record folder')
 
 
 class Listings:
@@ -92,9 +99,9 @@ class Listings:
         finally:
             self.cache.pop(parent, None)
 
-    def create_folder(self, parent, name, like):
+    def create_folder(self, parent, name):
         try:
-            self.device.create_folder(parent, name, like)
+            self.device.create_folder(parent, name)
         finally:
             self.cache.pop(parent, None)
 
@@ -107,7 +114,7 @@ class Listings:
             if entry is None:
                 if create is None:
                     return None
-                self.create_folder(parent, name, next((x for x in self.list(parent) if x.folder), None))
+                self.create_folder(parent, name)
                 entry = self.child(parent, name)
                 require(entry is not None and entry.folder, f'Creating {path} failed')
                 create.append(path)
@@ -123,7 +130,7 @@ class Listings:
 
 def push(device, files, record):
     """Mirror files ({device path parts: bytes}) onto the device; returns the transfer report."""
-    require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+    check_record(record)
     record = fresh_output(record)
     report = {'files': [], 'created_folders': [], 'complete': False, 'firmware_written': False, 'ejected': False}
 
@@ -165,6 +172,7 @@ def push(device, files, record):
                 save()  # Recorded before the device changes, so an interruption still shows it.
                 if live is not None:
                     device.delete(parent, live)
+                    entry['deleted'] = True  # Device ids can be reused, so this flag, not an id, says the original is gone.
                 # Only the replaced file's own type and name case carry over; a sibling's type may be unrelated.
                 device.create_file(parent, live.name if live else parts[-1], data, live)
                 print('copied ' + entry['path'], flush=True)
@@ -187,10 +195,10 @@ def push(device, files, record):
             for parts, old, before, entry in reversed(done):
                 try:
                     parent = device.resolve(root, parts[:-1])
-                    current = device.child(parent, parts[-1]) if parent else None
-                    if current is not None and old is not None and current.id == old.id:
+                    if old is not None and not entry.get('deleted'):
                         entry['rolled_back'] = True  # The original was never deleted; leave it alone.
                         continue
+                    current = device.child(parent, parts[-1]) if parent else None
                     if current is not None:
                         device.delete(parent, current)
                     if before is not None:
@@ -212,9 +220,16 @@ def push(device, files, record):
                 steps.append(f'delete {", ".join(remove)}, which are new')
             raise ValueError(f'{report["error"]}; the restore also failed, so the device is left changed: '
                              f'{" and ".join(steps)} before writing the OS') from error
+        error.device_state = restored(report)
         if isinstance(error, Exception):
-            raise ValueError(f'{report["error"]}; the device is as it was before this push') from error
+            raise ValueError(f'{report["error"]}; {error.device_state}') from error
         raise
+
+
+def restored(report):
+    folders = report['created_folders']
+    return 'every file is as it was before this push' + (
+        f' (new empty folders remain: {", ".join(folders)})' if folders else '')
 
 
 def entry_at(device, path):
@@ -222,7 +237,7 @@ def entry_at(device, path):
     require(not (len(path) > 1 and path[1] == ':'), f'{path} is not a device path; write it without the leading /, '
             'for example content/display')
     device = Listings(device)
-    parts = PurePosixPath('/' + path.strip('/')).parts[1:]
+    parts = PurePosixPath('/' + path.replace('\\', '/').strip('/')).parts[1:]
     root = device.device.root()
     if not parts:
         return root, None
@@ -255,8 +270,7 @@ def main(argv=None, connect=open_device):
             for path in skipped:
                 print('skipped ' + path, flush=True)
             record = args.record or private_root() / 'transfers' / datetime.now().strftime('%Y%m%d-%H%M%S-%f')
-            require(not record.exists(), f'{record} already exists; give each transfer a new record folder')
-            require(outside_checkouts(record), f'Keep the transfer record outside every checkout: backups hold stock firmware ({record})')
+            check_record(record)  # Before the device is opened.
             with connect() as device:
                 try:
                     report = push(device, files, record)
@@ -281,9 +295,10 @@ def main(argv=None, connect=open_device):
                 data = device.read(entry)
             args.out.write_bytes(data)
             print(f'{args.out}: {len(data)} bytes, sha256 {sha(data)}')
-    except KeyboardInterrupt:
-        # A restore that fails raises its own error, so an interrupt that reaches here left the device as it was.
-        parser.exit(1, 'FAIL: interrupted' + ('; the device is as it was before this push' if args.command == 'push' else '') + '\n')
+    except KeyboardInterrupt as error:
+        # push marks an interrupt it restored from; a failed restore raises its own error instead.
+        state = getattr(error, 'device_state', None)
+        parser.exit(1, 'FAIL: interrupted' + (f'; {state}' if state else '') + '\n')
     except Exception as error:  # Includes the driver's COMError, which is not an OSError.
         parser.exit(1, 'FAIL: ' + str(error) + '\n')
     return 0

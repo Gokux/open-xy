@@ -21,6 +21,8 @@ class FakeDevice:
         self.failures = 1
         self.corrupt = None
         self.writes = []
+        self.freed = None  # Set reuse_ids to hand a deleted object's id to the next new one, as MTP may.
+        self.reuse_ids = False
         self.likes = {}
         self.interrupt = None
         for path in folders:
@@ -77,6 +79,7 @@ class FakeDevice:
         if entry.folder:
             raise ValueError('folders are never deleted')
         del self.nodes[entry.id]
+        self.freed = entry.id
 
     def create_file(self, parent, name, data, like=None):
         self.writes.append(name)
@@ -90,9 +93,10 @@ class FakeDevice:
                 self.fail_on = None  # By default fails once; the rollback's rewrite succeeds.
             raise OSError('write failed')
         corrupt, self.corrupt = name == self.corrupt, None if name == self.corrupt else self.corrupt
-        self.nodes[self._id()] = (parent, name, bytes(data[:-1] if corrupt else data))
+        new = self.freed if self.reuse_ids and self.freed else self._id()
+        self.nodes[new] = (parent, name, bytes(data[:-1] if corrupt else data))
 
-    def create_folder(self, parent, name, like=None):
+    def create_folder(self, parent, name):
         self.nodes[self._id()] = (parent, name, None)
 
 
@@ -133,7 +137,7 @@ class DeviceTransferTests(unittest.TestCase):
     def test_failed_write_restores_replaced_files(self):
         device = FakeDevice({'/os.ldr': b'old os', '/content/op1_factory.json': b'old'})
         device.fail_on = 'os.ldr'  # Written last, after the other two succeeded.
-        with self.assertRaisesRegex(ValueError, 'write failed; the device is as it was before this push'):
+        with self.assertRaisesRegex(ValueError, r'write failed; every file is as it was before this push \(new empty folders remain: /content/display\)'):
             transfer.push(device, self.files(), self.temp / 'record')
         self.assertEqual(device.get('/os.ldr'), b'old os')
         self.assertEqual(device.get('/content/op1_factory.json'), b'old')
@@ -230,7 +234,7 @@ class DeviceTransferTests(unittest.TestCase):
         device.interrupt = 'os.ldr'
         with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
             transfer.main(['push', str(self.source), '--record', str(self.temp / 'record')], connect=lambda: device)
-        self.assertIn('FAIL: interrupted; the device is as it was before this push', err.getvalue())
+        self.assertIn('FAIL: interrupted; every file is as it was before this push', err.getvalue())
         self.assertEqual(device.get('/os.ldr'), b'old os')
 
     def test_existing_record_is_refused_before_connecting(self):
@@ -253,6 +257,20 @@ class DeviceTransferTests(unittest.TestCase):
             transfer.push(device, self.files(), self.temp / 'record')
         self.assertEqual(device.get('/os.ldr'), b'old os')
         self.assertNotIn('os.ldr', device.writes, 'The untouched original is never rewritten')
+
+    def test_a_reused_object_id_does_not_skip_the_restore(self):
+        device = FakeDevice({'/os.ldr': b'old os'})
+        device.reuse_ids, device.corrupt = True, 'os.ldr'
+        with self.assertRaisesRegex(ValueError, 'Readback of os.ldr'):
+            transfer.push(device, self.files(), self.temp / 'record')
+        self.assertEqual(device.get('/os.ldr'), b'old os')
+
+    def test_device_paths_accept_backslashes(self):
+        device = FakeDevice({'/content/display/x.svg': b'x'})
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            transfer.main(['list', 'content\\display'], connect=lambda: device)
+        self.assertIn('x.svg', out.getvalue())
 
     def test_replacing_keeps_the_device_name_case(self):
         device = FakeDevice({'/OS.LDR': b'old os'})
