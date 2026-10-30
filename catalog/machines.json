@@ -663,6 +663,31 @@
       "kind": "synth",
       "maintainer": "mmockett",
       "status": "reserved"
+    },
+    {
+      "id": "daath",
+      "kind": "synth",
+      "maintainer": "SammiBabe666",
+      "status": "published",
+      "repository": "https://github.com/SammiBabe666/Daath-OP-XY-WitchHouse-engine",
+      "tag": "1.0",
+      "commit": "ea60d4a7b1b67e4f00ac0ff8641ad28bbe5236c7",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-sweep-v1",
+        "commit": "ea60d4a7b1b67e4f00ac0ff8641ad28bbe5236c7",
+        "firmware_sha256": "91698801824a9f4322fa0b95424230eecb9b284494b5faf3b0e62327c45384e2",
+        "runs": 3,
+        "block_percent": 3.461,
+        "midpoint_percent": 3.406,
+        "combined_percent": 2.661,
+        "worst_setting": {
+          "control": 4,
+          "label": "Rot",
+          "value": 536870911
+        },
+        "report": "https://github.com/SammiBabe666/Daath-OP-XY-WitchHouse-engine/releases/tag/1.0"
+      }
     }
   ]
 }
