@@ -299,6 +299,32 @@ class DeviceTransferTests(unittest.TestCase):
         self.assertEqual(device.writes, [])
         self.assertEqual(self.record()['error'], 'read failed')
 
+    def test_source_names_differing_only_in_case_are_refused(self):
+        transfer.distinct_without_case([('content', 'a.json'), ('content', 'b.json')])
+        with self.assertRaisesRegex(ValueError, 'content/A.json and content/a.json are the same file'):
+            transfer.distinct_without_case([('content', 'A.json'), ('content', 'a.json')])
+
+    def test_planning_failure_tells_the_user_nothing_was_written(self):
+        device = FakeDevice({'/os.ldr': b'old os'})
+        device.read = lambda entry: (_ for _ in ()).throw(OSError('read failed'))
+        with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+            transfer.main(['push', str(self.source), '--record', str(self.temp / 'record')], connect=lambda: device)
+        self.assertIn('FAIL: read failed; nothing was written to the device', err.getvalue())
+
+    def test_a_record_that_cannot_be_saved_does_not_undo_a_verified_push(self):
+        device = FakeDevice({'/os.ldr': b'old os'})
+        real_write = transfer.Path.write_text
+        calls = []
+
+        def write_text(path, *args, **kwargs):
+            calls.append(path)
+            if path.name == 'transfer.json' and '"complete": true' in args[0]:
+                raise OSError('disk full')
+            return real_write(path, *args, **kwargs)
+        with mock.patch.object(transfer.Path, 'write_text', write_text), self.assertRaisesRegex(OSError, 'disk full'):
+            transfer.push(device, self.files(), self.temp / 'record')
+        self.assertEqual(device.get('/os.ldr'), b'new os')
+
     def test_device_paths_accept_backslashes(self):
         device = FakeDevice({'/content/display/x.svg': b'x'})
         out = io.StringIO()

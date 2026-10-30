@@ -75,7 +75,18 @@ def source_files(folder):
                 files[path.relative_to(folder).parts] = path.read_bytes()
         folders[:] = sorted(x for x in folders if not junk(x))  # Junk folders are skipped with their contents.
     require(files, f'No files below {folder}')
+    distinct_without_case(files)
     return dict(sorted(files.items())), sorted(skipped)
+
+
+def distinct_without_case(paths):
+    """A case-sensitive source (WSL, a case-sensitive folder) can hold names the device cannot tell apart."""
+    seen = {}
+    for parts in paths:
+        key = tuple(x.casefold() for x in parts)
+        require(key not in seen, f'{"/".join(seen.get(key, ()))} and {"/".join(parts)} are the same file on the device, '
+                'which ignores case')
+        seen[key] = parts
 
 
 def check_record(record):
@@ -177,11 +188,11 @@ def push(device, files, record):
 
     save()
     device = Listings(device)
-    root = device.device.root()
-    require(not any((x.name or '').lower().endswith('.tfw') for x in device.list(root)),
-            'A firmware update (.tfw) is waiting in the device root; finish or remove it first')
     tasks = []
     try:
+        root = device.device.root()
+        require(not any((x.name or '').lower().endswith('.tfw') for x in device.list(root)),
+                'A firmware update (.tfw) is waiting in the device root; finish or remove it first')
         plan(device, root, files, record, report, tasks)
     except BaseException as error:
         report['error'] = str(error) or type(error).__name__
@@ -195,7 +206,7 @@ def push(device, files, record):
             parent = device.resolve(root, parts[:-1], report['created_folders'])
             if entry['changed']:
                 live = device.child(parent, parts[-1])
-                unchanged = live is None or (live.id == old.id and live.size == len(before))
+                unchanged = live is None or (old is not None and live.id == old.id and live.size == len(before))
                 require((live is None) == (old is None) and unchanged, f'{entry["path"]} changed on the device after the backup')
                 done.append((parts, old, before, entry))
                 entry['written'] = True
@@ -215,9 +226,6 @@ def push(device, files, record):
             parent = device.resolve(root, parts[:-1])
             final = device.child(parent, parts[-1]) if parent else None
             require(final is not None and final.size == len(data), f'{entry["path"]} changed after it was verified')
-        report['complete'] = True
-        save()
-        return report
     except BaseException as error:  # Ctrl+C mid-write must still restore the backups.
         report['error'] = str(error) or type(error).__name__
         device.cache.clear()
@@ -243,8 +251,8 @@ def push(device, files, record):
         finally:
             try:
                 save()
-            except OSError:
-                pass  # A record that can't be written must not hide the restore instructions below.
+            except BaseException:
+                pass  # A record that can't be written, or a Ctrl+C here, must not hide the restore instructions below.
         failed = [x for _, _, _, x in done if not x.get('rolled_back')]
         if failed:
             steps = []
@@ -260,6 +268,9 @@ def push(device, files, record):
         if isinstance(error, Exception):
             raise ValueError(f'{report["error"]}; {error.device_state}') from error
         raise
+    report['complete'] = True
+    save()  # Outside the try: failing to write the record must not undo a verified push.
+    return report
 
 
 def restored(report):
@@ -337,5 +348,6 @@ def main(argv=None, connect=open_device):
         state = getattr(error, 'device_state', None)
         parser.exit(1, 'FAIL: interrupted' + (f'; {state}' if state else '') + '\n')
     except Exception as error:  # Includes the driver's COMError, which is not an OSError.
-        parser.exit(1, 'FAIL: ' + str(error) + '\n')
+        state = getattr(error, 'device_state', None)
+        parser.exit(1, 'FAIL: ' + str(error) + (f'; {state}' if state else '') + '\n')
     return 0
