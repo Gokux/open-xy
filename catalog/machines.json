@@ -681,6 +681,72 @@
       "kind": "synth",
       "maintainer": "mmockett",
       "status": "reserved"
+    },
+    {
+      "id": "daath",
+      "kind": "synth",
+      "maintainer": "SammiBabe666",
+      "status": "published",
+      "repository": "https://github.com/SammiBabe666/Daath-OP-XY-WitchHouse-engine",
+      "tag": "1.0",
+      "commit": "ea60d4a7b1b67e4f00ac0ff8641ad28bbe5236c7",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-sweep-v1",
+        "commit": "ea60d4a7b1b67e4f00ac0ff8641ad28bbe5236c7",
+        "firmware_sha256": "91698801824a9f4322fa0b95424230eecb9b284494b5faf3b0e62327c45384e2",
+        "runs": 3,
+        "block_percent": 3.461,
+        "midpoint_percent": 3.406,
+        "combined_percent": 2.661,
+        "worst_setting": {
+          "control": 4,
+          "label": "Rot",
+          "value": 536870911
+        },
+        "report": "https://github.com/SammiBabe666/Daath-OP-XY-WitchHouse-engine/releases/tag/1.0"
+      }
+    },
+    {
+      "id": "tattva",
+      "kind": "synth",
+      "maintainer": "colorsinspace1",
+      "status": "published",
+      "repository": "https://github.com/colorsinspace1/tattva",
+      "tag": "1.02",
+      "commit": "0892a707b15a27a1434bcb32f8986323e545a105",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "0892a707b15a27a1434bcb32f8986323e545a105",
+        "firmware_sha256": "c84878f43bf420c52a479e7823789f5c54e96cd0fbf7447dc06fc0ba7a288143",
+        "runs": 3,
+        "block_percent": 3.02739
+      }
+    },
+    {
+      "id": "grainfield",
+      "kind": "effect",
+      "maintainer": "colorsinspace1",
+      "status": "reserved"
+    },
+    {
+      "id": "ohmonk",
+      "kind": "synth",
+      "maintainer": "hatchman",
+      "status": "published",
+      "repository": "https://github.com/hatchman/open-xy-ohmonk",
+      "tag": "v1.0.0",
+      "commit": "3bcd475411398576f07434501846bb258abbe29b",
+      "path": ".",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-v1",
+        "commit": "3bcd475411398576f07434501846bb258abbe29b",
+        "firmware_sha256": "2359dffe85fd5ceca0795fb257165776c200a3b0229ff4ea834242ed70c36282",
+        "runs": 3,
+        "block_percent": 2.644388,
+        "report": "https://github.com/hatchman/open-xy-ohmonk/releases/tag/v1.0.0"
+      }
     }
   ]
 }
