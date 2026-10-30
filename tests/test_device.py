@@ -20,6 +20,8 @@ class FakeDevice:
         self.fail_on = None
         self.corrupt = None
         self.writes = []
+        self.likes = {}
+        self.interrupt = None
         for path in folders:
             self.folder(path)
         for path, data in dict(files).items():
@@ -77,6 +79,10 @@ class FakeDevice:
 
     def create_file(self, parent, name, data, like=None):
         self.writes.append(name)
+        self.likes[name] = like
+        if name == self.interrupt:
+            self.interrupt = None
+            raise KeyboardInterrupt
         if name == self.fail_on:
             self.fail_on = None  # Fails once; the rollback's rewrite succeeds.
             raise OSError('write failed')
@@ -102,12 +108,15 @@ class DeviceTransferTests(unittest.TestCase):
         self.source = candidate(self.temp / 'candidate', {'os.ldr': b'new os', 'content/op1_factory.json': b'{}',
                                                           'content/display/mine.svg': b'<svg/>'})
 
+    def files(self):
+        return transfer.source_files(self.source)[0]
+
     def record(self):
         return json.loads((self.temp / 'record/transfer.json').read_text(encoding='utf-8'))
 
     def test_push_replaces_backs_up_creates_folders_and_verifies(self):
         device = FakeDevice({'/os.ldr': b'old os', '/content/op1_factory.json': b'{}', '/content/keep.txt': b'k'})
-        report = transfer.push(device, self.source, self.temp / 'record')
+        report = transfer.push(device, self.files(), self.temp / 'record')
         self.assertTrue(report['complete'])
         self.assertEqual(device.get('/os.ldr'), b'new os')
         self.assertEqual(device.get('/content/display/mine.svg'), b'<svg/>')
@@ -121,7 +130,7 @@ class DeviceTransferTests(unittest.TestCase):
         device = FakeDevice({'/os.ldr': b'old os', '/content/op1_factory.json': b'old'})
         device.fail_on = 'os.ldr'  # Written last, after the other two succeeded.
         with self.assertRaisesRegex(OSError, 'write failed'):
-            transfer.push(device, self.source, self.temp / 'record')
+            transfer.push(device, self.files(), self.temp / 'record')
         self.assertEqual(device.get('/os.ldr'), b'old os')
         self.assertEqual(device.get('/content/op1_factory.json'), b'old')
         self.assertIsNone(device.get('/content/display/mine.svg'))
@@ -135,25 +144,60 @@ class DeviceTransferTests(unittest.TestCase):
         device = FakeDevice({'/os.ldr': b'old os'})
         device.corrupt = 'os.ldr'
         with self.assertRaisesRegex(ValueError, 'Readback of os.ldr'):
-            transfer.push(device, self.source, self.temp / 'record')
+            transfer.push(device, self.files(), self.temp / 'record')
         self.assertEqual(device.get('/os.ldr'), b'old os')
 
     def test_refuses_pending_firmware_update_before_writing(self):
         device = FakeDevice({'/update.tfw': b'x', '/os.ldr': b'old os'})
         with self.assertRaisesRegex(ValueError, 'firmware update'):
-            transfer.push(device, self.source, self.temp / 'record')
+            transfer.push(device, self.files(), self.temp / 'record')
         self.assertEqual(device.writes, [])
 
     def test_refuses_folder_in_place_of_file_and_file_in_place_of_folder(self):
         with self.assertRaisesRegex(ValueError, 'is a folder'):
-            transfer.push(FakeDevice(folders=['/os.ldr']), self.source, self.temp / 'record')
+            transfer.push(FakeDevice(folders=['/os.ldr']), self.files(), self.temp / 'record')
         with self.assertRaisesRegex(ValueError, 'where a folder is needed'):
-            transfer.push(FakeDevice({'/content': b'file'}), self.source, self.temp / 'record2')
+            transfer.push(FakeDevice({'/content': b'file'}), self.files(), self.temp / 'record2')
 
     def test_record_folder_must_be_new(self):
         (self.temp / 'record').mkdir()
         with self.assertRaises(FileExistsError):
-            transfer.push(FakeDevice(), self.source, self.temp / 'record')
+            transfer.push(FakeDevice(), self.files(), self.temp / 'record')
+
+    def test_interrupt_mid_write_restores_and_records(self):
+        device = FakeDevice({'/os.ldr': b'old os', '/content/op1_factory.json': b'old'})
+        device.interrupt = 'os.ldr'
+        with self.assertRaises(KeyboardInterrupt):
+            transfer.push(device, self.files(), self.temp / 'record')
+        self.assertEqual(device.get('/os.ldr'), b'old os')
+        self.assertEqual(device.get('/content/op1_factory.json'), b'old')
+        self.assertEqual(self.record()['error'], 'KeyboardInterrupt')
+
+    def test_record_must_be_outside_every_checkout(self):
+        checkout = self.temp / 'checkout'
+        (checkout / '.git').mkdir(parents=True)
+        device = FakeDevice({'/os.ldr': b'old os'})
+        with self.assertRaisesRegex(ValueError, 'outside every checkout'):
+            transfer.push(device, self.files(), checkout / 'local/record')
+        self.assertFalse((checkout / 'local').exists())
+        self.assertEqual(device.writes, [])
+
+    def test_source_skips_junk_and_refuses_a_whole_build_folder(self):
+        candidate(self.source, {'Thumbs.db': b'x', 'content/._mine.svg': b'x', 'content/desktop.ini': b'x'})
+        files, skipped = transfer.source_files(self.source)
+        self.assertEqual(sorted(files), [('content', 'display', 'mine.svg'), ('content', 'op1_factory.json'), ('os.ldr',)])
+        self.assertEqual(sorted(skipped), ['Thumbs.db', 'content/._mine.svg', 'content/desktop.ini'])
+        with self.assertRaisesRegex(ValueError, 'push its candidate folder'):
+            transfer.source_files(self.temp)
+
+    def test_names_match_without_case_and_new_files_take_no_sibling_type(self):
+        device = FakeDevice({'/CONTENT/op1_factory.json': b'old', '/CONTENT/sample.wav': b'w'})
+        transfer.push(device, self.files(), self.temp / 'record')
+        self.assertEqual(device.get('/CONTENT/op1_factory.json'), b'{}')
+        tops = [n[1] for n in device.nodes.values() if n[0] == 'root']
+        self.assertEqual(tops, ['CONTENT', 'os.ldr'], 'The existing folder is reused, not a second "content"')
+        self.assertIsNotNone(device.likes['op1_factory.json'], 'A replaced file keeps its own type')
+        self.assertIsNone(device.likes['mine.svg'], 'A new file never borrows a sibling type')
 
     def test_cli_push_list_and_pull(self):
         device = FakeDevice({'/content/op1_factory.json': b'{"a":1}'})

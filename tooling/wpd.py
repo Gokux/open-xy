@@ -64,6 +64,7 @@ class Device:
         self.device = self._create(self.api.PortableDevice, self.api.IPortableDevice)
         self.device.Open(matches[0], client)
         self.content = self.device.Content()
+        self.properties = self.content.Properties()
 
     def __enter__(self):
         return self
@@ -86,7 +87,7 @@ class Device:
         return self.api._tagpropertykey(self.comtypes.GUID(guid), pid)
 
     def _props(self, object_id):
-        return self.content.Properties().GetValues(object_id, None)
+        return self.properties.GetValues(object_id, None)
 
     def _optional(self, read):
         try:
@@ -146,7 +147,8 @@ class Device:
         ids.Add(self._props(entry.id).GetValue(self._key(OBJ, ID)))
         results = ct.POINTER(self.api.IPortableDevicePropVariantCollection)()
         status = self.content._IPortableDeviceContent__com_Delete(0, ids, ct.byref(results))
-        require(status >= 0, f'Deleting {entry.name} failed: {status:#x}')
+        # S_FALSE (1) means the object was not deleted.
+        require(status == 0, f'Deleting {entry.name} failed: {status:#x}')
 
     def create_file(self, parent, name, data, like=None):
         """Write a new file; format and content type follow a sibling file when given."""
