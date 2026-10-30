@@ -42,6 +42,14 @@ in their own repositories and reach the builder through the [catalog](docs/catal
 This repository holds no machines; Open-XY's own are in the
 [core machines](https://github.com/etcetc000/open-xy-core-machines), published the same way.
 
+Firmware facts are declared once. Table sizes, sentinels and relocated
+addresses come from [`tooling/stock_tables.py`](tooling/stock_tables.py):
+Python imports them, native templates receive them as `@NAME@` values and the
+builder reads them from the profile, which `check_profile` holds to the same
+declarations. Where a value must stay literal (the hash-pinned linker script, an
+untemplated platform source), `tests/test_stock_tables.py` asserts it matches.
+A raised limit then changes one declaration, and a copy left behind fails a check.
+
 ## Checks
 
 All firmware comes from the user's device. Keep firmware, stock content,
