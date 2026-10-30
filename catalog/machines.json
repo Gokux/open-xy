@@ -639,7 +639,25 @@
       "id": "mmnois",
       "kind": "synth",
       "maintainer": "mmockett",
-      "status": "reserved"
+      "status": "published",
+      "repository": "https://github.com/mmockett/OP-XY-MNMD",
+      "tag": "v1.1.4",
+      "commit": "8b7699894171b05f54952744b5c33e2fe21490f2",
+      "path": "machines/mmnois",
+      "cpu": {
+        "benchmark": "opxy-synth-c8-sweep-v1",
+        "commit": "8b7699894171b05f54952744b5c33e2fe21490f2",
+        "firmware_sha256": "d121a8f4d0747b6a1369ff25ebb5111a90723e9616c10ffa7486c0af699199a3",
+        "runs": 3,
+        "block_percent": 1.734951,
+        "midpoint_percent": 1.68307,
+        "combined_percent": 1.699855,
+        "worst_setting": {
+          "control": 1,
+          "label": "RED",
+          "value": 1342177279
+        }
+      }
     },
     {
       "id": "lint",
