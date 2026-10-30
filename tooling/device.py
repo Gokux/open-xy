@@ -29,6 +29,10 @@ from .release import outside_checkouts
 JUNK = {'thumbs.db', 'desktop.ini', '.ds_store'}
 
 
+def junk(name):
+    return name.lower() in JUNK or name.startswith('._')
+
+
 def private_root():
     if sys.platform == 'darwin':
         return Path.home() / 'Library/Application Support/OPXY-SDK/private'
@@ -45,8 +49,9 @@ def source_files(folder):
     for path in sorted(folder.rglob('*')):
         require(not path.is_symlink(), f'Refusing a symbolic link: {path}')
         parts = path.relative_to(folder).parts
-        if any(x.lower() in JUNK or x.startswith('._') for x in parts):
-            if not any(x.lower() in JUNK or x.startswith('._') for x in parts[:-1]):
+        flags = [junk(x) for x in parts]
+        if any(flags):
+            if not any(flags[:-1]):
                 skipped.append('/'.join(parts))  # Report the junk itself, not each file inside it.
         elif path.is_file():
             files[parts] = path.read_bytes()
@@ -165,9 +170,12 @@ def push(device, files, record):
                 device.verify(parent, parts[-1], data)
             entry['verified'] = True  # Unchanged files were compared when planned.
             save()
+        # Every file was compared byte for byte above; a fresh listing catches anything changed since.
         device.cache.clear()
-        for parts, data, _, _, _ in tasks:
-            device.verify(device.resolve(root, parts[:-1]), parts[-1], data)
+        for parts, data, _, _, entry in tasks:
+            parent = device.resolve(root, parts[:-1])
+            final = device.child(parent, parts[-1]) if parent else None
+            require(final is not None and final.size == len(data), f'{entry["path"]} changed after it was verified')
         report['complete'] = True
         save()
         return report
@@ -189,10 +197,17 @@ def push(device, files, record):
                     entry['rollback_error'] = str(rollback_error) or type(rollback_error).__name__
         finally:
             save()
-        failed = [x['path'] for _, _, _, x in done if not x.get('rolled_back')]
+        failed = [x for _, _, _, x in done if not x.get('rolled_back')]
         if failed:
-            raise ValueError(f'{report["error"]}; restoring {", ".join(failed)} also failed, so the device is '
-                             f'left changed: copy the files under {record / "before"} back before writing the OS') from error
+            steps = []
+            restore = [x['path'] for x in failed if x['before_sha256']]
+            remove = [x['path'] for x in failed if not x['before_sha256']]
+            if restore:
+                steps.append(f'copy {", ".join(restore)} back from {record / "before"}')
+            if remove:
+                steps.append(f'delete {", ".join(remove)}, which are new')
+            raise ValueError(f'{report["error"]}; the restore also failed, so the device is left changed: '
+                             f'{" and ".join(steps)} before writing the OS') from error
         raise
 
 
@@ -234,6 +249,7 @@ def main(argv=None, connect=open_device):
             for path in skipped:
                 print('skipped ' + path, flush=True)
             record = args.record or private_root() / 'transfers' / datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+            require(not record.exists(), f'{record} already exists; give each transfer a new record folder')
             with connect() as device:
                 try:
                     report = push(device, files, record)
@@ -258,6 +274,8 @@ def main(argv=None, connect=open_device):
                 data = device.read(entry)
             args.out.write_bytes(data)
             print(f'{args.out}: {len(data)} bytes, sha256 {sha(data)}')
+    except KeyboardInterrupt:
+        parser.exit(1, 'FAIL: interrupted; any replaced files were restored (see the transfer record)\n')
     except Exception as error:  # Includes the driver's COMError, which is not an OSError.
         parser.exit(1, 'FAIL: ' + str(error) + '\n')
     return 0

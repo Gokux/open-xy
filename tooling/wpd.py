@@ -70,6 +70,10 @@ class Device:
         try:
             self.content = self.device.Content()
             self.properties = self.content.Properties()
+            # Listings fetch only the properties they use, not every one.
+            self.keys = self._create(self.types.PortableDeviceKeyCollection, self.api.IPortableDeviceKeyCollection)
+            for pid in (FILENAME, NAME, CONTENT_TYPE, FORMAT, SIZE):
+                self.keys.Add(self._key(OBJ, pid))
         except BaseException:
             self.close()
             raise
@@ -119,7 +123,7 @@ class Device:
                 return result
             object_id = ids[0]
             self.free(ct.cast(ids, ct.POINTER(ct.c_void_p))[0])
-            props = self._props(object_id)
+            props = self.properties.GetValues(object_id, self.keys)
             name = (self._optional(lambda: props.GetStringValue(self._key(OBJ, FILENAME)))
                     or self._optional(lambda: props.GetStringValue(self._key(OBJ, NAME))))
             kind = self._optional(lambda: props.GetGuidValue(self._key(OBJ, CONTENT_TYPE)))
@@ -182,7 +186,7 @@ class Device:
                 stream._ISequentialStream__com_RemoteWrite(buf, len(chunk), ct.byref(count))
                 require(count.value == len(chunk), f'Short write to {name}')
             stream.Commit(0)
-        except Exception:
+        except BaseException:  # Ctrl+C too: never leave a half-written object.
             try:
                 stream.Revert()
             except Exception:

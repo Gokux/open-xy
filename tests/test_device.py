@@ -206,11 +206,45 @@ class DeviceTransferTests(unittest.TestCase):
     def test_failed_restore_is_reported_with_the_backups(self):
         device = FakeDevice({'/os.ldr': b'old os'})
         device.fail_on, device.failures = 'os.ldr', 2
-        with self.assertRaisesRegex(ValueError, r'restoring /os.ldr also failed.*before'):
+        with self.assertRaisesRegex(ValueError, r'restore also failed.*copy /os.ldr back from .*before'):
             transfer.push(device, self.files(), self.temp / 'record')
         self.assertIsNone(device.get('/os.ldr'))
         self.assertEqual((self.temp / 'record/before/os.ldr').read_bytes(), b'old os')
         self.assertIn('rollback_error', self.record()['files'][-1])
+
+    def test_failed_restore_of_a_new_file_says_to_delete_it(self):
+        device = FakeDevice({'/content/display/other.svg': b'o'})
+        real_delete = device.delete
+
+        def stuck(entry):
+            if entry.name == 'mine.svg':
+                raise OSError('delete failed')
+            real_delete(entry)
+        device.delete = stuck
+        device.corrupt = 'op1_factory.json'  # The second file fails its readback after mine.svg was written.
+        with self.assertRaisesRegex(ValueError, r'delete /content/display/mine.svg, which are new'):
+            transfer.push(device, self.files(), self.temp / 'record')
+
+    def test_interrupt_ends_with_a_fail_line(self):
+        device = FakeDevice({'/os.ldr': b'old os'})
+        device.interrupt = 'os.ldr'
+        with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+            transfer.main(['push', str(self.source), '--record', str(self.temp / 'record')], connect=lambda: device)
+        self.assertIn('FAIL: interrupted; any replaced files were restored', err.getvalue())
+        self.assertEqual(device.get('/os.ldr'), b'old os')
+
+    def test_existing_record_is_refused_before_connecting(self):
+        (self.temp / 'record').mkdir()
+        (self.temp / 'record/transfer.json').write_text('{}')
+
+        def connect():
+            raise AssertionError('connected')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()) as err, \
+                self.assertRaises(SystemExit):
+            transfer.main(['push', str(self.source), '--record', str(self.temp / 'record')], connect=connect)
+        self.assertIn('already exists', err.getvalue())
+        self.assertNotIn('Transfer record', out.getvalue())
 
     def test_restore_keeps_the_replaced_file_type(self):
         device = FakeDevice({'/os.ldr': b'old os'})
