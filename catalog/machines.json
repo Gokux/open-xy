@@ -682,15 +682,15 @@
       "maintainer": "mmockett",
       "status": "draft",
       "repository": "https://github.com/mmockett/OP-XY-ModFX",
-      "tag": "v1.4.0",
-      "commit": "59ad07047e8983f5ff9ed54c1fa0ca7b21d1f044",
+      "tag": "v1.4.1",
+      "commit": "fc835723c92215cf0b30a8f3cd61f1e955ff61be",
       "path": "chroma",
       "cpu": {
         "benchmark": "opxy-effect-callback-v1",
-        "commit": "59ad07047e8983f5ff9ed54c1fa0ca7b21d1f044",
-        "firmware_sha256": "55c728ba5526e1e5e8b7e4d9abbfd63af8d3a429e905e9ed6247f01ff2c45d70",
+        "commit": "fc835723c92215cf0b30a8f3cd61f1e955ff61be",
+        "firmware_sha256": "52e546493fe493c9ff5772de711402ae339be96f8b316729ff1ca8186c84ccda",
         "runs": 3,
-        "block_percent": 7.232776
+        "block_percent": 7.229725
       }
     },
     {
