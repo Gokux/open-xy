@@ -34,6 +34,10 @@ TOP = {'os.ldr', 'content'}
 FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 
 
+def unreadable(error):
+    raise error
+
+
 def link(path):
     """A symlink or a Windows junction; Path.is_junction needs Python 3.12, this repository supports 3.11."""
     return path.is_symlink() or bool(getattr(os.lstat(path), 'st_file_attributes', 0) & FILE_ATTRIBUTE_REPARSE_POINT)
@@ -59,7 +63,7 @@ def source_files(folder):
     require(not unexpected, f'{folder} is not laid out like the device (only os.ldr and content/ at the top): '
             + ', '.join(unexpected))
     files, skipped = {}, []
-    for directory, folders, names in os.walk(folder):
+    for directory, folders, names in os.walk(folder, onerror=unreadable):  # Never push part of a source.
         here = Path(directory)
         for name in sorted(folders + names):
             path = here / name
@@ -143,7 +147,7 @@ def push(device, files, record):
     """Mirror files ({device path parts: bytes}) onto the device; returns the transfer report."""
     check_record(record)
     record = fresh_output(record)
-    report = {'files': [], 'created_folders': [], 'complete': False, 'firmware_written': False, 'ejected': False}
+    report = {'files': [], 'created_folders': [], 'complete': False}
 
     def save():
         (record / 'transfer.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
@@ -222,7 +226,10 @@ def push(device, files, record):
                 except BaseException as rollback_error:  # A second Ctrl+C still leaves an accurate record.
                     entry['rollback_error'] = str(rollback_error) or type(rollback_error).__name__
         finally:
-            save()
+            try:
+                save()
+            except OSError:
+                pass  # A record that can't be written must not hide the restore instructions below.
         failed = [x for _, _, _, x in done if not x.get('rolled_back')]
         if failed:
             steps = []
@@ -302,6 +309,7 @@ def main(argv=None, connect=open_device):
                     print(f'{x.name}/' if x.folder else f'{x.name}  {x.size}')
         else:
             require(not args.out.exists(), f'{args.out} already exists')
+            require(args.out.parent.is_dir(), f'No folder {args.out.parent} for {args.out.name}')
             require(outside_checkouts(args.out), f'Keep device files outside every checkout: they may be stock ({args.out})')
             with connect() as device:
                 _, entry = entry_at(device, args.path)

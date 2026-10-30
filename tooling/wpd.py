@@ -192,7 +192,7 @@ class Device:
         with failure(f'Creating {name}'):
             self.content._IPortableDeviceContent__com_CreateObjectWithPropertiesAndData(
                 props, ct.byref(stream), ct.byref(preferred), ct.byref(cookie))
-        if cookie:
+        if ct.cast(cookie, ct.c_void_p).value:
             self.free(ct.cast(cookie, ct.c_void_p))
         try:
             for offset in range(0, len(data), CHUNK):
@@ -221,5 +221,5 @@ class Device:
         new_id = ct.c_wchar_p()
         with failure(f'Creating the folder {name}'):
             self.content._IPortableDeviceContent__com_CreateObjectWithPropertiesOnly(props, ct.byref(new_id))
-        if new_id:
+        if ct.cast(new_id, ct.c_void_p).value:
             self.free(ct.cast(new_id, ct.c_void_p))
